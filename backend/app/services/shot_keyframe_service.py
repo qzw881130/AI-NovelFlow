@@ -45,9 +45,6 @@ from app.services.canonical_execution_invalidation import (
     invalidate_current_canonical_execution,
     sync_temporal_anchor_state_image,
 )
-from app.services.canonical_visual_speech_authority import (
-    require_speech_neutral_visual_text,
-)
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
@@ -553,32 +550,10 @@ class ShotKeyframeService:
         task: Task,
         reference_manifest: Optional[list] = None,
     ) -> str:
-        for field, visual_state in (
-            ("current_keyframe.description", keyframe),
-            ("previous_keyframe.description", previous_keyframe),
-        ):
-            if not isinstance(visual_state, dict):
-                continue
-            require_speech_neutral_visual_text(
-                visual_state.get("description"),
-                code="KEYFRAME_IMAGE_INPUT_SPEECH_AUTHORITY_VIOLATION",
-                field=field,
-                state_index=(
-                    visual_state.get("plan_keyframe_index")
-                    if visual_state.get("plan_keyframe_index") is not None
-                    else visual_state.get("index", visual_state.get("frame_index"))
-                ),
-            )
         template = self._get_keyframe_image_prompt_template(db, novel)
         visual_style, _ = get_style(db, novel, "character")
         if not template:
             final_prompt = f"{keyframe.get('description') or ''}\n{visual_style}".strip()
-            require_speech_neutral_visual_text(
-                final_prompt,
-                code="KEYFRAME_IMAGE_PROMPT_SPEECH_AUTHORITY_VIOLATION",
-                field="prompt_text",
-                state_index=keyframe.get("plan_keyframe_index") or keyframe.get("index") or keyframe.get("frame_index"),
-            )
             return final_prompt
         prop_names = get_visual_prop_names(db, novel.id, json.loads(shot.props) if shot.props else [])
         resolved_reference_manifest = (
@@ -628,12 +603,6 @@ class ShotKeyframeService:
             raise RuntimeError(result.get("error") or "#09 关键帧生图提示词构建失败")
 
         final_prompt = self._extract_keyframe_image_prompt(result.get("content") or "")
-        require_speech_neutral_visual_text(
-            final_prompt,
-            code="KEYFRAME_IMAGE_PROMPT_SPEECH_AUTHORITY_VIOLATION",
-            field="prompt_text",
-            state_index=keyframe.get("plan_keyframe_index") or keyframe.get("index") or keyframe.get("frame_index"),
-        )
         append_video_ai_call(shot, {
             "step": "09",
             "task_type": "keyframe_image_prompt",

@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.orm import sessionmaker
@@ -196,6 +197,55 @@ def test_all_clear_result_is_pass():
         name: {"status": "PASS", "summary": "可见证据符合要求"} for name in DIMENSIONS}, "issues": []}, ensure_ascii=False)
     result = normalize_review_response(raw)
     assert result["overall"] == "PASS" and result["issues"] == []
+
+
+def _count_response(status, *, issue=None, identity_uncertain=False):
+    dimensions = {name: {"status": "PASS", "summary": "已检查"} for name in DIMENSIONS}
+    dimensions["CHARACTER_COUNT"] = {"status": status, "summary": "预期四人，按可确认轮廓计数"}
+    issues = []
+    if issue:
+        issues.append({"type": "CHARACTER_COUNT", "severity": "FAIL",
+                       "expected": "画面应有四名人物", "observed": issue[0],
+                       "location": "画面前景与远景", "evidence": issue[1],
+                       "suggestion": "核对人数", "visibility": issue[2]})
+    if identity_uncertain:
+        dimensions["CHARACTER_IDENTITY"] = {"status": "WARNING", "summary": "面容无法辨认"}
+        issues.append({"type": "CHARACTER_IDENTITY", "severity": "WARNING",
+                       "expected": "身份与参考图一致", "observed": "远景面容不清",
+                       "location": "远景", "evidence": "无法核验面容细节",
+                       "suggestion": "人工复核身份", "visibility": "UNCERTAIN"})
+    return json.dumps({"overall": status, "summary": "人物数量核对", "dimensions": dimensions,
+                       "issues": issues}, ensure_ascii=False)
+
+
+@pytest.mark.parametrize("status,issue,expected", [
+    ("PASS", None, "PASS"),
+    ("FAIL", ("可确认五名人物", "五个独立头部及连贯身体轮廓彼此分离", "OBSERVED"), "FAIL"),
+    ("PASS", ("疑似第五人", "远景候选轮廓与家具重叠，无法可靠分离", "OBSERVED"), "WARNING"),
+    ("WARNING", ("疑似第五人", "远景候选轮廓与家具重叠，无法可靠分离", "OBSERVED"), "WARNING"),
+    ("FAIL", ("远景人数不明", "人物身体被织机遮挡", "OCCLUDED"), "WARNING"),
+    ("FAIL", ("明确只有三人", "三个独立人物完整可见，第四人应在无遮挡区域却不存在", "OBSERVED"), "FAIL"),
+])
+def test_character_count_requires_consistent_clear_evidence(status, issue, expected):
+    result = normalize_review_response(_count_response(status, issue=issue))
+    assert result["overall"] == expected
+    assert result["dimensions"]["CHARACTER_COUNT"]["status"] == expected
+
+
+def test_unclear_identity_does_not_override_clear_count_evidence():
+    raw = _count_response("FAIL", issue=("可确认五名人物", "五个独立人物轮廓清楚分离", "OBSERVED"),
+                          identity_uncertain=True)
+    result = normalize_review_response(raw)
+    assert result["overall"] == "FAIL"
+    assert result["dimensions"]["CHARACTER_IDENTITY"]["status"] == "WARNING"
+    assert result["dimensions"]["CHARACTER_COUNT"]["status"] == "FAIL"
+
+
+def test_shot12_state7_original_review_replay_keeps_clear_count_fail():
+    raw = (Path(__file__).parent / "fixtures/shot12_state7_count_review.json").read_text()
+    result = normalize_review_response(raw)
+    assert result["overall"] == "FAIL"
+    assert result["dimensions"]["CHARACTER_COUNT"]["status"] == "FAIL"
 
 
 def test_llm_error_is_recorded_without_changing_generation(db_session):

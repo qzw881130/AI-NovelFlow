@@ -115,7 +115,7 @@ def test_uuid_clip_id_uses_exact_task_metadata_for_display(db):
     })
     message = format_notification(row, resolve_business_context(db, row))
     assert "Shot 7 · C1 生成失败" in message
-    assert clip_uuid not in message and task.id not in message and shot.id not in message
+    assert clip_uuid not in message and f"任务 ID：{task.id}" in message and shot.id not in message
 
 
 @pytest.mark.parametrize("unsafe", [
@@ -131,7 +131,7 @@ def test_uuid_clip_id_uses_exact_task_metadata_for_display(db):
 def test_unsafe_failure_details_are_omitted(db, unsafe):
     row = record_event(db, "clip.generation.failed", {"shot_index": 7, "message": unsafe}, is_test=True)
     message = format_notification(row)
-    assert "原因：" not in message
+    assert "原因：未取得可安全展示的错误摘要" in message
     assert unsafe not in message
     assert re.search(r"(?:Token|sk-abc|/Volumes|123e4567)", message) is None
 
@@ -260,7 +260,7 @@ async def test_one_final_external_failure_for_exact_task_clip(db, monkeypatch):
     assert "原因：台词重复校验未通过" in message
     assert "结果：视频未生成" in message
     assert "DIALOGUE_DUPLICATED_IN_PROMPT" not in message
-    assert task.id not in message and shot.id not in message
+    assert f"任务 ID：{task.id}" in message and shot.id not in message
     assert db.query(NotificationDelivery).filter_by(channel="PAGE_SOUND", event_code="clip.prompt.build.failed").count() == 1
     assert db.query(NotificationDelivery).filter_by(channel="PAGE_SOUND").count() == 2
     assert db.get(BusinessEvent, final.id).message == "DIALOGUE_DUPLICATED_IN_PROMPT"
@@ -365,3 +365,54 @@ def test_development_simulation_five_requested_events(db, code, expected):
     assert "DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID" not in message
     assert "事件：" not in message and "数据：" not in message
     assert re.search(r"[0-9a-f]{8}-[0-9a-f-]{27,}", message) is None
+
+@pytest.mark.parametrize('mode', ['GENERATE', 'EXTEND', 'TEMPORAL_EXTEND'])
+def test_phase_b_failure_includes_reason_stage_mode_and_exact_task(db, mode):
+    novel, chapter, shot = _business_rows(db)
+    task = Task(type='shot_video', name='silent clip', status='failed', novel_id=novel.id,
+                chapter_id=chapter.id, shot_id=shot.id,
+                current_step='正在构建 H3 视频提示词...',
+                error_message='PHASE_B_INPUT_NOT_COVERED: ValueError: SILENT_CLIP_NOT_COVERED',
+                metadata_json=json.dumps({'clip_index':2, 'capability':mode,
+                    'h3_phase_b':{'status':'FAILED','llm_call_count':0}}))
+    db.add(task); db.commit()
+    row = record_event(db, 'clip.generation.failed', {'task_id':task.id, 'shot_id':shot.id,
+        'clip_id':f'{shot.id}:clip:2', 'message':task.error_message})
+    before = (task.error_message, task.metadata_json, row.message, row.details_json)
+    message = format_notification(row, resolve_business_context(db,row))
+    assert '阶段：Phase B 输入准备' in message
+    assert '原因：当前导演合同尚不支持无对白 Clip' in message
+    assert f'任务 ID：{task.id}' in message and f'生成模式：{mode}' in message
+    assert 'ValueError' not in message and 'SILENT_CLIP_NOT_COVERED' not in message
+    assert before == (task.error_message, task.metadata_json, row.message, row.details_json)
+
+
+@pytest.mark.parametrize('record,label', [
+    ({'compiler_result':{'status':'VALIDATION_FAILED'},'preflight':{'passed':False}}, 'Phase B Compiler'),
+    ({'compiler_result':{'status':'CANDIDATE_FOR_REVIEW'},'preflight':{'passed':False}}, 'Phase B Preflight'),
+    ({'llm_call_count':1}, '#13 Phase B 导演规划'),
+])
+def test_phase_b_failure_stage_uses_existing_execution_record(db, record, label):
+    task = Task(type='shot_video', name='offline', status='failed',
+        metadata_json=json.dumps({'capability':'GENERATE','h3_phase_b':{'status':'FAILED',**record}}),
+        error_message='Traceback: File "/private/key.py" token=secret-value')
+    db.add(task); db.commit()
+    row = record_event(db,'clip.generation.failed',{'task_id':task.id,'message':task.error_message})
+    text=format_notification(row,resolve_business_context(db,row))
+    assert f'阶段：{label}' in text
+    assert 'secret-value' not in text and '/private' not in text and 'Traceback' not in text
+    assert '原因：未取得可安全展示' in text
+
+
+def test_historical_failure_does_not_read_new_retry_error_or_stage(db):
+    task = Task(type='shot_video', name='retry', status='running',
+        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        error_message='PICTURE_MAPPING_AUDIT_FAILED',
+        metadata_json=json.dumps({'capability':'EXTEND','h3_phase_b':{'status':'FAILED','llm_call_count':0}}))
+    db.add(task); db.commit()
+    row = record_event(db,'clip.generation.failed',{'task_id':task.id,'message':'旧任务失败'},
+                       timestamp=task.started_at-timedelta(minutes=2))
+    text=format_notification(row,resolve_business_context(db,row))
+    assert '原因：旧任务失败' in text
+    assert '画面引用校验' not in text and '阶段：Phase B 输入准备' not in text
+    assert '生成模式：UNKNOWN' in text

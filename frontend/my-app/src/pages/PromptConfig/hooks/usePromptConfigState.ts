@@ -31,6 +31,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   h3_single_frame_prompt: { nameKey: 'promptConfig.types.h3SingleFramePrompt', descKey: 'promptConfig.types.h3SingleFramePromptDesc', defaultTemplate: '', fileNumber: '11' },
   h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '', fileNumber: '12' },
   h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '', fileNumber: '13' },
+  h3_multi_keyframe_director_phase_b: { nameKey: 'promptConfig.types.h3MultiKeyframeDirectorPhaseB', descKey: 'promptConfig.types.h3MultiKeyframeDirectorPhaseBDesc', defaultTemplate: '', fileNumber: '13' },
   h3_execution_optimizer_prompt: { nameKey: 'promptConfig.types.h3ExecutionOptimizerPrompt', descKey: 'promptConfig.types.h3ExecutionOptimizerPromptDesc', defaultTemplate: '', fileNumber: '14' },
   h3_preflight_repair_prompt: { nameKey: 'promptConfig.types.h3PreflightRepairPrompt', descKey: 'promptConfig.types.h3PreflightRepairPromptDesc', defaultTemplate: '', fileNumber: '14A' },
 };
@@ -59,12 +60,14 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'h3_single_frame_prompt',
   'h3_first_last_frame_prompt',
   'h3_multi_keyframe_prompt',
+  'h3_multi_keyframe_director_phase_b',
   'h3_execution_optimizer_prompt',
   'h3_preflight_repair_prompt',
 ];
 
 export function usePromptConfigState() {
   const { t } = useTranslation();
+  const [configurableTypes, setConfigurableTypes] = useState<TemplateType[]>([]);
 
   // 各类型模板状态
   const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
@@ -91,6 +94,7 @@ export function usePromptConfigState() {
     h3_single_frame_prompt: [],
     h3_first_last_frame_prompt: [],
     h3_multi_keyframe_prompt: [],
+    h3_multi_keyframe_director_phase_b: [],
     h3_execution_optimizer_prompt: [],
     h3_preflight_repair_prompt: [],
   });
@@ -118,6 +122,7 @@ export function usePromptConfigState() {
     h3_single_frame_prompt: true,
     h3_first_last_frame_prompt: true,
     h3_multi_keyframe_prompt: true,
+    h3_multi_keyframe_director_phase_b: true,
     h3_execution_optimizer_prompt: true,
     h3_preflight_repair_prompt: true,
   });
@@ -135,7 +140,12 @@ export function usePromptConfigState() {
 
   // 加载所有类型的模板
   useEffect(() => {
-    TEMPLATE_TYPES.forEach(type => fetchTemplates(type));
+    promptTemplateApi.fetchConfigTypes().then(result => {
+      if (!result.success || !result.data) return;
+      const types = TEMPLATE_TYPES.filter(type => result.data!.includes(type));
+      setConfigurableTypes(types);
+      types.forEach(type => fetchTemplates(type));
+    }).catch(error => console.error('加载提示词配置类型失败:', error));
   }, []);
 
   const fetchTemplates = async (type: TemplateType) => {
@@ -242,6 +252,7 @@ export function usePromptConfigState() {
 
   return {
     // State
+    configurableTypes,
     templatesByType,
     loadingByType,
     showModal, setShowModal, showViewModal, setShowViewModal,

@@ -151,12 +151,12 @@ export function EditNovelModal({
                     ))}
                   </select>
                 </label>
-                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.length} 项</span>
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.filter(field => field.templateType in templatesByType).length} 项</span>
               </div>
             </div>
             <div className="space-y-4">
               {TEMPLATE_CATEGORIES.map(category => {
-                const fields = TEMPLATE_FIELDS.filter(field => field.category === category.key);
+                const fields = TEMPLATE_FIELDS.filter(field => field.category === category.key && field.templateType in templatesByType);
                 if (!fields.length) return null;
                 return (
                   <div key={category.key} className="rounded-xl border border-gray-100 bg-gray-50 p-3">

@@ -11,9 +11,10 @@ from app.services.llm.cancellation import LLMCallTerminated
 from app.services.video_director_ai import resolve_prompt_template, append_video_ai_call
 from app.services.vision_inputs import vision_proxy, previous_video_frames
 from app.utils.json_parser import safe_parse_llm_json
-from app.services.h3_native_prompt import check_native_prompt, declared_duration, speaker_bindings, MAX_PROMPT_CHARACTERS
+from app.services.h3_native_prompt import (check_native_prompt, compile_dialogue_time_cues,
+                                            declared_duration, speaker_bindings, MAX_PROMPT_CHARACTERS)
 
-VERSION = "h3_execution_optimizer_native_v5"
+VERSION = "h3_execution_optimizer_native_v6"
 TEMPLATE_TYPE = "h3_execution_optimizer_prompt"
 EPSILON = 0.000001
 
@@ -423,7 +424,7 @@ def _auxiliary_wording_warnings(blocking, checks, raw_prompt, output, authority,
     return warnings
 
 
-def check_authority(raw_prompt, output, authority, initial_timing=None, limits=None):
+def check_authority(raw_prompt, output, authority, initial_timing=None, limits=None, *, require_time_cues=False):
     """Check immutable facts and execution consistency, without predicting AV quality."""
     from app.services.h3_evidence import resolve_authority
     resolved_authority = resolve_authority(authority, output.get("authority_echo"))
@@ -444,7 +445,8 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
         if isinstance(handoff, dict):
             for key in handoff.get("prompt_evidence") or {}:
                 handoff["prompt_evidence"][key] = excerpt(evidence, f"handoffs.{i}.{key}")
-    native_checks, spoken = check_native_prompt(prompt, canonical, authority, raw_prompt, resolved_timeline)
+    native_checks, spoken = check_native_prompt(prompt, canonical, authority, raw_prompt, resolved_timeline,
+                                                require_time_cues=require_time_cues)
     checks.update(native_checks)
     original_events = initial_timing["dialogue_events"]
     duration = timeline.get("optimized_duration")
@@ -589,6 +591,13 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
         if not any(p.get("type") == phase_type for p in phases):
             warnings.append({"code": "EXECUTION_PHASE_MISSING", "type": phase_type})
     blocking = [name for name, passed in checks.items() if not passed]
+    # Listener prose is wording guidance, not evidence that a Dialogue event changed.
+    for name in ("speaker_switch_listener_settle", "speaker_switch_listener_scope"):
+        if name in blocking:
+            warnings.append({"code": "AUXILIARY_HANDOFF_EVIDENCE_UNMATCHED",
+                             "original_check": name, "original_result": False,
+                             "reason": "Listener wording did not match; structured Dialogue and handoff checks remain authoritative"})
+            blocking.remove(name)
     auxiliary = _auxiliary_wording_warnings(blocking, checks, raw_prompt, output, authority, evidence)
     if auxiliary:
         warnings.extend(auxiliary)
@@ -607,6 +616,17 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
                              "core_content_checks_passed": True,
                              "semantic_content_review": "NOT_PROVEN_BY_TEXT_TRACE",
                              "requirements": scope_quotes})
+    for i, requirement in enumerate(output.get("canonical_visual_requirements") or []):
+        source_entry = evidence["entries"].get(f"requirements.{i}.source") or {}
+        if source_entry.get("resolution_status") == "AUTHORIZED_SOURCE_REATTRIBUTED":
+            warnings.append({"code": "CANONICAL_SOURCE_REATTRIBUTED",
+                             "requirement_id": requirement.get("id"),
+                             "declared_source_id": source_entry["declared_source_id"],
+                             "resolved_source_id": source_entry["resolved_source_id"],
+                             "source_excerpt": source_entry["source_excerpt"],
+                             "resolution_status": source_entry["resolution_status"],
+                             "mismatch_reason": source_entry["mismatch_reason"],
+                             "semantic_content_review": "NOT_PROVEN_BY_TEXT_TRACE"})
     if resolved_authority["echo_differences"]:
         warnings.append({"code": "AUTHORITY_ECHO_MISMATCH",
                          "paths": [d["path"] for d in resolved_authority["echo_differences"]],
@@ -733,6 +753,18 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         if not audit["passed"]:
             record.setdefault("error_code", "PREFLIGHT_FAIL")
             raise ValueError("#14 canonical authority 不通过：" + ", ".join(audit["blocking_findings"]))
+        # The LLM owns timing decisions; only the compiler prints validated
+        # dialogue IDs and generated-clip windows next to existing utterances.
+        parsed["optimized_prompt"] = compile_dialogue_time_cues(
+            parsed["optimized_prompt"], runtime["immutable_authority"]["dialogue_events"], parsed["av_timeline"])
+        audit = check_authority(raw_prompt, parsed, runtime["immutable_authority"],
+                                runtime["initial_execution_timing"], runtime["duration_limits"],
+                                require_time_cues=True)
+        record.update(output=parsed, optimized_prompt=parsed["optimized_prompt"], authority_check=audit,
+                      resolved_evidence=audit["resolved_evidence"], resolved_authority=audit["resolved_authority"])
+        if not audit["passed"]:
+            record.setdefault("error_code", "PREFLIGHT_FAIL")
+            raise ValueError("#14 compiled prompt canonical authority 不通过：" + ", ".join(audit["blocking_findings"]))
         if runtime["immutable_authority"].get("anchor_policy"):
             from app.services.h3_anchor_policy import project_reference_manifest
             source_manifest = reference_manifest or {"references": [

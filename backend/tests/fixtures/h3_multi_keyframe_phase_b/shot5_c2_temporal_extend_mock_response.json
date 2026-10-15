@@ -1,0 +1,73 @@
+{
+  "optimized_duration": 19.0,
+  "dialogue_events": [
+    {
+      "id": "D10",
+      "start": 1.925
+    },
+    {
+      "id": "D11",
+      "start": 3.125
+    },
+    {
+      "id": "D12",
+      "start": 6.575
+    },
+    {
+      "id": "D13",
+      "start": 9.275
+    },
+    {
+      "id": "D14",
+      "start": 12.975
+    },
+    {
+      "id": "D15",
+      "start": 14.675
+    }
+  ],
+  "anchors": [
+    {
+      "id": "KF5",
+      "decision": "KEEP",
+      "optimized_time": 4.85,
+      "arrival_relation": {
+        "dialogue_id": "D11",
+        "position": "DURING"
+      },
+      "reason": "OFFLINE MOCK: selection/arithmetic only, not semantic approval."
+    },
+    {
+      "id": "KF6",
+      "decision": "RETIME",
+      "optimized_time": 14.475,
+      "arrival_relation": {
+        "dialogue_id": "D14",
+        "position": "DURING"
+      },
+      "reason": "OFFLINE MOCK: selection/arithmetic only, not semantic approval."
+    },
+    {
+      "id": "KF7",
+      "decision": "RETIME",
+      "optimized_time": 15.475,
+      "arrival_relation": {
+        "dialogue_id": "D15",
+        "position": "AFTER"
+      },
+      "reason": "OFFLINE MOCK: selection/arithmetic only, not semantic approval."
+    },
+    {
+      "id": "clip-2-KF6",
+      "decision": "RETIME",
+      "optimized_time": 14.475,
+      "arrival_relation": {
+        "dialogue_id": "D14",
+        "position": "DURING"
+      },
+      "reason": "OFFLINE MOCK: selection/arithmetic only, not semantic approval."
+    }
+  ],
+  "detailed_description": "OFFLINE MOCK — Canonical action coverage and camera realization have NOT been reviewed.\n[[SPEECH_1]]\n[[SPEECH_2]]\n[[SPEECH_3]]\n[[SPEECH_4]]\n[[SPEECH_5]]\n[[SPEECH_6]]",
+  "overall_soundscape": "OFFLINE MOCK — scene/action soundscape has NOT been reviewed."
+}

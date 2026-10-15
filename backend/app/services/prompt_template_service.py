@@ -4,12 +4,16 @@ PromptTemplate Service 层
 封装提示词模板相关的业务逻辑
 """
 import os
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.novel import Novel
 from app.models.prompt_template import PromptTemplate
+from app.constants.prompt_template import NOVEL_PROMPT_TEMPLATE_FIELDS, TRANSITION_V1_NAME, TRANSITION_V2_NAME, TRANSITION_CONTRACT_PREFIX
+from app.services.director_context import transition_input_contract
 from app.repositories import PromptTemplateRepository
 from app.utils.time_utils import format_datetime
 
@@ -28,12 +32,17 @@ def load_template(filename: str) -> str:
         raise FileNotFoundError(f"Template file not found: {filepath}")
 
 
+def file_template(filename: str) -> dict:
+    """Keep the source path alongside the registered system prompt body."""
+    return {"template": load_template(filename), "source_file": filename}
+
+
 # 系统预设的故事世界上下文推荐模板
 SYSTEM_STORY_CONTEXT_TEMPLATES: List[Dict] = [
     {
         "name": "故事世界上下文推荐",
         "description": "根据小说名称和描述推荐统一的时代、地域、文化与物质世界边界",
-        "template": load_template("01_NovelFlow_StoryWorldContext_Recommender_V1.txt"),
+        **file_template("01_NovelFlow_StoryWorldContext_Recommender_V1.txt"),
         "type": "story_world_context_recommender",
     }
 ]
@@ -42,7 +51,7 @@ SYSTEM_CLIP_PLANNER_TEMPLATES: List[Dict] = [
     {
         "name": "Clip Execution Planner",
         "description": "按自然剧情节拍将 Shot 编译为可执行 Generation Clips",
-        "template": load_template("10A_NovelFlow_ClipExecutionPlanner_V1.txt"),
+        **file_template("10A_NovelFlow_ClipExecutionPlanner_V1.txt"),
         "type": "clip_execution_planner",
     }
 ]
@@ -187,7 +196,7 @@ SYSTEM_CHARACTER_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准角色解析",
         "description": "适用于大多数小说的角色解析",
-        "template": load_template("character_parse.txt"),
+        **file_template("character_parse.txt"),
         "type": "character_parse"
     }
 ]
@@ -197,7 +206,7 @@ SYSTEM_CHARACTER_TEMPLATES: List[Dict] = [
     {
         "name": "标准角色生成",
         "description": "使用小说设定的视觉风格和角色外貌生成标准人设图",
-        "template": load_template("standard_anime.txt"),
+        **file_template("standard_anime.txt"),
         "type": "character"
     }
 ]
@@ -207,7 +216,7 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES: List[Dict] = [
     {
         "name": "章节分镜导演解析",
         "description": "根据章节正文和角色/场景/道具白名单规划导演 Shot 数据",
-        "template": load_template("05_NovelFlow_VideoDirector_ShotDirector_V1.txt"),
+        **file_template("05_NovelFlow_VideoDirector_ShotDirector_V1.txt"),
         "type": "chapter_split"
     }
 ]
@@ -217,7 +226,7 @@ SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES: List[Dict] = [
     {
         "name": "主分镜图生成提示词构建",
         "description": "根据 Shot 数据和正式参考资产构建 Qwen-Image-Edit 主分镜图提示词",
-        "template": load_template("06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt"),
+        **file_template("06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt"),
         "type": "shot_image_prompt"
     }
 ]
@@ -227,13 +236,19 @@ SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
     {
         "name": "视频生成模式推荐",
         "description": "根据 Shot 与 Workflow 能力推荐 SINGLE_FRAME / FIRST_LAST_FRAME / MULTI_KEYFRAME",
-        "template": load_template("07_NovelFlow_VideoGeneration_ModeRecommender_V1.txt"),
+        **file_template("07_NovelFlow_VideoGeneration_ModeRecommender_V1.txt"),
         "type": "video_mode_recommender"
     },
     {
         "name": "关键帧过渡规划",
         "description": "根据相邻关键帧规划自然过渡的 Segment 动态导演描述",
-        "template": load_template("10_NovelFlow_KeyframeTransition_Planner_V1.txt"),
+        **file_template("10_NovelFlow_KeyframeTransition_Planner_V1.txt"),
+        "type": "keyframe_transition"
+    },
+    {
+        "name": TRANSITION_V2_NAME,
+        "description": "只读剧情与对白因果上下文；保留 Canonical 状态及视觉过渡输出权威",
+        **file_template("10_NovelFlow_KeyframeTransition_Planner_V2.txt"),
         "type": "keyframe_transition"
     }
 ]
@@ -243,25 +258,25 @@ SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
     {
         "name": "视觉关注重规划",
         "description": "#08 ATTENTION_REPLAN：基于只读 canonical visual states 重算 Attention",
-        "template": load_template("08_NovelFlow_VisualAttentionReplan_V1.txt"),
+        **file_template("08_NovelFlow_VisualAttentionReplan_V1.txt"),
         "type": "visual_attention_replan"
     },
     {
         "name": "关键帧时间轴规划",
         "description": "根据 Shot 的叙事与视觉节拍规划 canonical Director visual states",
-        "template": load_template("08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"),
+        **file_template("08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"),
         "type": "keyframe_planner"
     },
     {
         "name": "Temporal Anchor Reference Selector V1",
         "description": "为当前 Temporal Anchor 选择最小充分视觉参考集",
-        "template": load_template("09A_Temporal_Anchor_Reference_Selector_V1.txt"),
+        **file_template("09A_Temporal_Anchor_Reference_Selector_V1.txt"),
         "type": "temporal_reference_selector"
     },
     {
         "name": "视频关键帧生图提示词构建",
         "description": "根据上一关键帧、主分镜图和参考资产构建下一关键帧生图提示词",
-        "template": load_template("09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"),
+        **file_template("09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"),
         "type": "keyframe_image_prompt"
     }
 ]
@@ -270,7 +285,7 @@ SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES: List[Dict] = [
     {
         "name": "AI 图片质量评审",
         "description": "根据真实生图提示词、生成图及参考图 Manifest 独立评审六项图片质量维度",
-        "template": load_template("15_NovelFlow_Image_Quality_Reviewer_V1.txt"),
+        **file_template("15_NovelFlow_Image_Quality_Reviewer_V1.txt"),
         "type": "image_quality_review_prompt",
     }
 ]
@@ -280,31 +295,37 @@ SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
     {
         "name": "MiniMax H3 单帧视频提示词构建",
         "description": "根据单张权威起始帧、Clip 动态意图和精确对白构建 H3 单帧视频提示词",
-        "template": load_template("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt"),
+        **file_template("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt"),
         "type": "h3_single_frame_prompt"
     },
     {
         "name": "MiniMax H3 首尾帧视频提示词构建",
         "description": "根据起止两张权威时间帧、过渡描述和精确对白构建 H3 首尾帧视频提示词",
-        "template": load_template("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt"),
+        **file_template("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt"),
         "type": "h3_first_last_frame_prompt"
     },
     {
         "name": "MiniMax H3 多关键帧视频提示词构建",
         "description": "根据多张时间顺序关键帧、过渡 Segment 和精确对白构建 H3 多关键帧提示词",
-        "template": load_template("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"),
+        **file_template("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"),
         "type": "h3_multi_keyframe_prompt"
     },
     {
         "name": "MiniMax H3 执行提示词优化",
         "description": "依据说话人脸嘴可见性选择保留构图、连续运镜或切镜，保留 Canonical、对白归属与场景连续性",
-        "template": load_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
+        **file_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
         "type": "h3_execution_optimizer_prompt"
+    },
+    {
+        "name": "MiniMax H3 单阶段导演规划（Phase B）",
+        "description": "#13 正式候选，仅显式 Phase B 路径启用；一次导演规划后确定性编译，不调用 #14/#14A；当前支持无配乐合同。",
+        **file_template("H3_MultiKeyframe_Director_PhaseB.txt"),
+        "type": "h3_multi_keyframe_director_phase_b",
     },
     {
         "name": "MiniMax H3 Preflight 自动修复",
         "description": "视频生成 / MiniMax H3 / Preflight 修复 V1；仅局部补齐合同，禁止重新规划",
-        "template": load_template("14A_MiniMax_H3_Preflight_Repair_V1.txt"),
+        **file_template("14A_MiniMax_H3_Preflight_Repair_V1.txt"),
         "type": "h3_preflight_repair_prompt",
     }
 ]
@@ -314,7 +335,7 @@ SYSTEM_SCENE_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准场景解析",
         "description": "适用于大多数小说的场景解析",
-        "template": load_template("scene_parse.txt"),
+        **file_template("scene_parse.txt"),
         "type": "scene_parse"
     }
 ]
@@ -324,13 +345,13 @@ SYSTEM_ASSET_DESCRIPTION_TEMPLATES: List[Dict] = [
     {
         "name": "场景设定描述",
         "description": "使用 LLM 补全场景环境文字设定，不直接生成图片",
-        "template": load_template("scene_setting.txt"),
+        **file_template("scene_setting.txt"),
         "type": "scene_setting",
     },
     {
         "name": "道具外观描述",
         "description": "使用 LLM 补全道具外观文字描述，不直接生成图片",
-        "template": load_template("prop_appearance.txt"),
+        **file_template("prop_appearance.txt"),
         "type": "prop_appearance",
     },
 ]
@@ -341,7 +362,7 @@ SYSTEM_SCENE_IMAGE_TEMPLATES: List[Dict] = [
     {
         "name": "标准场景图",
         "description": "适用于大多数场景的标准图生成",
-        "template": load_template("scene.txt"),
+        **file_template("scene.txt"),
         "type": "scene"
     }
 ]
@@ -351,7 +372,7 @@ SYSTEM_PROP_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准道具解析",
         "description": "适用于大多数小说的道具解析",
-        "template": load_template("prop_parse.txt"),
+        **file_template("prop_parse.txt"),
         "type": "prop_parse"
     }
 ]
@@ -361,7 +382,7 @@ SYSTEM_PROP_TEMPLATES: List[Dict] = [
     {
         "name": "标准道具图",
         "description": "适用于大多数道具的标准图生成",
-        "template": load_template("prop.txt"),
+        **file_template("prop.txt"),
         "type": "prop"
     }
 ]
@@ -490,6 +511,9 @@ class PromptTemplateService:
                     self.db.delete(legacy)
 
             if existing:
+                # V1 remains a selectable historical record, never upgraded in place.
+                if tmpl_data["type"] == "keyframe_transition" and tmpl_data["name"] == TRANSITION_V1_NAME:
+                    continue
                 # 更新现有模板内容
                 existing.description = tmpl_data["description"]
                 existing.template = tmpl_data["template"]
@@ -558,7 +582,8 @@ class PromptTemplateService:
             template=template,
             type=template_type,
             is_system=False,
-            is_active=True
+            is_active=True,
+            updated_at=datetime.now(timezone.utc),
         )
         return self.template_repo.create(new_template)
 
@@ -574,7 +599,8 @@ class PromptTemplateService:
             template=source.template,
             type=source.type or "character",
             is_system=False,
-            is_active=True
+            is_active=True,
+            updated_at=datetime.now(timezone.utc),
         )
         return self.template_repo.create(new_template)
 
@@ -594,6 +620,13 @@ class PromptTemplateService:
         if template_obj.is_system:
             raise PermissionError("系统预设提示词不可编辑")
 
+        if (template_type or template_obj.type) == "keyframe_transition":
+            proposed = template if template is not None else template_obj.template
+            if (any(line.strip().startswith(TRANSITION_CONTRACT_PREFIX) for line in template_obj.template.splitlines())
+                    and not any(line.strip().startswith(TRANSITION_CONTRACT_PREFIX) for line in proposed.splitlines())):
+                raise ValueError("TRANSITION_INPUT_CONTRACT_MISMATCH: 请保留显式 INPUT_CONTRACT 声明，避免静默降级")
+            transition_input_contract(SimpleNamespace(name=name or template_obj.name, template=proposed))
+
         if template_obj.type == "image_quality_review_prompt":
             template_obj.is_active = True
 
@@ -606,7 +639,44 @@ class PromptTemplateService:
         if template_type is not None:
             template_obj.type = template_type
 
+        template_obj.updated_at = datetime.now(timezone.utc)
+
         return self.template_repo.update(template_obj)
+
+    def list_explicitly_bound_novels(self, template_id: str) -> list[dict]:
+        """Read only the stored ID in the field belonging to this template type."""
+        template = self.get_template_by_id(template_id)
+        if template is None:
+            raise ValueError("提示词模板不存在")
+        # Creation historically writes these two defaults into Novel even when
+        # the user chose “use default”; the old rows have no provenance flag.
+        if template.is_system and template.type in {"character", "style"}:
+            return []
+        field_name = NOVEL_PROMPT_TEMPLATE_FIELDS.get(template.type)
+        if field_name is None:
+            return []
+        novels = self.db.query(Novel.id, Novel.title, Novel.author).filter(
+            getattr(Novel, field_name) == template_id
+        ).order_by(Novel.title, Novel.id).all()
+        return [
+            {"novel_id": novel.id, "novel_title": novel.title,
+             "author": novel.author, "binding_type": "explicit"}
+            for novel in novels
+        ]
+
+    @staticmethod
+    def last_modified_at(template: PromptTemplate) -> Optional[str]:
+        if not template.is_system:
+            return format_datetime(template.updated_at)
+        matches = [item for item in SYSTEM_PROMPT_TEMPLATES
+                   if item["name"] == template.name and item["type"] == template.type]
+        if len(matches) != 1 or not matches[0].get("source_file"):
+            return None
+        try:
+            path = os.path.join(TEMPLATES_DIR, matches[0]["source_file"])
+            return datetime.fromtimestamp(os.path.getmtime(path), timezone.utc).isoformat()
+        except (OSError, OverflowError, ValueError):
+            return None
 
     def delete_template(self, template_id: str) -> None:
         """删除模板（仅用户自定义可删除）"""
@@ -646,4 +716,5 @@ class PromptTemplateService:
             "isSystem": template.is_system,
             "isActive": template.is_active,
             "createdAt": format_datetime(template.created_at),
+            "lastModifiedAt": PromptTemplateService.last_modified_at(template),
         }

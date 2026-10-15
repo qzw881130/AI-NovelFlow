@@ -89,6 +89,7 @@ def ensure_schema_updates():
                 "h3_single_frame_prompt_template_id",
                 "h3_first_last_frame_prompt_template_id",
                 "h3_multi_keyframe_prompt_template_id",
+                "h3_multi_keyframe_director_phase_b_template_id",
                 "h3_execution_optimizer_prompt_template_id",
                 "h3_preflight_repair_prompt_template_id",
                 "scene_setting_prompt_template_id",

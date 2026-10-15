@@ -222,10 +222,10 @@ export function ChapterGenerateLayout({
     ] as const;
 
     return (
-      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
-        <span className="font-medium text-gray-700">视频生成结果</span>
+      <div role="group" aria-label="视频生成结果" data-testid="video-generation-stats" className="relative flex min-w-0 max-w-full flex-wrap items-center gap-1 text-xs">
+        <span className="sr-only">视频生成结果</span>
         {items.map(([key, label, shotItems, className]) => (
-          <span key={key} className="relative inline-flex">
+          <span key={key} className="inline-flex">
             <button
               type="button"
               onClick={() => setOpenVideoStatsKey(openVideoStatsKey === key ? null : key)}
@@ -234,7 +234,7 @@ export function ChapterGenerateLayout({
               {label} {shotItems.length}
             </button>
             {openVideoStatsKey === key && (
-            <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
+            <span className="absolute right-0 top-full z-[90] w-64 max-w-full pt-2">
               <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
                 <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
                 {shotItems.length > 0 ? (
@@ -735,15 +735,15 @@ export function ChapterGenerateLayout({
     );
   }
 
-  const headerContextStats = renderDialogueWarningStats() || renderVideoGenerationStats();
+  const headerContextStats = renderDialogueWarningStats();
   const headerQueueStats = renderQueueStats();
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+      <div data-testid="chapter-header" className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 basis-80 items-center gap-4">
             <Link
               to={`/novels/${id}`}
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
@@ -757,7 +757,9 @@ export function ChapterGenerateLayout({
                 <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {renderVideoGenerationStats()}
+            <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {renderChapterSwitch()}
             {/* 章节资源管理按钮 */}
             <button
@@ -768,6 +770,7 @@ export function ChapterGenerateLayout({
               <span>📦</span>
               章节资源
             </button>
+            </div>
           </div>
         </div>
       </div>

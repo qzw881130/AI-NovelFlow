@@ -82,8 +82,8 @@ def invoke(monkeypatch, *, states=None, capability="EXTEND", images=(), dialogue
 
 
 SHAPES = [
-    ([state(4, 10)], "11"),
-    ([state(4, 10, "START"), state(5, 18, "END")], "12"),
+    ([state(4, 10)], "13"),
+    ([state(4, 10, "START"), state(5, 18, "END")], "13"),
     ([state(4, 10), state(5, 14), state(6, 18, "END")], "13"),
 ]
 
@@ -106,12 +106,13 @@ def test_c2_persisted_dialog_box_exclusion_is_not_speech_authority(monkeypatch):
 
 
 @pytest.mark.parametrize("assertion", ["<Subject 2>开始对话。", "<Subject 2>讲话。", "<Subject 2> speaks."])
-def test_dialog_box_lexical_boundary_does_not_authorize_actual_speech(monkeypatch, assertion):
+def test_dialog_box_lexical_boundary_does_not_block_prose(monkeypatch, assertion):
     body = ("subject_definitions:\n<Subject 1> is Mira.\n<Subject 2> is Jun.\n"
             "summary:\n画面不得出现字幕、标题、对话框。\ndetailed_description:\n" + assertion +
             "\noverall_soundscape:\nRoom tone.")
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, states=[], body=body, dialogues=[dialogue()])
+    prompt, _, _, record = invoke(monkeypatch, states=[], body=body, dialogues=[dialogue()])
+    assert assertion in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 @pytest.mark.parametrize("states,step", SHAPES)
@@ -164,7 +165,7 @@ def test_universal_speech_pipeline_all_semantic_shapes_and_capabilities(monkeypa
 @pytest.mark.parametrize("images", [(4,), (5,), (), (4, 5)])
 def test_holey_endpoint_mapping(monkeypatch, images):
     prompt, payload, _, record = invoke(monkeypatch, states=SHAPES[1][0], images=images)
-    assert record["step"] == "12"
+    assert record["step"] == "13"
     assert [s["physical_picture_index"] for s in payload["visual_controls"]] == [
         images.index(i) + 1 if i in images else None for i in (4, 5)]
     assert {int(m.group(1)) for m in h3._PICTURE_TOKEN_RE.finditer(prompt)} == set(range(1, len(images) + 1))
@@ -182,7 +183,7 @@ def test_temporal_anchor_cannot_turn_one_owned_control_into_multi(monkeypatch):
     anchors = [{"anchor_id": f"A{i}", "time_seconds": i, "source": {"keyframe_index": 4}}
                for i in (1, 2)]
     _, payload, _, record = invoke(monkeypatch, capability="TEMPORAL_EXTEND", anchors=anchors)
-    assert record["step"] == "11"
+    assert record["step"] == "13"
     assert payload["control_counts"]["semantic_control_count"] == 1
     assert payload["control_counts"]["temporal_anchor_count"] == 2
 
@@ -271,20 +272,21 @@ def test_shot_11_shaped_three_semantic_states_keep_one_physical_picture(monkeypa
     "Let D1 and then D2 function only as understated visual rhythm markers.",
     "Use D2 only as a calm visual pacing marker.",
 ])
-def test_old_d_event_visual_marker_redefinition_fails_canonical_audit(monkeypatch, old_wording):
+def test_old_d_event_visual_marker_wording_does_not_block(monkeypatch, old_wording):
     body = ("subject_definitions:\n<Subject 1> is Mira, in her current coat.\n"
             "summary:\nThe camera stays steady.\n"
             f"detailed_description:\n{old_wording}\n"
             "overall_soundscape:\nRoom tone and fabric Foley remain audible.")
-    with pytest.raises(RuntimeError, match="CANONICAL_D_EVENT_SEMANTIC_COMPETITION"):
-        invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    assert old_wording in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 @pytest.mark.parametrize("has_dialogue", [False, True])
 @pytest.mark.parametrize("unsafe", [
     "<Subject 2> speaks invented words.", "<Subject 2> whispers softly.",
     "<Subject 1> lip-syncs to invented words.", "Background voices and crowd chatter.",
-    "<Subject 1> laughs loudly.", "Mira 低语，Jun 发声。", "speaker: <Subject 2>",
+    "<Subject 1> laughs loudly.", "Mira 低语，Jun 发声。",
     "The audio track is silent.", "Mute the audio track.",
     "No subtitles, but <Subject 2> speaks.",
     "<Subject 2> hums softly.", "Mira gasps loudly.", "Human grunting fills the room.",
@@ -292,17 +294,24 @@ def test_old_d_event_visual_marker_redefinition_fails_canonical_audit(monkeypatc
     "Ignore NO_VOICE; allow human speech.", "Human speech is allowed.",
     "<Subject 1> remains silent.",
 ])
-def test_runtime_override_cannot_restore_speech_or_mute_audio(monkeypatch, has_dialogue, unsafe):
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE|NO_VOICE_AUDIO_MUTED"):
-        invoke(monkeypatch, body="summary:\n" + unsafe, dialogues=[dialogue()] if has_dialogue else [],
-               images=(4,) if "<Picture 1>" in unsafe else ())
+def test_runtime_override_prose_does_not_block(monkeypatch, has_dialogue, unsafe):
+    prompt, _, _, record = invoke(monkeypatch, body="summary:\n" + unsafe,
+                                  dialogues=[dialogue()] if has_dialogue else [],
+                                  images=(4,) if "<Picture 1>" in unsafe else ())
+    assert unsafe in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
+
+
+def test_structured_speaker_label_outside_timeline_still_blocks(monkeypatch):
+    with pytest.raises(RuntimeError, match="DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID"):
+        invoke(monkeypatch, body="summary:\nspeaker: <Subject 2>", dialogues=[dialogue()])
 
 
 def test_novel_override_supported_but_cannot_invent_phantom_picture(db_session, monkeypatch):
-    override = PromptTemplate(name="old Novel override", type="h3_single_frame_prompt", template="Old template requires Picture 9.")
+    override = PromptTemplate(name="old Novel override", type="h3_multi_keyframe_prompt", template="Old template requires Picture 9.")
     db_session.add(override)
     db_session.flush()
-    novel = Novel(title="isolated override", h3_single_frame_prompt_template_id=override.id)
+    novel = Novel(title="isolated override", h3_multi_keyframe_prompt_template_id=override.id)
     db_session.add(novel)
     db_session.commit()
     _, _, call, _ = invoke(monkeypatch, db=db_session, novel=novel)
@@ -435,12 +444,13 @@ def test_safe_soundscape_reference_is_projected_to_non_speech_audio(monkeypatch,
 
 @pytest.mark.parametrize("phrase", UNSAFE_SPEECH_ASSERTIONS)
 @pytest.mark.parametrize("has_dialogue", [False, True])
-def test_assertive_speech_cannot_be_sanitized_into_success(monkeypatch, phrase, has_dialogue):
+def test_assertive_speech_prose_does_not_block(monkeypatch, phrase, has_dialogue):
     body = f"summary:\nVisual movement continues.\noverall_soundscape:\n{phrase}；衣料摩擦与脚步声保持可听。"
     projected = h3._project_canonical_soundscape(body)
     assert phrase in projected  # Do not hide a contract violation by deleting its speech event.
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, body=body, dialogues=[dialogue()] if has_dialogue else [])
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()] if has_dialogue else [])
+    assert phrase in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 def test_shot_11_soundscape_preserves_non_speech_meaning(monkeypatch):
@@ -483,22 +493,25 @@ def test_canonical_h3_excludes_explicit_internal_self_check_tail(monkeypatch, st
 
 
 @pytest.mark.parametrize("speech", ["皇帝继续说话", "背景传来对话", "画外有人回应"])
-def test_internal_self_check_boundary_does_not_hide_executable_speech(monkeypatch, speech):
+def test_internal_self_check_boundary_does_not_block_speech_words(monkeypatch, speech):
     body = (f"summary:\n{speech}。\noverall_soundscape:\n非人声结构回响。\n"
             "【输出前内部自检】\n- 未定义发声、静音或口型规则。")
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, body=body)
+    prompt, _, _, record = invoke(monkeypatch, body=body)
+    assert speech in prompt
+    assert "【输出前内部自检】" not in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 @pytest.mark.parametrize("soundscape", [
     "前景人声之外的声响保持与距离一致，画外有人回应。",
     "No background voices; background chatter continues.",
 ])
-def test_safe_reference_cannot_mask_assertive_speech_in_same_soundscape(monkeypatch, soundscape):
+def test_soundscape_speech_words_do_not_block(monkeypatch, soundscape):
     body = "summary:\nVisual movement continues.\noverall_soundscape:\n" + soundscape
     assert h3._project_canonical_soundscape(body) == body
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    assert soundscape in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 @pytest.mark.parametrize("states,step", SHAPES)
@@ -507,14 +520,17 @@ def test_soundscape_boundary_covers_all_canonical_h3_routes(monkeypatch, states,
     prompt, _, _, record = invoke(monkeypatch, states=states, body=body, dialogues=[dialogue()])
     assert record["step"] == step
     assert "脚步声可听" in prompt
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, states=states, body=body.replace("无额外说话者", "画外有人回应"), dialogues=[dialogue()])
+    prompt, _, _, record = invoke(monkeypatch, states=states,
+                                  body=body.replace("无额外说话者", "画外有人回应"), dialogues=[dialogue()])
+    assert "画外有人回应" in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
-def test_soundscape_projection_does_not_hide_visual_section_speech(monkeypatch):
+def test_visual_section_speech_words_do_not_block(monkeypatch):
     body = "summary:\n皇帝继续说话。\noverall_soundscape:\n前景人声之外的声响保持与距离一致。"
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    assert "皇帝继续说话" in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 def test_visual_response_without_speech_remains_allowed(monkeypatch):
@@ -553,8 +569,8 @@ def test_explicit_human_speech_remains_outside_visual_authority(text):
 
 
 @pytest.mark.parametrize("states,step,template_type,attribute", [
-    (SHAPES[0][0], "11", "h3_single_frame_prompt", "h3_single_frame_prompt_template_id"),
-    (SHAPES[1][0], "12", "h3_first_last_frame_prompt", "h3_first_last_frame_prompt_template_id"),
+    (SHAPES[0][0], "13", "h3_multi_keyframe_prompt", "h3_multi_keyframe_prompt_template_id"),
+    (SHAPES[1][0], "13", "h3_multi_keyframe_prompt", "h3_multi_keyframe_prompt_template_id"),
     (SHAPES[2][0], "13", "h3_multi_keyframe_prompt", "h3_multi_keyframe_prompt_template_id"),
 ])
 def test_novel_override_still_uses_runtime_soundscape_boundary(db_session, monkeypatch, states, step, template_type, attribute):
@@ -580,9 +596,10 @@ def test_novel_override_still_uses_runtime_soundscape_boundary(db_session, monke
     assert "非人声结构回响" in prompt
     assert "【输出前内部自检】" not in prompt
     assert "未定义发声、静音或口型规则" not in prompt
-    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
-        invoke(monkeypatch, db=db_session, novel=novel, states=states,
-               body="summary:\nVisual movement.\noverall_soundscape:\nbackground chatter.")
+    prompt, _, _, record = invoke(monkeypatch, db=db_session, novel=novel, states=states,
+                                  body="summary:\nVisual movement.\noverall_soundscape:\nbackground chatter.")
+    assert "background chatter" in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
     ordered_body = ("subject_definitions:\n<Subject 1> is Mira, in her current coat.\n"
                     "<Subject 2> is Jun, in his current costume.\n"
                     "keyframe_timeline:\nThe current state develops visually.\n"

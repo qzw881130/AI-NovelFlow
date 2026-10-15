@@ -50,6 +50,8 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   // 工作流列表
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
+  const [showRetiredWorkflows, setShowRetiredWorkflows] = useState(false);
+  const [generationTypes, setGenerationTypes] = useState<string[]>([]);
   const [exportingWorkflows, setExportingWorkflows] = useState(false);
   const [exportingActiveWorkflows, setExportingActiveWorkflows] = useState(false);
   const [importingWorkflows, setImportingWorkflows] = useState(false);
@@ -73,6 +75,9 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   useEffect(() => {
     fetchWorkflows();
     fetchExtensionConfigs();
+    workflowApi.fetchGenerationTypes().then(result => {
+      if (result.success && result.data) setGenerationTypes(result.data);
+    }).catch(error => console.error('加载可用工作流类型失败:', error));
   }, []);
 
   const fetchExtensionConfigs = async () => {
@@ -303,8 +308,12 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       </div>
 
       {/* 按类型分组显示工作流 */}
+      <label className="flex items-center gap-2 text-sm text-gray-600">
+        <input type="checkbox" checked={showRetiredWorkflows} onChange={event => setShowRetiredWorkflows(event.target.checked)} />
+        显示已退役工作流（历史查看与导出）
+      </label>
       {workflowTypeOrder.map(type => {
-        const typeWorkflows = getWorkflowsByType(type);
+        const typeWorkflows = getWorkflowsByType(type).filter(workflow => showRetiredWorkflows || workflow.availableForNewTasks !== false);
         if (typeWorkflows.length === 0) return null;
         
         const TypeIcon = typeIcons[type] || Clapperboard;
@@ -341,6 +350,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
         onSuccess={fetchWorkflows}
         extensionConfigs={extensionConfigs}
         typeNames={typeNames}
+        generationTypes={generationTypes}
       />
 
       {showExportModal && (

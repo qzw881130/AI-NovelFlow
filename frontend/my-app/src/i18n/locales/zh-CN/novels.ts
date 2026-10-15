@@ -89,6 +89,8 @@ export default {
     h3ExecutionOptimizerPromptHint: '基于视觉输入优化 H3 执行表达，保留导演意图与局部说话人归属',
     h3PreflightRepairPromptLabel: 'MiniMax H3 Preflight 自动修复',
     h3PreflightRepairPromptHint: '选择 #14A 修复提示词；未指定时使用系统默认模板',
+    h3MultiKeyframeDirectorPhaseBLabel: 'H3 单阶段导演（Phase B）',
+    h3MultiKeyframeDirectorPhaseBHint: '仅选择 Phase B 路径时使用；未指定则使用同类型系统预设。',
     h3MultiKeyframePromptLabel: 'H3 多关键帧视频提示词模板',
     h3MultiKeyframePromptHint: '选择用于构建 MiniMax H3 多关键帧视频提示词的模板',
     promptTemplatesSection: '提示词模板配置',

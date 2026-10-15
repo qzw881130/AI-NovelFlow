@@ -100,6 +100,17 @@ def test_joint_retiming_preserves_facts_and_applies_duration(case):
     assert opt.effective_execution_duration(5,record(case))=={'original_duration':5,'optimized_duration':6,'effective_duration':6.0,'duration_source':'H3_PROMPT_OPTIMIZER'}
 
 
+@pytest.mark.parametrize('phrase', ['禁止新增说话', '皇帝没有开口', '皇帝低声说道'])
+def test_optimizer_and_preflight_do_not_block_speech_words_alone(case, phrase):
+    output = copy.deepcopy(case[2])
+    output['optimized_prompt'] = output['optimized_prompt'].replace(
+        'A 6-second continuous ensemble shot.',
+        'A 6-second continuous ensemble shot. ' + phrase + '。',
+    )
+    result = audit(case, output)
+    assert result['passed'], result['blocking_findings']
+
+
 def test_continuous_camera_handoff_can_rebalance_between_unchanged_anchors(case):
     output=copy.deepcopy(case[2])
     previous=output['av_timeline']['execution_phases'][1]['description']
@@ -317,7 +328,12 @@ async def test_workflow_details_report_duration_contract(case,db_session):
 def test_native_contract_rejects_regressions(case,before,after,check):
     output=copy.deepcopy(case[2]);assert before in output['optimized_prompt']
     output['optimized_prompt']=output['optimized_prompt'].replace(before,after)
-    assert check in audit(case,output)['blocking_findings']
+    result = audit(case, output)
+    if check == 'speaker_switch_listener_settle':
+        assert check not in result['blocking_findings']
+        assert any(item.get('original_check') == check for item in result['warnings'])
+    else:
+        assert check in result['blocking_findings']
 
 
 @pytest.mark.parametrize('leak',[

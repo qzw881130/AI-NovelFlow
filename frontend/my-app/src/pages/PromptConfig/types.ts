@@ -25,6 +25,7 @@ export type TemplateType =
   | 'h3_single_frame_prompt'
   | 'h3_first_last_frame_prompt'
   | 'h3_multi_keyframe_prompt'
+  | 'h3_multi_keyframe_director_phase_b'
   | 'h3_execution_optimizer_prompt'
   | 'h3_preflight_repair_prompt';
 

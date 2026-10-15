@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.novel import Novel
+from app.services.director_context import effective_visual_states
 from app.services.llm_service import LLMService
 from app.services.prop_policy import get_visual_prop_names
 from app.services.clip_visual_state_references import disabled_visual_state_ids
@@ -1515,7 +1516,7 @@ def _project_canonical_soundscape(prompt: str) -> str:
 
     def project(match: re.Match) -> str:
         header, soundscape = match.group(1), match.group(2)
-        # An affirmative speech event must reach the final audit unchanged.
+        # Leave affirmative speech prose unchanged during soundscape projection.
         if _canonical_visual_body_speech_issues(soundscape):
             return match.group(0)
         projected = soundscape
@@ -1537,7 +1538,7 @@ def _project_canonical_soundscape(prompt: str) -> str:
 
 
 def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | None = None) -> list[str]:
-    """Narrow explicit speech assertions only; not a visual-expression/NLP filter."""
+    """Classify soundscape prose for projection only; never use as a blocking gate."""
     speech = re.compile(
         r"\b(?:speaks?|speaking|talks?|talking|says?|answers?|replies?|whispers?|whispering|"
         r"shouts?|shouting|laughs?|laughing|laughter|"
@@ -1564,9 +1565,8 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
     for name in subject_bindings or {}:
         human_identity += "|" + re.escape(name)
     human_identity += ")"
-    # Actual utterances/assignments remain forbidden even beside a safe mention.
-    # Exact canonical quotations have already become assigned dialogue IDs here;
-    # attaching an ID to a speaker outside the timeline is still an assignment.
+    # Preserve speech-like prose beside safe mentions instead of editing it away.
+    # Structured dialogue authority is checked independently in the final audit.
     utterance = r'(?:[“"「『]|assigned\s+dialogue\s+D\d+\b)'
     if re.search(
         r"(?:说|说道|喊道|问道|答道|回答|低语)\s*[:：]?\s*" + utterance
@@ -1574,8 +1574,8 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
         body, re.IGNORECASE,
     ):
         issues.append("CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE")
-    # Mask only complete visual nouns and generic conditional lip instructions,
-    # never a whole negative clause or a named Subject's speech/silence decision.
+    # Mask complete visual nouns and generic conditional lip instructions for
+    # the projection decision, without changing the emitted prompt.
     mentions = re.compile(
         r"(?:对话|对白|语音)(?:框|气泡)|"
         r"\b(?:speech|dialogue)\s+bubbles?\b|"
@@ -1688,28 +1688,6 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
             issues.append("DIALOGUE_SPEAKER_TIMING_AUTHORITY_INVALID")
         if not item.get("duration_sufficient"):
             issues.append("DIALOGUE_DURATION_INSUFFICIENT")
-    for character in silent_characters:
-        subject = (subject_bindings or {}).get(character) or subject_mappings.get(character)
-        subject_is_silent = bool(subject and re.search(
-            rf"{re.escape(subject)}[^.!?\n]*\b(?:remain|remains|stay|stays)\s+(?:non-vocal|silent)\b",
-            final_prompt,
-            re.IGNORECASE,
-        ))
-        subject_is_silent = subject_is_silent or bool(subject and re.search(
-            rf"(?m)^silent_characters: [^\n]*{re.escape(subject)}", final_prompt
-        ))
-        if character and character not in final_prompt and not subject_is_silent:
-            issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
-    if canonical_visual_body is not None:
-        issues.extend(_canonical_visual_body_speech_issues(canonical_visual_body, subject_bindings))
-        if re.search(
-            r"(?i)\bD\d+\b[^.!?\n]{0,160}\b(?:visual|speech)\s+"
-            r"(?:pacing|rhythm)\s+markers?\b",
-            canonical_visual_body,
-        ):
-            issues.append("CANONICAL_D_EVENT_SEMANTIC_COMPETITION")
-        if not assigned_dialogues and "NO_VOICE: no human speech, no human vocalization, no invented dialogue." not in final_prompt:
-            issues.append("CANONICAL_NO_VOICE_MISSING")
     blocking_issues = [issue for issue in sorted(set(issues)) if issue != "DIALOGUE_DURATION_INSUFFICIENT"]
     return {
         "source_dialogue_count": len(assigned_dialogues),
@@ -1761,10 +1739,13 @@ async def build_h3_video_prompt(
     current_visual_state: Optional[dict] = None,
     visual_attention: Optional[dict] = None,
     resolved_dialogue_timeline: Optional[list] = None,
-) -> str:
+    single_stage_experiment: Optional[dict] = None,
+    input_only: bool = False,
+) -> str | dict:
     require_current_attention_transitions(safe_json_dict(shot.video_director_plan), clip)
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
     semantic_controls = []
+    keyframes, start_resolution = effective_visual_states(keyframes or [], getattr(shot, "description", None))
     if canonical_path:
         state_map = {
             int(item.get("index")): item
@@ -1808,7 +1789,14 @@ async def build_h3_video_prompt(
         template_attr = "h3_single_frame_prompt_template_id"
         template_type = "h3_single_frame_prompt"
 
-    template = resolve_prompt_template(db, novel, template_attr, template_type)
+    # Formal H3 construction uses #13 for every semantic control shape, including
+    # zero/one control and START/END pairs. This does not select a physical workflow.
+    # Retain the historical routes only for the explicitly isolated experiment API.
+    if single_stage_experiment is None:
+        step = "13"
+        template_attr = "h3_multi_keyframe_prompt_template_id"
+        template_type = "h3_multi_keyframe_prompt"
+
     sanitized_keyframes = (
         [{key: item[key] for key in (
             "index", "role", "time_seconds", "description", "required", "requirement", "timed_visual_target",
@@ -1929,6 +1917,7 @@ async def build_h3_video_prompt(
         **({} if canonical_path else {"selected_mode": selected_mode}),
         "visual_control_route": route if canonical_path else None,
         "visual_controls": mapped_semantic_controls if canonical_path else None,
+        "start_visual_resolution": start_resolution,
         "physical_picture_manifest": physical_picture_mapping if canonical_path else None,
         **({"disabled_visual_state_images": {
             "state_ids": disabled_visual_state_ids(clip),
@@ -1955,7 +1944,7 @@ async def build_h3_video_prompt(
         **({"clip_authority_presence": {
             "has_dialogue": bool(assigned_dialogues),
             "has_canonical_transition": bool(sanitized_transitions),
-        }} if canonical_path and step == "11" else {}),
+        }} if canonical_path and route == "single" else {}),
         "silent_characters": silent_characters,
         **({} if canonical_path else {
             "frames": mapped_frames,
@@ -1991,6 +1980,33 @@ async def build_h3_video_prompt(
             "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits; visual controls remain chronological states along one continuous trajectory.",
         }}),
     }
+    if input_only:
+        # Shared upstream projection for the opt-in Phase B runtime. No LLM,
+        # template resolution or prompt persistence is performed here.
+        if not canonical_path:
+            raise ValueError("PHASE_B_REQUIRES_SEMANTIC_CLIP")
+        return payload
+    template = resolve_prompt_template(db, novel, template_attr, template_type)
+    if single_stage_experiment is not None:
+        if not isinstance(single_stage_experiment, dict) or single_stage_experiment.get("enabled") is not True:
+            raise ValueError("H3_SINGLE_STAGE_EXPERIMENT_NOT_ENABLED")
+        if not canonical_path:
+            raise ValueError("H3_SINGLE_STAGE_EXPERIMENT_REQUIRES_CANONICAL_CLIP")
+        from app.services.h3_single_stage_experiment import preview_single_stage_h3
+        return await preview_single_stage_h3(
+            payload=payload,
+            route=route,
+            template_type=template_type,
+            novel_id=novel.id,
+            chapter_id=shot.chapter_id,
+            assigned_dialogues=assigned_dialogues,
+            visible_characters=clip_visible_characters,
+            picture_mapping=physical_picture_mapping,
+            reference_manifest=video_reference_manifest,
+            temporal_anchors=temporal_anchors or [],
+            experiment=single_stage_experiment,
+            llm=LLMService(),
+        )
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
         system_prompt=(
@@ -1998,7 +2014,7 @@ async def build_h3_video_prompt(
             "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
             if canonical_path else (f"{template.template}\n\n{ATTENTION_RULE}" if attention["status"] == "VALID" else template.template)
         ) + (f"\n\n{DIALOGUE_VISUAL_INTENT_RULE}" if dialogue_visual_intents else "") + (
-            "\n\n#11 Clip authority: dialogue_timeline_source and transitions are independent. "
+            "\n\nClip authority: dialogue_timeline_source and transitions are independent. "
             "No assigned dialogue means no speech for this Clip, not no visual action. "
             "When transitions is nonempty, describe its canonical actors, actions and camera "
             "progression within the supplied Clip interval, using clip_local_start_time "
@@ -2006,7 +2022,7 @@ async def build_h3_video_prompt(
             "When transitions is empty, say only that no canonical transition was projected "
             "into this Clip; do not claim the Canonical Shot has no action. Never invent a "
             "transition, change its actors or facts, or move it outside its projected interval."
-            if canonical_path and step == "11" else ""
+            if canonical_path and route == "single" else ""
         ) + (
             "\n\nA cross-Clip transition may begin near this Clip's end while its target state "
             "belongs to the next Clip. The unchanged transition_description is Shot-level "

@@ -2,6 +2,8 @@
 export default {
   // Novel Management
   novels: {
+    h3MultiKeyframeDirectorPhaseBLabel: 'H3 single-stage Director (Phase B)',
+    h3MultiKeyframeDirectorPhaseBHint: 'Used only for the explicit Phase B route; otherwise the active system default for this type is used.',
     title: 'Novel Management',
     subtitle: 'Manage and organize your novel projects',
     createNovel: 'Create Novel',

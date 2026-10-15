@@ -1,0 +1,1591 @@
+{
+  "canonical_plan": {
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "Scene: 清晨的大臣府卧室光线柔和，巨型穿衣镜位于室内明亮区域；中全景，机位从镜子侧方拍摄老大臣与妻子。画面可见人物严格限定为老大臣、老大臣妻子，共2名。\nCharacters:\n- 老大臣: 位于画面左侧巨型穿衣镜前，严格继承正式参考资产身份，身着老大臣官服，身体朝向镜面，双手停在衣领处，神情专注而紧绷。\n- 老大臣妻子: 位于画面右侧，严格继承正式参考资产身份，身体朝向老大臣，目光关切地观察他的异常状态。\nAction: 老大臣站在巨型穿衣镜前整理老大臣官服的衣领，老大臣妻子从侧后方注视他。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 2.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的大臣府卧室，巨型穿衣镜仍处于画面明亮区域，镜侧双人中景。\nCharacters:\n- 老大臣: 位于穿衣镜前，双手已从官服衣领处放下，上身转向右侧的妻子，神情克制而紧绷。\n- 老大臣妻子: 已走近老大臣右侧，在他的侧后方站定，身体和视线均朝向他，神情关切。\nAction: 两人在镜前形成近距离相对关系，老大臣与镜面的正面关系被打破。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 3,
+        "time_seconds": 10.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的大臣府卧室，镜前双人构图保持连续。\nCharacters:\n- 老大臣: 站姿僵直，眉眼紧绷，目光严肃地落在妻子身上。\n- 老大臣妻子: 面向老大臣，脸上露出轻松笑意，姿态较为放松。\nAction: 妻子的轻松神情与老大臣的紧张姿态形成鲜明对照。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 12.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的大臣府卧室，构图开始从穿衣镜区域转向卧室出口方向。\nCharacters:\n- 老大臣: 神色严肃不安，身体已转为面向卧室出口，双臂垂在身侧，站姿坚决而紧绷。\n- 老大臣妻子: 仍停在穿衣镜附近，笑意消退，视线追随老大臣。\nAction: 两人的身体朝向分离，老大臣面向出口，妻子留在原处。",
+        "timed_visual_target": false,
+        "prompt_text": "编辑两张输入图，生成12.8秒时已经到达的单一静态剧情画面：清晨的大臣府卧室中，构图重心由穿衣镜区域明确转向卧室出口方向；老大臣已经转身面向出口，老大臣妻子仍停留在穿衣镜附近，两人的身体朝向清楚分离。\n\n<image_1>是当前 Shot 的主分镜视觉基线，仅用于回查大臣府卧室、巨型穿衣镜、卧室出口、人物服装及整体视觉风格与空间方向；当前人物姿态、朝向、表情、位置和构图必须以本提示中的当前视觉状态为准，不把画面退回主分镜的初始状态。\n\n<image_2>是老大臣妻子与老大臣的正式角色身份参考。直接使用<image_2>保持两人的身份、年龄特征、面部、发型、体型比例、服装和身份识别细节稳定一致；参考图中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。同一角色的不同展示视图均代表同一个人，不得复制成额外人物。\n\n当前画面只出现老大臣与老大臣妻子两名具名角色，每人各出现一次。老大臣神色严肃不安，眉眼紧绷，身体已经完整转为面向卧室出口，双臂自然垂在身体两侧，站姿坚决、僵硬而紧绷；不要让他继续正面对着妻子，也不要保留镜前相互对视的旧姿态。老大臣妻子仍留在巨型穿衣镜附近，不跟随老大臣移动；她原本轻松的笑意已经消退，视线转而追随老大臣，身体位置与老大臣拉开明确的朝向关系。两人的分离状态必须一眼可见：老大臣朝向出口，妻子停在镜旁看向他。\n\n调整摄影机构图，使卧室出口方向成为新的明确视觉重心并进入有效取景，同时保留穿衣镜附近的妻子，从而在同一完整画面中建立“出口方向—老大臣—镜旁妻子”的空间关系。新的构图状态已经稳定到达，不沿用以穿衣镜前双人对视为中心的旧构图；保持卧室空间方向和透视合理，不镜像翻转人物关系，不制造跳轴感。\n\n保持两名角色的正式身份、稳定服装与身份细节不变；保持大臣府卧室的既有建筑结构、时代特征、材质、清晨光线逻辑、巨型穿衣镜的形制与相对尺度连续。老大臣官服如在基线中由老大臣穿着，则保持其既有外观和穿着状态，不突然换装。除构图转向出口、老大臣转身并改变站姿、妻子笑意消退并用视线追随之外，不增加新的动作、人物、道具或环境事件。\n\n采用2D chibi卡通渲染，干净圆润的线条、平涂色彩与简洁赛璐璐阴影；人物保持稳定的2.5至3头身比例和简化面部特征，同时保留清晰可辨的年龄、发型、服装与身份特征。环境与道具使用一致的二维线条和阴影表现，但保持原有建筑结构、功能比例和相对尺度，不把家具、镜子或建筑拟人化。高质量、细节清晰、透视正确、人体比例自然、遮挡合理、环境连续稳定。\n\n只表现12.8秒的一个完整静态瞬间，不生成前后帧对比、分屏、漫画格、拼贴、contact sheet、角色多视图、残影或重复人物；不得新增路人、剪影、背景人群、镜中额外人物或反射人物，不得融合或互换两名角色身份。不要生成字幕、对白框、标题、标签、说明文字、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261015_204934.png",
+        "image_task_id": "0df019a2-60a6-4ca4-b31c-08911a8ebb0f"
+      },
+      {
+        "index": 5,
+        "time_seconds": 14.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的大臣府卧室，摄影机沿室内空间转向出口，穿衣镜和妻子留在较深的背景中。\nCharacters:\n- 老大臣: 已到达卧室出口前，背向妻子，官服轮廓占据靠近出口的一侧。\n- 老大臣妻子: 停在穿衣镜附近，身体朝向出口，目光落在老大臣背影上。\nAction: 老大臣与出口形成明确的离开构图，夫妻之间的空间距离显著拉开。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑生成14.8秒当前关键帧的单一完整剧情画面，使摄影机已经沿卧室内部空间转向出口，并清楚呈现老大臣即将离开的稳定构图。\n\n<image_1>是当前Shot的主分镜基线，仅用于回查“大臣府卧室”的场景结构、两名角色的整体视觉基线、清晨光线与项目画面风格；当前时间点的人物位置、空间关系、姿态、镜头方向和构图必须服从当前关键帧描述，不得把画面退回主分镜的初始状态。\n\n<image_2>是“老大臣妻子”和“老大臣”的正式角色身份参考。直接使用<image_2>保持两人的身份、年龄特征、面部、发型、体型比例、服装与稳定外观一致；参考图中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。图中的不同视图仍是同一角色，不得复制成额外人物。\n\n当前画面必须已经达到以下视觉状态：清晨的大臣府卧室内，摄影机视线与构图重心已经从穿衣镜区域转向卧室出口。出口位于主要视觉方向，老大臣已移动到卧室出口前，背向妻子，面朝离开方向，穿着官服的身体轮廓占据靠近出口的一侧，并与出口形成明确、清楚的离开构图。老大臣妻子仍停在穿衣镜附近，位于更深的背景中，身体朝向出口，目光明确落在老大臣的背影上。夫妻之间的空间距离必须显著拉开，以前景或近出口侧的老大臣和深处穿衣镜旁的妻子形成清晰纵深，不得仍让两人靠近站立。\n\n保持两人的正式身份、既有服装和年龄特征稳定；保持大臣府卧室的建筑结构、时代感、材质逻辑、清晨光线和空间方向一致。巨型穿衣镜保留在卧室较深背景，并与妻子处于同一背景区域。老大臣官服的形制与稳定外观保持一致。只呈现当前可见且剧情需要的道具，不增加武器、现代物件或无关装饰。\n\n必须执行清楚可见的构图与空间变化：摄影机已完成朝出口方向的转向，新的稳定镜头方向已经到达；老大臣已到达出口前，而不是仍停留在穿衣镜区域；妻子继续留在穿衣镜附近；两人的前后纵深和间距明显增大。不得因保持主分镜基线而弱化这些变化，也不得镜像翻转既定空间关系。允许为表现出口、老大臣近出口侧轮廓以及妻子和穿衣镜的深背景关系进行自然透视重构。\n\nSCENE PARTICIPANTS：画面中恰好两名唯一可见人物，老大臣与老大臣妻子各出现且只出现一次。不得复制、融合或互换两人的身份，不得从角色参考图的多视图中生成额外人物，不得加入侍从、卫兵、路人、人影、剪影、背景人群或反射中的额外人物。\n\n采用2D chibi cartoon rendering，干净圆润线稿、平涂色彩和简洁赛璐璐阴影。人物保持稳定的2.5至3头身比例和简化面部特征，同时保留可辨识的年龄特征、发型、服装和身份细节。环境、巨型穿衣镜与其他物件使用一致的二维线稿和阴影风格，同时保持原有结构、功能比例与相对尺度，不将建筑或物体拟人成Q版造型。高质量、细节清楚、透视正确、人体比例自然、遮挡自然、环境连续稳定。\n\n只生成14.8秒这一个当前静态瞬间，不展示移动过程，不使用残影或重复人物，不并排呈现前后状态，不生成拼贴、漫画分格、contact sheet、角色设定页或多视图。不得生成字幕、对白框、标题、标签、说明文字、箭头、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261015_204710.png",
+        "image_task_id": "36cd551a-50fc-48e4-9e38-8a8b1faba90f"
+      },
+      {
+        "index": 6,
+        "time_seconds": 17.0,
+        "role": "END",
+        "description": "Scene: 清晨的大臣府卧室，出口方向留出空位，巨型穿衣镜仍在室内明亮区域。\nCharacters:\n- 老大臣妻子: 独自停在穿衣镜附近，身体朝向出口，眉头微蹙，神情疑惑，视线停留在老大臣离开的方向。\nAction: 画面中的出口区域空置，妻子与空出的室内空间形成最终构图。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 2.8,
+        "transition_description": "老大臣先保持在画面左侧的巨型穿衣镜前，身体朝向镜面，双手继续对官服衣领做最后的小幅整理，神情专注而紧绷；老大臣妻子从画面右侧沿左前方缓步靠近他的右侧后方，动作处于双人关系的背景层级。约1秒后，视觉重心自然转向妻子：她继续走近老大臣，在他右侧的侧后方减速站定，身体与视线始终朝向他，关切神情逐渐清晰。与此同时，老大臣停止整理，将双手从衣领处自然放下，随后从面向镜面的姿态缓慢向画面右侧转动上身并将视线移向妻子，双脚位置基本不变，不越过镜前站位。摄影机从原有镜侧中全景轻微向两人平移并缓慢收紧为双人中景，先维持老大臣与镜面的关系清晰，再让靠近的妻子逐渐成为主要视觉重心；最后极短时间内开始将注意力自然回分到两人的近距离关系，不提前完成后续交接。到2.8秒时，妻子已在老大臣右侧后方站稳，老大臣双手垂下、上身转向妻子，两人在明亮的巨型穿衣镜旁形成近距离相对关系，老大臣与镜面的正面关系被打破，双方神情分别保持克制紧绷与关切。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 2.8,
+        "end_time": 10.6,
+        "transition_description": "从镜侧双人中景开始，老大臣保持在穿衣镜前，不再触碰官服衣领，身体仍朝向右侧近处的妻子；妻子停在他的右侧偏后位置，不再继续靠近。摄影机先维持两人同框，以极轻微推进将视觉重心从妻子自然移向老大臣：老大臣肩背逐渐绷紧，目光短暂下沉，随后重新落到妻子脸上，妻子则保持关切注视。随后构图重心平缓转向妻子，她轻微侧头，眉间的关切逐步舒展，姿态放松少许；老大臣仍站在原位，仅有克制的呼吸和细小重心调整。视觉重心再次回到老大臣时，他出现短暂停顿，眼神略有迟疑后恢复凝重，站姿进一步僵直。之后摄影机以细小横移重新照顾妻子，她的神情从不解逐渐转为轻松，嘴角形成自然笑意，肩颈也随之放松；老大臣没有移动位置，始终严肃注视她。临近终点，摄影机停止横移并略微回收对老大臣的构图权重，但只完成部分重心转移，仍保留镜前双人关系。最终停在妻子面向老大臣、带着轻松笑意且姿态放松，老大臣站姿僵直、眉眼紧绷并严肃看向妻子的连续双人构图；两人的左右位置、官服状态及巨型穿衣镜的位置均保持不变。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 10.6,
+        "end_time": 12.8,
+        "transition_description": "起初维持穿衣镜前的双人构图，老大臣僵直地面对妻子，妻子仍带着轻松笑意；画面关注在短暂延续双人关系后，自然转向老大臣。老大臣的眉眼进一步收紧，先从妻子身上移开目光，随后以脚下为轴朝卧室出口方向转动肩膀和身体，双臂逐渐放下并垂在身侧，再向出口方向迈出克制的一步，停成面向出口、坚决而紧绷的站姿。老大臣妻子始终留在穿衣镜附近，不跟随移动；她的笑意逐渐消退，头部与视线随老大臣转向出口方向，神情转为疑惑。摄影机从原有镜前双人中景轻微平移并调整构图，将卧室出口方向逐渐纳入画面，以老大臣为主要视觉中心，同时保留妻子在镜旁的次要位置，不交换两人的空间方位。过渡结束时，老大臣已面向出口、双臂垂下，妻子仍停在原处注视他，两人的身体朝向明确分离。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 12.8,
+        "end_time": 14.8,
+        "transition_description": "老大臣从卧室内靠近穿衣镜的站位迈向卧室出口，背离妻子沿室内通道稳步拉开距离；他的双臂自然垂落，肩背保持紧绷，官服随步伐产生轻微摆动，最终在出口前停住并背向妻子。老大臣妻子始终留在穿衣镜附近，不跟随，只将身体进一步转向出口，视线持续落在老大臣的背影上，神情由收敛的笑意转为疑惑。摄影机从原有构图沿老大臣的行进方向平稳转向并轻微跟随，使老大臣逐渐占据靠近出口的一侧，同时让妻子与巨型穿衣镜退入较深背景；到达终点时保持老大臣与出口构成明确的离开关系，夫妻间的空间距离显著拉开。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 14.8,
+        "end_time": 17.0,
+        "transition_description": "老大臣从卧室出口前沿身体朝向继续向出口外迈步，官服随步伐轻微摆动；摄影机起初保持对他背影与离开路径的关注，并保留深处穿衣镜旁的妻子。老大臣越过出口边界后逐渐离开画面，妻子始终停在穿衣镜附近，不追随，只保持身体朝向出口，视线持续落在他的离开方向。15.4秒后，摄影机以稳定的轻微平移和缓慢重新构图，将视觉重心从即将消失的老大臣自然转交给妻子，同时让出口区域逐渐显得空旷；妻子的眉头缓缓蹙起，神情由目送转为疑惑。至17秒，老大臣已完全离开画面，出口方向留空，摄影机稳定停在妻子、明亮区域内的巨型穿衣镜与空置出口共同构成的画面上；妻子仍留在原位，朝向出口并凝视老大臣离开的方向。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "老大臣妻子",
+        "text": "今天怎么这么早？",
+        "start_time": 1.0,
+        "end_time": 2.75,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "关切好奇"
+      },
+      {
+        "id": "D2",
+        "speaker": "老大臣",
+        "text": "陛下派我去办一件事。",
+        "start_time": 2.95,
+        "end_time": 5.2,
+        "duration": 2.25,
+        "estimated_speech_duration": 2.25,
+        "min_required_duration": 2.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "克制凝重"
+      },
+      {
+        "id": "D3",
+        "speaker": "老大臣妻子",
+        "text": "什么事？",
+        "start_time": 5.4,
+        "end_time": 6.15,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "自然追问"
+      },
+      {
+        "id": "D4",
+        "speaker": "老大臣",
+        "text": "去看一块布。",
+        "start_time": 6.35,
+        "end_time": 7.6,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "迟疑简短"
+      },
+      {
+        "id": "D5",
+        "speaker": "老大臣妻子",
+        "text": "一块布也值得你这样紧张？",
+        "start_time": 7.8,
+        "end_time": 10.55,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "轻松不解"
+      },
+      {
+        "id": "D6",
+        "speaker": "老大臣",
+        "text": "那不是普通的布。",
+        "start_time": 10.75,
+        "end_time": 12.5,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃不安"
+      }
+    ],
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 12.5,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "The Clip retains the complete mirror-side conversation and ends exactly when D6 completes, without dividing any utterance. Its 12.5-second Story Duration contains 10.5 seconds of fixed speech, but remains below the preferred target and preserves the authored shared composition, subtle camera shifts, and alternating attention as one coherent beat. Splitting earlier would merely distribute the close D1–D6 back-and-forth across another generation while interrupting the continuous mirror-side exchange; separating the subsequent departure instead gives the overall sequence meaningful execution headroom for the walking, exit, and final reaction. D1 has full planned primary support for its resolved speaker while the other character remains valid background motion. D2, D3, D4, D5, and D6 each have full planned primary coverage with legitimate handoff participation at their transitions; the repeated handoffs increase sequence-level attention work but do not indicate missing participation or require mechanical cuts. Planned visibility, readability, and final realization remain unknown.",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 12.5,
+        "execution_status": "APPROVED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          1,
+          2,
+          3
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 12.5
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "老大臣妻子",
+            "text": "今天怎么这么早？",
+            "emotion_prompt": "关切好奇",
+            "estimated_duration": 1.75,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 2.75,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "陛下派我去办一件事。",
+            "emotion_prompt": "克制凝重",
+            "estimated_duration": 2.25,
+            "source_order": 2,
+            "start_time": 2.95,
+            "end_time": 5.2,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "老大臣妻子",
+            "text": "什么事？",
+            "emotion_prompt": "自然追问",
+            "estimated_duration": 0.75,
+            "source_order": 3,
+            "start_time": 5.4,
+            "end_time": 6.15,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "去看一块布。",
+            "emotion_prompt": "迟疑简短",
+            "estimated_duration": 1.25,
+            "source_order": 4,
+            "start_time": 6.35,
+            "end_time": 7.6,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "老大臣妻子",
+            "text": "一块布也值得你这样紧张？",
+            "emotion_prompt": "轻松不解",
+            "estimated_duration": 2.75,
+            "source_order": 5,
+            "start_time": 7.8,
+            "end_time": 10.55,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "那不是普通的布。",
+            "emotion_prompt": "严肃不安",
+            "estimated_duration": 1.75,
+            "source_order": 6,
+            "start_time": 10.75,
+            "end_time": 12.5,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "f7d9ecfd098298700f2b2934b9c6f105f0d0f9c5c18f9e8938b0ea70ba50200f",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "intended_window": {
+                "start": 1.0,
+                "end": 2.75
+              }
+            },
+            {
+              "dialogue_id": "D2",
+              "intended_window": {
+                "start": 2.95,
+                "end": 5.2
+              }
+            },
+            {
+              "dialogue_id": "D3",
+              "intended_window": {
+                "start": 5.4,
+                "end": 6.15
+              }
+            },
+            {
+              "dialogue_id": "D4",
+              "intended_window": {
+                "start": 6.35,
+                "end": 7.6
+              }
+            },
+            {
+              "dialogue_id": "D5",
+              "intended_window": {
+                "start": 7.8,
+                "end": 10.55
+              }
+            },
+            {
+              "dialogue_id": "D6",
+              "intended_window": {
+                "start": 10.75,
+                "end": 12.5
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 12.5,
+          "fixed_dialogue_duration": 10.5,
+          "overlap_duration": 0.0,
+          "minimum_execution_duration": 10.5,
+          "workflow_budget": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 1.0,
+                      "end": 2.75
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [],
+                "after_state_id": "KF2",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 2.95,
+                      "end": 3.25
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[3]",
+                    "interval": {
+                      "start": 3.25,
+                      "end": 5.2
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D3",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[4]",
+                    "interval": {
+                      "start": 5.4,
+                      "end": 5.65
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 5.65,
+                      "end": 6.15
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D4",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[6]",
+                    "interval": {
+                      "start": 6.35,
+                      "end": 6.65
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[7]",
+                    "interval": {
+                      "start": 6.65,
+                      "end": 7.6
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D5",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[8]",
+                    "interval": {
+                      "start": 7.8,
+                      "end": 8.05
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[9]",
+                    "interval": {
+                      "start": 8.05,
+                      "end": 10.15
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[10]",
+                    "interval": {
+                      "start": 10.15,
+                      "end": 10.55
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "from"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D6",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[10]",
+                    "interval": {
+                      "start": 10.75,
+                      "end": 10.95
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 10.95,
+                      "end": 12.5
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF3",
+                "inside_state_ids": [],
+                "after_state_id": "KF4",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        },
+        "prompt_text": "subject_definitions:\n<Subject 1> is 老大臣, the existing character whose stable identity is bound exclusively to <Picture 3>; recorded stable features: 浅灰蓝色深陷眼、左颧下老人斑、高额头、银白短须和清瘦体态; the identity reference does not determine current costume, pose, or floor position.\n<Subject 2> is 老大臣妻子, the existing character whose stable identity is bound exclusively to <Picture 4>; recorded stable features: 榛绿色杏眼、右眼下老人斑、中分银灰低圆髻和微丰体态; the identity reference does not determine current costume, pose, or floor position.\n\nsummary:\nA 12.5-second execution of the current Canonical Clip.\n\nretention_analysis:\nThe current Canonical visual state owns clothing, poses, floor positions, and action; identity references cannot override it.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF1: selected visual composition guidance; Canonical action and staging remain authoritative.\n<Picture 2> — SCENE / 大臣府卧室: environment appearance only; incidental people are not additional Subjects.\n<Picture 3> — CHARACTER_IDENTITY for <Subject 1> (老大臣): stable identity only; not current clothing, pose, blocking, or action.\n<Picture 4> — CHARACTER_IDENTITY for <Subject 2> (老大臣妻子): stable identity only; not current clothing, pose, blocking, or action.\n<Picture 5> — PROP / 巨型穿衣镜: prop appearance only; Canonical state owns placement and use.\nDirector-selected Anchor arrivals use GENERATION_LOCAL_SECONDS: generated-fragment time starts at 0s, including any verified Previous AV shared prefix.\nKF1 (<Picture 1>): reach its Canonical visual target at 0.0s in GENERATION_LOCAL_SECONDS; BEFORE D1 (starts at 1.0s).\nKF2: reach its Canonical visual target at 2.8s in GENERATION_LOCAL_SECONDS; BEFORE D2 (starts at 2.95s).\nKF3: reach its Canonical visual target at 10.6s in GENERATION_LOCAL_SECONDS; BEFORE D6 (starts at 10.75s).\n\ndetailed_description:\n清晨柔和光线照入大臣府卧室。镜侧中全景同时保留明亮区域内的巨型穿衣镜和两人：老大臣位于左侧镜前，穿着完整官服，身体朝向镜面，双手在衣领处做最后的小幅整理，神情专注而紧绷；妻子位于右侧偏后，关切地望着他。她沿左前方缓步靠近时，摄影机轻微随两人平移并开始收紧，仍先让老大臣与镜面的关系清楚。约在她开口前，画面重心自然转向她，确保其面部和口型清晰；她一边继续靠近，一边以关切好奇的神情说出<Subject 2> (S1) [D1 @ 1-2.75s generated-clip] says, <d>[Chinese] 今天怎么这么早？</d>。妻子减速停在老大臣右侧后方，不再继续靠近；与此同时，老大臣停止整理衣领，双手自然放下，以基本不动的双脚为支点缓慢将上身和视线转向妻子。两人在镜旁形成近距离相对关系后，摄影机保持双人中景并将注意力平顺交给老大臣；他肩背逐渐绷紧，克制而凝重地看着妻子说出<Subject 1> (S2) [D2 @ 2.95-5.2s generated-clip] says, <d>[Chinese] 陛下派我去办一件事。</d>，妻子留在同框内安静注视。老大臣的目光短暂下沉后重新落到她脸上，妻子略微侧头，顺势以自然追问的神情说出<Subject 2> (S1) [D3 @ 5.4-6.15s generated-clip] says, <d>[Chinese] 什么事？</d>。构图重心不切断空间关系地回到老大臣；他出现短暂迟疑，仍站在原位，以简短克制的方式说出<Subject 1> (S2) [D4 @ 6.35-7.6s generated-clip] says, <d>[Chinese] 去看一块布。</d>。随后摄影机做细小横移照顾妻子，老大臣仍在同框中严肃看着她。妻子眉间的关切逐步舒展，肩颈放松，嘴角渐成自然笑意，并以轻松而不解的状态说出<Subject 2> (S1) [D5 @ 7.8-10.55s generated-clip] says, <d>[Chinese] 一块布也值得你这样紧张？</d>；老大臣只有克制呼吸和轻微重心调整，站姿反而更加僵直。她说完时，两人达到明确对照：妻子面向老大臣、带着轻松笑意，老大臣眉眼紧绷、严肃注视她，左右位置、官服状态和穿衣镜位置均保持连续。画面随后略微回收对老大臣的构图权重，他的眉眼进一步收紧，以严肃不安的语气说出<Subject 1> (S2) [D6 @ 10.75-12.5s generated-clip] says, <d>[Chinese] 那不是普通的布。</d>。末句进行时只开启下一段动作的初始进展：老大臣的目光开始从妻子身上移开，肩膀出现朝出口方向转动的轻微预备趋势；妻子的笑意开始收敛，视线仍跟随他。此处不让老大臣完成转身、不迈步，也不让妻子形成后续完整疑惑状态，结尾仍保持镜旁双人关系。\n\noverall_soundscape:\n安静卧室的清晨室内底噪，妻子靠近时轻柔而克制的鞋底落地声与裙摆摩擦声，老大臣整理并放下衣领时细微的衣料窸窣，以及两人转动上身、调整重心时轻微的服装与地板声；不加入额外人声或无依据声源。\n\nnon_diegetic_music:\nN/A",
+        "prompt_projection": {
+          "version": 1,
+          "projection_version": 1,
+          "status": "VALID",
+          "fingerprint": "eaaa8752d0480c5ca3d7dd47e7240f95fc94e6411ad8b4fb11d193201d15d630",
+          "section_sha256": null
+        },
+        "status": "SUCCEEDED",
+        "video_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_014_clip_1_995bf100_20261015_204913.mp4",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/videos/shot_014_clip_1_995bf100_20261015_204913.mp4",
+        "source_video_url": "http://192.168.50.1:8288/view?filename=MiniMax_H3_01348_.mp4&subfolder=video&type=output",
+        "generated_at": "2026-10-15T12:49:13.625918",
+        "generated_by_task_id": "995bf100-41d2-4d08-97b8-74d0a5b51504",
+        "optimized_duration": 12.5,
+        "actual_duration": 12.958333,
+        "duration_delta": 0.0,
+        "actual_duration_delta": 0.45833299999999966
+      },
+      {
+        "clip_index": 2,
+        "start_time": 12.5,
+        "end_time": 17.0,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 1,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF5"
+        ],
+        "early_composition_state_id": "KF4",
+        "inherited_start_composition": null,
+        "reason": "This 4.5-second Clip owns the materially distinct departure beat rather than padding the finished conversation: the old minister completes his turn, walks to the exit, leaves the frame, and the camera transfers emphasis to his wife and the empty doorway. CONTINUOUS is required because the boundary falls during the authored KF3-to-KF4 turn and camera redirection; the opening must inherit the exact body-turn phase, blocking, and camera movement produced by Clip 1 rather than independently resetting them. The carry-in KF3 composition does not qualify as inherited-start coverage because its mirror-facing relationship has already progressed toward a changed exit orientation by 12.5. Owned KF4 at 12.8 establishes the exit-facing composition before the walk toward the doorway becomes the next important action. Eligible owned KF5 is selected because the timed arrival at the exit, increased spatial separation, and wife-and-mirror depth arrangement provide incremental control over the material blocking result before the final exit. No dialogue events overlap this Clip.",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 4.5,
+        "execution_status": "FAILED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          4,
+          5,
+          6
+        ],
+        "carry_in_state_index": 3,
+        "dialogue_scope": {
+          "start_time": 12.5,
+          "end_time": 17.0
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-2-KF4",
+          "clip-2-KF5"
+        ],
+        "dialogue_assignment": [],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "f7d9ecfd098298700f2b2934b9c6f105f0d0f9c5c18f9e8938b0ea70ba50200f",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 4.5,
+          "fixed_dialogue_duration": 0,
+          "overlap_duration": null,
+          "minimum_execution_duration": null,
+          "workflow_budget": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        },
+        "error_message": "PHASE_B_INPUT_NOT_COVERED: ValueError: SILENT_CLIP_NOT_COVERED"
+      }
+    ]
+  },
+  "builder_input": {
+    "shot": {
+      "id": "8bb9a353-ee2a-4726-bd2e-95d29e721734",
+      "index": 14,
+      "duration": 17,
+      "continuity_mode": "NORMAL",
+      "characters": [
+        "老大臣",
+        "老大臣妻子"
+      ],
+      "official_character_appearances": {
+        "老大臣": "单一主体全身照，一名约六十八岁的人类男性资深大臣，气质庄重、诚实而谨慎，身高约一百七十一厘米，身材清瘦，背部仅有轻微年龄形成的弧度，四肢完整并从头到脚清晰可见；脸型长椭圆，额头高且有横向细纹，中庭偏长，颧骨突出，下颌线清楚但略显松弛，下巴窄圆，左侧颧骨下方有一块小型浅褐老人斑；眼睛为清晰的浅灰蓝色深陷眼，大小适中，双眼皮较窄，外眼角微垂，眼型与眼睛颜色不得改变；鼻梁高而稍弯，鼻尖窄长，鼻翼薄，鼻孔向下；嘴唇较薄，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，眼周、额头和嘴角分布自然细纹；银白色柔软头发梳向后方并在颈后束成短低发束，发际线明显后移，留有整齐的银白色短须和窄山羊胡；稳定身份标记包括浅灰蓝色深陷眼、左颧下老人斑、高额头、银白短须和清瘦体态；基础服装为欧洲童话式前现代高级大臣官服，上身穿深藏蓝色长外套、银线滚边灰色背心与洁白领巾，下身穿黑色及膝裤、白色长袜和黑色银扣宫廷鞋，左胸固定佩戴一枚古旧的银蓝色王室功勋徽章，不将文件或查看织机的动作固定为身份造型；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型胡须轮廓与全部标记一致，禁止改变物种、年龄段和男性长者气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "老大臣妻子": "单一主体全身照，一名约六十二岁的人类女性，气质温和端庄，身高约一百六十厘米，体型微丰而匀称，四肢完整并从头到脚清晰可见；脸型为宽柔的椭圆形，额头饱满并有浅纹，中庭适中，颧骨柔和，双颊略丰，下颌圆润，下巴短，右眼下方有一颗小型浅褐老人斑；眼睛为温暖的榛绿色杏眼，大小适中，双眼皮清楚，外眼角轻微下垂，眼型与眼睛颜色不得改变；鼻梁细而略低，鼻尖圆润，鼻翼窄，鼻孔小而朝下；嘴唇中等厚度，天然嘴角微微上扬，中性展示时牙齿不可见；皮肤为暖调浅肤色，眼角和嘴边有自然年龄细纹；银灰色微卷长发从中间分开，在后脑盘成整洁的低圆髻，并以固定的深紫色布带束紧，无面部毛发；稳定身份标记包括榛绿色杏眼、右眼下老人斑、中分银灰低圆髻和微丰体态；基础服装为欧洲童话式前现代富裕官员家庭女装，上身穿暗紫色长袖束身衣与象牙白色领巾，下身为灰紫色及地长裙，内着浅灰长袜，脚穿深褐色低跟搭扣鞋，颈间固定佩戴一枚小型椭圆银质胸针；以自然中性站姿展示，双手、双腿轮廓和双脚完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与所有标记一致，禁止改变物种、年龄段和女性长者气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿或脚部出画。"
+      },
+      "scene": "大臣府卧室",
+      "props": [
+        "老大臣官服",
+        "巨型穿衣镜"
+      ]
+    },
+    "visual_control_route": "multi",
+    "visual_controls": [
+      {
+        "index": 4,
+        "role": "INTERMEDIATE",
+        "time_seconds": 0.3,
+        "description": "Scene: 清晨的大臣府卧室，构图开始从穿衣镜区域转向卧室出口方向。\nCharacters:\n- 老大臣: 神色严肃不安，身体已转为面向卧室出口，双臂垂在身侧，站姿坚决而紧绷。\n- 老大臣妻子: 仍停在穿衣镜附近，笑意消退，视线追随老大臣。\nAction: 两人的身体朝向分离，老大臣面向出口，妻子留在原处。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF4",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 5,
+        "role": "INTERMEDIATE",
+        "time_seconds": 2.3,
+        "description": "Scene: 清晨的大臣府卧室，摄影机沿室内空间转向出口，穿衣镜和妻子留在较深的背景中。\nCharacters:\n- 老大臣: 已到达卧室出口前，背向妻子，官服轮廓占据靠近出口的一侧。\n- 老大臣妻子: 停在穿衣镜附近，身体朝向出口，目光落在老大臣背影上。\nAction: 老大臣与出口形成明确的离开构图，夫妻之间的空间距离显著拉开。",
+        "timed_visual_target": true,
+        "semantic_state_label": "KF5",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 6,
+        "role": "END",
+        "time_seconds": 4.5,
+        "description": "Scene: 清晨的大臣府卧室，出口方向留出空位，巨型穿衣镜仍在室内明亮区域。\nCharacters:\n- 老大臣妻子: 独自停在穿衣镜附近，身体朝向出口，眉头微蹙，神情疑惑，视线停留在老大臣离开的方向。\nAction: 画面中的出口区域空置，妻子与空出的室内空间形成最终构图。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF6",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      }
+    ],
+    "start_visual_resolution": [],
+    "physical_picture_manifest": [
+      {
+        "picture_index": 1,
+        "picture": "<Picture 1>",
+        "kind": "SCENE",
+        "source_type": "SCENE_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "08dd01c7-6543-4681-a5f8-e3e0e7a69c46",
+          "name": "大臣府卧室"
+        },
+        "source_id": "08dd01c7-6543-4681-a5f8-e3e0e7a69c46",
+        "source_name": "大臣府卧室"
+      },
+      {
+        "picture_index": 2,
+        "picture": "<Picture 2>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "name": "老大臣"
+        },
+        "source_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+        "source_name": "老大臣"
+      },
+      {
+        "picture_index": 3,
+        "picture": "<Picture 3>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+          "name": "老大臣妻子"
+        },
+        "source_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+        "source_name": "老大臣妻子"
+      },
+      {
+        "picture_index": 4,
+        "picture": "<Picture 4>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "dc5076d6-a940-4d59-81d8-ba6802e4bb0f",
+          "name": "巨型穿衣镜"
+        },
+        "source_id": "dc5076d6-a940-4d59-81d8-ba6802e4bb0f",
+        "source_name": "巨型穿衣镜"
+      }
+    ],
+    "reference_binding_contract": {
+      "characters": [
+        {
+          "picture": "<Picture 2>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "name": "老大臣",
+          "subject": "<Subject 1>",
+          "body_state_id": "KF3",
+          "body_role": "站姿僵直，眉眼紧绷，目光严肃地落在妻子身上。",
+          "body_binding": "EXISTING_CURRENT_BODY"
+        },
+        {
+          "picture": "<Picture 3>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+          "name": "老大臣妻子",
+          "subject": "<Subject 2>",
+          "body_state_id": "KF3",
+          "body_role": "面向老大臣，脸上露出轻松笑意，姿态较为放松。",
+          "body_binding": "EXISTING_CURRENT_BODY"
+        }
+      ],
+      "resources": [
+        {
+          "picture": "<Picture 1>",
+          "kind": "SCENE",
+          "asset_id": "08dd01c7-6543-4681-a5f8-e3e0e7a69c46",
+          "name": "大臣府卧室",
+          "source_keyframe_index": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "kind": "PROP",
+          "asset_id": "dc5076d6-a940-4d59-81d8-ba6802e4bb0f",
+          "name": "巨型穿衣镜",
+          "source_keyframe_index": null
+        }
+      ],
+      "subjects": {
+        "老大臣": "<Subject 1>",
+        "老大臣妻子": "<Subject 2>"
+      },
+      "continuation": true,
+      "motion_ownership": [
+        {
+          "subject": "<Subject 1>",
+          "name": "老大臣",
+          "motion_class": "TRANSLATIONAL_MOTION",
+          "evidence": [
+            {
+              "from_state": 4,
+              "to_state": 5,
+              "clause": "老大臣从卧室内靠近穿衣镜的站位迈向卧室出口"
+            },
+            {
+              "from_state": 5,
+              "to_state": 6,
+              "clause": "老大臣从卧室出口前沿身体朝向继续向出口外迈步"
+            },
+            {
+              "from_state": 5,
+              "to_state": 6,
+              "clause": "老大臣越过出口边界后逐渐离开画面"
+            },
+            {
+              "from_state": 5,
+              "to_state": 5,
+              "clause": "老大臣与出口形成明确的离开构图"
+            }
+          ]
+        },
+        {
+          "subject": "<Subject 2>",
+          "name": "老大臣妻子",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        }
+      ],
+      "findings": []
+    },
+    "picture_mapping_contract": {
+      "authority": "physical_picture_manifest",
+      "numbering": "dense_1_based_manifest_order",
+      "image_less_visual_states": "text_only_no_picture_number",
+      "temporal_anchor_domain": "separate_from_ordinary_pictures"
+    },
+    "clip": {
+      "clip_index": 2,
+      "start_time": 12.5,
+      "end_time": 17.0,
+      "planned_duration": 4.5,
+      "capability": "TEMPORAL_EXTEND",
+      "continuity_to_previous": "CONTINUOUS",
+      "visual_state_indexes": [
+        4,
+        5,
+        6
+      ],
+      "carry_in_state_index": 3
+    },
+    "clip_visible_characters": [
+      "老大臣",
+      "老大臣妻子"
+    ],
+    "dialogue_timeline_source": [],
+    "dialogue_timeline_status": {
+      "status": "ok",
+      "estimated_speech_duration": 0.0,
+      "dialogue_gap_duration": 0.0,
+      "lead_in_duration": 0.45,
+      "overflow_seconds": 0.0
+    },
+    "silent_characters": [
+      "老大臣",
+      "老大臣妻子"
+    ],
+    "temporal_anchors": [
+      {
+        "anchor_id": "clip-2-KF4",
+        "time_seconds": 0.3,
+        "source_keyframe_index": 4,
+        "target_state_label": "KF4"
+      },
+      {
+        "anchor_id": "clip-2-KF5",
+        "time_seconds": 2.3,
+        "source_keyframe_index": 5,
+        "target_state_label": "KF5"
+      }
+    ],
+    "conditioning": {
+      "previous_av_present": true,
+      "previous_av": "Continue from the ending visual state of the provided previous video; it has no Picture number.",
+      "temporal_domain": "separate_timed_conditioning_no_ordinary_picture"
+    },
+    "control_counts": {
+      "semantic_control_count": 3,
+      "owned_state_count": 3,
+      "ordinary_reference_count": 4,
+      "temporal_anchor_count": 2,
+      "previous_av_present": true
+    },
+    "transitions": [
+      {
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 10.6,
+        "end_time": 12.8,
+        "transition_description": "起初维持穿衣镜前的双人构图，老大臣僵直地面对妻子，妻子仍带着轻松笑意；画面关注在短暂延续双人关系后，自然转向老大臣。老大臣的眉眼进一步收紧，先从妻子身上移开目光，随后以脚下为轴朝卧室出口方向转动肩膀和身体，双臂逐渐放下并垂在身侧，再向出口方向迈出克制的一步，停成面向出口、坚决而紧绷的站姿。老大臣妻子始终留在穿衣镜附近，不跟随移动；她的笑意逐渐消退，头部与视线随老大臣转向出口方向，神情转为疑惑。摄影机从原有镜前双人中景轻微平移并调整构图，将卧室出口方向逐渐纳入画面，以老大臣为主要视觉中心，同时保留妻子在镜旁的次要位置，不交换两人的空间方位。过渡结束时，老大臣已面向出口、双臂垂下，妻子仍停在原处注视他，两人的身体朝向明确分离。",
+        "segment_index": 3,
+        "canonical_source_id": "transition_3",
+        "projection_mode": "CROSS_CLIP_CONTINUATION",
+        "clip_local_start_time": 0.0,
+        "clip_local_end_time": 0.3,
+        "target_state_owned": true,
+        "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO",
+        "execution_scope": "Continue only unfinished actions from the actual Previous AV ending; do not replay completed gestures or infer progress from planned seconds. Reach the owned target only within this Clip's projected interval."
+      },
+      {
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 12.8,
+        "end_time": 14.8,
+        "transition_description": "老大臣从卧室内靠近穿衣镜的站位迈向卧室出口，背离妻子沿室内通道稳步拉开距离；他的双臂自然垂落，肩背保持紧绷，官服随步伐产生轻微摆动，最终在出口前停住并背向妻子。老大臣妻子始终留在穿衣镜附近，不跟随，只将身体进一步转向出口，视线持续落在老大臣的背影上，神情由收敛的笑意转为疑惑。摄影机从原有构图沿老大臣的行进方向平稳转向并轻微跟随，使老大臣逐渐占据靠近出口的一侧，同时让妻子与巨型穿衣镜退入较深背景；到达终点时保持老大臣与出口构成明确的离开关系，夫妻间的空间距离显著拉开。",
+        "segment_index": 4,
+        "canonical_source_id": "transition_4",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 0.3,
+        "clip_local_end_time": 2.3,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      },
+      {
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 14.8,
+        "end_time": 17.0,
+        "transition_description": "老大臣从卧室出口前沿身体朝向继续向出口外迈步，官服随步伐轻微摆动；摄影机起初保持对他背影与离开路径的关注，并保留深处穿衣镜旁的妻子。老大臣越过出口边界后逐渐离开画面，妻子始终停在穿衣镜附近，不追随，只保持身体朝向出口，视线持续落在他的离开方向。15.4秒后，摄影机以稳定的轻微平移和缓慢重新构图，将视觉重心从即将消失的老大臣自然转交给妻子，同时让出口区域逐渐显得空旷；妻子的眉头缓缓蹙起，神情由目送转为疑惑。至17秒，老大臣已完全离开画面，出口方向留空，摄影机稳定停在妻子、明亮区域内的巨型穿衣镜与空置出口共同构成的画面上；妻子仍留在原位，朝向出口并凝视老大臣离开的方向。",
+        "segment_index": 5,
+        "canonical_source_id": "transition_5",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 2.3,
+        "clip_local_end_time": 4.5,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      }
+    ],
+    "visual_attention_timeline": {
+      "version": 1,
+      "time_base": "CLIP_SECONDS",
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 2.9,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 11,
+          "source_start_time_seconds": 10.95,
+          "source_end_time_seconds": 15.4
+        },
+        {
+          "start_time_seconds": 2.9,
+          "end_time_seconds": 3.7,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ],
+            "to": [
+              "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4"
+            ]
+          },
+          "source_window_index": 12,
+          "source_start_time_seconds": 15.4,
+          "source_end_time_seconds": 16.2,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 3.7,
+          "end_time_seconds": 4.5,
+          "primary_subjects": [
+            "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 13,
+          "source_start_time_seconds": 16.2,
+          "source_end_time_seconds": 17.0
+        }
+      ],
+      "characters": [
+        {
+          "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "character_name": "老大臣",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+          "character_name": "老大臣妻子",
+          "subject": "<Subject 2>"
+        }
+      ]
+    },
+    "workflow_capability": {
+      "max_clip_duration": 20.0,
+      "frame_count": null,
+      "workflow_name": "NovelFlow H3 AV 时序续生成 V1"
+    },
+    "workflow_type": "TEMPORAL_EXTEND",
+    "workflow_name": "NovelFlow H3 AV 时序续生成 V1"
+  },
+  "reference_manifest": {
+    "version": 1,
+    "references": [
+      {
+        "kind": "SCENE",
+        "source_name": "大臣府卧室",
+        "source_id": "08dd01c7-6543-4681-a5f8-e3e0e7a69c46",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "08dd01c7-6543-4681-a5f8-e3e0e7a69c46",
+          "name": "大臣府卧室"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/大臣府卧室_20261003_173055.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/大臣府卧室_20261003_173055.png",
+        "slot": 1
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "老大臣",
+        "source_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "name": "老大臣"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/老大臣_20261010_233007.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/老大臣_20261010_233007.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "老大臣妻子",
+        "source_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "4aac39e0-2cf8-4d7a-852a-f9ce4d3173c4",
+          "name": "老大臣妻子"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/老大臣妻子_20261010_233026.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/老大臣妻子_20261010_233026.png",
+        "slot": 3
+      },
+      {
+        "kind": "PROP",
+        "source_name": "巨型穿衣镜",
+        "source_id": "dc5076d6-a940-4d59-81d8-ba6802e4bb0f",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "dc5076d6-a940-4d59-81d8-ba6802e4bb0f",
+          "name": "巨型穿衣镜"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/巨型穿衣镜_20261003_183940.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/巨型穿衣镜_20261003_183940.png",
+        "slot": 4
+      }
+    ],
+    "skipped_references": []
+  },
+  "workflow": {
+    "id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+    "type": "TEMPORAL_EXTEND",
+    "workflow_json": "{\n  \"1\": {\n    \"inputs\": {\n      \"noise_seed\": 123456789\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#1 RandomNoise\"\n    }\n  },\n  \"2\": {\n    \"inputs\": {\n      \"model\": [\n        \"71\",\n        0\n      ],\n      \"conditioning\": [\n        \"116\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#2 Basic Guider\"\n    }\n  },\n  \"3\": {\n    \"inputs\": {\n      \"noise\": [\n        \"1\",\n        0\n      ],\n      \"guider\": [\n        \"2\",\n        0\n      ],\n      \"sampler\": [\n        \"36\",\n        0\n      ],\n      \"sigmas\": [\n        \"70\",\n        0\n      ],\n      \"latent_image\": [\n        \"23\",\n        0\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#3 Extension 1 - SamplerCustomAdvanced\"\n    }\n  },\n  \"23\": {\n    \"inputs\": {\n      \"context_length\": [\n        \"37\",\n        0\n      ],\n      \"audio_feather_ticks\": [\n        \"96\",\n        0\n      ],\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StartMaskedContext\",\n    \"_meta\": {\n      \"title\": \"#23 H3 Start Masked Context\"\n    }\n  },\n  \"29\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#29 Starter Clip - Load VAE\"\n    }\n  },\n  \"30\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#30 Starter Clip - Load VAE\"\n    }\n  },\n  \"31\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#31 Starter Clip - Load CLIP\"\n    }\n  },\n  \"32\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#32 Starter Clip - Load Diffusion Model\"\n    }\n  },\n  \"36\": {\n    \"inputs\": {\n      \"sampler_name\": \"res_multistep\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#36 KSamplerSelect\"\n    }\n  },\n  \"37\": {\n    \"inputs\": {\n      \"value\": 39\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#37 Int\"\n    }\n  },\n  \"39\": {\n    \"inputs\": {\n      \"frame_rate\": 24,\n      \"loop_count\": 0,\n      \"filename_prefix\": \"h3_preview/extension_01\",\n      \"format\": \"video/h264-mp4\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"pingpong\": false,\n      \"save_output\": true,\n      \"images\": [\n        \"62\",\n        0\n      ],\n      \"audio\": [\n        \"61\",\n        0\n      ]\n    },\n    \"class_type\": \"VHS_VideoCombine\",\n    \"_meta\": {\n      \"title\": \"#39 Extension 1 - VHS Video Combine\"\n    }\n  },\n  \"55\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"120\",\n        0\n      ],\n      \"width\": 960,\n      \"height\": 544,\n      \"length\": [\n        \"126\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"31\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"142\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"141\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"143\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"137\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"138\",\n        0\n      ],\n      \"ref_images.ref_image_5\": [\n        \"140\",\n        0\n      ],\n      \"ref_images.ref_image_6\": [\n        \"135\",\n        0\n      ],\n      \"ref_images.ref_image_7\": [\n        \"136\",\n        0\n      ],\n      \"ref_images.ref_image_8\": [\n        \"139\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#55 Extension 1 - MiniMax H3 Reference to Video\"\n    }\n  },\n  \"56\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#56 Int\"\n    }\n  },\n  \"61\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"102\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#61 VAE Decode Audio\"\n    }\n  },\n  \"62\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#62 VAE Decode\"\n    }\n  },\n  \"65\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"context_frames\": 39,\n      \"video_overlap_frames\": 39,\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"filename_prefix\": \"video/masked_av_extension\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"save_output\": true,\n      \"video_vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ],\n      \"preview_gate\": [\n        \"98\",\n        0\n      ],\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"extension_1\": [\n        \"3\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StreamLiveExtensionAVToVHS\",\n    \"_meta\": {\n      \"title\": \"#65 H3 Stream AV Extensions to VHS\"\n    }\n  },\n  \"66\": {\n    \"inputs\": {\n      \"video\": \"shot_002_20260923_142519 (1).mp4\",\n      \"force_rate\": 24,\n      \"custom_width\": 0,\n      \"custom_height\": 0,\n      \"frame_load_cap\": 0,\n      \"start_time\": 0,\n      \"format\": \"AnimateDiff\"\n    },\n    \"class_type\": \"VHS_LoadVideoFFmpeg\",\n    \"_meta\": {\n      \"title\": \"#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢\"\n    }\n  },\n  \"67\": {\n    \"inputs\": {\n      \"images\": [\n        \"101\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CropTo32\",\n    \"_meta\": {\n      \"title\": \"#67 H3 Crop Source To /32\"\n    }\n  },\n  \"70\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": [\n        \"56\",\n        0\n      ],\n      \"denoise\": 1,\n      \"model\": [\n        \"71\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#70 BasicScheduler\"\n    }\n  },\n  \"71\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"72\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#71 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"72\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\n      \"strength_model\": 0.95,\n      \"model\": [\n        \"73\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#72 Starter Clip - LoraLoaderModelOnly\"\n    }\n  },\n  \"73\": {\n    \"inputs\": {\n      \"attention\": \"comfy kitchen attention\",\n      \"model\": [\n        \"32\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelAttentionBackend\",\n    \"_meta\": {\n      \"title\": \"#73 Model Attention Backend\"\n    }\n  },\n  \"93\": {\n    \"inputs\": {\n      \"source_fps\": 24,\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"mode\": [\n        \"97\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SourceAudioPolicy\",\n    \"_meta\": {\n      \"title\": \"#93 H3 Source Audio Policy\"\n    }\n  },\n  \"94\": {\n    \"inputs\": {\n      \"start\": \"Existing Video\"\n    },\n    \"class_type\": \"MiniMaxH3AVStartModeParam\",\n    \"_meta\": {\n      \"title\": \"#94 Start Mode — FIXED Existing Video\"\n    }\n  },\n  \"95\": {\n    \"inputs\": {\n      \"value\": 1\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#95 Active Extensions — FIXED 1\"\n    }\n  },\n  \"96\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#96 Audio Feather — FIXED 8\"\n    }\n  },\n  \"97\": {\n    \"inputs\": {\n      \"source_audio\": \"Keep source audio\"\n    },\n    \"class_type\": \"MiniMaxH3AVSourceAudioModeParam\",\n    \"_meta\": {\n      \"title\": \"#97 Source Audio — FIXED Keep source audio\"\n    }\n  },\n  \"98\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"preview_1\": [\n        \"39\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3LastActiveVHSPreviewBarrier\",\n    \"_meta\": {\n      \"title\": \"#98 H3 Last Active VHS Preview Barrier\"\n    }\n  },\n  \"99\": {\n    \"inputs\": {\n      \"filenames\": [\n        \"65\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3FinalizeVHSOutput\",\n    \"_meta\": {\n      \"title\": \"#99 H3 Final Stream Output Sink\"\n    }\n  },\n  \"101\": {\n    \"inputs\": {\n      \"images\": [\n        \"66\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3Validate24FPSVideo\",\n    \"_meta\": {\n      \"title\": \"#101 H3 Validate 24 FPS Video\"\n    }\n  },\n  \"102\": {\n    \"inputs\": {\n      \"audio_vae\": [\n        \"29\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3AudioVAECompatibility\",\n    \"_meta\": {\n      \"title\": \"#102 H3 Audio VAE Compatibility\"\n    }\n  },\n  \"116\": {\n    \"inputs\": {\n      \"keyframe_state\": \"{\\\"count\\\":8,\\\"positions\\\":[121,243,260,277,294,311,328,345]}\",\n      \"indexing\": \"1-based\",\n      \"crop\": \"center\",\n      \"+ Add keyframe\": null,\n      \"- Remove keyframe\": null,\n      \"conditioning\": [\n        \"55\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"keyframe_image_1\": [\n        \"117\",\n        0\n      ],\n      \"keyframe_image_2\": [\n        \"128\",\n        0\n      ],\n      \"keyframe_image_3\": [\n        \"129\",\n        0\n      ],\n      \"keyframe_image_4\": [\n        \"130\",\n        0\n      ],\n      \"keyframe_image_5\": [\n        \"131\",\n        0\n      ],\n      \"keyframe_image_6\": [\n        \"132\",\n        0\n      ],\n      \"keyframe_image_7\": [\n        \"133\",\n        0\n      ],\n      \"keyframe_image_8\": [\n        \"134\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CustomKeyframes\",\n    \"_meta\": {\n      \"title\": \"#116 H3 Custom Keyframes — TEMPORAL ANCHOR\"\n    }\n  },\n  \"117\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#117 KeyFrame — Load Image 1\"\n    }\n  },\n  \"120\": {\n    \"inputs\": {\n      \"prompt\": \"Continue directly from the final moment of the selected start clip with no cut, reset, or re-establishment.\\n\\nThe incoming protected audiovisual prefix is authoritative for the current pose, motion, camera trajectory, lighting, environment, object state, voice, ambience, and timing.\\n\\nContinue the exact motion and sound already in progress naturally.\\n\\nPreserve the existing camera trajectory, spatial continuity, environment, lighting, ambience, and audiovisual timing throughout.\\n\\nThe connected temporal keyframes define required visual states at their assigned temporal positions.\\n\\nDevelop naturally through the temporal keyframes in chronological order while preserving continuous motion and audiovisual continuity.\\n\\nDo not introduce, describe, anticipate, or prematurely reveal the visual content of a future temporal keyframe before its assigned temporal position.\\n\\nDo not reset the scene at a temporal keyframe. Each temporal keyframe is part of the same continuous shot and must be reached through natural continuous development from the preceding state.\\n\\nNo cuts, no scene reset, no camera reset, no re-establishment, and no restart from rest.\"\n    },\n    \"class_type\": \"CR Prompt Text\",\n    \"_meta\": {\n      \"title\": \"#120 ⚙️ CR Prompt Text（提示词）\"\n    }\n  },\n  \"124\": {\n    \"inputs\": {\n      \"text\": \"{\\n    \\\"source_fps\\\": 24.0,\\n    \\\"source_frame_count\\\": 243.12,\\n    \\\"source_duration\\\": 10.13,\\n    \\\"source_width\\\": 1728,\\n    \\\"source_height\\\": 960,\\n    \\\"loaded_fps\\\": 24.0,\\n    \\\"loaded_frame_count\\\": 243,\\n    \\\"loaded_duration\\\": 10.125,\\n    \\\"loaded_width\\\": 1728,\\n    \\\"loaded_height\\\": 960\\n}\",\n      \"anything\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#124 #-1 Show Any\"\n    }\n  },\n  \"125\": {\n    \"inputs\": {\n      \"value\": 10\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#125 Float(时长秒)\"\n    }\n  },\n  \"126\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"125\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#126 Math Expression\"\n    }\n  },\n  \"127\": {\n    \"inputs\": {\n      \"text\": \"243\",\n      \"anything\": [\n        \"126\",\n        1\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#127 #-1 Show Any\"\n    }\n  },\n  \"128\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#128 KeyFrame — Load Image 2\"\n    }\n  },\n  \"129\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#129 KeyFrame — Load Image 3\"\n    }\n  },\n  \"130\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#130 KeyFrame — Load Image 4\"\n    }\n  },\n  \"131\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#131 KeyFrame — Load Image 5\"\n    }\n  },\n  \"132\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#132 KeyFrame — Load Image 6\"\n    }\n  },\n  \"133\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#133 KeyFrame — Load Image 7\"\n    }\n  },\n  \"134\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#134 KeyFrame — Load Image 8\"\n    }\n  },\n  \"135\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#113 Reference Image 7\"\n    }\n  },\n  \"136\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#114 Reference Image 8\"\n    }\n  },\n  \"137\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#110 Reference Image 4\"\n    }\n  },\n  \"138\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#111 Reference Image 5\"\n    }\n  },\n  \"139\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#115 Reference Image 9\"\n    }\n  },\n  \"140\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#112 Reference Image 6\"\n    }\n  },\n  \"141\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#68 Reference Image 2\"\n    }\n  },\n  \"142\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#69 Reference Image 1\"\n    }\n  },\n  \"143\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#109 Reference Image 3\"\n    }\n  }\n}",
+    "node_mapping": "{\"load_video_node_id\": \"66\", \"duration_seconds_node_id\": \"125\", \"prompt_node_id\": \"120\", \"keyframe_node_1\": \"117\", \"keyframe_node_2\": \"128\", \"keyframe_node_3\": \"129\", \"keyframe_node_4\": \"130\", \"keyframe_node_5\": \"131\", \"keyframe_node_6\": \"132\", \"keyframe_node_7\": \"133\", \"keyframe_node_8\": \"134\", \"custom_keyframes_node_id\": \"116\", \"video_save_node_id\": \"65\", \"reference_to_video_node_id\": \"55\", \"load_image_node_1\": \"142\", \"load_image_node_2\": \"141\", \"load_image_node_3\": \"143\", \"load_image_node_4\": \"137\", \"load_image_node_5\": \"138\", \"load_image_node_6\": \"140\", \"load_image_node_7\": \"135\", \"load_image_node_8\": \"136\", \"load_image_node_9\": \"139\"}"
+  },
+  "previous_video_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/videos/shot_014_clip_1_995bf100_20261015_204913.mp4",
+  "physical_evidence": {
+    "resource_hashes": {
+      "<Picture 1>": "f2414a3fff93c1821fc304e9b1beaff56748d38f2c438a1f680eee4854f73768",
+      "<Picture 2>": "b4ce6ecaab559ff6f9d9836ae4046c7b906b497aa0a25f72f6703fa89d67ab9b",
+      "<Picture 3>": "26b858e4b851e4812c43f2ec97e583936988e71f9c66bc3886f2554d8af477b3",
+      "<Picture 4>": "7fae8171e3b97b8552587693941a6d602263ab072f0a48b2f3342cb950efdab5",
+      "TemporalAnchor:clip-2-KF4": "5863f6c985e4c3418094ca0716e9020ca591e11a52eda055ef4fcaa372e6207a",
+      "TemporalAnchor:clip-2-KF5": "433b41fa8f012cb6f13063b834a64fa0c7b2df6c46cd7b4a1a020a589927decc"
+    },
+    "previous_clip": {
+      "clip_index": 1,
+      "clip_plan_revision": 1,
+      "generated_by_task_id": "995bf100-41d2-4d08-97b8-74d0a5b51504",
+      "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_014_clip_1_995bf100_20261015_204913.mp4",
+      "physical_output": {
+        "frame_count": 311,
+        "fps": 24,
+        "timebase": "1/24",
+        "video_duration": 12.958333333333334,
+        "has_audio": true,
+        "audio_duration": 12.95,
+        "audio_start_time": 0.0,
+        "width": 864,
+        "height": 480,
+        "sha256": "af6ed6fd984023a442cdaf1c10f09decfe1b7c4b218a3ab04af116616f894b69",
+        "physical_output_role": "CLIP_ONLY"
+      },
+      "source_frame_start": 0
+    },
+    "temporal_anchors": [
+      {
+        "slot": 1,
+        "anchor_id": "clip-2-KF4",
+        "time_seconds": 0.3,
+        "frame_position": 9,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261015_204934.png",
+        "description": null,
+        "source": {
+          "type": "KEYFRAME",
+          "id": "KF4",
+          "keyframe_index": 4,
+          "image_task_id": "0df019a2-60a6-4ca4-b31c-08911a8ebb0f"
+        },
+        "reachability": {
+          "policy": "CANONICAL_MOTION_WINDOW_V1",
+          "previous_state_index": 3,
+          "target_state_index": 4,
+          "semantic_frame_position": 9,
+          "effective_frame_position": 9,
+          "semantic_local_time": 0.3,
+          "earliest_reachable_local_time": 0.22,
+          "transition_start_local_time": 0.0,
+          "canonical_transition_duration_seconds": 2.2,
+          "requested_anchor_local_time": 0.3,
+          "effective_anchor_local_time": 0.3333333333333333,
+          "motion_budget_seconds": 0.22,
+          "effective_frame_local_time": 0.3333333333333333,
+          "placement_adjusted": false,
+          "clamped": false,
+          "reachability_reason": [
+            "EXISTING_CURRENT_BODY+LOCAL_MOTION",
+            "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+          ],
+          "critical_subjects": [
+            {
+              "character": "老大臣",
+              "lifecycle": "EXISTING_CURRENT_BODY",
+              "start_presence": "PRESENT",
+              "target_presence": "PRESENT",
+              "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+              "motion_class": "LOCAL_MOTION",
+              "motion_budget_seconds": 0.22,
+              "motion_window_ratio": 0.1,
+              "blocking_delta": {
+                "previous_role": "站姿僵直，眉眼紧绷，目光严肃地落在妻子身上。",
+                "target_role": "神色严肃不安，身体已转为面向卧室出口，双臂垂在身侧，站姿坚决而紧绷。"
+              },
+              "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+            },
+            {
+              "character": "老大臣妻子",
+              "lifecycle": "EXISTING_CURRENT_BODY",
+              "start_presence": "PRESENT",
+              "target_presence": "PRESENT",
+              "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+              "motion_class": "LOCAL_MOTION",
+              "motion_budget_seconds": 0.22,
+              "motion_window_ratio": 0.1,
+              "blocking_delta": {
+                "previous_role": "面向老大臣，脸上露出轻松笑意，姿态较为放松。",
+                "target_role": "仍停在穿衣镜附近，笑意消退，视线追随老大臣。"
+              },
+              "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+            }
+          ],
+          "findings": []
+        },
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_2_20261015_204934.png"
+      },
+      {
+        "slot": 2,
+        "anchor_id": "clip-2-KF5",
+        "time_seconds": 2.3,
+        "frame_position": 65,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261015_204710.png",
+        "description": null,
+        "source": {
+          "type": "KEYFRAME",
+          "id": "KF5",
+          "keyframe_index": 5,
+          "image_task_id": "36cd551a-50fc-48e4-9e38-8a8b1faba90f"
+        },
+        "reachability": {
+          "policy": "CANONICAL_MOTION_WINDOW_V1",
+          "previous_state_index": 4,
+          "target_state_index": 5,
+          "semantic_frame_position": 64,
+          "effective_frame_position": 65,
+          "semantic_local_time": 2.3,
+          "earliest_reachable_local_time": 2.3333333333333335,
+          "transition_start_local_time": 0.3,
+          "canonical_transition_duration_seconds": 2.0,
+          "requested_anchor_local_time": 2.3333333333333335,
+          "effective_anchor_local_time": 2.6666666666666665,
+          "motion_budget_seconds": 2.0,
+          "effective_frame_local_time": 2.6666666666666665,
+          "placement_adjusted": true,
+          "clamped": false,
+          "reachability_reason": [
+            "EXISTING_CURRENT_BODY+TRANSLATIONAL_MOTION"
+          ],
+          "critical_subjects": [
+            {
+              "character": "老大臣",
+              "lifecycle": "EXISTING_CURRENT_BODY",
+              "start_presence": "PRESENT",
+              "target_presence": "PRESENT",
+              "motion_ownership": "TRANSLATIONAL_MOTION",
+              "motion_class": "TRANSLATIONAL_MOTION",
+              "motion_budget_seconds": 2.0,
+              "motion_window_ratio": 1.0,
+              "blocking_delta": {
+                "previous_role": "神色严肃不安，身体已转为面向卧室出口，双臂垂在身侧，站姿坚决而紧绷。",
+                "target_role": "已到达卧室出口前，背向妻子，官服轮廓占据靠近出口的一侧。"
+              },
+              "reachability_reason": "EXISTING_CURRENT_BODY+TRANSLATIONAL_MOTION"
+            }
+          ],
+          "findings": []
+        },
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_3_20261015_204710.png"
+      }
+    ],
+    "duration_limits": {
+      "minimum": 4.0,
+      "maximum": 20.0,
+      "absolute_maximum": 20.0,
+      "frame_rule": "existing frozen workflow duration-to-frames conversion"
+    }
+  },
+  "music_contract": {
+    "value": "N/A",
+    "source_stage": "PHASE_B_RUNTIME_POLICY",
+    "interpretation": "NO_ADDED_SCORE"
+  },
+  "user_camera_requirements": {
+    "status": "UNKNOWN",
+    "requirements": [],
+    "source": "No explicit structured user lock recorded; preserve Canonical camera facts"
+  },
+  "source": {
+    "kind": "LIVE_SEMANTIC_CLIP",
+    "start_visual_resolution": [
+      {
+        "keyframe_index": 1,
+        "status": "RESOLVED",
+        "source": "Shot.description",
+        "reason": "START_REFERENCE"
+      }
+    ],
+    "hashes": {
+      "canonical_plan": "198391be519f9df225a4744e6dcd4a41a0745951789077c7a7836fd2784b42c2",
+      "builder_input": "b5abe466f4cf044a376a5141a04aebbc07837dfda81950736a8a95dc65574cf8",
+      "reference_manifest": "deab3fe2182670c32176c9b4cc48a44428ff7121cebcb23a813b3a7b02bf9144",
+      "workflow": "9807d4edd025f2147caf63d9f053f427e1dd1a4f795595fd7da79aa94da93604",
+      "physical_evidence": "95943fb0d7111288137f272b61a7466a18c1524cdbbcd325ec193d335d071473",
+      "music_contract": "d51c8553c7977ead95bb0dfbfa81a0f749bcff53c806328c22dbe8288962aa9f",
+      "user_camera_requirements": "c80565bd84ee5b5979253f583f4495724bc8185323e3bbae8f95b8be97e5fee8"
+    }
+  }
+}

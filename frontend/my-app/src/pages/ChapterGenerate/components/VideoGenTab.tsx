@@ -1,4 +1,7 @@
+import { phaseBActualVideo } from '../../../components/h3PhaseBPresentation';
+import { H3PhaseBResult } from '../../../components/H3PhaseBResult';
 import { ShotAutoGeneration } from './ShotAutoGeneration';
+import { ClipActionsMenu } from './ClipActionsMenu';
 import { ClipPlaybackButtons } from './ClipPlaybackButtons';
 import { H3OptimizerResult } from './H3OptimizerResult';
 import { ClipVisualStateReferences } from './ClipVisualStateReferences';
@@ -97,14 +100,11 @@ type VideoImageEditTarget = {
   frameIndex?: number;
 };
 
-function ClipMetadataDetails({ children, task }: { children: (task?: Task) => React.ReactNode; task?: Task }) {
-  const detailsRef = useRef<HTMLDetailsElement | null>(null);
-  const summaryRef = useRef<HTMLElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+function ClipMetadataDetails({ children, task, label = '查看详情' }: { children: (task?: Task) => React.ReactNode; task?: Task; label?: string }) {
+  const dialog = useRef<HTMLDialogElement | null>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [taskSnapshot, setTaskSnapshot] = useState<{ source: Task; data: Task } | null>(null);
-  const [placement, setPlacement] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: 256 });
-
   useEffect(() => {
     if (!isOpen || !task) return;
     let cancelled = false;
@@ -119,67 +119,41 @@ function ClipMetadataDetails({ children, task }: { children: (task?: Task) => Re
     return () => { cancelled = true; controller.abort(); };
   }, [isOpen, task?.id, task?.status]);
 
-  const updatePlacement = useCallback(() => {
-    const summary = summaryRef.current;
-    if (!summary) return;
-    const rect = summary.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > window.innerHeight) {
-      if (detailsRef.current) detailsRef.current.open = false;
-      return;
-    }
-    const width = Math.min(320, window.innerWidth - 24);
-    const left = Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12));
-    const spaceBelow = window.innerHeight - rect.bottom - 12;
-    const spaceAbove = rect.top - 12;
-    if (spaceBelow < 160 && spaceAbove > spaceBelow) {
-      setPlacement({ left, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.min(256, spaceAbove) });
-    } else {
-      setPlacement({ left, top: rect.bottom + 6, maxHeight: Math.min(256, spaceBelow) });
-    }
-  }, []);
-
   useEffect(() => {
-    if (!isOpen) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!detailsRef.current?.contains(target) && !popoverRef.current?.contains(target) && detailsRef.current) {
-        detailsRef.current.open = false;
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && detailsRef.current) detailsRef.current.open = false;
-    };
-    window.addEventListener('resize', updatePlacement);
-    window.addEventListener('scroll', updatePlacement, true);
-    document.addEventListener('pointerdown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      window.removeEventListener('resize', updatePlacement);
-      window.removeEventListener('scroll', updatePlacement, true);
-      document.removeEventListener('pointerdown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [isOpen, updatePlacement]);
-
-  return (
-    <details ref={detailsRef} className="relative text-[11px] text-gray-500" onToggle={(event) => {
-      if (event.currentTarget.open) updatePlacement();
-      setIsOpen(event.currentTarget.open);
-    }}>
-      <summary ref={summaryRef} className="cursor-pointer">详情</summary>
-      {isOpen && createPortal(
-        <div
-          ref={popoverRef}
-          role="tooltip"
-          className="fixed z-[120] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-md border border-gray-200 bg-white p-3 text-[11px] leading-relaxed text-gray-600 shadow-xl"
-          style={placement}
-        >
+    if (!isOpen || !dialog.current) return;
+    const element = dialog.current;
+    const button = opener.current;
+    element.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { element.close(); document.body.style.overflow = overflow; if (button?.isConnected) button.focus(); };
+  }, [isOpen]);
+  return <>
+    <button ref={opener} type="button" aria-haspopup="dialog" onClick={() => setIsOpen(true)} className="rounded border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50">{label}</button>
+    {isOpen && <dialog ref={dialog} aria-label="Clip 执行详情" aria-modal="true" onCancel={() => setIsOpen(false)} onClose={() => setIsOpen(false)}
+      onClick={e => { if (e.target === e.currentTarget) setIsOpen(false); }}
+      className="m-auto h-[90dvh] max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl overflow-hidden rounded-xl border-0 bg-white p-0 shadow-xl backdrop:bg-black/50">
+      <div className="flex h-full min-h-0 flex-col">
+        <header className="flex shrink-0 items-center justify-between border-b px-5 py-3">
+          <h3 className="font-semibold">Clip 执行详情</h3>
+          <button autoFocus type="button" aria-label="关闭 Clip 详情" onClick={() => setIsOpen(false)} className="rounded px-3 py-1 hover:bg-gray-100">关闭</button>
+        </header>
+        <div tabIndex={0} data-testid="clip-details-scroll" className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-5 text-sm">
           {children(taskSnapshot?.source?.id === task?.id && taskSnapshot?.source?.status === task?.status ? taskSnapshot?.data : task)}
-        </div>,
-        document.body,
-      )}
-    </details>
-  );
+        </div>
+      </div>
+    </dialog>}
+  </>;
+}
+
+function ClipDialogueList({ dialogueAssignment }: { dialogueAssignment: SemanticClipPlan['dialogue_assignment'] }) {
+  const rows = Array.isArray(dialogueAssignment) ? dialogueAssignment : [];
+  return <div data-testid="clip-dialogue-list" className="space-y-1 break-words text-xs leading-relaxed text-gray-700">
+    <p className="font-medium">Dialogue 原文 / Speaker</p>
+    {rows.length ? rows.map((span, i) => <p key={`${span.dialogue_id}:${span.segment_index || 1}:${i}`}>
+      {span.dialogue_id}{Number(span.segment_index) > 1 ? `.part${span.segment_index}` : ''} · {span.speaker}：{span.text}
+    </p>) : <p className="text-gray-500">此片段无对白</p>}
+  </div>;
 }
 
 function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: SemanticClipPlan; plan: VideoDirectorPlan; task?: Task; previousTask?: Task }) {
@@ -200,6 +174,10 @@ function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: Semant
   const revision = plan.clip_plan_revision;
   return (
     <div data-testid="clip-execution-details">
+      <div className="mb-3 space-y-2">
+        {task?.errorMessage && <p role="alert" className="break-words text-red-700">{task.errorMessage}</p>}
+        <details><summary>生成参数 / 任务状态与诊断</summary><pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(task || { clip }, null, 2)}</pre></details>
+      </div>
       <div>Clip {clip.clip_index ?? '—'} · {clip.start_time ?? '—'}–{clip.end_time ?? '—'}s · Revision {revision ?? '未提供'}</div>
       <div>Continuity：{clip.continuity_to_previous || '未提供'}</div>
       <div>Capability：{clip.capability || '未提供'}</div>
@@ -308,7 +286,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
 
   if (clips.length === 0) return null;
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <details data-testid="semantic-clip-debug-metadata" className="mb-2 rounded-md border border-dashed border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-500">
         <summary className="cursor-pointer font-medium text-gray-600">片段执行诊断</summary>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -320,15 +298,17 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           {loading && <span>正在读取执行结果…</span>}
         </div>
       </details>
-      <div className="space-y-1.5">
-        {clips.map((clip: any, index: number) => {
+      <div data-testid="clip-card-strip" role="region" aria-label="Clip 执行卡片，横向滚动" tabIndex={0}
+        onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') event.stopPropagation(); }}
+        className="flex min-w-0 max-w-full flex-nowrap items-start gap-3 overflow-x-auto overscroll-x-contain pb-3 [scrollbar-width:thin]">
+        {clips.map((clip: any) => {
           const task = resolveSemanticClipTask(clip, tasks, revision);
           const inspectorHref = inspectorEntry(task, clip, `/novels/${novelId}/chapters/${chapterId}/generate?shot=${shot.id}&tab=video`);
           const metadata = task?.clipExecution;
           const approvalStatus = metadata?.approval_status || clip.execution_status || 'PLANNED';
           const clipStatus = getSemanticClipStatus(clip, tasks, revision);
           const hasCurrentClipArtifact = clipStatus === 'COMPLETED';
-          const clipGenerateLabel = hasCurrentClipArtifact ? '重新生成片段' : '生成片段';
+          const clipGenerateLabel = hasCurrentClipArtifact ? '重新生成片段' : clipStatus === 'FAILED' ? '重试片段' : '生成片段';
           const currentPromptGenerateLabel = hasCurrentClipArtifact ? '使用当前提示词重新生成' : '使用当前提示词生成';
           const clipStatusLabel: Record<SemanticClipStatus, string> = {
             NOT_STARTED: '待生成',
@@ -338,9 +318,13 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
             COMPLETED: '已完成',
           };
           const dialogueAssignment = metadata?.dialogue_assignment || clip.dialogue_assignment;
+          const phaseBCall = [...(plan.ai_calls || [])].reverse().find(call =>
+            call.task_type === 'h3_multi_keyframe_director_phase_b' && Number(call.clip_index) === Number(clip.clip_index));
           const carryInLabel = getCarryInLabel(clip);
           const artifact = getClipArtifactPresentation(clip, task);
-          const isContinuation = artifact.continuous;
+          const actual = phaseBActualVideo(task);
+          const ordinaryCount = getOrdinaryImageReferenceCount(task);
+          const anchors = getMaterializedTemporalAnchors(clip, task);
           const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
           const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
           const clipKey = String(clip.clip_index);
@@ -348,33 +332,28 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           const preparation = clipPreparationPresentation(shot, Number(clip.clip_index));
           const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey || savingReferences || !preparation.executionReady;
           return (
-            <div id={`event-clip-${shot.id}-${clip.clip_index}`} key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
-              <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
-              <p className="my-1 text-xs text-gray-600">片段执行：{preparation.label}</p>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <article data-testid={`execution-chain-clip-${clip.clip_index}`} id={`event-clip-${shot.id}-${clip.clip_index}`} key={`${revision}-${clip.clip_index}`} className="min-w-0 flex-[0_0_380px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <div className="flex min-w-[116px] items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-900">片段 {clip.clip_index}</span>
+                  <span className="text-sm font-semibold text-gray-900">C{clip.clip_index}</span>
                   <span className="text-xs tabular-nums text-gray-600">{clip.start_time}–{clip.end_time}s</span>
                 </div>
-                <span className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700" title={clip.capability}>{getSemanticCapabilityLabel(clip.capability)}</span>
-                <span className="rounded-md bg-slate-50 px-2 py-1 text-[11px] text-slate-600">{getSemanticContinuityLabel(clip.continuity_to_previous)}</span>
-                <span className="text-[11px] tabular-nums text-gray-600">
-                  {Number(clip.planned_duration ?? (Number(clip.end_time) - Number(clip.start_time)))}s{isContinuation && artifact.nativeDuration != null ? ` · Native 累计输出 ${Number(artifact.nativeDuration).toFixed(3).replace(/\.000$/, '')}s` : !isContinuation && metadata?.actual_duration != null ? ` · 实际 ${metadata.actual_duration}s` : ''}
-                </span>
+                <span className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700" title={clip.capability}>{clip.capability || '未提供'}</span>
                 <span className={`text-[10px] font-medium ${clipStatus === 'COMPLETED' ? 'text-green-700' : clipStatus === 'FAILED' ? 'text-red-700' : clipStatus === 'RUNNING' ? 'text-blue-700' : 'text-gray-500'}`}>{clipStatusLabel[clipStatus]}</span>
-                {carryInLabel && (
-                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
-                    {carryInLabel}
-                  </span>
-                )}
-                <ClipVisualStateReferences shot={shot} clip={clip} novelId={novelId} chapterId={chapterId}
-                  disabled={savingReferences || !!isShotVideoGenerating || !!regeneratingClipKey || tasks.some(t => ['pending', 'queued', 'processing', 'running'].includes(t.status))}
-                  onShot={onPreparationShot} onSaving={setSavingReferences} />
-                <div className="ml-auto flex flex-wrap items-center gap-2">
+              </div>
+              <div className="my-2 space-y-1 break-words text-[11px] text-gray-600">
+                {actual && <div>{actual.label}：{actual.seconds?.toFixed(3).replace(/\.000$/, '')}s</div>}
+                <div>Dialogue：{Array.isArray(dialogueAssignment) ? dialogueAssignment.length : '未提供'} · 普通参考图：{ordinaryCount ?? '未提供'} · Temporal：{anchors.length}</div>
+                {artifact.continuous && <div>Previous AV：{getPreviousAvPresentation(clip, task, previousClip, previousTask).label}</div>}
+                {clipStatus === 'FAILED' && <div className="font-medium text-red-700">生成失败 · 原因见详情</div>}
+                {!preparation.executionReady && <div className="text-amber-700">{preparation.label}</div>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <ClipActionsMenu clipIndex={Number(clip.clip_index)}>
                   {inspectorHref && <Link data-testid="clip-execution-inspector-entry" to={inspectorHref} target="_blank" rel="noopener noreferrer" className="rounded-md border border-indigo-200 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50">{inspectorLabels.entry}</Link>}
                   <ClipPlaybackButtons key={task?.id || `${shot.id}:${clip.clip_index}`} novelId={novelId} chapterId={chapterId} shotId={shot.id} clip={clip}
                     ready={hasCurrentClipArtifact} playback={metadata?.clip_playback} onPreview={onPreviewClip} />
-                  <div className="relative inline-flex">
+                  <div className="flex flex-col">
                     <button
                       type="button"
                       onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'llm')}
@@ -394,24 +373,26 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                       {currentPromptGenerateLabel}
                     </button>
                   </div>
+                </ClipActionsMenu>
                   <ClipMetadataDetails task={task}>
-                    {(detailTask) => <ClipExecutionDetails clip={clip} plan={plan} task={detailTask} previousTask={previousTask} />}
+                    {(detailTask) => <div className="min-w-0 space-y-4">
+                      <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
+                      <p>片段执行：{preparation.label} · {getSemanticContinuityLabel(clip.continuity_to_previous)} · {carryInLabel}</p>
+                      <ClipExecutionDetails clip={clip} plan={plan} task={detailTask} previousTask={previousTask} />
+                      {inspectorHref && <Link to={inspectorHref} target="_blank" rel="noopener noreferrer" className="inline-block text-indigo-700 underline">{inspectorLabels.entry}</Link>}
+                    </div>}
                   </ClipMetadataDetails>
-                </div>
               </div>
-              {Array.isArray(dialogueAssignment) && dialogueAssignment.length > 0 && (
-                <details className="mt-1.5 border-t border-gray-100 pt-1.5 text-[10px] text-gray-600">
-                  <summary className="cursor-pointer">对白分配 · {dialogueAssignment.length} 段</summary>
-                  <div className="mt-1 grid gap-1 sm:grid-cols-2">
-                    {dialogueAssignment.map((span: any, spanIndex: number) => (
-                      <div key={`${span.dialogue_id}-${span.segment_index}-${spanIndex}`} className="rounded bg-gray-50 px-2 py-1">
-                        <span className="font-medium text-gray-700">{span.dialogue_id}{span.segment_index > 1 ? `.part${span.segment_index}` : ''} · {span.speaker}:</span> {span.text}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
+              <div className="mt-3 space-y-2 border-t border-gray-100 pt-2">
+                <ClipVisualStateReferences shot={shot} clip={clip} novelId={novelId} chapterId={chapterId}
+                  disabled={savingReferences || !!isShotVideoGenerating || !!regeneratingClipKey || tasks.some(t => ['pending', 'queued', 'processing', 'running'].includes(t.status))}
+                  onShot={onPreparationShot} onSaving={setSavingReferences} />
+                <H3PhaseBResult compact record={metadata?.h3_phase_b} call={phaseBCall} task={task}
+                  loadCall={call => shotsApi.getShotAiCall(novelId!, chapterId!, shot.id, call)} />
+                <div className="text-[11px] text-gray-600">任务状态：{task?.status || clip.status || '未开始'} · 审核：{approvalStatus}</div>
+                <ClipDialogueList dialogueAssignment={dialogueAssignment} />
+              </div>
+            </article>
           );
         })}
       </div>
@@ -931,7 +912,7 @@ const executionToneClass: Record<string, string> = {
   gray: 'border-gray-200 bg-gray-50 text-gray-600',
 };
 
-function ExecutionChainOverview({ plan, tasks }: { plan: VideoDirectorPlan; tasks: Task[] }) {
+function ExecutionChainOverview({ plan, tasks, children, planStatus, headerActions }: { plan: VideoDirectorPlan; tasks: Task[]; children: React.ReactNode; planStatus?: string | null; headerActions?: React.ReactNode }) {
   // 全局偏好，不按小说、章回或 Shot 区分；首次使用默认折叠。
   const storageKey = 'chapterGenerate_videoExecutionChain_expanded';
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -955,11 +936,13 @@ function ExecutionChainOverview({ plan, tasks }: { plan: VideoDirectorPlan; task
   const revision = Number(plan.clip_plan_revision || 0);
   if (!clips.length) return null;
   return (
-    <section data-testid="video-execution-chain" className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-800">执行链 · {clips.length} Clips</h3>
+    <section data-testid="video-execution-chain" className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">执行计划 · {clips.length} Clips</h3>
+          {planStatus && <span className={`rounded border px-1.5 py-0.5 text-[11px] ${plan.clip_plan_validation?.passed === false ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{planStatus}</span>}
+        </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-slate-500">Revision {revision || '—'}</span>
+          {headerActions}
           <button
             type="button"
             onClick={toggleExpanded}
@@ -972,45 +955,9 @@ function ExecutionChainOverview({ plan, tasks }: { plan: VideoDirectorPlan; task
           </button>
         </div>
       </div>
-      <div id={contentId} hidden={!isExpanded}>
-        {isExpanded && <div className="mt-2 space-y-0.5">
-          {clips.map((clip, index) => {
-            const task = resolveSemanticClipTask(clip, tasks, revision);
-            const generation = getClipGenerationPresentation(clip, task);
-            const review = getClipReviewPresentation(clip, task);
-            const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
-            const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
-            const previous = getPreviousAvPresentation(clip, task, previousClip, previousTask);
-            const artifact = getClipArtifactPresentation(clip, task);
-            const ordinaryCount = getOrdinaryImageReferenceCount(task);
-            const anchors = getMaterializedTemporalAnchors(clip, task);
-            const required = (plan.required_execution_images || []).filter(item => item.consumer_clip_indexes?.includes(Number(clip.clip_index)));
-            return (
-              <div key={`${revision}-${clip.clip_index}`}>
-                <article data-testid={`execution-chain-clip-${clip.clip_index}`} className="rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2 text-[11px] text-slate-700">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="min-w-[106px] text-xs font-semibold text-slate-900">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span>
-                    <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700">{clip.capability || 'ROUTE 未提供'}</span>
-                    <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[generation.tone]}`}>生成：{generation.label}</span>
-                    <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[review.tone]}`}>审核：{review.label}</span>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
-                    {artifact.continuous && <span>Previous AV：<strong className={previous.label.includes('READY') ? 'text-green-700' : 'text-amber-700'}>{previous.label}</strong></span>}
-                    {artifact.continuous && <span>Native AV：<strong className={artifact.nativeReady ? 'text-green-700' : 'text-amber-700'}>{artifact.outputStatus}</strong>{artifact.nativeReady && artifact.overlapLabel !== '未提供' ? ` · Overlap ${artifact.overlapLabel}` : ''}</span>}
-                    <span>普通图片参考：{ordinaryCount == null ? '未提供' : `${ordinaryCount} 张`}</span>
-                    <span>Temporal Anchors：{anchors.length ? anchors.map(anchor => `${anchor.label} @ ${anchor.timeSeconds == null ? '—' : anchor.timeSeconds}s`).join('、') : '0 个'}</span>
-                    {required.length > 0 && <span>Required：{required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready ? 'READY' : '未就绪'}`).join('、')}</span>}
-                  </div>
-                </article>
-                {index < clips.length - 1 && <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓ {clip.capability === 'GENERATE' ? 'AV' : 'Native AV'}</div>}
-              </div>
-            );
-          })}
-          <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓</div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800">
-            Final Assembly · {hasCurrentAssembly(plan, tasks) ? 'COMPLETED' : getSemanticShotStatusFromPlan(plan, tasks) === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}
-          </div>
-        </div>}
+      <div id={contentId} hidden={!isExpanded} className="mt-2 min-w-0">
+        {children}
+        <div className="mt-2 text-xs font-semibold text-slate-600">Final Assembly · {hasCurrentAssembly(plan, tasks) ? 'COMPLETED' : getSemanticShotStatusFromPlan(plan, tasks) === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}</div>
       </div>
     </section>
   );
@@ -1218,11 +1165,15 @@ function VideoDirectorPanel({
   };
   const renderImageReviewActions = (kf: any, imageUrl: string | null, compact = false) => {
     const taskId = getKeyframeImageTaskId(kf);
-    if (!imageUrl || !taskId || isKeyframeGenerating(kf)) return null;
+    if (!imageUrl) return null;
+    const canReview = !!taskId && !isKeyframeGenerating(kf);
     const busy = loadingImageReviewTask === taskId;
-    return <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'mt-2' : ''}`}>
+    return <div data-testid="director-image-quality" className={`flex flex-wrap items-center gap-1.5 ${compact ? 'mt-1' : 'my-2'}`}>
+      {canReview && <>
       <button type="button" disabled={busy} onClick={() => void openImageReview(kf, imageUrl, true)} className="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50">{busy ? '加载中...' : 'AI 评审'}</button>
       <button type="button" disabled={busy} onClick={() => void openImageReview(kf, imageUrl, false)} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">查看评审历史</button>
+      </>}
+      {renderImageQuality(kf, imageUrl)}
     </div>;
   };
   const getKeyframeFrameIndex = (kf: any) => {
@@ -1468,6 +1419,17 @@ function VideoDirectorPanel({
     URL.revokeObjectURL(url);
   };
 
+  const executionPlanStatus = isPlanningClips ? t('chapterGenerate.planningClips') : plan.clip_plan_validation?.passed === false ? '计划校验失败' : (canonicalSemanticReadiness.state === 'NO_VISUAL_PLAN'
+                ? t('chapterGenerate.noVisualTimeline')
+                : canonicalSemanticReadiness.state === 'REQUIRED_IMAGES_MISSING'
+                  ? t('chapterGenerate.requiredVisualStatesMissing')
+                  : canonicalSemanticReadiness.state === 'CLIP_PLAN_MISSING'
+                    ? t('chapterGenerate.clipPlanMissing')
+                    : canonicalSemanticReadiness.state === 'CLIP_PLAN_STALE'
+                      ? t('chapterGenerate.clipPlanNeedsReplan')
+                      : canonicalSemanticReadiness.state === 'GENERATE_VISUAL_START_MISSING'
+                        ? canonicalSemanticReadiness.reason
+                      : t('chapterGenerate.clipPlanReady'));
   if (isHistoricalPlan) {
     const historicalMode = plan.selected_mode || plan.recommended_mode;
     const historicalKeyframes = Array.isArray(plan.keyframes) ? plan.keyframes : [];
@@ -1578,16 +1540,7 @@ function VideoDirectorPanel({
             <Copy className="w-4 h-4" />
             AI提示词
           </button>}
-          {!isCanonicalPlan && <button
-            type="button"
-            onClick={() => onRecommend(true)}
-            disabled={isRecommending || !!isShotVideoGenerating}
-            title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再重新推荐' : undefined}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
-            重新推荐视频生成模式
-          </button>}
+
         </div>
       </div>
 
@@ -1614,11 +1567,9 @@ function VideoDirectorPanel({
         </div>
       )}
 
-      {!isCanonicalPlan && <div className="flex gap-2">
-        {renderModeButton('SINGLE_FRAME')}
-        {renderModeButton('FIRST_LAST_FRAME', !firstLastAvailable, `当前 Workflow 单次最大 ${maxClipDuration}s，本 Shot ${shot?.duration || 0}s`)}
-        {renderModeButton('MULTI_KEYFRAME')}
-      </div>}
+      {!isCanonicalPlan && <p className="text-xs text-gray-500">
+        旧生成模式已退役，历史计划与视频仍可查看。新生成请先规划 Canonical 视觉时间轴。
+      </p>}
 
       <ImageQualitySummary rows={imageQualities} error={imageQualityError} />
       {showKeyframeExecutionTimeline && (
@@ -1981,7 +1932,6 @@ function VideoDirectorPanel({
                       )}
                       {isCurrentKeyframe && <div className="absolute -bottom-1 left-2 right-2 h-1 rounded-full bg-blue-500" />}
                     </button>
-                    <div className="mt-1">{renderImageQuality(kf, keyframeImageUrl)}</div>
                     {renderImageReviewActions(kf, keyframeImageUrl, true)}
                     </div>
                   );
@@ -2004,7 +1954,38 @@ function VideoDirectorPanel({
         )}
       </div>
 
-      {hasSemanticClipPlan && <ExecutionChainOverview plan={plan} tasks={semanticClipTasks} />}
+      {hasSemanticClipPlan && <ExecutionChainOverview plan={plan} tasks={semanticClipTasks} planStatus={executionPlanStatus} headerActions={<>
+            {isCanonicalPlan && <button
+              type="button"
+              onClick={() => {
+                if (!hasSemanticClipPlan || window.confirm(t('chapterGenerate.replanClipsConfirm'))) onPlanClips(hasSemanticClipPlan);
+              }}
+              disabled={!canonicalSemanticReadiness.planningAllowed || isPlanningClips || !!isShotVideoGenerating}
+              title={canonicalSemanticReadiness.state === 'NO_VISUAL_PLAN'
+                ? t('chapterGenerate.planVisualTimelineFirst')
+                : canonicalSemanticReadiness.state === 'REQUIRED_IMAGES_MISSING'
+                  ? t('chapterGenerate.generateRequiredVisualStatesFirst')
+                  : undefined}
+              className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPlanningClips ? t('chapterGenerate.planningClips') : hasSemanticClipPlan ? t('chapterGenerate.replanClips') : t('chapterGenerate.planClips')}
+            </button>}
+      </>}>
+          <SemanticClipExecutionPanel
+            key={`${(semanticClipPlanShot || shot)?.id}-${(semanticClipPlanShot || shot)?.videoDirectorPlan?.clip_plan_revision}`}
+            shot={semanticClipPlanShot || shot}
+            chapterId={chapterId}
+            novelId={novelId}
+            onPreparationShot={onPreparationShot}
+            onPreviewClip={onPreviewClip}
+            onRegenerateClip={onRegenerateClip}
+            onAssemble={onMergeClips}
+            onTasksChange={onSemanticClipTasksChange}
+            regeneratingClipKey={regeneratingClipKey}
+            isShotVideoGenerating={isShotVideoGenerating}
+            isAssembling={isMergingClips}
+          />
+      </ExecutionChainOverview>}
 
       <details
         data-testid="advanced-director-details"
@@ -2073,7 +2054,6 @@ function VideoDirectorPanel({
                   </div>
                 )}
               </div>
-              <div className="my-2" data-testid="director-image-quality">{renderImageQuality(selectedKeyframe, selectedKeyframeImageUrl)}</div>
               {renderImageReviewActions(selectedKeyframe, selectedKeyframeImageUrl)}
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-700">
@@ -2208,11 +2188,10 @@ function VideoDirectorPanel({
           </div>
         )}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3">
+      {!hasSemanticClipPlan && <div className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-center justify-between gap-3 mb-2">
           <div>
             <div className="text-sm font-semibold text-gray-700">{t('chapterGenerate.executionPlan')} · {showSemanticClipPlan ? semanticClipPlan.length : clips.length} {t('chapterGenerate.clips')}</div>
-            {showSemanticClipPlan && <div className="mt-0.5 text-xs text-gray-500">查看片段预览、恢复与对话分配</div>}
             {isCanonicalPlan && <div className="mt-0.5 text-xs text-gray-500">
               {canonicalSemanticReadiness.state === 'NO_VISUAL_PLAN'
                 ? t('chapterGenerate.noVisualTimeline')
@@ -2253,20 +2232,7 @@ function VideoDirectorPanel({
           </div>
         )}
         {showSemanticClipPlan ? (
-          <SemanticClipExecutionPanel
-            key={`${(semanticClipPlanShot || shot)?.id}-${(semanticClipPlanShot || shot)?.videoDirectorPlan?.clip_plan_revision}`}
-            shot={semanticClipPlanShot || shot}
-            chapterId={chapterId}
-            novelId={novelId}
-            onPreparationShot={onPreparationShot}
-            onPreviewClip={onPreviewClip}
-            onRegenerateClip={onRegenerateClip}
-            onAssemble={onMergeClips}
-            onTasksChange={onSemanticClipTasksChange}
-            regeneratingClipKey={regeneratingClipKey}
-            isShotVideoGenerating={isShotVideoGenerating}
-            isAssembling={isMergingClips}
-          />
+          <p className="text-xs text-gray-500">片段预览、恢复与完整详情见上方执行链卡片。</p>
         ) : clips.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
             {clips.map((clip: any) => {
@@ -2384,60 +2350,6 @@ function VideoDirectorPanel({
                       >
                         {clip.video_url ? '预览 Clip' : '缺少视频记录'}
                       </button>
-                      <div className="relative inline-flex">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenClipGenerateMenuKey(null);
-                            onRegenerateClip(clip, 'llm');
-                          }}
-                          disabled={clipGenerationDisabled}
-                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : undefined}
-                          className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
-                          {isRegenerating ? '生成中...' : 'LLM+生成Clip视频'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setOpenClipGenerateMenuKey(openClipGenerateMenuKey === clipKey ? null : clipKey);
-                          }}
-                          disabled={clipGenerationDisabled}
-                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择生成模式' : undefined}
-                          className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label="选择 Clip 视频生成模式"
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                        {openClipGenerateMenuKey === clipKey && (
-                          <div className="absolute bottom-full left-0 z-[80] mb-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenClipGenerateMenuKey(null);
-                                onRegenerateClip(clip, 'llm');
-                              }}
-                              className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
-                            >
-                              LLM+生成Clip视频
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenClipGenerateMenuKey(null);
-                                onRegenerateClip(clip, 'video_only');
-                              }}
-                              disabled={!clip.prompt_text || !!isShotVideoGenerating}
-                              title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : !clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
-                              className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
-                            >
-                              仅生成Clip视频
-                            </button>
-                          </div>
-                        )}
-                      </div>
                       {clip.prompt_text && (
                         <button type="button" onClick={() => setViewingPromptClip(clip)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
                           查看Prompt
@@ -2473,7 +2385,7 @@ function VideoDirectorPanel({
               : selectedMode === 'MULTI_KEYFRAME' ? '等待 #08 生成 window_plans 后才能执行多关键帧视频。' : '暂无执行 Clip，请重新推荐或保存视频规划。'}
           </div>
         )}
-      </div>
+      </div>}
         </div>
       </details>
     </div>
@@ -2738,6 +2650,12 @@ export function VideoGenTab({
     : false;
   const getPlanClipKey = (clip: any) => String(clip?.clip_index || clip?.window_index || `${clip?.start_time}-${clip?.end_time}`);
   const semanticClipPlanRevision = Number(currentVideoDirectorPlan.clip_plan_revision || 0);
+  const currentPhaseBCall = [...(currentVideoDirectorPlan.ai_calls || [])].reverse()
+    .find(call => call.task_type === 'h3_multi_keyframe_director_phase_b');
+  const currentPhaseBClip = (currentVideoDirectorPlan.clip_plan || [])
+    .find(clip => clip.clip_index === currentPhaseBCall?.clip_index);
+  const currentPhaseBTask = currentPhaseBClip
+    ? resolveSemanticClipTask(currentPhaseBClip, semanticClipTasks, semanticClipPlanRevision) : undefined;
   const currentPlanClips: any[] = hasSemanticClipPlan
     ? (currentVideoDirectorPlan.clip_plan || []).map((clip: any) => {
       const task = resolveSemanticClipTask(clip, semanticClipTasks, semanticClipPlanRevision);
@@ -2771,6 +2689,7 @@ export function VideoGenTab({
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [planningClipsShotId, setPlanningClipsShotId] = useState<string | null>(null);
   const [optimizeH3Prompt, setOptimizeH3Prompt] = useState(true);
+  const [h3PromptPipeline, setH3PromptPipeline] = useState<'legacy' | 'phase_b'>('legacy');
   const [isSubmittingCanonicalShot, setIsSubmittingCanonicalShot] = useState(false);
   const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
@@ -2915,56 +2834,7 @@ export function VideoGenTab({
       return eligibility;
     }
 
-    if (isSemanticShot(shot)) {
-      const status = getSemanticShotStatus(shot, batchShotTasks[shotId] || []);
-      if (status === 'ASSEMBLED') return { selectable: false, reason: '当前版本已完成' };
-      if (status === 'WAITING_REVIEW') return { selectable: false, reason: '等待审核' };
-      if (status === 'CLIPS_COMPLETE' && !autoAssemble) return { selectable: false, reason: 'Clip 已完成' };
-      if (!getShotImageUrl(shot)) return { selectable: false, reason: '缺少主分镜图' };
-      return { selectable: true, reason: status === 'CLIPS_COMPLETE' ? '待合并' : '可执行缺失 Clip' };
-    }
-
-    const shotImageUrl = getShotImageUrl(shot);
-    if (autoCompleteOverride) {
-      return shotImageUrl
-        ? { selectable: true, reason: '可自动补齐' }
-        : { selectable: false, reason: '缺少主分镜图' };
-    }
-
-    const selectedMode = plan.selected_mode || plan.recommended_mode;
-    if (!selectedMode) return { selectable: false, reason: '未确定生成模式' };
-
-    if (!shotImageUrl) return { selectable: false, reason: '缺少主分镜图' };
-
-    if (selectedMode === 'SINGLE_FRAME') return { selectable: true, reason: '可生成' };
-
-    const keyframes = plan.keyframes || [];
-    if (!keyframes.length) return { selectable: false, reason: '未规划关键帧' };
-
-    if (selectedMode === 'FIRST_LAST_FRAME') {
-      const endKeyframe = keyframes.find((keyframe: any) => keyframe.role === 'END');
-      if (!endKeyframe) return { selectable: false, reason: '缺少尾帧规划' };
-      if (!getVideoDirectorKeyframeImageUrl(shot, endKeyframe)) return { selectable: false, reason: '尾帧图片未生成' };
-      return { selectable: true, reason: '可生成' };
-    }
-
-    if (selectedMode === 'MULTI_KEYFRAME') {
-      const clips = plan.window_plans || [];
-      if (!clips.length) return { selectable: false, reason: '未规划关键帧' };
-      const invalidClip = clips.find((clip: any) => ![3, 4].includes((clip.keyframe_indexes || []).length));
-      if (invalidClip) return { selectable: false, reason: '关键帧规划不完整' };
-      const missingClip = clips.find((clip: any) => (clip.keyframe_indexes || []).some((keyframeIndex: number) => {
-        const keyframe = keyframes.find((item: any) => Number(item.index) === Number(keyframeIndex));
-        return !getVideoDirectorKeyframeImageUrl(shot, keyframe);
-      }));
-      if (missingClip) {
-        const clip: any = missingClip;
-        return { selectable: false, reason: `C${clip.window_index || clip.clip_index || ''} 缺关键帧图` };
-      }
-      return { selectable: true, reason: '可生成' };
-    }
-
-    return { selectable: false, reason: '生成模式不支持' };
+    return { selectable: false, reason: '历史生成模式已退役，请先规划 Canonical 视觉时间轴与 Clip' };
   }, [autoAssemble, autoCompleteDetails, batchShotTasks, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
   const batchShotItems = shotsList.map((shot: any, idx: number) => {
@@ -3017,8 +2887,7 @@ export function VideoGenTab({
   )).length;
   const allVisibleSelectableSelected = selectableVisibleShotIndexes.length > 0
     && selectableVisibleShotIndexes.every((index) => executableSelectedSet.has(index));
-  const legacyCompatibilityVisible = shouldShowLegacyBatchCompatibility(visibleBatchShotItems)
-    || shouldShowLegacyBatchCompatibility(batchShotItems.filter((item) => executableSelectedSet.has(item.shotIndex)));
+  const legacyCompatibilityVisible = false; // Legacy plans remain viewable, not executable selections.
   const batchSelectionSignature = batchShotItems.map((item) => `${item.shotIndex}:${item.selectable ? 1 : 0}`).join('|');
 
   useEffect(() => {
@@ -3696,7 +3565,7 @@ export function VideoGenTab({
       const result = await shotsApi.generateVideosBatch(
         effectiveNovelId,
         effectiveChapterId,
-        { ...buildSemanticBatchRequest([currentShotId], true), optimize_h3_prompt: optimizeH3Prompt },
+        { ...buildSemanticBatchRequest([currentShotId], true), h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt },
       );
       if (!result.success) throw new Error(result.detail || result.message || t('chapterGenerate.semanticExecutionFailed'));
       await checkVideoTaskStatus(effectiveChapterId);
@@ -3883,7 +3752,7 @@ export function VideoGenTab({
         use_reference_audio: true,
         auto_merge: false,
         skip_llm_when_prompt_exists: useExistingPrompt,
-        optimize_h3_prompt: optimizeH3Prompt,
+        h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt,
         clip_plan_revision: Number(currentVideoDirectorPlan.clip_plan_revision || 0),
       });
       if (result.success) {
@@ -3907,7 +3776,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentIsCanonicalPlan, currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision, optimizeH3Prompt]);
+  }, [currentIsCanonicalPlan, currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision, optimizeH3Prompt, h3PromptPipeline]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -4142,7 +4011,7 @@ export function VideoGenTab({
           force_rerun: semanticSelected.length > 0 ? false : true,
           auto_assemble: autoAssemble,
         };
-      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, optimize_h3_prompt: optimizeH3Prompt });
+      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
       }
@@ -4481,44 +4350,39 @@ export function VideoGenTab({
       {/* Canonical Shot production header */}
       <div
         data-testid="canonical-production-header"
-        className="mb-2 flex-shrink-0 border-b border-gray-200 px-4 pb-3 xl:px-8"
+        className="mb-2 min-w-0 max-w-full flex-shrink-0 border-b border-gray-200 px-2 py-1 xl:px-4"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-[240px] flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
-              <label className="flex items-center gap-1 text-sm font-normal">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <span className="shrink-0 text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
+              <label className="flex min-w-0 items-center gap-1">H3 路径 <select className="min-w-0 max-w-full rounded border border-gray-200 bg-white py-0.5" aria-label="H3 Prompt 路径" value={h3PromptPipeline} onChange={e => setH3PromptPipeline(e.target.value as 'legacy' | 'phase_b')}>
+                <option value="legacy">Legacy #13 → #14</option><option value="phase_b">Phase B #13</option>
+              </select></label>
+              {h3PromptPipeline === 'legacy' && <label className="flex items-center gap-1 font-normal">
                 <input type="checkbox" checked={optimizeH3Prompt} onChange={event => setOptimizeH3Prompt(event.target.checked)} />
-                H3 提示词优化
-              </label>
+                提示词优化
+              </label>}
               <span className="text-xs tabular-nums text-gray-500">{Number(currentShotData?.duration || 0)} 秒</span>
-              <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${currentShotVideoResult.className}`}>
+              <span title={currentShotVideoResult.detail} className={`rounded-full border px-2 py-0.5 text-xs font-medium ${currentShotVideoResult.className}`}>
                 {currentShotVideoResult.label}
               </span>
             </div>
-            <div className="mt-1 text-xs text-gray-600" title={currentShotVideoResult.detail}>
-              {currentShotVideoResult.detail}
-            </div>
-            <H3OptimizerResult
-              key={currentShotId + ':' + (currentVideoDirectorPlan.ai_calls || []).length}
-              call={[...(currentVideoDirectorPlan.ai_calls || [])].reverse().find((call: any) => String(call.step) === '14')}
+            <H3PhaseBResult
+              compact
+              contextSummary={currentIsCanonicalPlan ? `${getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · ${t('chapterGenerate.optionalMissingStates', { count: currentOptionalMissingVisualStateCount })}` : undefined}
+              task={currentPhaseBTask}
+              key={'phase-b:' + currentShotId + ':' + (currentVideoDirectorPlan.ai_calls || []).length}
+              call={currentPhaseBCall}
               loadCall={call => shotsApi.getShotAiCall(effectiveNovelId!, effectiveChapterId!, currentShotId!, call)}
             />
-            {currentIsCanonicalPlan && currentOptionalMissingVisualStateCount > 0 && (
-              <div className="mt-1 text-xs text-gray-500">
-                {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {t('chapterGenerate.optionalMissingStates', { count: currentOptionalMissingVisualStateCount })}
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
             {currentCanonicalPrimaryAction && (
               <button
                 type="button"
                 data-testid="canonical-primary-action"
                 onClick={currentCanonicalPrimaryAction.onClick}
                 disabled={currentCanonicalPrimaryAction.disabled}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {(isGeneratingCurrent || isCurrentVideoPending || isSubmittingCanonicalShot) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
                 {currentCanonicalPrimaryAction.label}
@@ -4528,7 +4392,7 @@ export function VideoGenTab({
               type="button"
               onClick={handleOpenBatchSelect}
               disabled={!effectiveChapterId}
-              className="rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-green-300 bg-white px-2 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               批量生成视频
             </button>
@@ -4539,7 +4403,7 @@ export function VideoGenTab({
                   event.stopPropagation();
                   setShowWorkspaceActionsMenu((open) => !open);
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 aria-expanded={showWorkspaceActionsMenu}
               >
                 更多
@@ -4580,11 +4444,16 @@ export function VideoGenTab({
           </div>
         </div>
       </div>
+      <H3OptimizerResult
+        key={currentShotId + ':' + (currentVideoDirectorPlan.ai_calls || []).length}
+        call={[...(currentVideoDirectorPlan.ai_calls || [])].reverse().find((call: any) => String(call.step) === '14')}
+        loadCall={call => shotsApi.getShotAiCall(effectiveNovelId!, effectiveChapterId!, currentShotId!, call)}
+      />
 
       {/* 内容区 - 主编辑区 + 右侧视频预览 */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
-        <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
+        <div className="video-main-column flex-none lg:flex-1 min-w-0 flex flex-col gap-4 overflow-visible lg:overflow-y-auto pr-1">
           <ShotAutoGeneration novelId={effectiveNovelId} chapterId={effectiveChapterId} shotId={currentShotId || ''} onProgress={refreshCurrentShotData} />
           <VideoDirectorPanel
             shot={currentShotData}
@@ -4628,7 +4497,7 @@ export function VideoGenTab({
         </div>
 
         {/* 右侧：视频预览 + AI 调用结果 */}
-        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-y-auto">
+        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-visible lg:overflow-y-auto">
         {currentIsCanonicalPlan && hasSemanticClipPlan && <FinalAssemblyStatusPanel plan={currentVideoDirectorPlan} tasks={semanticClipTasks} targetDuration={currentShotData?.duration} />}
         <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">

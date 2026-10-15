@@ -32,8 +32,8 @@ def test_clip_visible_characters_come_from_selected_keyframes():
 @pytest.mark.parametrize(
     ("selected_mode", "expected_task_type"),
     [
-        ("SINGLE_FRAME", "h3_single_frame_prompt"),
-        ("FIRST_LAST_FRAME", "h3_first_last_frame_prompt"),
+        ("SINGLE_FRAME", "h3_multi_keyframe_prompt"),
+        ("FIRST_LAST_FRAME", "h3_multi_keyframe_prompt"),
         ("MULTI_KEYFRAME", "h3_multi_keyframe_prompt"),
     ],
 )

@@ -3,6 +3,7 @@ import json
 import math
 import os
 from copy import deepcopy
+from app.services.director_context import effective_visual_states
 
 from sqlalchemy.orm import Session
 
@@ -51,6 +52,48 @@ def _project_speech_timing_intervals(shot, video_plan: dict, resolved_dialogue_t
     return intervals
 
 
+def _project_dialogue_speaker_groups(timeline: list, visual_context: dict) -> list[dict]:
+    """Summarize consecutive canonical speakers for soft boundary planning only."""
+    resolved_ids = {
+        str(event.get("dialogue_id")): (event.get("resolved_character") or {}).get("character_id")
+        for event in visual_context.get("events") or []
+        if isinstance(event, dict)
+        and (event.get("resolved_character") or {}).get("status") == "resolved"
+    }
+    groups = []
+    previous_speaker_key = None
+    for event in timeline or []:
+        if not isinstance(event, dict):
+            continue
+        event_id = event.get("id")
+        speaker = event.get("speaker")
+        try:
+            start = float(event["start_time"])
+            end = float(event["end_time"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not event_id or not speaker or not math.isfinite(start) or not math.isfinite(end) or end <= start:
+            continue
+        speaker_id = resolved_ids.get(str(event_id))
+        speaker_key = ("resolved", speaker_id) if speaker_id else ("canonical", speaker)
+        if groups and previous_speaker_key == speaker_key:
+            group = groups[-1]
+            group["dialogue_ids"].append(str(event_id))
+            group["end_time"] = round(max(group["end_time"], end), 2)
+            group["dialogue_count"] += 1
+        else:
+            groups.append({
+                "dialogue_ids": [str(event_id)],
+                "speaker_id": speaker_id,
+                "speaker": speaker,
+                "start_time": round(start, 2),
+                "end_time": round(end, 2),
+                "dialogue_count": 1,
+            })
+        previous_speaker_key = speaker_key
+    return groups
+
+
 def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy: dict | None = None, *, resolved_dialogue_timeline: list | None = None) -> dict:
     image_url = getattr(shot, "image_url", None)
     image_path = getattr(shot, "image_path", None)
@@ -61,7 +104,8 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         video_plan = json.loads(getattr(shot, "video_director_plan", None) or "{}")
     except Exception:
         video_plan = {}
-    keyframes = video_plan.get("keyframes") or []
+    keyframes, start_resolution = effective_visual_states(
+        video_plan.get("keyframes") or [], getattr(shot, "description", None))
     if resolved_dialogue_timeline is None:
         resolved_dialogue_timeline, _ = resolve_canonical_dialogue_timeline(shot, video_plan)
     try:
@@ -190,6 +234,9 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         "temporal_anchor_images": anchor_images,
         "previous_approved_video": False,
     }
+    dialogue_visual_context = build_dialogue_visual_planning_context(
+        resolved_dialogue_timeline, video_plan, float(shot.duration or 4),
+    )
     return {
         "shot": {
             "id": shot.id,
@@ -204,10 +251,10 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         # must not expose it as #10A planning authority.
         "canonical_visual_plan": canonical_visual_plan,
         "speech_timing_intervals": _project_speech_timing_intervals(shot, video_plan, resolved_dialogue_timeline),
-        "dialogue_visual_planning_context": build_dialogue_visual_planning_context(
-            resolved_dialogue_timeline, video_plan, float(shot.duration or 4),
-        ),
+        "dialogue_speaker_groups": _project_dialogue_speaker_groups(resolved_dialogue_timeline, dialogue_visual_context),
+        "dialogue_visual_planning_context": dialogue_visual_context,
         "visual_state_candidates": visual_state_candidates,
+        "start_visual_resolution": start_resolution,
         "transition_context": transition_context,
         "planning_policy": {
             "preferred_max_duration": CLIP_PREFERRED_MAX_DURATION,

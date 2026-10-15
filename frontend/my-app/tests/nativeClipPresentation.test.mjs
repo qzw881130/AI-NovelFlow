@@ -11,7 +11,7 @@ const { getClipArtifactPresentation: artifact, getPreviousAvPresentation: previo
 const page = await readFile(new URL('../src/pages/ChapterGenerate/components/VideoGenTab.tsx', import.meta.url), 'utf8');
 const detailsSource = page.slice(page.indexOf('function ClipExecutionDetails('), page.indexOf('function SemanticClipExecutionPanel('));
 const detailsJs = ts.transpileModule(detailsSource, { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 } }).outputText;
-const Details = new Function('React', 'getClipArtifactPresentation', 'getPreviousAvPresentation', `${detailsJs}; return ClipExecutionDetails;`)(React, artifact, previous);
+const Details = new Function('React', 'getClipArtifactPresentation', 'getPreviousAvPresentation', 'H3PhaseBResult', `${detailsJs}; return ClipExecutionDetails;`)(React, artifact, previous, () => null);
 
 const generate = { clip_index: 1, capability: 'GENERATE', continuity_to_previous: 'NONE', generated_by_task_id: 'c1', video_url: '/c1.mp4' };
 const first = { id: 'c1', status: 'completed', resultUrl: '/c1.mp4', clipExecution: { approval_status: 'APPROVED', clip_plan_revision: 2, capability: 'GENERATE' } };

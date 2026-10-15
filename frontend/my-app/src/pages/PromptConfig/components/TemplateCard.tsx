@@ -1,8 +1,9 @@
-import { Eye, Edit2, Trash2, Copy, Download } from 'lucide-react';
+import { Eye, Edit2, Trash2, Copy, Download, BookOpen } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { PromptTemplate } from '../../../types';
 import type { TemplateType } from '../types';
 import { TEMPLATE_TYPE_CONFIG } from '../hooks/usePromptConfigState';
+import { formatPromptLastModified } from '../lastModified';
 
 interface TemplateCardProps {
   template: PromptTemplate;
@@ -11,12 +12,13 @@ interface TemplateCardProps {
   onEdit: (type: TemplateType, template: PromptTemplate) => void;
   onCopy: (template: PromptTemplate) => void;
   onDelete: (template: PromptTemplate) => void;
+  onBindings: (template: PromptTemplate) => void;
   getDisplayName: (template: PromptTemplate) => string;
   getDisplayDescription: (template: PromptTemplate) => string;
 }
 
 export function TemplateCard({
-  template, type, onView, onEdit, onCopy, onDelete, getDisplayName, getDisplayDescription
+  template, type, onView, onEdit, onCopy, onDelete, onBindings, getDisplayName, getDisplayDescription
 }: TemplateCardProps) {
   const { t } = useTranslation();
 
@@ -32,7 +34,7 @@ export function TemplateCard({
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-gray-300 bg-white transition-colors">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 rounded-lg border border-gray-200 hover:border-gray-300 bg-white transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <h4 className="font-medium text-gray-900">
@@ -49,8 +51,14 @@ export function TemplateCard({
         <p className="text-xs text-gray-400 mt-1 truncate font-mono">
           {template.template.substring(0, type === 'chapter_split' ? 120 : 80)}...
         </p>
+        <p className="text-xs text-gray-500 mt-1">
+          {t('promptConfig.lastModified')}: {formatPromptLastModified(template.lastModifiedAt) || t('promptConfig.unknown')}
+        </p>
       </div>
-      <div className="flex items-center gap-1 ml-4">
+      <div className="flex flex-wrap items-center justify-end gap-1 sm:ml-4 sm:max-w-[15rem]">
+        <button onClick={() => onBindings(template)} className="inline-flex items-center gap-1 px-1.5 py-1 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('promptConfig.boundNovels')}>
+          <BookOpen className="h-4 w-4" />{t('promptConfig.boundNovels')}
+        </button>
         {template.isSystem ? (
           <>
             <button onClick={() => onView(template)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.view')}>

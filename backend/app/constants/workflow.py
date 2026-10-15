@@ -14,6 +14,10 @@ DESC_KEY_PREFIX = f"{I18N_PREFIX}.workflowDescriptions"
 
 
 # 工作流类型定义
+RETIRED_H3_WORKFLOW_TYPES = frozenset({
+    "video", "first_last_video", "three_frame_video", "four_frame_video",
+})
+
 WORKFLOW_TYPES = {
     "character": "人设生成",
     "scene": "场景生成",

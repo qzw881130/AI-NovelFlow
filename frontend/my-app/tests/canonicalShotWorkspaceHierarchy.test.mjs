@@ -45,9 +45,10 @@ test('current authoritative Final Shot is the default preview target', () => {
   assert.match(source, /setSelectedPreviewClipKey\(null\)[\s\S]*setSelectedPreviewClipUrl\(null\)[\s\S]*\}, \[currentShotId\]\)/);
 });
 
-test('individual Clip preview remains reachable only through Advanced Director controls', () => {
-  assert.match(advancedSource, /查看片段预览、恢复与对话分配/);
-  assert.match(advancedSource, /onPreviewClip=\{onPreviewClip\}/);
+test('individual Clip controls are reused in the primary execution cards', () => {
+  assert.doesNotMatch(source, /查看片段预览、恢复与对话分配/);
+  assert.match(productionSource, /onPreviewClip=\{onPreviewClip\}/);
+  assert.equal((source.match(/<SemanticClipExecutionPanel/g) || []).length, 1);
   assert.match(semanticPanelSource, /<ClipPlaybackButtons/);
   assert.doesNotMatch(source, />\s*Shot 成片\s*</);
 });

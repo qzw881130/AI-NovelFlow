@@ -184,7 +184,10 @@ async def test_parser_fallback_and_execution_duration(monkeypatch,runtime,respon
  chat=AsyncMock(return_value={**response,'log_id':'log14'});monkeypatch.setattr(opt,'LLMService',lambda:NS(chat_completion=chat))
  calls=[];monkeypatch.setattr(opt,'append_video_ai_call',lambda shot,call:calls.append(call))
  selected,record=await opt.optimize_h3_execution_prompt(Mock(),NS(id='novel'),NS(index=3,chapter_id='chapter'),RAW,'MULTI_KEYFRAME',{'clip_index':1,'planned_duration':4})
- assert record['status']==expected and selected==(NATIVE if expected=='OPTIMIZED' else RAW) and record['clip_index']==1
+ expected_prompt=(opt.compile_dialogue_time_cues(
+  NATIVE, runtime[0]['immutable_authority']['dialogue_events'], valid_output(runtime)['av_timeline'])
+  if expected=='OPTIMIZED' else RAW)
+ assert record['status']==expected and selected==expected_prompt and record['clip_index']==1
  assert record['duration_applied'] is (expected=='OPTIMIZED') and record['timing_applied'] is (expected=='OPTIMIZED')
  assert chat.call_args.kwargs['system_prompt']=='registry edited prompt' and len(chat.call_args.kwargs['images'])==2 and calls[0]['step']=='14'
  if response.get('error')=='vision unsupported':assert record['capability_error']=='VISION_CAPABILITY_UNAVAILABLE'

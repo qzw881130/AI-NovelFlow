@@ -103,6 +103,7 @@ export interface Novel {
   h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
   h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
+  h3MultiKeyframeDirectorPhaseBTemplateId?: string;  // H3 Phase B 单阶段导演视频提示词模板
   h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
   h3PreflightRepairPromptTemplateId?: string;  // H3 Preflight 自动修复模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
@@ -291,6 +292,8 @@ export interface VideoDirectorTaskClip {
 }
 
 export interface ClipExecutionMetadata {
+  h3_prompt_pipeline?: 'legacy' | 'phase_b';
+  h3_phase_b?: any;
   clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;
   execution_scope?: string;
   clip_id?: string;
@@ -302,7 +305,7 @@ export interface ClipExecutionMetadata {
   original_duration?: number;
   optimized_duration?: number | null;
   effective_duration?: number;
-  duration_source?: 'ORIGINAL' | 'H3_PROMPT_OPTIMIZER';
+  duration_source?: 'ORIGINAL' | 'H3_PROMPT_OPTIMIZER' | 'H3_PHASE_B_LIMITED_V1';
   actual_duration?: number | null;
   approval_status?: string;
   approval_mode?: string;
@@ -370,6 +373,7 @@ export interface PromptTemplate {
   isSystem: boolean;
   isActive: boolean;
   createdAt: string;
+  lastModifiedAt: string | null;
 }
 
 export interface TestCase {

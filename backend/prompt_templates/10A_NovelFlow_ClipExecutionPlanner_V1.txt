@@ -12,6 +12,11 @@ Authoritative inputs:
 - `shot.characters`, `shot.scene`, and `shot.props`: structural visual context only.
 - `speech_timing_intervals`: event ID plus start/end time only. These intervals are
   boundary hints, not dialogue content, speaker authority, or continuity authority.
+- `dialogue_speaker_groups`: read-only consecutive same-speaker groups derived from
+  the canonical Dialogue Timeline. IDs, resolved speaker IDs when known, and times
+  are planning hints; the original timeline remains the only dialogue authority.
+- `dialogue_visual_planning_context`: read-only canonical speaker windows and planned
+  visual attention. It may inform soft audiovisual boundary choices, not new speech.
 - `shot.continuity_mode`: planning context only. It does not override the visual
   dependency definition below.
 
@@ -25,7 +30,7 @@ Duration planning policy (new plans only):
   Preserve an indivisible necessary action. Never pad with unrelated actions/story.
 - Do not split a complete utterance. Preserve canonical words, speaker, order and
   fixed utterance durations. Use `speech_timing_intervals` to choose speech gaps;
-  soft attention concerns are not independent reasons to fragment the story.
+  soft attention concerns alone are not reasons to fragment the story.
 - Never divide a narratively finished, unchanged tail into repeated EXTEND Clips
   merely to cover the supplied Shot duration. Silent action is valid when it adds
   visible story information. If the canonical end time still demands only repeated
@@ -42,6 +47,17 @@ Duration planning policy (new plans only):
   boundaries; never mechanically add a fixed camera cost for every speaker switch.
   STANDARD_GENERATION has zero overlap. Unknown workflow budgets stay unknown;
   reference count, KF presence and continuity labels alone do not prove 39 frames.
+- For every candidate boundary, distinguish Story Duration (`end_time-start_time`),
+  the workflow's hard Generation Duration ceiling, and only a VERIFIED overlap
+  reservation. Fixed speech plus verified overlap is a lower execution bound, not
+  the final Generation Duration. Unknown overlap or speaker/action acquisition cost
+  is UNKNOWN, never zero. Preserve plausible headroom for the canonical actions,
+  visual attention handoffs and speech without assigning a fixed cost per switch.
+  Compare each affected Clip's fixed-speech share of Story Duration alongside its
+  remaining action and visual work. This is a relative planning signal, not a fixed
+  occupancy threshold. Inspect both adjacent Clips and any added Clip: do not make
+  one easier by crowding another against its workflow ceiling, timed target,
+  transition or continuity requirement.
 - This is budget reservation only: do not add overlap to Shot times, change the
   canonical time origin, or shift dialogue. #14 owns Previous Video execution-time
   mapping, speaker acquisition, pauses, action timing, optional anchors and final
@@ -72,10 +88,16 @@ Dialogue Visual Planning Context (Phase B2):
   and character relationships. Reaction framing with another primary subject and a
   background-moving speaker, brief handoffs, two-shots, medium shots, over-the-shoulder,
   shared composition and camera movement remain valid; speaker-primary is not a hard
-  rule. Avoid mechanical speaker close-ups, splitting or rejection because of unknowns.
-- This context must not change Clip count/start/end/duration, capability or temporal
-  selection. Keep existing boundary, continuity and anchor contracts; do not introduce
-  dialogue/handoff/density/tail splits or reselect anchors for weak evidence. Do not
+  rule. Full planned primary support for each utterance does not prove that several
+  close, alternating speaker handoffs will be easy to execute in one Clip. Consider
+  the sequence and its available gaps as a soft boundary factor, without treating
+  supported events as errors. Avoid mechanical speaker close-ups, splitting or
+  rejection because of unknowns.
+- This context and `dialogue_speaker_groups` may inform Clip count and boundary
+  selection as SOFT planning factors together with canonical visual action and
+  execution budgets. Do not split solely because a speaker changes, dialogue count
+  is high, or visibility is unknown. Keep continuity and anchor contracts; select
+  capability and temporal targets from canonical visual facts, not speech. Do not
   rewrite upstream #08 states/attention or trigger an attention replan. Soft reasoning
   in existing `reason` is non-authoritative and non-gating; do not output scores.
   With no dialogue events, retain ordinary visual planning without speech reasoning.
@@ -92,17 +114,21 @@ Dialogue Visual Evidence Review (required planning step):
   SOFT dialogue visual planning concern, not a hard failure. Planned membership in
   nearby point states is auxiliary context, not proof of interval speaker support.
 - Primary with full coverage is existing planned speaker-attention support. Preserve
-  it without mechanical close-ups, restructuring or splitting. Primary plus handoff
-  participation followed by primary can be a legitimate handoff, not a mismatch.
+  it without mechanical close-ups or automatic restructuring. Evaluate consecutive
+  speaker groups separately: several close handoffs can still consume audiovisual
+  execution attention even when every individual event has full primary coverage.
+  Primary plus handoff participation followed by primary can be a legitimate handoff,
+  not a mismatch or an automatic reason to split.
   Background-motion speakers, shared composition and reaction framing are also valid;
   another primary subject or a handoff alone does not make a dialogue event wrong.
 - Planned metadata is not observed truth. Never infer actual speaker visibility,
   face/mouth readability, correct lip ownership or correct H3 speaker realization
   from primary, membership, identity resources or state relations. Unknown is neither
   false nor failure; keep unresolved and unavailable facts unknown.
-- This review informs explanatory reasoning and optional soft visual intent only. Do not change canonical text,
-  speaker, order or timing; Clip count/boundaries/duration, capability or temporal
-  selections; create temporal anchors; or rewrite upstream #08 states/attention.
+- This review may inform soft Clip boundary choices, explanatory reasoning and
+  optional visual intent. Do not change canonical text, speaker, order or timing;
+  do not choose capability or temporal selections from speech, create temporal
+  anchors, or rewrite upstream #08 states/attention.
   Keep the output schema below with no new review, analysis, score or status fields.
 - In the existing `reason`, briefly identify relevant supplied event references and
   explain how the concern, positive support or legitimate handoff/reaction composition
@@ -130,6 +156,9 @@ Executable Dialogue Visual Intent (optional, Clip-local):
   requirement. Do not remove a listener/reaction subject or create states or anchors.
 - Do not produce an intent for every dialogue. Existing support and legitimate
   handoffs prefer omission/no-op; do not mechanically correct a positive support case.
+  Sequence-level handoff load alone does not establish missing visual participation:
+  events=[] remains valid when individual events already have planned support, even
+  if their combined timing merits a different Clip boundary.
   Unknown facts stay unknown. This soft field cannot change canonical text/speaker/
   order/timing, Clip boundaries/capability, temporal selections, #08 attention or refs.
   Missing field is legal for old responses; no dialogue means omit it or events=[].
@@ -140,7 +169,31 @@ Boundary selection and continuity classification are two separate decisions:
    satisfy the hard limits of `planning_policy` while aiming for its soft target.
    Do not place a boundary inside a `speech_timing_intervals` interval; prefer a
    natural speech gap or completion, including a justified >15-second Clip.
-   Dialogue timing may influence WHERE a boundary is convenient, but nothing else.
+   Compare keeping a natural Clip, moving an adjacent boundary, and adding a Clip
+   only when the whole affected sequence gains a clear execution benefit.
+   For each option, examine consecutive same-speaker groups and their handoffs,
+   fixed-speech share of each Clip's Story Duration, canonical action and camera
+   work, verified overlap, unknown execution costs, timed targets, and the extra
+   generation and continuity cost of another Clip. A reduction in one Clip's
+   dialogue count or speaker switches is insufficient when its neighbor becomes
+   more crowded or a new Clip inherits an equally difficult visual transition.
+   Compare the combined burden across the affected Clips, not only the local gain.
+   Give particular attention to close back-and-forth handoffs around a longer
+   same-speaker run; full planned primary attention does not erase that sequencing
+   cost. Prefer a legal gap between runs when it improves the sequence without
+   breaking canonical action or unnecessarily dividing a same-speaker passage.
+   A long speaker run is not indivisible: split it at a legal gap when duration or
+   a canonical visual beat requires it. A multi-speaker shared composition is valid;
+   a speaker change does not require a camera cut or a new Clip.
+   Prefer boundaries after an authored action completes or near an established,
+   stable visual state. If a timed state arrives just inside a new Clip, inspect
+   whether that Clip can establish it before the next required dialogue or action;
+   do not add a Clip merely to move state ownership across a boundary with almost
+   no lead-in. Preserve the actual transition phase and state time; do not invent
+   a fixed settling interval. Keep fewer Clips when an added boundary only shifts
+   pressure, adds overlap/continuity cost, or fragments one continuous visual beat.
+   In the existing `reason`, explain the material whole-sequence benefit of an
+   added Clip or why a feasible simpler boundary was retained; add no output fields.
 
 2. After choosing a boundary, classify its visual dependency independently:
    - `CONTINUOUS` means the current Clip cannot faithfully establish its visual start

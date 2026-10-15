@@ -223,6 +223,7 @@ class GenerateVideoRequest(BaseModel):
 class GenerateVideoDirectorClipRequest(BaseModel):
     """重新生成单个 Video Director Clip 请求"""
 
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = "legacy"
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
     optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")

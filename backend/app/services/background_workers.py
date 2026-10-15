@@ -53,9 +53,9 @@ class AsyncWorker:
         self._runner: Optional[asyncio.Task] = None
         self._signalled_job_ids: set[str] = set()
 
-    def enqueue(self, job_factory: JobFactory) -> None:
+    def enqueue(self, job_factory: JobFactory, *, db=None) -> None:
         if isinstance(job_factory, PersistentJobRequest):
-            job_id = self.manager.persist(job_factory, self.name)
+            job_id = self.manager.persist(job_factory, self.name, db=db)
             self.manager._local_factories.setdefault(job_id, job_factory.run_local)
             self.signal(job_id)
             return
@@ -131,11 +131,15 @@ class WorkerManager:
             self._workers[name] = AsyncWorker(name, self)
         return self._workers[name]
 
-    def persist(self, request: PersistentJobRequest, queue_name: str) -> str:
+    def persist(self, request: PersistentJobRequest, queue_name: str, *, db=None) -> str:
         from app.models.background_job import BackgroundJob
+        from app.models.task import Task
         from sqlalchemy.exc import IntegrityError
 
-        db = self._session()
+        # Explicit retry supplies its Task reset transaction. Commit the reset
+        # and the new descriptor together, before waking the consumer.
+        owns_session = db is None
+        db = db if db is not None else self._session()
         try:
             existing = db.query(BackgroundJob).filter(
                 BackgroundJob.task_id == request.task_id,
@@ -144,17 +148,32 @@ class WorkerManager:
                 BackgroundJob.status.in_(["queued", "running"]),
             ).order_by(BackgroundJob.created_at.asc()).first()
             if existing:
+                if not owns_session:
+                    raise ValueError("任务已有未结束的后台执行")
                 return existing.id
 
             # Reuse the existing primary-key constraint, including on databases
             # where this table already exists. Window continuation is a distinct
             # execution of the same product Task; payload edits are not.
-            job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, json.dumps([
+            identity = [
                 request.task_id, queue_name, request.handler,
                 request.payload.get("only_window_index"),
-            ], ensure_ascii=False)))
+            ]
+            if request.handler == "app.services.shot_video_service:generate_shot_video_task":
+                task = db.get(Task, request.task_id)
+                try:
+                    metadata = json.loads(task.metadata_json or "{}") if task else {}
+                except (TypeError, ValueError):
+                    metadata = {}
+                metadata = metadata if isinstance(metadata, dict) else {}
+                attempt = metadata.get("background_job_attempt")
+                if attempt:
+                    identity.append(attempt)
+            job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, json.dumps(identity, ensure_ascii=False)))
             finished = db.query(BackgroundJob).filter(BackgroundJob.id == job_id).first()
             if finished:
+                if not owns_session:
+                    raise ValueError("重试执行标识已存在")
                 return finished.id
             job = BackgroundJob(
                 id=job_id,
@@ -163,12 +182,15 @@ class WorkerManager:
                 handler=request.handler,
                 payload_json=json.dumps(request.payload, ensure_ascii=False),
                 status="queued",
+                created_at=datetime.utcnow(),
             )
             db.add(job)
             try:
                 db.commit()
             except IntegrityError:
                 db.rollback()
+                if not owns_session:
+                    raise
                 # The DB, rather than a process-local lock, arbitrates racing enqueues.
                 existing = db.query(BackgroundJob).filter(
                     BackgroundJob.id == job_id,
@@ -179,7 +201,8 @@ class WorkerManager:
             db.refresh(job)
             return job.id
         finally:
-            db.close()
+            if owns_session:
+                db.close()
 
     async def run_persisted(self, job_id: str) -> None:
         from app.models.background_job import BackgroundJob

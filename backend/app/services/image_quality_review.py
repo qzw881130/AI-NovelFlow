@@ -111,7 +111,10 @@ def normalize_review_response(raw: str) -> dict:
         issue["original_severity"] = issue["severity"]
         if issue["visibility"] not in {"OBSERVED", "OCCLUDED", "UNCERTAIN"}:
             issue["visibility"] = "UNCERTAIN"
-        if (issue["type"] not in BLOCKING_DIMENSIONS or issue["visibility"] != "OBSERVED"
+        dimension = supplied.get(issue["type"])
+        if (issue["type"] not in BLOCKING_DIMENSIONS
+                or not isinstance(dimension, dict) or dimension.get("status") != "FAIL"
+                or issue["visibility"] != "OBSERVED"
                 or issue["location"] in {"", "无法确认", "未知"}
                 or not issue["observed"] or not issue["evidence"]):
             issue["severity"] = "WARNING"
@@ -126,7 +129,9 @@ def normalize_review_response(raw: str) -> dict:
         if status == "FAIL" and not any(issue["severity"] == "FAIL" for issue in related):
             status = "WARNING"
         if status in {"PASS", "WARNING"} and related:
-            status = "FAIL" if any(issue["severity"] == "FAIL" for issue in related) else "WARNING"
+            # Conflicting model fields are inconclusive; an issue cannot promote
+            # a non-FAIL dimension into a blocking finding.
+            status = "WARNING"
         if status in {"WARNING", "FAIL"} and not related:
             issues.append({"type": name, "severity": "WARNING", "expected": "按原始提示词及参考图满足要求",
                            "observed": str(value.get("summary") or "证据不足"), "location": "无法确认",

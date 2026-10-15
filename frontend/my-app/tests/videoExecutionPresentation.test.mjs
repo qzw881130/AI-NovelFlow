@@ -28,6 +28,23 @@ const components = new Function('React', 'useState', 'useId', 'ChevronDown', 'Ch
   React, React.useState, React.useId, ChevronDown, ChevronUp, { getItem: () => 'true' }, ...Object.values({ ...presentation, ...native, ...authority }),
 );
 
+const phaseB = await loadTypeScript('../src/components/h3PhaseBPresentation.ts');
+const semanticSource = page.slice(page.indexOf('function SemanticClipExecutionPanel('), page.indexOf('\ntype VideoPromptDraft'));
+const detailsSource = page.slice(page.indexOf('function ClipDialogueList('), page.indexOf('function SemanticClipExecutionPanel('));
+const compile = text => ts.transpileModule(text,{compilerOptions:{jsx:ts.JsxEmit.React,target:ts.ScriptTarget.ES2020}}).outputText;
+const detailsDeps={React,...native};
+const ClipDetails=new Function(...Object.keys(detailsDeps),`${compile(detailsSource)};return {ClipExecutionDetails,ClipDialogueList};`)(...Object.values(detailsDeps));
+function cards(plan,tasks,details=false){
+ const noop=()=>null;
+ const deps={React,...presentation,...native,...authority,...phaseB,useState:initial=>[Array.isArray(initial)?tasks:initial,noop],useRef:()=>({current:''}),useEffect:noop,
+  useInspectorLabels:()=>({entry:'执行分析'}),inspectorEntry:task=>task?'/inspect/'+task.id:null,clipPreparationPresentation:()=>({executionReady:true,label:'可生成片段'}),visualStatePromptIsCurrent:()=>true,
+  getSemanticContinuityLabel:x=>x,Link:({to,...props})=>React.createElement('a',{href:to,...props}),Loader2:noop,
+  RequiredImagesPreparation:noop,ClipVisualStateReferences:noop,ClipPlaybackButtons:()=>React.createElement('button',{},'播放本片段'),
+  ClipMetadataDetails:({children,task})=>React.createElement('div',{},React.createElement('button',{},'查看详情'),details?children(task):null),ClipExecutionDetails:ClipDetails.ClipExecutionDetails,ClipDialogueList:ClipDetails.ClipDialogueList,H3PhaseBResult:noop,ClipActionsMenu:({children})=>React.createElement('div',{},children)};
+ const Panel=new Function(...Object.keys(deps),`${compile(semanticSource)};return SemanticClipExecutionPanel;`)(...Object.values(deps));
+ return renderToStaticMarkup(React.createElement(Panel,{shot:{id:'shot',videoDirectorPlan:plan},novelId:'novel',chapterId:'chapter',onRegenerateClip:noop,onPreviewClip:noop,onAssemble:noop,onPreparationShot:noop}));
+}
+
 const clips = [
   { clip_index: 1, start_time: 0, end_time: 8, capability: 'GENERATE', generated_by_task_id: 'c1', video_url: '/c1.mp4', approval_status: 'APPROVED', execution_status: 'APPROVED' },
   { clip_index: 2, start_time: 8, end_time: 19.4, capability: 'EXTEND', previous_clip_index: 1, generated_by_task_id: 'c2', video_url: '/c2.mp4', approval_status: 'APPROVED', execution_status: 'APPROVED' },
@@ -58,14 +75,14 @@ const plan = {
 };
 
 test('Clip rows separate generation, review and three physical input classes', () => {
-  const html = renderToStaticMarkup(React.createElement(components.ExecutionChainOverview, { plan, tasks }));
-  assert.match(html, /C1 · 0–8s/);
-  assert.match(html, /C1[\s\S]*?GENERATE[\s\S]*?生成：完成[\s\S]*?审核：AUTO_APPROVED/);
-  assert.doesNotMatch(html.match(/data-testid="execution-chain-clip-1"[\s\S]*?<\/article>/)?.[0] || '', /Previous AV：/);
+  const html = cards(plan,tasks,true);
+  assert.match(html, /C1[\s\S]*?0–8s/);
+  assert.match(html, /C1[\s\S]*?GENERATE[\s\S]*?已完成[\s\S]*?审核：APPROVED/);
+  assert.doesNotMatch(html.match(/data-testid="execution-chain-clip-1"[\s\S]*?<\/article>/)?.[0] || '', /Previous AV：[\s\S]*?READY/);
   assert.match(html, /C2[\s\S]*?EXTEND[\s\S]*?Previous AV：[\s\S]*?C1 · 首段生成 AV · READY/);
   assert.match(html, /C3[\s\S]*?TEMPORAL_EXTEND[\s\S]*?C2 · Native continuity · READY/);
   assert.match(html, /Temporal Anchors：KF4 @ 9\.4s/);
-  assert.match(html, /Native AV：[\s\S]*?READY[\s\S]*?Overlap 39 frames \/ 1\.625s/);
+  assert.match(html, /Native continuity output：READY[\s\S]*?Native overlap：39 frames \/ 1\.625s/);
   assert.match(html, /普通图片参考：0 张/);
   assert.doesNotMatch(html, /图片准备：已就绪|manifest.*未提供或为空/);
   assert.equal(presentation.getOrdinaryImageReferenceCount(tasks[2]), 0);
@@ -73,7 +90,7 @@ test('Clip rows separate generation, review and three physical input classes', (
 });
 
 test('zero ordinary images and zero temporal anchors never imply image conditioning', () => {
-  const html = renderToStaticMarkup(React.createElement(components.ExecutionChainOverview, { plan, tasks }));
+  const html = cards(plan,tasks,true);
   const c2 = html.match(/data-testid="execution-chain-clip-2"[\s\S]*?<\/article>/)?.[0] || '';
   assert.match(c2, /Previous AV：[\s\S]*?READY/);
   assert.match(c2, /普通图片参考：0 张/);
@@ -95,10 +112,30 @@ test('completed assembly and failed duration acceptance coexist without hiding p
 });
 
 test('missing historical task metadata stays neutral and existing Clip actions remain', () => {
-  const html = renderToStaticMarkup(React.createElement(components.ExecutionChainOverview, { plan: { clip_plan_revision: 4, clip_plan: [clips[0]] }, tasks: [] }));
+  const html = cards({clip_plan_revision:4,clip_plan:[clips[0]]},[],true);
   assert.match(html, /普通图片参考：未提供/);
   assert.match(html, /Temporal Anchors：0 个/);
   assert.match(page, /onRegenerateClip\(\{ \.\.\.clip, clip_index: clip\.clip_index \}, 'llm'\)/);
   assert.match(page, /onRegenerateClip\(\{ \.\.\.clip, clip_index: clip\.clip_index \}, 'video_only'\)/);
   assert.match(page, /onAssemble=\{onMergeClips\}/);
+});
+
+test('one, two, five and ten Clips keep stable ordered cards with one scroll strip and no grid wrapping',()=>{
+ for(const count of [1,2,5,10]){
+  const list=Array.from({length:count},(_,i)=>({...clips[i%3],clip_index:i+1})).reverse();
+  const html=cards({...plan,clip_plan:list},tasks);
+  assert.equal((html.match(/data-testid="clip-card-strip"/g)||[]).length,1);
+  assert.deepEqual([...html.matchAll(/data-testid="execution-chain-clip-(\d+)"/g)].map(m=>Number(m[1])),Array.from({length:count},(_,i)=>i+1));
+  assert.equal((html.match(/flex-\[0_0_380px\]/g)||[]).length,count);
+  assert.match(html,/flex-nowrap items-start gap-3 overflow-x-auto/);
+  assert.equal((html.match(/查看详情/g)||[]).length,count);
+  assert.doesNotMatch(html,/clip-execution-details|grid-cols|scrollLeft|scrollIntoView/);
+ }
+});
+test('failed, active, completed and silent cards coexist without losing actions or inventing duration',()=>{
+ const rows=tasks.map(t=>({...t,clipExecution:{...t.clipExecution,dialogue_assignment:[]}}));
+ rows[0].status='failed'; rows[0].errorMessage='test failure';rows[1].status='running';rows[2].clipExecution.clip_playback={independent_media:{video_duration:8}};
+ const html=cards(plan,rows,true);
+ for(const text of ['重试片段','生成中','已完成','test failure','无对白','实际视频时长（生成片，含共享前缀）：8s','执行分析','使用当前提示词重新生成'])assert.ok(html.includes(text),text);
+ assert.equal((html.match(/Dialogue：0/g)||[]).length,3);
 });

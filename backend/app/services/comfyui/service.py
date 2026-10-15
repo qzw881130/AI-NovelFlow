@@ -366,7 +366,8 @@ class ComfyUIService:
         keyframe_paths: Optional[List[str]] = None,
         reference_image_paths: Optional[List[str]] = None,
         strict_reference_image: bool = False,
-        on_prompt_queued=None
+        on_prompt_queued=None,
+        before_submit=None,
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)
 
@@ -511,6 +512,10 @@ class ComfyUIService:
                         disconnect_reference_chain(workflow, node_id_str)
                         print(f"[ComfyUI] Disconnected {kf_key} {node_id_str} - no image uploaded")
 
+            # Optional contract check after actual upload/binding, before POST.
+            if before_submit:
+                before_submit(workflow, {"reference_filenames": filenames if node_mapping.get("load_image_node_1") else [],
+                                         "temporal_filenames": []})
             # 提交任务
             queue_result = await self.client.queue_prompt(workflow)
             
@@ -539,7 +544,7 @@ class ComfyUIService:
             print(f"[ComfyUI] Generate shot video failed: {e}")
             return {"success": False, "message": f"生成失败: {str(e)}"}
 
-    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None, require_native_output=False):
+    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None, require_native_output=False, before_submit=None):
         try:
             workflow_json = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
             upload = await self.client.upload_video(previous_video_path)
@@ -594,6 +599,10 @@ class ComfyUIService:
                 )
                 if not finalized or inputs.get("context_frames") != 39 or inputs.get("video_overlap_frames") != 39 or inputs.get("source_fps") != 24:
                     return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
+            if before_submit:
+                before_submit(workflow, {"reference_filenames": reference_filenames,
+                                         "previous_filename": upload["filename"],
+                                         "temporal_filenames": [a["image"] for a in uploaded_anchors] if capability == "TEMPORAL_EXTEND" else []})
             queued = await self.client.queue_prompt(workflow)
             if not queued.get("success"):
                 return {**queued, "message": queued.get("error") or "续生成任务提交失败"}

@@ -174,42 +174,48 @@ async def test_novel_override_cannot_recover_forbidden_keyframe_prompt_sources(d
 
 
 @pytest.mark.asyncio
-async def test_keyframe_image_prompt_output_rejects_explicit_speech_authority(db_session):
+@pytest.mark.parametrize("output", [
+    "不得自行添加说话、回答、倾听或口型状态。",
+    "皇帝没有开口，宫廷总管保持沉默。",
+    "皇帝低声说道，宫廷总管望向他。",
+    "背景保留亮窗或可视开口。",
+])
+async def test_keyframe_image_prompt_does_not_block_natural_language(db_session, output):
     novel, shot = _fixture(db_session, dialogues=[])
 
     async def complete(**_kwargs):
-        return {"success": True, "content": "侍从正在回答皇帝，嘴唇张开"}
+        return {"success": True, "content": output}
 
     service = ShotKeyframeService()
     service.llm_service = SimpleNamespace(chat_completion=complete)
-    with pytest.raises(ValueError, match="KEYFRAME_IMAGE_PROMPT_SPEECH_AUTHORITY_VIOLATION"):
-        await service._build_qwen_keyframe_prompt(
-            db_session,
-            novel,
-            shot,
-            {"index": 2, "role": "END", "time_seconds": 8, "description": "侍从身体微微前倾，视线朝向皇帝"},
-            None,
-            SimpleNamespace(current_step=""),
-            reference_manifest=[],
-        )
+    prompt = await service._build_qwen_keyframe_prompt(
+        db_session, novel, shot,
+        {"index": 2, "role": "END", "time_seconds": 8, "description": "侍从身体微微前倾，视线朝向皇帝"},
+        None, SimpleNamespace(current_step=""), reference_manifest=[],
+    )
+    assert prompt == output
 
 
 @pytest.mark.asyncio
-async def test_previous_visual_state_cannot_supply_speech_authority(db_session):
+async def test_previous_visual_state_speech_words_do_not_block_prompt(db_session):
     novel, shot = _fixture(db_session, dialogues=[])
-    service = ShotKeyframeService()
-    service.llm_service = SimpleNamespace(chat_completion=None)
+    captured = {}
 
-    with pytest.raises(ValueError, match="KEYFRAME_IMAGE_INPUT_SPEECH_AUTHORITY_VIOLATION"):
-        await service._build_qwen_keyframe_prompt(
-            db_session,
-            novel,
-            shot,
-            {"index": 3, "role": "END", "time_seconds": 8, "description": "侍从身体微微前倾"},
-            {"index": 2, "role": "INTERMEDIATE", "time_seconds": 4, "description": "侍从正在回答皇帝"},
-            SimpleNamespace(current_step=""),
-            reference_manifest=[],
-        )
+    async def complete(**kwargs):
+        captured.update(kwargs)
+        return {"success": True, "content": "侍从身体微微前倾"}
+
+    service = ShotKeyframeService()
+    service.llm_service = SimpleNamespace(chat_completion=complete)
+
+    prompt = await service._build_qwen_keyframe_prompt(
+        db_session, novel, shot,
+        {"index": 3, "role": "END", "time_seconds": 8, "description": "侍从身体微微前倾"},
+        {"index": 2, "role": "INTERMEDIATE", "time_seconds": 4, "description": "侍从正在回答皇帝"},
+        SimpleNamespace(current_step=""), reference_manifest=[],
+    )
+    assert prompt == "侍从身体微微前倾"
+    assert json.loads(captured["user_content"].split("\n\n", 1)[1])["previous_keyframe"]["description"] == "侍从正在回答皇帝"
 
 
 @pytest.mark.asyncio

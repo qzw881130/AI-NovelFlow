@@ -219,9 +219,13 @@ export function useTasksState({ page = 1, pageSize = 30 } = {}) {
       if (data.success) {
         toast.success(t('tasks.taskRestarted'));
         fetchTasks();
+      } else {
+        const detail = (data as { detail?: unknown }).detail;
+        toast.error(typeof detail === 'string' ? detail : data.message || t('common.error'));
       }
     } catch (error) {
       console.error('重试失败:', error);
+      toast.error(error instanceof Error ? error.message : t('common.error'));
     }
   };
 

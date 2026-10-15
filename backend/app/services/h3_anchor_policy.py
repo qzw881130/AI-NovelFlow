@@ -170,9 +170,20 @@ def check_anchor_policy(prompt, output, authority, spoken, detail, resolved_evid
     sources.update({a['anchor_id']: a['visual_reference_description'] for a in catalog
                     if a.get('anchor_id') not in sources and a.get('visual_reference_description')})
     requirement_ids = {r.get('id') for r in requirements}
+    def traceable_requirement(i, requirement):
+        source_entry=evidence['entries'].get(f'requirements.{i}.source') or {}
+        prompt_entry=evidence['entries'].get(f'requirements.{i}.prompt') or {}
+        resolved_id=source_entry.get('resolved_source_id')
+        actual_source=resolved_id.removesuffix('.clip_scope.execution_scope') if isinstance(resolved_id,str) else None
+        reattributed=source_entry.get('resolution_status')=='AUTHORIZED_SOURCE_REATTRIBUTED'
+        return (_text(requirement.get('id')) and _text(requirement.get('requirement'))
+                and requirement.get('source_id') in sources
+                and _text(excerpt(evidence,f'requirements.{i}.source'))
+                and (not reattributed or (actual_source in sources
+                                          and source_entry.get('declared_source_id')==requirement.get('source_id')
+                                          and prompt_entry.get('status')=='RESOLVED')))
     checks['canonical_visual_requirement_trace'] = (bool(requirements) and len(requirement_ids) == len(requirements)
-        and all(_text(r.get('id')) and _text(r.get('requirement')) and r.get('source_id') in sources
-                and _text(excerpt(evidence, f'requirements.{i}.source')) for i,r in enumerate(requirements)))
+        and all(traceable_requirement(i,r) for i,r in enumerate(requirements)))
     # Unresolved content is unverified, not proof of absence. Keep it blocked for
     # semantic review; a provenance mismatch with a resolved span is non-blocking.
     checks['canonical_visual_requirement_consistency'] = bool(requirements) and all(

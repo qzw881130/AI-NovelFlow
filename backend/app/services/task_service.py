@@ -5,6 +5,7 @@
 """
 import json
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Tuple
@@ -23,6 +24,7 @@ from app.services.required_visual_state_images import (
 )
 from app.models.novel import Novel, Chapter
 from app.models.workflow import Workflow
+from app.constants.workflow import RETIRED_H3_WORKFLOW_TYPES
 from app.models.llm_log import LLMLog
 from app.repositories import TaskRepository, WorkflowRepository
 from app.repositories.shot_repository import ShotRepository
@@ -238,6 +240,7 @@ class TaskService:
             "h3_single_frame_prompt",
             "h3_first_last_frame_prompt",
             "h3_multi_keyframe_prompt",
+            "h3_multi_keyframe_director_phase_b",
         ]
         query = db.query(LLMLog).filter(
             LLMLog.chapter_id == task.chapter_id,
@@ -416,6 +419,100 @@ class TaskService:
             "details": cancel_result
         }
     
+    def _enqueue_shot_video_retry(self, task, shot, metadata, db, *, selected_mode, clip_only):
+        """Claim one explicit retry, preserving the prior attempt for inspection.
+
+        The conditional Task update and WorkerManager.persist share a transaction.
+        Normal enqueue/restart never creates or increments this attempt identity.
+        """
+        from app.models.background_job import BackgroundJob
+        from app.services.shot_video_service import enqueue_shot_video_task
+
+        if task.comfyui_prompt_id and not (task.status == "completed" and task.result_url):
+            # A failure/timeout is not proof that a submitted GPU job failed.
+            # Do not erase a receipt whose result still needs reconciliation.
+            return {"success": False, "status_code": 409,
+                    "message": "已有 ComfyUI 回执尚未完成结果确认，请先恢复或核验原执行；未重新提交"}
+
+        old_metadata_json = task.metadata_json
+        metadata = dict(metadata)
+        history = list(metadata.get("background_job_history") or [])
+        prior = {key: getattr(task, key) for key in (
+            "status", "progress", "current_step", "error_message", "result_url",
+            "comfyui_prompt_id", "workflow_json", "seed", "prompt_text",
+        )}
+        prior.update(
+            attempt_id=metadata.get("background_job_attempt"),
+            archived_at=datetime.utcnow().isoformat(),
+            started_at=task.started_at.isoformat() if task.started_at else None,
+            completed_at=task.completed_at.isoformat() if task.completed_at else None,
+            metadata={key: value for key, value in metadata.items() if key != "background_job_history"},
+        )
+        history.append(prior)
+        metadata.update(background_job_attempt=str(uuid.uuid4()), background_job_history=history)
+        metadata.pop("comfyui_error", None)
+        if clip_only:
+            metadata.update(prompt_text="", approval_status="GENERATING")
+            metadata.pop("actual_duration", None)
+
+        # Preserve the actual prior dispatch options (including window and route
+        # flags), rather than silently replacing them with enqueue defaults.
+        last_job = db.query(BackgroundJob).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.queue_name == "shot_video",
+            BackgroundJob.handler == "app.services.shot_video_service:generate_shot_video_task",
+        ).order_by(BackgroundJob.created_at.desc(), BackgroundJob.id.desc()).first()
+        prior["background_job_id"] = last_job.id if last_job else None
+        payload = safe_json_dict(last_job.payload_json) if last_job else {}
+        options = {key: payload[key] for key in (
+            "use_keyframes", "use_reference_audio", "selected_mode", "only_window_index",
+            "auto_merge_clips", "skip_llm_when_prompt_exists", "optimize_h3_prompt",
+        ) if key in payload}
+        options.setdefault("selected_mode", selected_mode)
+        if clip_only:
+            options["clip_metadata"] = metadata
+
+        active_job = db.query(BackgroundJob.id).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.status.in_(["queued", "running"]),
+        ).exists()
+        claimed = db.query(Task).filter(
+            Task.id == task.id,
+            Task.status == task.status,
+            Task.status.in_(["failed", "completed"]),
+            Task.metadata_json == old_metadata_json,
+            Task.comfyui_prompt_id == task.comfyui_prompt_id,
+            ~active_job,
+        ).update({
+            Task.status: "pending", Task.progress: 0,
+            Task.current_step: "等待重新处理同一 Clip" if clip_only else None,
+            Task.error_message: None, Task.result_url: None,
+            Task.started_at: None, Task.completed_at: None,
+            Task.comfyui_prompt_id: None, Task.workflow_json: None,
+            Task.seed: None, Task.prompt_text: None,
+            Task.metadata_json: json.dumps(metadata, ensure_ascii=False),
+        }, synchronize_session=False)
+        if not claimed:
+            db.rollback()
+            return {"success": False, "status_code": 409,
+                    "message": "任务状态已变化或仍有后台执行，请勿重复重试"}
+        db.refresh(task)
+        if not clip_only:
+            # Keep the legacy Shot-level publication behavior, in the same commit.
+            shot.video_url = None
+            shot.video_status = "generating"
+            shot.video_task_id = task.id
+        try:
+            enqueue_shot_video_task(
+                task.id, task.novel_id, task.chapter_id, shot.index,
+                task.workflow_id, shot.image_url or "", retry_db=db, **options,
+            )
+        except Exception:
+            db.rollback()
+            raise
+        return {"success": True, "message": "任务已重新启动",
+                "data": {"taskId": task.id, "status": "pending"}}
+
     def retry_task(self, task_id: str, db: Session = None) -> Dict[str, Any]:
         """
         重试失败的任务
@@ -438,6 +535,12 @@ class TaskService:
 
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
+
+        if task.type == "shot_video" and task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.type in RETIRED_H3_WORKFLOW_TYPES:
+                return {"success": False, "status_code": 410,
+                        "message": "该任务使用已退役工作流，历史结果保留；请通过 Canonical Clip 入口新建生成。"}
 
         try:
             clip_metadata = json.loads(task.metadata_json or "{}")
@@ -492,9 +595,26 @@ class TaskService:
                 if not readiness["ready"]:
                     return {"success": False, "message": readiness["message"], "status_code": 409}
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
-            if not workflow or workflow.type != capability:
+            phase_b = clip_metadata.get("h3_prompt_pipeline") == "phase_b"
+            # Semantic capability and physical workflow type are independent of
+            # the Phase B/legacy prompt route. Older physical names still work.
+            expected_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",
+                             "TEMPORAL_EXTEND": "TEMPORAL_EXTEND"}.get(capability, capability)
+            if not workflow or workflow.type != expected_type:
                 return {"success": False, "message": "Clip 重试失败：原 Workflow 不存在或与 Clip capability 不匹配", "status_code": 400}
-            if capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+            if phase_b:
+                from app.constants.capability import EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
+                required_id = {"EXTEND": EXTEND_WORKFLOW_ID, "TEMPORAL_EXTEND": TEMPORAL_EXTEND_WORKFLOW_ID}.get(capability)
+                if not workflow.is_active or (required_id and workflow.id != required_id):
+                    return {"success": False, "message": "Phase B 原物理工作流已不可用", "status_code": 400}
+            if capability in {"EXTEND", "TEMPORAL_EXTEND"} and (phase_b or clip_metadata.get("execution_contract")):
+                from app.services.shot_video_service import resolve_extend_previous_av
+                try:
+                    resolve_extend_previous_av(db, task.novel_id, task.chapter_id, shot, plan_clip,
+                        (clip_metadata.get("execution_contract") or {}).get("previous_clip"))
+                except ValueError as exc:
+                    return {"success": False, "message": str(exc), "status_code": 409}
+            elif capability in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
                 previous_task_id = clip_metadata.get("previous_approved_task_id")
                 previous_video_url = clip_metadata.get("previous_approved_video_url")
                 previous_task = task_repo.get_by_id(previous_task_id) if previous_task_id else None
@@ -523,40 +643,25 @@ class TaskService:
                 if not valid_previous:
                     return {"success": False, "message": "Clip 重试失败：原 Previous AV dependency 不再是有效的 upstream approved Clip", "status_code": 400}
 
-            # Retain semantic Clip identity and provenance; clear only attempt-specific state.
-            clip_metadata["prompt_text"] = ""
-            clip_metadata["approval_status"] = "GENERATING"
-            clip_metadata.pop("actual_duration", None)
-            clip_metadata.pop("comfyui_error", None)
-            task.status = "pending"
-            task.progress = 0
-            task.current_step = "等待重新处理同一 Clip"
-            task.error_message = None
-            task.result_url = None
-            task.completed_at = None
-            task.comfyui_prompt_id = None
-            task.workflow_json = None
-            task.seed = None
-            task.prompt_text = None
-            task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
-            db.commit()
-
-            from app.services.shot_video_service import enqueue_shot_video_task
-            enqueue_shot_video_task(
-                task.id,
-                task.novel_id,
-                task.chapter_id,
-                shot.index,
-                task.workflow_id,
-                shot.image_url or "",
-                selected_mode="SINGLE_FRAME",
-                clip_metadata=clip_metadata,
+            return self._enqueue_shot_video_retry(
+                task, shot, clip_metadata, db, clip_only=True,
+                selected_mode="MULTI_KEYFRAME" if phase_b else "SINGLE_FRAME",
             )
-            return {
-                "success": True,
-                "message": "同一 semantic Clip 已重新启动",
-                "data": {"taskId": task.id, "status": "pending"},
-            }
+
+        if task.type == "shot_video":
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
+            if not shot and task.chapter_id:
+                match = re.search(r"镜\s*(\d+)", task.name or "")
+                if match:
+                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
+            if not shot or not task.novel_id or not task.chapter_id or not task.workflow_id:
+                return {"success": False, "message": "重试失败：缺少分镜或执行关联", "status_code": 400}
+            plan = safe_json_dict(shot.video_director_plan)
+            return self._enqueue_shot_video_retry(
+                task, shot, clip_metadata, db, clip_only=False,
+                selected_mode=plan.get("selected_mode") or "SINGLE_FRAME",
+            )
 
         if task.type == "shot_video_hd" and task.shot_id:
             from app.services.hd_repaint_service import clone_hd_task_for_retry, enqueue_hd_repaint_task
@@ -665,45 +770,6 @@ class TaskService:
                 shot.index,
                 shot.description or "",
                 task.workflow_id,
-            )
-            restarted = True
-        elif task.type == "shot_video" and task.novel_id and task.chapter_id and task.workflow_id:
-            from app.services.shot_video_service import enqueue_shot_video_task
-
-            shot_repo = ShotRepository(db)
-            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
-            if not shot:
-                match = re.search(r"镜\s*(\d+)", task.name or "")
-                if match:
-                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
-
-            if not shot:
-                task.status = "failed"
-                task.error_message = "重试失败：找不到关联分镜"
-                task.current_step = "重试失败"
-                db.commit()
-                return {"success": False, "message": task.error_message, "status_code": 400}
-
-            shot_repo.update(
-                shot,
-                video_url=None,
-                video_status="generating",
-                video_task_id=task.id,
-            )
-
-            try:
-                video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
-            except Exception:
-                video_director_plan = {}
-
-            enqueue_shot_video_task(
-                task.id,
-                task.novel_id,
-                task.chapter_id,
-                shot.index,
-                task.workflow_id,
-                shot.image_url or "",
-                selected_mode=video_director_plan.get("selected_mode") or "SINGLE_FRAME",
             )
             restarted = True
         if not restarted:
@@ -1405,7 +1471,7 @@ class TaskService:
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
                 "artifact_kind", "physical_output", "execution_contract",
-                "clip_playback",
+                "clip_playback", "h3_prompt_pipeline",
             )
             return {key: metadata.get(key) for key in keys if key in metadata}
 

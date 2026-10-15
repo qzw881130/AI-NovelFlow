@@ -19,13 +19,15 @@ from io import BytesIO
 from datetime import datetime, timedelta
 from time import perf_counter
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse, Response
 from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from app.services.director_context import effective_visual_states, transition_input_contract
+from app.constants.prompt_template import TRANSITION_INPUT_V1, TRANSITION_INPUT_V2
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
@@ -120,10 +122,6 @@ from app.utils.path_utils import url_to_local_path, local_path_to_url
 from app.utils.time_utils import format_datetime
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
-from app.services.canonical_visual_speech_authority import (
-    CanonicalVisualSpeechAuthorityViolation,
-    require_speech_neutral_visual_text,
-)
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import (
@@ -392,6 +390,7 @@ class BatchShotImageRequest(BaseModel):
 
 
 class BatchShotVideoRequest(BaseModel):
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = "legacy"
     shot_ids: list[str]
     auto_complete_details: bool = True
     use_reference_audio: bool = True
@@ -404,6 +403,7 @@ class BatchShotVideoRequest(BaseModel):
 
 
 class SemanticClipGenerateRequest(BaseModel):
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = "legacy"
     preflight_auto_repair: Optional[bool] = None
     use_reference_audio: bool = True
     auto_merge: bool = True
@@ -1337,6 +1337,14 @@ def _reject_legacy_video_execution_for_canonical(plan: dict) -> None:
         )
 
 
+def _reject_retired_h3_entry() -> None:
+    """Reject new legacy jobs before modifying assets, plans, or task records."""
+    raise HTTPException(status_code=410, detail={
+        "code": "LEGACY_H3_GENERATION_RETIRED",
+        "message": "旧 H3 生成模式已退役。历史结果仍可查看；新生成请使用 Canonical 视觉时间轴和 semantic Clip 执行入口。",
+    })
+
+
 def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, shot_id_or_index: str):
     shot = shot_repo.get_by_id(shot_id_or_index)
     if shot and shot.chapter_id == chapter_id:
@@ -1998,14 +2006,6 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list | N
     if end_count > 1:
         raise ValueError("canonical keyframes 最多包含一个 END")
 
-    for keyframe in normalized_keyframes:
-        require_speech_neutral_visual_text(
-            keyframe.get("description"),
-            code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
-            field="description",
-            state_index=keyframe.get("index"),
-        )
-
     validation = {"passed": True, "blocking": []}
     return normalized_keyframes, [], validation
 
@@ -2065,17 +2065,16 @@ def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplat
         raise HTTPException(status_code=400, detail="未配置关键帧过渡规划提示词模板")
     if template.id == LEGACY_WORKFLOW_KEYFRAME_TRANSITION_ID:
         raise HTTPException(status_code=409, detail="所选 #10 副本使用旧 Workflow 合同；请先选择兼容 Canonical 的模板")
+    try:
+        transition_input_contract(template)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return template
 
 
 def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
-    description = keyframe.get("description")
-    require_speech_neutral_visual_text(
-        description,
-        code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
-        field="description",
-        state_index=keyframe.get("index"),
-    )
+    states, _ = effective_visual_states([keyframe], getattr(shot, "description", None))
+    description = states[0].get("description")
     return strip_media_refs({
         "index": keyframe.get("index"),
         "role": keyframe.get("role"),
@@ -2086,21 +2085,27 @@ def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
 
 def _build_segment_dialogue_state(shot, from_keyframe: dict, to_keyframe: dict, dialogue_timeline_source: list) -> dict:
     segment = {
-        "start_time": from_keyframe.get("time_seconds") or 0,
-        "end_time": to_keyframe.get("time_seconds") or shot.duration or 0,
+        "start_time": from_keyframe["time_seconds"],
+        "end_time": to_keyframe["time_seconds"],
     }
-    segment_dialogues = [
-        dialogue
-        for dialogue in dialogue_timeline_source
-        if float(dialogue.get("start_time") or 0) < float(segment["end_time"])
-        and float(dialogue.get("end_time") or 0) > float(segment["start_time"])
+    overlapping = [
+        index
+        for index, dialogue in enumerate(dialogue_timeline_source)
+        if float(dialogue["start_time"]) < float(segment["end_time"])
+        and float(dialogue["end_time"]) > float(segment["start_time"])
     ]
+    before = [i for i, d in enumerate(dialogue_timeline_source) if float(d["end_time"]) <= float(segment["start_time"])]
+    after = [i for i, d in enumerate(dialogue_timeline_source) if float(d["start_time"]) >= float(segment["end_time"])]
+    adjacent = before[-1:] + after[:1]
+    selected = set(overlapping + adjacent)
     return {
+        "time_domain": "SHOT_SECONDS",
         "start_time": segment["start_time"],
         "end_time": segment["end_time"],
-        "has_dialogue": bool(segment_dialogues),
-        "overlapping_dialogue_ids": [dialogue.get("id") for dialogue in segment_dialogues],
-        "dialogue_timeline_source": segment_dialogues,
+        "has_dialogue": bool(overlapping),
+        "overlapping_dialogue_ids": [dialogue_timeline_source[i]["id"] for i in overlapping],
+        "adjacent_dialogue_ids": [dialogue_timeline_source[i]["id"] for i in adjacent],
+        "dialogue_timeline_source": deepcopy([d for i, d in enumerate(dialogue_timeline_source) if i in selected]),
     }
 
 
@@ -2109,9 +2114,16 @@ def _build_keyframe_transition_user_content(
     from_keyframe: dict,
     to_keyframe: dict,
     segment_index: int,
-    previous_validation_failure: dict | None = None,
     *, visual_attention: dict | None = None,
+    input_contract: str = TRANSITION_INPUT_V1,
+    dialogue_timeline_source: list | None = None,
 ) -> str:
+    if input_contract not in {TRANSITION_INPUT_V1, TRANSITION_INPUT_V2}:
+        raise ValueError("TRANSITION_INPUT_CONTRACT_MISMATCH: unsupported input version")
+    if input_contract == TRANSITION_INPUT_V1 and dialogue_timeline_source is not None:
+        raise ValueError("TRANSITION_INPUT_CONTRACT_MISMATCH: V1 does not accept causal Dialogue")
+    if input_contract == TRANSITION_INPUT_V2 and not isinstance(dialogue_timeline_source, list):
+        raise ValueError("TRANSITION_CANONICAL_TIMELINE_MISSING: 不得重新估算正式对白时间")
     from_payload = _transition_keyframe_payload(shot, from_keyframe)
     to_payload = _transition_keyframe_payload(shot, to_keyframe)
     payload = {
@@ -2131,13 +2143,16 @@ def _build_keyframe_transition_user_content(
     }
     if visual_attention and visual_attention.get("status") == "VALID":
         payload["visual_attention"] = visual_attention
-    if previous_validation_failure:
-        payload["previous_validation_failure"] = previous_validation_failure
-        payload["retry_instruction"] = (
-            "上一次 transition_description 违反 canonical visual speech-authority contract。"
-            "只输出身体动作、走位、视线、姿态、表情、道具、摄影机和场景变化；"
-            "不得输出 speaker、speaking/listening 或 mouth/lip speech state。"
-        )
+    _, resolutions = effective_visual_states([from_keyframe, to_keyframe], getattr(shot, "description", None))
+    if resolutions:
+        payload["start_visual_resolution"] = resolutions
+    if input_contract == TRANSITION_INPUT_V2:
+        payload["input_contract"] = input_contract
+        payload["causal_context"] = {
+            "shot_video_description": getattr(shot, "video_description", None) or "",
+            "segment_dialogue_state": _build_segment_dialogue_state(
+                shot, from_keyframe, to_keyframe, dialogue_timeline_source),
+        }
     return "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
@@ -2154,6 +2169,14 @@ async def _plan_keyframe_transitions(
     if len(keyframes) < 2:
         return []
     template = _get_keyframe_transition_template(novel, template_repo)
+    input_contract = transition_input_contract(template)
+    timeline = None
+    if input_contract == TRANSITION_INPUT_V2:
+        timeline = _safe_json_dict(shot.video_director_plan).get("dialogue_timeline_source")
+        if not isinstance(timeline, list):
+            raise HTTPException(status_code=409, detail="TRANSITION_CANONICAL_TIMELINE_MISSING: 请先保存正式对白时间轴")
+        if not timeline_matches_shot_dialogues(timeline, _safe_json_list(shot.dialogues)):
+            raise HTTPException(status_code=409, detail="TRANSITION_CANONICAL_TIMELINE_INVALID: 正式对白时间轴与 Shot 不一致")
     transitions = []
 
     def record_call(call):
@@ -2170,130 +2193,76 @@ async def _plan_keyframe_transitions(
         if selected_edges is not None and (from_keyframe["index"], to_keyframe["index"]) not in selected_edges:
             continue
         segment_index = index + 1
-        previous_validation_failure = None
-        for attempt in range(1, 3):
-            try:
-                user_content = _build_keyframe_transition_user_content(
-                    shot,
-                    from_keyframe,
-                    to_keyframe,
-                    segment_index,
-                    previous_validation_failure=previous_validation_failure,
-                    visual_attention=project_visual_attention(
-                        _safe_json_dict(shot.video_director_plan).get("visual_attention"),
-                        from_keyframe["time_seconds"], to_keyframe["time_seconds"],
-                        clip_local=False, duration=shot.duration or 4,
-                    ),
-                )
-            except CanonicalVisualSpeechAuthorityViolation as exc:
-                record_call({
-                    "step": "10",
-                    "task_type": "keyframe_transition",
-                    "prompt_template_name": template.name,
-                    "status": "error",
-                    "input_summary": (
-                        f"Shot {shot.index} KF{from_keyframe.get('index')} -> "
-                        f"KF{to_keyframe.get('index')} · input validation"
-                    ),
-                    "response": "",
-                    "parsed_result": {
-                        "error": str(exc),
-                        "code": exc.code,
-                        "field": exc.field,
-                        "category": exc.match.category,
-                        "phrase": exc.match.phrase,
-                    },
-                })
-                raise HTTPException(status_code=400, detail=str(exc))
-            result = await llm_service.chat_completion(
-                system_prompt=template.template,
-                user_content=user_content,
-                temperature=0.3,
-                max_tokens=1600,
-                response_format="json_object",
-                task_type="keyframe_transition",
-                prompt_template_name=template.name,
-                novel_id=novel.id,
-                chapter_id=chapter.id,
-            )
-            if not result.get("success"):
-                record_call({
-                    "step": "10",
-                    "task_type": "keyframe_transition",
-                    "prompt_template_name": template.name,
-                    "status": "error",
-                    "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
-                    "response": result.get("error") or "",
-                })
-                raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
-            try:
-                parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-            except Exception as exc:
-                record_call({
-                    "step": "10",
-                    "task_type": "keyframe_transition",
-                    "prompt_template_name": template.name,
-                    "status": "error",
-                    "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
-                    "response": result.get("content") or "",
-                    "parsed_result": {"error": str(exc)},
-                })
-                raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
-
-            transition = {
-                "segment_index": int(parsed.get("segment_index") or segment_index),
-                "from_keyframe_index": int(parsed.get("from_keyframe_index") or from_keyframe.get("index")),
-                "to_keyframe_index": int(parsed.get("to_keyframe_index") or to_keyframe.get("index")),
-                "start_time": parsed.get("start_time") if parsed.get("start_time") is not None else from_keyframe.get("time_seconds"),
-                "end_time": parsed.get("end_time") if parsed.get("end_time") is not None else to_keyframe.get("time_seconds"),
-                "transition_description": strip_embedded_visual_style(parsed.get("transition_description") or "", get_style(db, novel, "character")[0]),
-            }
-            try:
-                require_speech_neutral_visual_text(
-                    transition["transition_description"],
-                    code="TRANSITION_SPEECH_AUTHORITY_VIOLATION",
-                    field="transition_description",
-                    state_index=f"{from_keyframe.get('index')}->{to_keyframe.get('index')}",
-                )
-            except CanonicalVisualSpeechAuthorityViolation as exc:
-                previous_validation_failure = {
-                    "code": exc.code,
-                    "field": exc.field,
-                    "category": exc.match.category,
-                    "phrase": exc.match.phrase,
-                    "attempt": attempt,
-                }
-                record_call({
-                    "step": "10",
-                    "task_type": "keyframe_transition",
-                    "prompt_template_name": template.name,
-                    "status": "error",
-                    "input_summary": (
-                        f"Shot {shot.index} KF{from_keyframe.get('index')} -> "
-                        f"KF{to_keyframe.get('index')} · attempt {attempt}/2"
-                    ),
-                    "response": result.get("content") or "",
-                    "parsed_result": {"error": str(exc), **previous_validation_failure},
-                })
-                if attempt == 2:
-                    raise HTTPException(status_code=400, detail=str(exc))
-                continue
-
-            transitions.append(transition)
+        user_content = _build_keyframe_transition_user_content(
+            shot,
+            from_keyframe,
+            to_keyframe,
+            segment_index,
+            input_contract=input_contract,
+            dialogue_timeline_source=timeline,
+            visual_attention=project_visual_attention(
+                _safe_json_dict(shot.video_director_plan).get("visual_attention"),
+                from_keyframe["time_seconds"], to_keyframe["time_seconds"],
+                clip_local=False, duration=shot.duration or 4,
+            ),
+        )
+        result = await llm_service.chat_completion(
+            system_prompt=template.template,
+            user_content=user_content,
+            temperature=0.3,
+            max_tokens=1600,
+            response_format="json_object",
+            task_type="keyframe_transition",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+        )
+        if not result.get("success"):
             record_call({
                 "step": "10",
                 "task_type": "keyframe_transition",
                 "prompt_template_name": template.name,
-                "status": "success",
+                "status": "error",
+                "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+                "response": result.get("error") or "",
+            })
+            raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
+        try:
+            parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
+        except Exception as exc:
+            record_call({
+                "step": "10",
+                "task_type": "keyframe_transition",
+                "prompt_template_name": template.name,
+                "status": "error",
                 "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
                 "response": result.get("content") or "",
-                "parsed_result": {**transition, "visual_attention_consumed": project_visual_attention(
-                    _safe_json_dict(shot.video_director_plan).get("visual_attention"),
-                    from_keyframe["time_seconds"], to_keyframe["time_seconds"],
-                    clip_local=False, duration=shot.duration or 4,
-                )},
+                "parsed_result": {"error": str(exc)},
             })
-            break
+            raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
+
+        transition = {
+            "segment_index": int(parsed.get("segment_index") or segment_index),
+            "from_keyframe_index": int(parsed.get("from_keyframe_index") or from_keyframe.get("index")),
+            "to_keyframe_index": int(parsed.get("to_keyframe_index") or to_keyframe.get("index")),
+            "start_time": parsed.get("start_time") if parsed.get("start_time") is not None else from_keyframe.get("time_seconds"),
+            "end_time": parsed.get("end_time") if parsed.get("end_time") is not None else to_keyframe.get("time_seconds"),
+            "transition_description": strip_embedded_visual_style(parsed.get("transition_description") or "", get_style(db, novel, "character")[0]),
+        }
+        transitions.append(transition)
+        record_call({
+            "step": "10",
+            "task_type": "keyframe_transition",
+            "prompt_template_name": template.name,
+            "status": "success",
+            "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+            "response": result.get("content") or "",
+            "parsed_result": {**transition, "input_contract": input_contract, "visual_attention_consumed": project_visual_attention(
+                _safe_json_dict(shot.video_director_plan).get("visual_attention"),
+                from_keyframe["time_seconds"], to_keyframe["time_seconds"],
+                clip_local=False, duration=shot.duration or 4,
+            )},
+        })
     return transitions
 
 
@@ -2314,6 +2283,21 @@ async def recommend_video_mode(
     template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
     llm_service: LLMService = Depends(get_llm_service),
 ):
+    shot = shot_repo.get_by_id(shot_id)
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter or not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    plan = _safe_json_dict(shot.video_director_plan)
+    if plan.get("canonical_visual_plan") is True:
+        return {"success": True, "data": plan}
+    _reject_retired_h3_entry()
+
+
+async def _recommend_legacy_video_mode(
+    novel_id, chapter_id, shot_id, request, db, novel_repo, chapter_repo,
+    shot_repo, workflow_repo, template_repo, llm_service,
+):
+    """Compatibility for already-persisted legacy batch jobs; no HTTP entry."""
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -2475,6 +2459,7 @@ async def generate_clip_plan_video(
         raise HTTPException(status_code=404, detail="小说、章节或分镜不存在")
     plan = _safe_json_dict(shot.video_director_plan)
     _reject_legacy_video_execution_for_canonical(plan)
+    _reject_retired_h3_entry()
     clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
     if not clips:
         raise HTTPException(status_code=400, detail="当前 Shot 没有 Clip Plan")
@@ -2911,12 +2896,6 @@ def update_visual_state_description(
     if (current_description != request.expected_description
             or int(plan.get("clip_plan_revision") or 0) != request.expected_plan_revision):
         raise HTTPException(status_code=409, detail="视觉状态已更新，请取消编辑后重试")
-    if plan.get("canonical_visual_plan") is True:
-        try:
-            require_speech_neutral_visual_text(description, code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
-                                             field="description", state_index=state_index)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
     legacy = deepcopy(_safe_json_list(shot.keyframes))
     image_task_ids = {item.get("image_task_id") for item in legacy
                       if isinstance(item, dict) and item.get("plan_keyframe_index") == state_index}
@@ -2981,6 +2960,8 @@ async def save_video_director_plan(
         raise HTTPException(status_code=404, detail="分镜不存在")
 
     updates = request.model_dump(exclude_unset=True)
+    if updates.get("selected_mode"):
+        _reject_retired_h3_entry()
     plan = _merge_video_director_plan(shot, updates)
     duration = shot.duration or 4
     max_clip_duration = clip_duration_maximum(_safe_json_dict(plan.get("workflow_capability")))
@@ -3044,6 +3025,7 @@ async def generate_video_director_clip(
         return await execute_semantic_clip(
             novel_id, chapter_id, shot_id, window_index,
             SemanticClipGenerateRequest(
+                h3_prompt_pipeline=request.h3_prompt_pipeline,
                 use_reference_audio=request.use_reference_audio,
                 auto_merge=request.auto_merge,
                 skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
@@ -3055,6 +3037,7 @@ async def generate_video_director_clip(
         )
     if request.clip_plan_revision is not None:
         raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在于当前 semantic Clip Plan")
+    _reject_retired_h3_entry()
     if not shot.image_url:
         raise HTTPException(status_code=400, detail="该分镜尚未生成图片，请先生成分镜图片")
 
@@ -3292,7 +3275,7 @@ async def _execute_phase_b_semantic_clip(
     )
 
     reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"]) if request.skip_llm_when_prompt_exists else ""
-    if request.skip_llm_when_prompt_exists and not reusable_prompt.strip():
+    if request.skip_llm_when_prompt_exists and request.h3_prompt_pipeline == "legacy" and not reusable_prompt.strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
 
     task = task_repo.create_shot_video_task(
@@ -3309,6 +3292,7 @@ async def _execute_phase_b_semantic_clip(
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成 Clip {window_index}"
     metadata = {
         "execution_scope": "CLIP",
+        "h3_prompt_pipeline": request.h3_prompt_pipeline,
         "phase_b_generate": capability == "GENERATE",
         "clip_id": f"{shot.id}:clip:{window_index}",
         "clip_index": window_index,
@@ -3337,6 +3321,8 @@ async def _execute_phase_b_semantic_clip(
     if capability == "TEMPORAL_EXTEND":
         metadata["temporal_anchor_ids"] = [item["anchor_id"] for item in resolved_temporal_anchors]
     metadata["prompt_text"] = reusable_prompt
+    if request.h3_prompt_pipeline == "phase_b":
+        metadata.update(optimize_h3_prompt=False, preflight_auto_repair=False)
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     if not plan.get("dialogue_timeline_source"):
         plan["dialogue_timeline_source"] = resolved_timeline
@@ -3348,7 +3334,7 @@ async def _execute_phase_b_semantic_clip(
         clip_metadata=metadata,
         use_reference_audio=request.use_reference_audio,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
-        optimize_h3_prompt=request.optimize_h3_prompt,
+        optimize_h3_prompt=metadata["optimize_h3_prompt"],
     )
     return {"success": True, "message": f"semantic Clip {capability} 任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
@@ -3516,7 +3502,7 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
     plan = _safe_json_dict(shot.video_director_plan)
     selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
     if not selected_mode:
-        await recommend_video_mode(
+        await _recommend_legacy_video_mode(
             child_task.novel_id,
             child_task.chapter_id,
             child_task.shot_id,
@@ -3538,7 +3524,7 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
         capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
         max_clip_duration = clip_duration_maximum(capability)
         if (shot.duration or 4) > max_clip_duration:
-            await recommend_video_mode(
+            await _recommend_legacy_video_mode(
                 child_task.novel_id,
                 child_task.chapter_id,
                 child_task.shot_id,
@@ -4280,6 +4266,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                     shot.id,
                     index,
                     SemanticClipGenerateRequest(
+                        h3_prompt_pipeline=batch_metadata.get("h3_prompt_pipeline", "legacy"),
                         use_reference_audio=bool(batch_metadata.get("use_reference_audio", True)),
                         auto_merge=False,
                         skip_llm_when_prompt_exists=bool(batch_metadata.get("skip_llm_when_prompt_exists", False)
@@ -4589,6 +4576,9 @@ async def generate_shot_videos_batch(
 
     preflight_auto_repair = _new_task_preflight_auto_repair(
         data.optimize_h3_prompt, data.preflight_auto_repair)
+    if data.h3_prompt_pipeline == "phase_b":
+        data.optimize_h3_prompt = False
+        preflight_auto_repair = False
 
     validated = []
     selected_shots = []
@@ -4598,6 +4588,11 @@ async def generate_shot_videos_batch(
             raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
         plan = _safe_json_dict(shot.video_director_plan)
         semantic = isinstance(plan.get("clip_plan"), list) and bool(plan.get("clip_plan"))
+        if not semantic and not data.automatic_shot:
+            _reject_retired_h3_entry()
+        if semantic and any(clip.get("capability") in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}
+                            for clip in plan["clip_plan"] if isinstance(clip, dict)):
+            _reject_retired_h3_entry()
         if semantic and plan.get("canonical_visual_plan") is True and not data.automatic_shot:
             readiness = get_canonical_execution_readiness(shot, plan)
             if not readiness["ready"]:
@@ -4643,6 +4638,7 @@ async def generate_shot_videos_batch(
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
+            "h3_prompt_pipeline": data.h3_prompt_pipeline,
             "preflight_auto_repair": preflight_auto_repair,
             "force_rerun": data.force_rerun,
             "auto_assemble": data.auto_assemble,
@@ -4680,6 +4676,7 @@ async def generate_shot_videos_batch(
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
+            "h3_prompt_pipeline": data.h3_prompt_pipeline,
             "preflight_auto_repair": preflight_auto_repair,
             "batch_force_rerun": data.force_rerun,
             "batch_mode": "SEMANTIC_CLIP" if any(item["shot_id"] == shot.id and item["batch_mode"] == "SEMANTIC_CLIP" for item in selected_shots) else "LEGACY_SHOT",
@@ -4744,6 +4741,7 @@ async def generate_shot_video(
 
     video_director_plan = _safe_json_dict(shot.video_director_plan)
     _reject_legacy_video_execution_for_canonical(video_director_plan)
+    _reject_retired_h3_entry()
 
     shot_index = shot.index
     shot_duration = shot.duration or 4

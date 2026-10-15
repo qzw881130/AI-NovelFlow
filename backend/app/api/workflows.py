@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import get_db
 from app.repositories import WorkflowRepository
 from app.services.workflow_service import WorkflowService
-from app.constants.workflow import WORKFLOW_TYPES
+from app.constants.workflow import WORKFLOW_TYPES, RETIRED_H3_WORKFLOW_TYPES
 from app.core.workflow_extensions import validate_extension
 from app.api.deps import get_workflow_repo
 from app.models.workflow import Workflow
@@ -215,9 +215,16 @@ def get_workflow_service(db: Session = Depends(get_db)) -> WorkflowService:
 
 # ==================== 工作流列表 ====================
 
+@router.get("/generation-types", response_model=dict)
+def get_generation_workflow_types():
+    return {"success": True, "data": [
+        value for value in WORKFLOW_TYPES if value not in RETIRED_H3_WORKFLOW_TYPES
+    ]}
+
 @router.get("/", response_model=dict)
 async def list_workflows(
     type: Optional[str] = None,
+    for_generation: bool = False,
     db: Session = Depends(get_db),
     workflow_service: WorkflowService = Depends(get_workflow_service),
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
@@ -231,6 +238,8 @@ async def list_workflows(
     else:
         workflows = workflow_repo.list_all()
 
+    if for_generation:
+        workflows = [w for w in workflows if w.type not in RETIRED_H3_WORKFLOW_TYPES]
     return {
         "success": True,
         "data": WorkflowService.format_workflow_list(workflows)

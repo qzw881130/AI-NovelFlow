@@ -545,7 +545,7 @@ export const shotsApi = {
       shot_ids: string[];
       auto_complete_details?: boolean;
       use_reference_audio?: boolean;
-      optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
+      h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
       force_rerun?: boolean;
       auto_assemble?: boolean;
     }
@@ -560,6 +560,7 @@ export const shotsApi = {
           auto_complete_details: options.auto_complete_details ?? true,
           use_reference_audio: options.use_reference_audio ?? true,
           skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options.h3_prompt_pipeline ?? 'legacy',
           optimize_h3_prompt: options.optimize_h3_prompt ?? false,
           preflight_auto_repair: options.preflight_auto_repair,
           force_rerun: options.force_rerun ?? true,
@@ -592,7 +593,7 @@ export const shotsApi = {
       use_reference_audio?: boolean;
       workflow_id?: string;
       selected_mode?: VideoMode;
-      optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
+      h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
     }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
@@ -606,6 +607,7 @@ export const shotsApi = {
           workflow_id: options?.workflow_id,
           selected_mode: options?.selected_mode,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? 'legacy',
           optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           preflight_auto_repair: options?.preflight_auto_repair,
         }),
@@ -733,7 +735,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     windowIndex: number,
-    options?: { use_reference_audio?: boolean; auto_merge?: boolean; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
+    options?: { use_reference_audio?: boolean; auto_merge?: boolean; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
@@ -744,6 +746,7 @@ export const shotsApi = {
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? 'legacy',
           optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           preflight_auto_repair: options?.preflight_auto_repair,
           clip_plan_revision: options?.clip_plan_revision,

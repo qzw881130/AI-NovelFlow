@@ -13,7 +13,7 @@ async function compile(file, exported, dependencies = {}) {
   return new Function('React', ...Object.keys(dependencies), `${code}; return ${exported};`)(React, ...Object.values(dependencies));
 }
 const H3AVTimeline = await compile('components/H3AVTimeline.tsx', 'H3AVTimeline');
-const H3OptimizerResult = await compile('pages/ChapterGenerate/components/H3OptimizerResult.tsx', 'H3OptimizerResult', { H3AVTimeline });
+const H3OptimizerResult = await compile('pages/ChapterGenerate/components/H3OptimizerResult.tsx', 'H3OptimizerResult', { H3AVTimeline, useState: React.useState });
 const render = record => renderToStaticMarkup(React.createElement(H3OptimizerResult, { record }));
 
 test('native prompt and internal AV timing render independently', () => {

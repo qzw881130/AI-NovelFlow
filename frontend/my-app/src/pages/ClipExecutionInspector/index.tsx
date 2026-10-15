@@ -1,3 +1,4 @@
+import { H3PhaseBResult } from '../../components/H3PhaseBResult';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInspectorLabels } from './labels';
@@ -47,6 +48,7 @@ export default function ClipExecutionInspector() {
       {state.analysis?.variants[0].source_media_status === 'SOURCE_NOT_AVAILABLE' && <p className="cei-warning">{l.missingMedia}</p>}
       {state.analysis?.variants[0].source_media_status === 'SOURCE_CHANGED' && <p className="cei-warning">{l.sourceChanged}</p>}
       <ClipSummary projection={p} />
+      <H3PhaseBResult record={p.h3_phase_b} actualVideo={p.execution.status === 'completed' && p.media.status === 'EXPLICIT' ? { seconds: p.media.video_duration, label: '实际视频时长（原始输出）' } : undefined} />
       <UnifiedTimeline projection={p} time={state.selected?.sample_time || 0} observations={observations} onEvent={e => { if (e.start != null && e.start >= 0) void state.selectTime(e.start, e); }} onObservation={o => void state.selectTime(o.time_seconds)} />
       <div className="cei-card cei-row cei-sampling-controls"><label>{l.sampling}<select value={state.interval} onChange={e => state.changeSampling(Number(e.target.value))}>{[.5, 1, 2].map(t => <option value={t} key={t}>{t}s</option>)}</select></label>
         <label><input type="checkbox" checked={state.events} onChange={e => state.setEvents(e.target.checked)} />{l.events}</label><label><input type="checkbox" checked={state.neighbors} disabled={!state.events} onChange={e => state.setNeighbors(e.target.checked)} />{l.neighbors}</label>

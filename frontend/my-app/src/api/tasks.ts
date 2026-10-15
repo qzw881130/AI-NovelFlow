@@ -55,7 +55,9 @@ export interface Task {
   shotImageQuality?: { generation_count?: number; max_generations?: number; status?: 'PASS' | 'WARNING' | 'FAIL' | 'ERROR'; attempts?: Array<{ number: number; image_url: string; review_id?: string | null; verdict: string }> } | null;
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {
-    clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;
+  h3_prompt_pipeline?: 'legacy' | 'phase_b';
+  h3_phase_b?: any;
+    clip_playback?: { independent_url?: string | null; review_url?: string | null; independent_media?: { video_duration?: number } | null } | null;
     execution_scope?: string;
     clip_id?: string;
     clip_index?: number;

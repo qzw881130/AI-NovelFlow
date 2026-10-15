@@ -56,7 +56,7 @@ export function ThreeColumnLayout({
     initialWidth: leftPanelWidth,
     minWidth: minLeftWidth,
     maxWidth: maxLeftWidth,
-    collapsedWidth: 48,
+    collapsedWidth: 0,
     collapsed: leftPanelCollapsed,
     onWidthChange: setLeftPanelWidth,
     storageKey: 'chapterGenerate_leftPanelWidth',
@@ -76,7 +76,7 @@ export function ThreeColumnLayout({
 
   // 获取面板实际显示宽度
   const getLeftWidth = () => {
-    if (leftPanelCollapsed) return 48;
+    if (leftPanelCollapsed) return 0;
     return leftResizable.width;
   };
 
@@ -87,20 +87,21 @@ export function ThreeColumnLayout({
   };
 
   return (
-    <div className="flex h-full w-full">
+    <div data-testid="three-column-layout" className="flex h-full min-w-0 w-full">
       {/* 左侧栏 */}
       <div
+        data-testid="shot-resource-sidebar"
         className="relative flex-shrink-0 transition-all duration-200 ease-in-out"
         style={{
-          width: leftPanelCollapsed ? 48 : getLeftWidth(),
+          width: getLeftWidth(),
         }}
       >
-        <div className="h-full overflow-hidden bg-gray-50 border-r border-gray-200">
+        {!leftPanelCollapsed && <div className="h-full overflow-hidden bg-gray-50 border-r border-gray-200">
           {/* 左侧栏内容 */}
-          <div className={`h-full ${leftPanelCollapsed ? 'p-2' : 'px-2 py-4'}`}>
-            {!leftPanelCollapsed && leftPanel}
+          <div className="h-full px-2 py-4">
+            {leftPanel}
           </div>
-        </div>
+        </div>}
 
         {/* 拖动把手 */}
         {!leftPanelCollapsed && (
@@ -113,6 +114,8 @@ export function ThreeColumnLayout({
         {/* 收起/展开按钮 */}
         <button
           onClick={toggleLeftPanel}
+          aria-label={leftPanelCollapsed ? '展开分镜资源' : '收起分镜资源'}
+          aria-expanded={!leftPanelCollapsed}
           className="absolute -right-3 top-4 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
           title={leftPanelCollapsed ? '展开' : '收起'}
         >

@@ -1076,9 +1076,12 @@ def enqueue_shot_video_task(
     skip_llm_when_prompt_exists: bool = False,
     clip_metadata: dict | None = None,
     optimize_h3_prompt: bool | None = None,
+    retry_db=None,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
-    if task_id in _queued_shot_video_task_ids:
+    # A retry has already claimed the terminal Task in the supplied DB
+    # transaction. A stale local wake-up must not suppress the new attempt.
+    if retry_db is None and task_id in _queued_shot_video_task_ids:
         print(f"[VideoTask {task_id}] Duplicate enqueue ignored")
         return
 
@@ -1127,7 +1130,7 @@ def enqueue_shot_video_task(
             "app.services.shot_video_service:generate_shot_video_task",
             payload,
             _run_once,
-        ))
+        ), **({"db": retry_db} if retry_db is not None else {}))
     except Exception:
         _queued_shot_video_task_ids.discard(task_id)
         raise
@@ -1176,6 +1179,8 @@ async def generate_shot_video_task(
         metadata["skip_llm_when_prompt_exists"] = skip_llm_when_prompt_exists
         if optimize_h3_prompt is not None:
             metadata["optimize_h3_prompt"] = optimize_h3_prompt
+        if metadata.get("h3_prompt_pipeline") == "phase_b":
+            metadata.update(optimize_h3_prompt=False, preflight_auto_repair=False)
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         task.status = "running"
         task.started_at = datetime.utcnow()
@@ -1382,6 +1387,9 @@ async def generate_shot_video_task(
             and clip_metadata.get("execution_contract", {}).get("capability") in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"}
         )
         phase_b_generate = clip_only_execution and clip_metadata.get("execution_contract", {}).get("capability") == "GENERATE"
+        single_stage_phase_b = safe_json_dict(task.metadata_json).get("h3_prompt_pipeline") == "phase_b"
+        if single_stage_phase_b and not clip_only_execution:
+            raise ValueError("PHASE_B_REQUIRES_SEMANTIC_CLIP")
         phase_b_manifest = None
         temporal_manifest = None
         temporal_image_paths = []
@@ -1661,6 +1669,13 @@ async def generate_shot_video_task(
             video_director_plan, clip, clip_metadata, attention,
             skip_llm=skip_llm_when_prompt_exists, clip_only=clip_only_execution, manifest=phase_b_manifest,
         )
+        if single_stage_phase_b:
+            # A Phase B reuse includes decisions and resource projection, not
+            # just a cached string. The adapter verifies the complete input.
+            reusable_prompt = ""
+        elif any((c.get("parsed_result") or {}).get("pipeline") == "phase_b"
+                 and c.get("final_prompt") == reusable_prompt for c in video_director_plan.get("ai_calls") or []):
+            reusable_prompt = ""
         metadata = safe_json_dict(task.metadata_json)
         metadata["visual_attention_cache"] = {
             "result": "HIT" if reusable_prompt else "MISS",
@@ -1668,7 +1683,7 @@ async def generate_shot_video_task(
             "fingerprint": attention["fingerprint"],
         }
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-        if skip_llm_when_prompt_exists and not reusable_prompt:
+        if skip_llm_when_prompt_exists and not reusable_prompt and not single_stage_phase_b:
             task.status = "failed"
             task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
             task.current_step = "缺少视频最终 Prompt"
@@ -1685,7 +1700,7 @@ async def generate_shot_video_task(
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
             db.commit()
-            shot_prompt = await build_h3_video_prompt(
+            built_prompt = await build_h3_video_prompt(
                 db=db,
                 novel=novel,
                 shot=shot,
@@ -1714,7 +1729,19 @@ async def generate_shot_video_task(
                 ), None) if clip_only_execution else None,
                 visual_attention=attention,
                 resolved_dialogue_timeline=resolved_dialogue_timeline,
+                input_only=single_stage_phase_b,
             )
+            if single_stage_phase_b:
+                from app.services.h3_phase_b_pipeline import build_phase_b_prompt
+                contract = safe_json_dict(task.metadata_json).get("execution_contract") or {}
+                previous_source = contract.get("previous_clip") or {}
+                previous_path = previous_source.get("local_path") or url_to_local_path(previous_source.get("result_url"))
+                shot_prompt = await build_phase_b_prompt(
+                    db=db, task=task, novel=novel, shot=shot, builder_input=built_prompt,
+                    manifest=phase_b_manifest, workflow=workflow, previous_path=previous_path,
+                    execution_contract=contract)
+            else:
+                shot_prompt = built_prompt
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
@@ -1728,7 +1755,7 @@ async def generate_shot_video_task(
                 attention, shot_prompt, temporal_manifest,
             )
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-        if selected_mode != "MULTI_KEYFRAME" or "dialogue_visual_intent" in clip:
+        if single_stage_phase_b or selected_mode != "MULTI_KEYFRAME" or "dialogue_visual_intent" in clip:
             _update_clip_prompt(shot, clip, shot_prompt, db, attention)
         db.commit()
 
@@ -1790,24 +1817,44 @@ async def generate_shot_video_task(
         previous_video_path = url_to_local_path((clip_metadata or {}).get("previous_approved_video_url")) if clip_metadata else None
         if not previous_video_path and clip_only_execution:
             previous_video_path = ((clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}).get("local_path")
-        shot_prompt = await _apply_h3_execution_optimizer(
-            db, task, novel, shot, shot_prompt, selected_mode, clip,
-            manifest=phase_b_manifest, references=reference_images,
-            temporal=(temporal_manifest or {}).get("anchors", []),
-            previous_video_path=previous_video_path,
-            execution_context={**(safe_json_dict(task.metadata_json).get("execution_contract") or {}),
-                               "continuity_mode": video_director_plan.get("continuity_mode")},
-            workflow=workflow,
-        )
-        duration, temporal_manifest = _apply_h3_execution_duration(task, duration, workflow, temporal_manifest)
-        phase_b_manifest, reference_image_paths = _apply_h3_execution_references(
-            task, phase_b_manifest, reference_image_paths)
+        if single_stage_phase_b:
+            from app.services.h3_phase_b_pipeline import apply_execution
+            duration, temporal_manifest, phase_b_manifest, reference_image_paths = apply_execution(
+                task, duration, phase_b_manifest, reference_image_paths)
+            # Cancellation checks refresh Task from the database. Persist this
+            # execution snapshot before that refresh and before any upload.
+            db.commit()
+        else:
+            shot_prompt = await _apply_h3_execution_optimizer(
+                db, task, novel, shot, shot_prompt, selected_mode, clip,
+                manifest=phase_b_manifest, references=reference_images,
+                temporal=(temporal_manifest or {}).get("anchors", []),
+                previous_video_path=previous_video_path,
+                execution_context={**(safe_json_dict(task.metadata_json).get("execution_contract") or {}),
+                                   "continuity_mode": video_director_plan.get("continuity_mode")},
+                workflow=workflow,
+            )
+            duration, temporal_manifest = _apply_h3_execution_duration(task, duration, workflow, temporal_manifest)
+            phase_b_manifest, reference_image_paths = _apply_h3_execution_references(
+                task, phase_b_manifest, reference_image_paths)
         raw_frame_count = int(fps * duration)
         frame_count = ((raw_frame_count // 8) * 8) + 1
         if _is_task_cancelled(db, task):
             return
         task.current_step = "正在调用 ComfyUI 生成视频..."
         db.commit()
+        def phase_b_before_submit(graph, uploads):
+            from app.services.h3_phase_b_pipeline import verify_submission
+            if _is_task_cancelled(db, task):
+                raise ValueError("任务已取消，未提交 ComfyUI")
+            db.refresh(shot)
+            if int(safe_json_dict(shot.video_director_plan).get("clip_plan_revision") or 0) != int(clip_metadata["clip_plan_revision"]):
+                raise ValueError("Clip 计划已变化，未提交 ComfyUI")
+            try:
+                verify_submission(task, workflow, graph, uploads, previous_video_path)
+            finally:
+                db.commit()
+
         if clip_metadata and clip_metadata.get("capability") in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
             if clip_metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
                 semantic_clip = next((item for item in safe_json_dict(shot.video_director_plan).get("clip_plan", []) if int(item.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0)), None)
@@ -1845,6 +1892,7 @@ async def generate_shot_video_task(
                 on_prompt_queued=save_prompt_id,
                 reference_image_paths=reference_image_paths or [],
                 require_native_output=(task_metadata.get("execution_contract") or {}).get("artifact_kind") == NATIVE_CONTINUITY_OUTPUT,
+                **({"before_submit": phase_b_before_submit} if single_stage_phase_b else {}),
             )
         else:
             result = await comfyui_service.generate_shot_video_with_workflow(
@@ -1868,7 +1916,8 @@ async def generate_shot_video_task(
                     and clip_metadata.get("capability") == "SINGLE_FRAME"
                 ),
                 seed=seed,
-                on_prompt_queued=save_prompt_id
+                on_prompt_queued=save_prompt_id,
+                **({"before_submit": phase_b_before_submit} if single_stage_phase_b else {})
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -1896,7 +1945,7 @@ async def generate_shot_video_task(
                         "uploaded_filename": filename,
                         "workflow_node_id": str(node_id) if node_id is not None else None,
                     }
-                if phase_b_manifest.get("selection_source") == "H3_PROMPT_OPTIMIZER":
+                if phase_b_manifest.get("selection_source") in {"H3_PROMPT_OPTIMIZER", "NEW_13_PHASE_B"}:
                     ref_node = submitted.get(str(binding_mapping.get("reference_to_video_node_id")), {})
                     actual_inputs = [key for key in ref_node.get("inputs", {}) if key.startswith("ref_images.ref_image_")]
                     if len(actual_inputs) != len(phase_b_manifest["references"]):

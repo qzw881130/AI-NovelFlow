@@ -19,6 +19,7 @@ from app.schemas.prompt_template import PromptTemplateCreate, PromptTemplateUpda
 from app.services.prompt_template_service import PromptTemplateService
 from app.repositories import PromptTemplateRepository
 from app.api.deps import get_prompt_template_repo
+from app.constants.prompt_template import PROMPT_TEMPLATE_TYPES, RETIRED_H3_PROMPT_TYPES
 
 router = APIRouter(tags=["prompt_templates"])
 
@@ -55,6 +56,7 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"),
         ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"),
         ("h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建"),
+        ("h3_multi_keyframe_director_phase_b", "MiniMax H3 单阶段导演规划（Phase B）"),
         ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
         ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
@@ -96,6 +98,13 @@ def init_system_prompt_templates(db: Session):
 
 # ==================== 模板 CRUD ====================
 
+@router.get("/config-types", response_model=dict)
+def get_configurable_template_types():
+    """Formal configuration catalog; historical template GET/export stays intact."""
+    return {"success": True, "data": [
+        value for value in PROMPT_TEMPLATE_TYPES if value not in RETIRED_H3_PROMPT_TYPES
+    ]}
+
 @router.get("/image-quality-review/effective", response_model=dict)
 def get_effective_image_review_template(service: PromptTemplateService = Depends(get_template_service)):
     template = service.get_effective_image_review_template()
@@ -106,10 +115,13 @@ def get_effective_image_review_template(service: PromptTemplateService = Depends
 @router.get("/", response_model=dict)
 def list_prompt_templates(
     type: Optional[str] = Query(None, description="筛选类型: character 或 chapter_split"),
+    include_retired: bool = False,
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """获取所有提示词模板"""
     templates = service.list_templates(type)
+    if not include_retired:
+        templates = [t for t in templates if t.type not in RETIRED_H3_PROMPT_TYPES]
     return {
         "success": True,
         "data": [service.to_response(t) for t in templates]
@@ -174,6 +186,19 @@ def get_prompt_template(
     }
 
 
+@router.get("/{template_id}/bound-novels", response_model=dict)
+def get_bound_novels(
+    template_id: str,
+    service: PromptTemplateService = Depends(get_template_service),
+):
+    """List novels with this template ID stored in its matching prompt field."""
+    try:
+        novels = service.list_explicitly_bound_novels(template_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"success": True, "data": novels}
+
+
 @router.post("/", response_model=dict)
 def create_prompt_template(
     data: PromptTemplateCreate,
@@ -228,7 +253,8 @@ def update_prompt_template(
             template_type=data.type
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        status = 409 if str(e).startswith("TRANSITION_INPUT_CONTRACT_MISMATCH:") else 404
+        raise HTTPException(status_code=status, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 

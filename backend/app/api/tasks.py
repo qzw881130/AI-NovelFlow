@@ -67,7 +67,7 @@ def _task_summary_query(db: Session, *, status_only: bool):
             (func.json_valid(Task.metadata_json) == 1, Task.metadata_json), else_="{}"
         )
         for key in (
-            "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+            "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline",
             "approval_status", "approval_mode", "artifact_kind", "capability",
             "planned_duration", "actual_duration", "assembled_media_duration",
             "assembled_result", "physical_output", "clip_playback",
@@ -102,7 +102,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
         }
         if not status_only:
             execution = {key: value[key] for key in (
-                "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+                "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline",
                 "approval_status", "approval_mode", "artifact_kind", "capability",
                 "planned_duration", "actual_duration", "assembled_media_duration",
                 "previous_approved_task_id", "previous_approved_video_url",

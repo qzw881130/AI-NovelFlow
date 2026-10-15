@@ -1,0 +1,1061 @@
+{
+  "canonical_plan": {
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 6.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，摄影机沿两架脚踏织机之间的既定横移轨迹稍向前推进，保持中全景与两架织机的空间关系。\nCharacters:\n- 骗子1: 坐在左侧脚踏织机前，身体略向骗子2倾斜，一只手指向骗子2左手附近的空处，神情严肃笃定。\n- 骗子2: 坐在右侧脚踏织机前，左手抬在空置的编织区域，两根手指小心分开，视线集中在指尖之间。\nAction: 两人共同注视骗子2左手旁的空处，姿态形成对同一虚空位置煞有介事的确认关系。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 3,
+        "time_seconds": 10.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，摄影机沿原有方向继续缓慢横移，两架脚踏织机仍同时处于画面内。\nCharacters:\n- 骗子1: 仍坐在左侧织机前，原本严肃的表情松动，身体稍向后仰，脸上显出压不住的笑意。\n- 骗子2: 右手仍悬在空置编织区域前，肩膀放松，转眼看向骗子1，露出明显笑容。\nAction: 两人暂时偏离严肃工作的姿态，隔着两架织机相视发笑，织机的编织区域依旧空无一物。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 11.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，连续横移的中全景将房门纳入画面背景边缘，房门留有一道窄缝。\nCharacters:\n- 骗子1: 在左侧织机前挺直身体，面向织机，双手重新端正地停在操作部位上方，表情严肃。\n- 骗子2: 在右侧织机前低头面向空置编织区域，两根手指恢复整理虚空细线的姿态，笑容完全收住。\n- 仆人1: 仅头部从门缝探入室内，身体留在门外，谨慎望向两名骗子。\nAction: 两名骗子背对房门维持专注工作的构图，仆人1从背景门缝观察室内，三人的前后景空间关系清晰成立。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 5,
+        "time_seconds": 18.7,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，摄影机沿同一横移轨迹略靠近右侧织机，同时保留背景门缝与仆人1。\nCharacters:\n- 骗子1: 坐在左侧织机前，身体朝向织机，双手稳稳扶住操作部位，没有回头。\n- 骗子2: 坐在右侧织机前，脊背挺直，一只手悬在空置编织区域前，另一只手以克制的阻拦姿势朝门口方向抬起，神情郑重。\n- 仆人1: 头部仍处于门缝内，姿态拘谨，目光落在骗子2与空置的织机区域之间。\nAction: 骗子2的严肃手势与仆人1停在门外的谨慎姿态形成前后景张力，骗子1继续维持不受干扰的工作姿态。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 6,
+        "time_seconds": 26.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，摄影机保持原方向横移；背景房门已经关闭，门缝中的人物消失，画面内只剩两名骗子与两架脚踏织机。\nCharacters:\n- 骗子1: 仍端坐在左侧织机前，身体朝向织机，双手停在操作位置，神情沉着。\n- 骗子2: 坐在右侧织机前，手指仍悬在空置编织区域，身体保持僵直，视线略偏向已经关闭的房门。\nAction: 关闭的房门将室内与走廊隔开，两名骗子保持原位，严肃工作的表象尚未解除。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑当前时间点 26.6 秒的单一完整剧情画面，使当前视觉状态准确到达：王宫织造室的背景房门已经完全关闭，门缝中的仆人1已经离开且不可见，室内只剩骗子1、骗子2与两架脚踏织机。摄影机沿原有方向完成横移，呈现已经稳定到达的新构图，不保留房门敞开或人物停留门缝中的旧状态。\n\n<image_1> 是当前 Shot 的主分镜基线，仅用于回查骗子1、骗子2的身份与稳定外观、王宫织造室的场景基线、两架脚踏织机的形制以及整体视觉基线；当前时间点的人物位置、姿态、房门状态、可见人物集合、摄影机位置和构图以本提示所述当前视觉状态为准，不把画面退回主分镜初始状态，也不把参考图中的展示状态或额外人物带入当前画面。\n\nSCENE PARTICIPANTS：画面中恰好只有两名独立且唯一的可见人物，即骗子1和骗子2，两人各出现且只出现一次。仆人1已经离开画面，不得出现在门缝、走廊、反射、阴影或背景中；不得添加侍从、守卫、路人、人影、剪影或其他人物，不得复制、融合或互换骗子1与骗子2的身份。\n\n骗子1仍端坐在左侧脚踏织机前，保持其身份、面部、发型、体型、服装和配饰稳定一致。身体明确朝向左侧织机，双手停在织机的操作位置，没有回头，神情沉着严肃，继续维持专注工作的表象。\n\n骗子2坐在右侧脚踏织机前，保持其身份、面部、发型、体型、服装和配饰稳定一致。脊背与身体保持僵直，手指悬停在织机前方空置的编织区域，编织区域保持空置；视线略微偏向背景中已经关闭的房门，表情郑重严肃。不要保留朝门口抬手阻拦的旧动作，当前姿态应清楚表现为坐在织机前、手指悬于空置编织区域并侧目关闭房门的静态状态。\n\n背景房门必须完整关闭，将织造室与走廊隔开，不出现敞开的门缝，不透出走廊中的人物或人体局部。保留王宫织造室原有的建筑结构、空间材质、时代特征、室内陈设与合理光线逻辑；保留两架脚踏织机的稳定形制、材质和相对位置，不增加其他剧情道具。画面应清楚呈现左、右两架织机及两名骗子各自就座的空间关系，人物遮挡自然、透视正确。\n\n摄影机保持原有镜头方向与空间轴线，沿既定方向横移后停在当前稳定机位；构图需要同时容纳两名骗子、两架脚踏织机和背景中已经关闭的房门。不得镜像翻转左右关系：骗子1位于左侧织机前，骗子2位于右侧织机前。不要用运动模糊、残影或重复人物表现横移过程。\n\n采用精确干净的二维动画线稿与受控线宽，平涂固有色，清晰利落的赛璐璐阴影形状与克制高光；人物、环境和道具保持统一的绘制轮廓与阴影语言，以线条和色彩表达清楚的轮廓及材质，不使用照片级纹理。保持既有角色身份、服装、脚踏织机、建筑与世界细节，只统一为指定视觉风格。高质量、细节清晰、自然人体比例、正确透视、稳定连续的环境和自然遮挡。\n\n只生成 26.6 秒这个已经到达的单一静态瞬间，不生成前后帧并排、拼贴、漫画分格、对比图、资料页、多视图、动作残影或多个时间状态。不得出现文字、字幕、对白框、标题、标签、箭头、logo、水印或 UI；不得突然换装、增加现代物件、增加人物或增加未要求的剧情内容。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261011_022741.png",
+        "image_task_id": "b608571c-2298-467e-a83e-13d7b89272fa"
+      },
+      {
+        "index": 7,
+        "time_seconds": 27.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，关闭的房门留在背景，摄影机继续沿两架织机之间平稳横移。\nCharacters:\n- 骗子1: 坐姿放松，侧目看向骗子2，神情从严肃转为从容自信。\n- 骗子2: 肩膀明显下沉，身体向椅背稍稍松开，一只手仍搭在织机旁，脸上残留紧张后的余悸。\nAction: 房门关闭后，二人的身体张力明显降低；骗子2呈现松气姿态，骗子1保持镇定。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 8,
+        "time_seconds": 37.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫织造室，摄影机在连续横移中形成偏向两人侧面的中全景，关闭的房门仍位于背景，空置的编织区域清楚可见。\nCharacters:\n- 骗子1: 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向骗子2。\n- 骗子2: 面向骗子1，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。\nAction: 两人隔着织机交换会意视线，紧张气氛消散，空织机仍处于二人之间。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 9,
+        "time_seconds": 94.0,
+        "role": "END",
+        "description": "Scene: 王宫织造室，摄影机抵达缓慢横移轨迹的末端，以连续的中全景容纳两架脚踏织机、关闭的房门和白昼照亮的空置编织区域。\nCharacters:\n- 骗子1: 坐在左侧脚踏织机前，身体朝向织机，双手分别停在拉动与推动操作部位的位置，神情轻松而一本正经。\n- 骗子2: 坐在右侧脚踏织机前，低头注视空置的编织区域，两根手指悬在虚空中，带着克制的会意笑容。\nAction: 两人各自在空织机前维持煞有介事的工作姿态，编织区域没有布料，房门保持关闭。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 6.6,
+        "transition_description": "画面从起始帧已有状态连续演进，不补设未提供的初始站位或姿态。摄影机沿两架脚踏织机之间的既定横移轨迹平稳移动，并逐渐稍向前推进，始终维持中全景及左右两架织机的空间关系，以骗子1和骗子2为共同视觉主体。过程中，骗子1与骗子2的动作简洁地收束到各自织机前：骗子1稳定坐于左侧脚踏织机前，身体略向右侧的骗子2倾斜，并将一只手明确指向骗子2左手附近的空处；骗子2稳定坐于右侧脚踏织机前，将左手抬至空置的编织区域，两根手指小心分开。两人的视线连续汇聚到骗子2指尖之间及左手旁的同一处虚空位置，表情和姿态逐步形成严肃、笃定的共同确认关系。摄影机不切换机位、不跳轴，也不改变两人的左右关系，最终停在稍向前推进后的中全景构图，使左侧骗子1的指向、右侧骗子2抬起的左手以及两人共同注视的空处清晰处于同一空间关系中。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 6.6,
+        "end_time": 10.8,
+        "transition_description": "摄影机从当前中全景机位沿既定方向继续缓慢横移，保持两架脚踏织机及两名骗子同时在画面内，不改变左右空间关系。骗子1先维持向右侧空置编织区域指示的姿态，随后收回手臂，严肃表情逐渐松动，身体从向骗子2倾斜缓缓转为稍向后仰，视线移向骗子2，脸上显出压不住的笑意。骗子2先继续凝视左手两指之间的空处，继而放松肩膀并自然放下左手，同时将右手抬至同一空置编织区域前悬停，再转眼看向左侧的骗子1，笑容逐渐明显。两架织机保持原位，编织区域始终空无一物。过渡最终停在两人隔着织机相视而笑、骗子1稍向后仰、骗子2右手悬在空置编织区域前的状态。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 10.8,
+        "end_time": 11.6,
+        "transition_description": "摄影机沿既有方向保持连续、缓慢的横移，两架脚踏织机始终同框。骗子1迅速收住笑意，从稍向后仰恢复为挺直坐姿，面向左侧织机，将双手端正地停回操作部位上方，表情转为严肃；骗子2同时把视线从骗子1移回右侧织机的空置编织区域，肩部恢复克制姿态，右手调整为以两根手指整理虚空细线的动作，笑容完全消失。两人均不回头，最终背对房门保持专注工作的姿态。横移至后段时，房门及窄门缝自然进入背景边缘，仆人1从门外谨慎地仅将头部探入缝内，身体始终留在门外，视线投向两名骗子。摄影机不改变轴线或突然调整景别，前段持续以两名骗子为画面主体；最后0.2秒在保持两人及两架织机主体关系清晰的同时，让背景门缝与仆人1逐渐具备可读性，仅开始自然分配关注而不将仆人1提升为压倒性焦点。画面停在两名骗子前景端正操作、仆人1于背景门缝观察、三人前后景关系清晰成立的状态。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 11.6,
+        "end_time": 18.7,
+        "transition_description": "承接原有中全景横移，摄影机先以极轻微的构图调整让背景门缝中的仆人1更清楚地进入三人关系，同时不改变两台织机的左右位置。仆人1始终只将头部探在门缝内，身体留在门外，保持拘谨姿态，目光逐渐从两名骗子之间移向骗子2与右侧织机的空置编织区域。随后，骗子1从左侧织机前挺直站姿平稳下沉，屈膝坐到织机前，身体始终朝向织机且不回头，双手随身体下降落到操作部位并稳稳扶住。骗子2也从右侧织机前向下坐定，脊背重新挺直；他收束整理虚空细线的双指动作，将一只手停悬在空置编织区域前，另一只手克制地朝背景门口方向抬起并停住，神情保持郑重。摄影机全程沿同一方向继续缓慢横移并略微靠近右侧织机，只做维持前后景关系的整体补偿，不单独追随或突出骗子2，始终保留左侧的骗子1、右侧织机以及背景门缝中的仆人1。最终停在骗子1坐姿稳定、双手扶住织机且没有回头，骗子2坐直并保持一手悬空、一手朝门口抬起，仆人1仍停在门外并注视骗子2与空置织机区域之间的状态。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 18.7,
+        "end_time": 26.6,
+        "transition_description": "摄影机沿既有方向和同一横移轨迹稳定移动，不切换机位，持续将右侧织机、骗子2与背景门缝保持在同一空间关系中。骗子2先维持挺直坐姿，一只手悬在空置编织区域前，朝门口抬起的另一只手保持克制的阻拦姿势，目光落向仆人1；骗子1始终端坐在左侧织机前，身体朝向织机，双手留在操作位置，仅有轻微自然呼吸与重心稳定。随后仆人1从门缝内谨慎向后退回走廊，头部逐渐退出室内视野；摄影机只以连续横移补偿构图，使仆人1的后撤、骗子2与空置编织区域仍清楚可读，不将骗子1的背景动作提升为主体。仆人1完全退出后，房门沿原有边界连续合拢，门缝逐渐收窄直至关闭；这一阶段画面关注自然落在仆人1最后消失的位置和闭合中的房门，同时保留两名骗子与两架脚踏织机的整体关系。骗子2随着门缝收窄缓慢放松朝门口抬起的手，但身体仍保持僵直，另一只手的手指始终悬在空置编织区域，视线略偏向房门。最终摄影机停在原方向横移后的连续机位，房门完全关闭，仆人1不再可见；骗子1仍沉着地坐在左侧织机前，双手停在操作位置，骗子2仍坐在右侧织机前并看向关闭的房门，画面只剩两名骗子与两架脚踏织机。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 26.6,
+        "end_time": 27.6,
+        "transition_description": "从既有机位与横移趋势连续开始，摄影机沿两架脚踏织机之间平稳横移，最初短暂保留背景关闭房门的构图位置；房门保持紧闭，仆人1不再出现。随后画面重心自然移向右侧织机前的骗子2，但维持两名骗子与织机的整体空间关系。骗子2先将偏向房门的视线收回，肩膀明显下沉，僵直的躯干向椅背稍稍松开；一只手从空置编织区域收回，另一只手仍搭在织机旁，脸上保留紧张后的余悸。与此同时，骗子1始终坐在左侧织机前，不改变左右位置，只放松原本紧绷的坐姿与双手，侧目看向骗子2，神情由严肃逐渐转为从容自信。摄影机不切换机位、不跳轴，以持续横移完成构图调整，最终停在背景房门关闭、骗子1镇定侧视骗子2、骗子2松肩靠后且一手搭在织机旁的状态。"
+      },
+      {
+        "segment_index": 7,
+        "from_keyframe_index": 7,
+        "to_keyframe_index": 8,
+        "start_time": 27.6,
+        "end_time": 37.8,
+        "transition_description": "摄影机承接原有机位与方向，沿两架脚踏织机之间继续平稳横移，不切镜、不跳轴，并逐渐形成偏向二人侧面的中全景；关闭的房门始终留在背景，二人之间空置的编织区域随横移变得更加清楚。开始时短暂维持骗子2肩膀下沉、身体稍靠椅背且一只手搭在织机旁的松弛姿态，骗子1仍从容侧目看着他。随后视觉重心自然移向骗子1：骗子1在左侧织机前进一步靠稳，眉眼逐渐舒展，神情由镇定转为狡黠而笃定的笑意，身体位置不离开座位。骗子2不移动座位，只将上身和视线缓缓转向骗子1，残留的困惑与余悸逐步消退，肩颈继续放松，嘴角渐渐扬起会意的笑容。过程中摄影机仅以连续横移和轻微构图补偿，依次保持骗子1的神态、骗子2的反应以及二人隔着织机的关系清晰可读。临近终点时，画面重心从骗子1平滑分配到两人之间，并开始自然偏向骗子2的会意反应，但不脱离双人关系。最终停在侧面中全景：骗子1靠坐于左侧织机前，带着狡黠笃定的笑意看向骗子2；骗子2面向骗子1，以舒展、认同的笑容回望；两人隔着空置织机保持会意视线，关闭的房门仍在背景，仆人1不进入画面或参与动作。"
+      },
+      {
+        "segment_index": 8,
+        "from_keyframe_index": 8,
+        "to_keyframe_index": 9,
+        "start_time": 37.8,
+        "end_time": 94.0,
+        "transition_description": "承接两人隔着左侧织机交换会意视线的状态，摄影机沿既有方向继续缓慢横移，不改变轴线；最初短暂地将视觉重心从骗子1自然移向骗子2，同时始终以两人和织机关系为主体。骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。两人完成调度后，各自在对应织机前保持轻松而煞有介事的工作姿态，仅保留自然呼吸和极小的重心调整；骗子1神情笃定，骗子2维持克制的会意笑容。摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景，不单独追随任何一人。横移在终点平缓停住，两人分别停在左、右织机前的既定姿态，编织区域全程没有布料，房门全程保持关闭。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "骗子1",
+        "text": "慢一点。",
+        "start_time": 1.0,
+        "end_time": 1.75,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "故作严肃"
+      },
+      {
+        "id": "D2",
+        "speaker": "骗子2",
+        "text": "怎么了？",
+        "start_time": 1.95,
+        "end_time": 2.7,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "配合疑惑"
+      },
+      {
+        "id": "D3",
+        "speaker": "骗子1",
+        "text": "你刚才差点把金线弄断。",
+        "start_time": 2.9,
+        "end_time": 5.4,
+        "duration": 2.5,
+        "estimated_speech_duration": 2.5,
+        "min_required_duration": 2.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "一本正经"
+      },
+      {
+        "id": "D4",
+        "speaker": "骗子2",
+        "text": "哪一根？",
+        "start_time": 5.6,
+        "end_time": 6.35,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "装作紧张"
+      },
+      {
+        "id": "D5",
+        "speaker": "骗子1",
+        "text": "你左手那根。",
+        "start_time": 6.55,
+        "end_time": 7.8,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "笃定指点"
+      },
+      {
+        "id": "D6",
+        "speaker": "骗子2",
+        "text": "这一根？",
+        "start_time": 8.0,
+        "end_time": 8.75,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "试探配合"
+      },
+      {
+        "id": "D7",
+        "speaker": "骗子1",
+        "text": "对。",
+        "start_time": 8.95,
+        "end_time": 9.45,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃肯定"
+      },
+      {
+        "id": "D8",
+        "speaker": "骗子2",
+        "text": "哦，幸好你提醒我。",
+        "start_time": 9.65,
+        "end_time": 11.4,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "夸张庆幸"
+      },
+      {
+        "id": "D9",
+        "speaker": "仆人1",
+        "text": "两位大师，需要午餐吗？",
+        "start_time": 11.6,
+        "end_time": 13.85,
+        "duration": 2.25,
+        "estimated_speech_duration": 2.25,
+        "min_required_duration": 2.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬询问"
+      },
+      {
+        "id": "D10",
+        "speaker": "骗子1",
+        "text": "放在门外。",
+        "start_time": 14.05,
+        "end_time": 15.05,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "专注冷淡"
+      },
+      {
+        "id": "D11",
+        "speaker": "仆人1",
+        "text": "可是陛下吩咐，要好好招待二位。",
+        "start_time": 15.25,
+        "end_time": 18.5,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "谨慎坚持"
+      },
+      {
+        "id": "D12",
+        "speaker": "骗子2",
+        "text": "现在正是最关键的时候。",
+        "start_time": 18.7,
+        "end_time": 21.2,
+        "duration": 2.5,
+        "estimated_speech_duration": 2.5,
+        "min_required_duration": 2.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃警告"
+      },
+      {
+        "id": "D13",
+        "speaker": "骗子2",
+        "text": "任何震动，都可能影响布料的纹理。",
+        "start_time": 21.4,
+        "end_time": 24.9,
+        "duration": 3.5,
+        "estimated_speech_duration": 3.5,
+        "min_required_duration": 3.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "郑重吓唬"
+      },
+      {
+        "id": "D14",
+        "speaker": "仆人1",
+        "text": "是，是，我明白了。",
+        "start_time": 25.1,
+        "end_time": 26.6,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "受惊慌张"
+      },
+      {
+        "id": "D15",
+        "speaker": "骗子2",
+        "text": "差一点。",
+        "start_time": 26.8,
+        "end_time": 27.55,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "后怕松气"
+      },
+      {
+        "id": "D16",
+        "speaker": "骗子1",
+        "text": "怕什么？",
+        "start_time": 27.75,
+        "end_time": 28.5,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "轻松自信"
+      },
+      {
+        "id": "D17",
+        "speaker": "骗子1",
+        "text": "从现在开始，越有人来看，我们越安全。",
+        "start_time": 28.7,
+        "end_time": 32.45,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "狡猾笃定"
+      },
+      {
+        "id": "D18",
+        "speaker": "骗子2",
+        "text": "为什么？",
+        "start_time": 32.65,
+        "end_time": 33.4,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "困惑好奇"
+      },
+      {
+        "id": "D19",
+        "speaker": "骗子1",
+        "text": "因为谁敢说自己什么都没看见？",
+        "start_time": 33.6,
+        "end_time": 36.85,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "得意反问"
+      },
+      {
+        "id": "D20",
+        "speaker": "骗子2",
+        "text": "说得对。",
+        "start_time": 37.05,
+        "end_time": 37.8,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恍然赞同"
+      }
+    ],
+    "clip_plan": [
+      {
+        "clip_index": 2,
+        "start_time": 13.85,
+        "end_time": 27.65,
+        "planned_duration": 13.8,
+        "capability": "TEMPORAL_EXTEND",
+        "visual_state_indexes": [
+          5,
+          6,
+          7
+        ],
+        "carry_in_state_index": 4,
+        "continuity_to_previous": "CONTINUOUS",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 13.8,
+          "fixed_dialogue_duration": 12.5,
+          "overlap_duration": null,
+          "minimum_execution_duration": null,
+          "workflow_budget": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        }
+      }
+    ]
+  },
+  "builder_input": {
+    "shot": {
+      "id": "a5767921-1e7a-4ca3-9c8e-233a284b1bdb",
+      "index": 5,
+      "duration": 94,
+      "continuity_mode": "CONTINUOUS_TAKE",
+      "characters": [
+        "骗子1",
+        "骗子2",
+        "仆人1"
+      ],
+      "official_character_appearances": {
+        "骗子1": "单一主体全身照，一名约三十五岁的人类男性，气质精明而从容，身材高瘦，约一百八十五厘米，头身比例修长，四肢完整并从头到脚清晰可见；长窄脸，中庭偏长，额头宽而平，颧骨略高，下颌线清晰，下巴稍尖，右侧鼻翼旁有一颗小褐痣；眼睛为细长的灰绿色双眼皮眼，外眼角微微上挑，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄，鼻翼收束，鼻孔较小且略向下；嘴唇偏薄，天然嘴角轻微上扬，中性展示时牙齿不可见；皮肤为偏暖的浅肤色，表面略有风吹日晒形成的细纹；深棕色微卷短发向后梳理，发际线两侧略高，留有修剪整齐的深棕色小胡子，下巴无须；稳定身份标记包括高瘦轮廓、右鼻翼旁褐痣、灰绿色上挑眼和整齐小胡子；基础服装为欧洲童话式前现代旅行绅士装束，头戴深炭灰色宽边毡礼帽，上身穿墨绿色合体长外套、米白衬衫与暗金色领巾，下身穿深褐色及膝马裤、灰色长袜和黑色低跟皮鞋，不固定任何手持物；以自然中性站姿展示，双手和双脚均完整可见且不被遮挡，保持脸型、面部比例、头身比、发型轮廓和所有独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故新增配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "骗子2": "单一主体全身照，一名约三十二岁的人类男性，气质殷勤活络，身高约一百七十厘米，体型略显敦实但动作灵便，头身比例约为七头身，四肢完整并从头到脚清晰可见；脸型圆中带方，额头饱满，颧骨不高，下颌较宽，下巴短圆，左侧嘴角下方有一颗明显的小黑痣；眼睛为中等大小的琥珀褐色圆杏眼，双眼皮清楚，外眼角平缓，眼型与眼睛颜色不得改变；鼻梁较短，鼻尖圆钝，鼻翼稍宽，鼻孔小而端正；嘴唇中等偏厚，天然嘴角微微上翘，中性展示时牙齿不可见；皮肤为暖调浅麦色，双颊略带自然红润；栗褐色浓密短卷发从左侧分开，发际线圆润，面部刮得干净，没有胡须；稳定身份标记包括稍矮敦实的轮廓、琥珀褐色圆杏眼、左嘴角下方黑痣和左分短卷发；基础服装为欧洲童话式前现代考究旅行服，头戴棕红色宽边礼帽，上身穿酒红色短外套、奶油白衬衫和深蓝色领结，下身穿黑褐色及膝马裤、米灰色长袜及深棕色搭扣皮鞋，不固定任何手持物；以自然中性站姿展示，双手与双脚全部可见且不受遮挡，保持脸型、面部比例、头身比、发型轮廓及全部独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "仆人1": "单一主体全身照，一名约十九岁的人类男性王宫仆人，气质朴实勤快，身高约一百六十八厘米，体型偏瘦，四肢完整并从头到脚清晰可见；脸型圆润，额头中等，中庭略短，双颊饱满，下颌柔和，下巴圆，鼻梁右侧散布三颗清晰淡雀斑；眼睛为暖褐色中等大小的圆眼，双眼皮较浅，眼角平直，眼型与眼睛颜色不得改变；鼻梁较低直，鼻尖圆，鼻翼中等，鼻孔小；嘴唇中等厚度，天然嘴角略向上，中性展示时牙齿不可见；皮肤为暖调浅麦色，质感自然；深棕色短直发略显蓬松，前额有整齐短刘海，无胡须；稳定身份标记包括圆脸、暖褐圆眼、鼻梁右侧三颗雀斑和短刘海；基础服装为欧洲童话式前现代王宫仆役服，上身穿浅棕色粗布短外衣与米白衬衫，下身穿深棕色及膝裤、灰色长袜和棕色软底系带鞋，腰间仅有普通布带，不固定餐食或搬运物；以自然中性站姿展示，双手、双腿和鞋履均完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与全部标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、畸形解剖、左右不对称错误、随机疤痕纹身、额外主体或新增无依据配饰，禁止半身、特写、裁切、缺手缺腿或脚部出画。"
+      },
+      "scene": "王宫织造室",
+      "props": [
+        "脚踏织机"
+      ]
+    },
+    "visual_control_route": "multi",
+    "visual_controls": [
+      {
+        "index": 5,
+        "role": "INTERMEDIATE",
+        "time_seconds": 4.85,
+        "description": "Scene: 王宫织造室，摄影机沿同一横移轨迹略靠近右侧织机，同时保留背景门缝与仆人1。\nCharacters:\n- 骗子1: 坐在左侧织机前，身体朝向织机，双手稳稳扶住操作部位，没有回头。\n- 骗子2: 坐在右侧织机前，脊背挺直，一只手悬在空置编织区域前，另一只手以克制的阻拦姿势朝门口方向抬起，神情郑重。\n- 仆人1: 头部仍处于门缝内，姿态拘谨，目光落在骗子2与空置的织机区域之间。\nAction: 骗子2的严肃手势与仆人1停在门外的谨慎姿态形成前后景张力，骗子1继续维持不受干扰的工作姿态。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF5",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 6,
+        "role": "INTERMEDIATE",
+        "time_seconds": 12.75,
+        "description": "Scene: 王宫织造室，摄影机保持原方向横移；背景房门已经关闭，门缝中的人物消失，画面内只剩两名骗子与两架脚踏织机。\nCharacters:\n- 骗子1: 仍端坐在左侧织机前，身体朝向织机，双手停在操作位置，神情沉着。\n- 骗子2: 坐在右侧织机前，手指仍悬在空置编织区域，身体保持僵直，视线略偏向已经关闭的房门。\nAction: 关闭的房门将室内与走廊隔开，两名骗子保持原位，严肃工作的表象尚未解除。",
+        "timed_visual_target": true,
+        "semantic_state_label": "KF6",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 7,
+        "role": "INTERMEDIATE",
+        "time_seconds": 13.75,
+        "description": "Scene: 王宫织造室，关闭的房门留在背景，摄影机继续沿两架织机之间平稳横移。\nCharacters:\n- 骗子1: 坐姿放松，侧目看向骗子2，神情从严肃转为从容自信。\n- 骗子2: 肩膀明显下沉，身体向椅背稍稍松开，一只手仍搭在织机旁，脸上残留紧张后的余悸。\nAction: 房门关闭后，二人的身体张力明显降低；骗子2呈现松气姿态，骗子1保持镇定。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF7",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      }
+    ],
+    "physical_picture_manifest": [
+      {
+        "picture_index": 1,
+        "picture": "<Picture 1>",
+        "kind": "SCENE",
+        "source_type": "SCENE_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "name": "王宫织造室"
+        },
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "source_name": "王宫织造室"
+      },
+      {
+        "picture_index": 2,
+        "picture": "<Picture 2>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_name": "骗子1"
+      },
+      {
+        "picture_index": 3,
+        "picture": "<Picture 3>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_name": "骗子2"
+      },
+      {
+        "picture_index": 4,
+        "picture": "<Picture 4>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "name": "仆人1"
+        },
+        "source_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+        "source_name": "仆人1"
+      },
+      {
+        "picture_index": 5,
+        "picture": "<Picture 5>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机"
+        },
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "source_name": "脚踏织机"
+      }
+    ],
+    "reference_binding_contract": {
+      "characters": [
+        {
+          "picture": "<Picture 2>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1",
+          "subject": "<Subject 1>",
+          "body_state_id": "KF4",
+          "body_role": "在左侧织机前挺直身体，面向织机，双手重新端正地停在操作部位上方，表情严肃。",
+          "body_binding": "EXISTING_CURRENT_BODY"
+        },
+        {
+          "picture": "<Picture 3>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2",
+          "subject": "<Subject 2>",
+          "body_state_id": "KF4",
+          "body_role": "在右侧织机前低头面向空置编织区域，两根手指恢复整理虚空细线的姿态，笑容完全收住。",
+          "body_binding": "EXISTING_CURRENT_BODY"
+        },
+        {
+          "picture": "<Picture 4>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "name": "仆人1",
+          "subject": "<Subject 3>",
+          "body_state_id": "KF4",
+          "body_role": "仅头部从门缝探入室内，身体留在门外，谨慎望向两名骗子。",
+          "body_binding": "EXISTING_CURRENT_BODY"
+        }
+      ],
+      "resources": [
+        {
+          "picture": "<Picture 1>",
+          "kind": "SCENE",
+          "asset_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "name": "王宫织造室",
+          "source_keyframe_index": null
+        },
+        {
+          "picture": "<Picture 5>",
+          "kind": "PROP",
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机",
+          "source_keyframe_index": null
+        }
+      ],
+      "subjects": {
+        "骗子1": "<Subject 1>",
+        "骗子2": "<Subject 2>",
+        "仆人1": "<Subject 3>"
+      },
+      "continuation": true,
+      "motion_ownership": [
+        {
+          "subject": "<Subject 1>",
+          "name": "骗子1",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        },
+        {
+          "subject": "<Subject 2>",
+          "name": "骗子2",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        },
+        {
+          "subject": "<Subject 3>",
+          "name": "仆人1",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        }
+      ],
+      "findings": []
+    },
+    "picture_mapping_contract": {
+      "authority": "physical_picture_manifest",
+      "numbering": "dense_1_based_manifest_order",
+      "image_less_visual_states": "text_only_no_picture_number",
+      "temporal_anchor_domain": "separate_from_ordinary_pictures"
+    },
+    "clip": {
+      "clip_index": 2,
+      "start_time": 13.85,
+      "end_time": 27.65,
+      "planned_duration": 13.8,
+      "capability": "TEMPORAL_EXTEND",
+      "continuity_to_previous": "CONTINUOUS",
+      "visual_state_indexes": [
+        5,
+        6,
+        7
+      ],
+      "carry_in_state_index": 4
+    },
+    "clip_visible_characters": [
+      "骗子1",
+      "骗子2",
+      "仆人1"
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D10",
+        "speaker": "骗子1",
+        "text": "放在门外。",
+        "start_time": 0.2,
+        "end_time": 1.2,
+        "shot_start_time": 14.05,
+        "shot_end_time": 15.05,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "专注冷淡",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D11",
+        "speaker": "仆人1",
+        "text": "可是陛下吩咐，要好好招待二位。",
+        "start_time": 1.4,
+        "end_time": 4.65,
+        "shot_start_time": 15.25,
+        "shot_end_time": 18.5,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "谨慎坚持",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D12",
+        "speaker": "骗子2",
+        "text": "现在正是最关键的时候。",
+        "start_time": 4.85,
+        "end_time": 7.35,
+        "shot_start_time": 18.7,
+        "shot_end_time": 21.2,
+        "duration": 2.5,
+        "estimated_speech_duration": 2.5,
+        "min_required_duration": 2.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃警告",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D13",
+        "speaker": "骗子2",
+        "text": "任何震动，都可能影响布料的纹理。",
+        "start_time": 7.55,
+        "end_time": 11.05,
+        "shot_start_time": 21.4,
+        "shot_end_time": 24.9,
+        "duration": 3.5,
+        "estimated_speech_duration": 3.5,
+        "min_required_duration": 3.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "郑重吓唬",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D14",
+        "speaker": "仆人1",
+        "text": "是，是，我明白了。",
+        "start_time": 11.25,
+        "end_time": 12.75,
+        "shot_start_time": 25.1,
+        "shot_end_time": 26.6,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "受惊慌张",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D15",
+        "speaker": "骗子2",
+        "text": "差一点。",
+        "start_time": 12.95,
+        "end_time": 13.7,
+        "shot_start_time": 26.8,
+        "shot_end_time": 27.55,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "后怕松气",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      }
+    ],
+    "dialogue_timeline_status": {
+      "status": "ok",
+      "source": "official_projection",
+      "estimated_speech_duration": 12.5,
+      "dialogue_gap_duration": 0.0,
+      "lead_in_duration": 0.0,
+      "overflow_seconds": 0.0
+    },
+    "silent_characters": [],
+    "temporal_anchors": [
+      {
+        "anchor_id": "clip-2-KF6",
+        "time_seconds": 12.75,
+        "source_keyframe_index": 6,
+        "target_state_label": "KF6"
+      }
+    ],
+    "conditioning": {
+      "previous_av_present": true,
+      "previous_av": "Continue from the ending visual state of the provided previous video; it has no Picture number.",
+      "temporal_domain": "separate_timed_conditioning_no_ordinary_picture"
+    },
+    "control_counts": {
+      "semantic_control_count": 3,
+      "owned_state_count": 3,
+      "ordinary_reference_count": 5,
+      "temporal_anchor_count": 1,
+      "previous_av_present": true
+    },
+    "transitions": [
+      {
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 11.6,
+        "end_time": 18.7,
+        "transition_description": "承接原有中全景横移，摄影机先以极轻微的构图调整让背景门缝中的仆人1更清楚地进入三人关系，同时不改变两台织机的左右位置。仆人1始终只将头部探在门缝内，身体留在门外，保持拘谨姿态，目光逐渐从两名骗子之间移向骗子2与右侧织机的空置编织区域。随后，骗子1从左侧织机前挺直站姿平稳下沉，屈膝坐到织机前，身体始终朝向织机且不回头，双手随身体下降落到操作部位并稳稳扶住。骗子2也从右侧织机前向下坐定，脊背重新挺直；他收束整理虚空细线的双指动作，将一只手停悬在空置编织区域前，另一只手克制地朝背景门口方向抬起并停住，神情保持郑重。摄影机全程沿同一方向继续缓慢横移并略微靠近右侧织机，只做维持前后景关系的整体补偿，不单独追随或突出骗子2，始终保留左侧的骗子1、右侧织机以及背景门缝中的仆人1。最终停在骗子1坐姿稳定、双手扶住织机且没有回头，骗子2坐直并保持一手悬空、一手朝门口抬起，仆人1仍停在门外并注视骗子2与空置织机区域之间的状态。"
+      },
+      {
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 18.7,
+        "end_time": 26.6,
+        "transition_description": "摄影机沿既有方向和同一横移轨迹稳定移动，不切换机位，持续将右侧织机、骗子2与背景门缝保持在同一空间关系中。骗子2先维持挺直坐姿，一只手悬在空置编织区域前，朝门口抬起的另一只手保持克制的阻拦姿势，目光落向仆人1；骗子1始终端坐在左侧织机前，身体朝向织机，双手留在操作位置，仅有轻微自然呼吸与重心稳定。随后仆人1从门缝内谨慎向后退回走廊，头部逐渐退出室内视野；摄影机只以连续横移补偿构图，使仆人1的后撤、骗子2与空置编织区域仍清楚可读，不将骗子1的背景动作提升为主体。仆人1完全退出后，房门沿原有边界连续合拢，门缝逐渐收窄直至关闭；这一阶段画面关注自然落在仆人1最后消失的位置和闭合中的房门，同时保留两名骗子与两架脚踏织机的整体关系。骗子2随着门缝收窄缓慢放松朝门口抬起的手，但身体仍保持僵直，另一只手的手指始终悬在空置编织区域，视线略偏向房门。最终摄影机停在原方向横移后的连续机位，房门完全关闭，仆人1不再可见；骗子1仍沉着地坐在左侧织机前，双手停在操作位置，骗子2仍坐在右侧织机前并看向关闭的房门，画面只剩两名骗子与两架脚踏织机。"
+      },
+      {
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 26.6,
+        "end_time": 27.6,
+        "transition_description": "从既有机位与横移趋势连续开始，摄影机沿两架脚踏织机之间平稳横移，最初短暂保留背景关闭房门的构图位置；房门保持紧闭，仆人1不再出现。随后画面重心自然移向右侧织机前的骗子2，但维持两名骗子与织机的整体空间关系。骗子2先将偏向房门的视线收回，肩膀明显下沉，僵直的躯干向椅背稍稍松开；一只手从空置编织区域收回，另一只手仍搭在织机旁，脸上保留紧张后的余悸。与此同时，骗子1始终坐在左侧织机前，不改变左右位置，只放松原本紧绷的坐姿与双手，侧目看向骗子2，神情由严肃逐渐转为从容自信。摄影机不切换机位、不跳轴，以持续横移完成构图调整，最终停在背景房门关闭、骗子1镇定侧视骗子2、骗子2松肩靠后且一手搭在织机旁的状态。"
+      }
+    ],
+    "visual_attention_timeline": {
+      "version": 1,
+      "time_base": "CLIP_SECONDS",
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 4.85,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 3,
+          "source_start_time_seconds": 12.2,
+          "source_end_time_seconds": 18.7
+        },
+        {
+          "start_time_seconds": 4.85,
+          "end_time_seconds": 11.05,
+          "primary_subjects": [
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "source_window_index": 4,
+          "source_start_time_seconds": 18.7,
+          "source_end_time_seconds": 24.9
+        },
+        {
+          "start_time_seconds": 11.05,
+          "end_time_seconds": 12.95,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 5,
+          "source_start_time_seconds": 24.9,
+          "source_end_time_seconds": 26.8
+        },
+        {
+          "start_time_seconds": 12.95,
+          "end_time_seconds": 13.8,
+          "primary_subjects": [
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "source_window_index": 6,
+          "source_start_time_seconds": 26.8,
+          "source_end_time_seconds": 27.75
+        }
+      ],
+      "characters": [
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2",
+          "subject": "<Subject 2>"
+        },
+        {
+          "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "character_name": "仆人1",
+          "subject": "<Subject 3>"
+        }
+      ]
+    },
+    "workflow_capability": {
+      "max_clip_duration": 20.0,
+      "frame_count": null,
+      "workflow_name": "NovelFlow H3 AV 时序续生成 V1"
+    },
+    "workflow_type": "TEMPORAL_EXTEND",
+    "workflow_name": "NovelFlow H3 AV 时序续生成 V1"
+  },
+  "reference_manifest": {
+    "references": [
+      {
+        "kind": "SCENE",
+        "source_name": "王宫织造室",
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "name": "王宫织造室"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫织造室_20261003_173205.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫织造室_20261003_173205.png",
+        "slot": 1
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "slot": 3
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "仆人1",
+        "source_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "name": "仆人1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/仆人1_20261010_232853.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/仆人1_20261010_232853.png",
+        "slot": 4
+      },
+      {
+        "kind": "PROP",
+        "source_name": "脚踏织机",
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/脚踏织机_20261003_174333.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/脚踏织机_20261003_174333.png",
+        "slot": 5
+      }
+    ]
+  },
+  "workflow": {
+    "id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+    "type": "TEMPORAL_EXTEND",
+    "workflow_json": "{\n  \"1\": {\n    \"inputs\": {\n      \"noise_seed\": 123456789\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#1 RandomNoise\"\n    }\n  },\n  \"2\": {\n    \"inputs\": {\n      \"model\": [\n        \"71\",\n        0\n      ],\n      \"conditioning\": [\n        \"116\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#2 Basic Guider\"\n    }\n  },\n  \"3\": {\n    \"inputs\": {\n      \"noise\": [\n        \"1\",\n        0\n      ],\n      \"guider\": [\n        \"2\",\n        0\n      ],\n      \"sampler\": [\n        \"36\",\n        0\n      ],\n      \"sigmas\": [\n        \"70\",\n        0\n      ],\n      \"latent_image\": [\n        \"23\",\n        0\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#3 Extension 1 - SamplerCustomAdvanced\"\n    }\n  },\n  \"23\": {\n    \"inputs\": {\n      \"context_length\": [\n        \"37\",\n        0\n      ],\n      \"audio_feather_ticks\": [\n        \"96\",\n        0\n      ],\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StartMaskedContext\",\n    \"_meta\": {\n      \"title\": \"#23 H3 Start Masked Context\"\n    }\n  },\n  \"29\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#29 Starter Clip - Load VAE\"\n    }\n  },\n  \"30\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#30 Starter Clip - Load VAE\"\n    }\n  },\n  \"31\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#31 Starter Clip - Load CLIP\"\n    }\n  },\n  \"32\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#32 Starter Clip - Load Diffusion Model\"\n    }\n  },\n  \"36\": {\n    \"inputs\": {\n      \"sampler_name\": \"res_multistep\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#36 KSamplerSelect\"\n    }\n  },\n  \"37\": {\n    \"inputs\": {\n      \"value\": 39\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#37 Int\"\n    }\n  },\n  \"39\": {\n    \"inputs\": {\n      \"frame_rate\": 24,\n      \"loop_count\": 0,\n      \"filename_prefix\": \"h3_preview/extension_01\",\n      \"format\": \"video/h264-mp4\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"pingpong\": false,\n      \"save_output\": true,\n      \"images\": [\n        \"62\",\n        0\n      ],\n      \"audio\": [\n        \"61\",\n        0\n      ]\n    },\n    \"class_type\": \"VHS_VideoCombine\",\n    \"_meta\": {\n      \"title\": \"#39 Extension 1 - VHS Video Combine\"\n    }\n  },\n  \"55\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"120\",\n        0\n      ],\n      \"width\": 960,\n      \"height\": 544,\n      \"length\": [\n        \"126\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"31\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"142\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"141\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"143\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"137\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"138\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#55 Extension 1 - MiniMax H3 Reference to Video\"\n    }\n  },\n  \"56\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#56 Int\"\n    }\n  },\n  \"61\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"102\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#61 VAE Decode Audio\"\n    }\n  },\n  \"62\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#62 VAE Decode\"\n    }\n  },\n  \"65\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"context_frames\": 39,\n      \"video_overlap_frames\": 39,\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"filename_prefix\": \"story_bfc54b7d-04da-43e8-9e11-ff9a6032de5e/chapter_6ad4afd6/clips/45bc29fa-8f3b-4d55-8a49-fa68fde4d880\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"save_output\": true,\n      \"video_vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ],\n      \"preview_gate\": [\n        \"98\",\n        0\n      ],\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"extension_1\": [\n        \"3\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StreamLiveExtensionAVToVHS\",\n    \"_meta\": {\n      \"title\": \"#65 H3 Stream AV Extensions to VHS\"\n    }\n  },\n  \"66\": {\n    \"inputs\": {\n      \"video\": \"shot_005_clip_1_84cd96be_20261011_024625.mp4\",\n      \"force_rate\": 24,\n      \"custom_width\": 0,\n      \"custom_height\": 0,\n      \"frame_load_cap\": 0,\n      \"start_time\": 0,\n      \"format\": \"AnimateDiff\"\n    },\n    \"class_type\": \"VHS_LoadVideoFFmpeg\",\n    \"_meta\": {\n      \"title\": \"#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢\"\n    }\n  },\n  \"67\": {\n    \"inputs\": {\n      \"images\": [\n        \"101\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CropTo32\",\n    \"_meta\": {\n      \"title\": \"#67 H3 Crop Source To /32\"\n    }\n  },\n  \"70\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": [\n        \"56\",\n        0\n      ],\n      \"denoise\": 1,\n      \"model\": [\n        \"71\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#70 BasicScheduler\"\n    }\n  },\n  \"71\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"72\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#71 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"72\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\n      \"strength_model\": 0.95,\n      \"model\": [\n        \"73\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#72 Starter Clip - LoraLoaderModelOnly\"\n    }\n  },\n  \"73\": {\n    \"inputs\": {\n      \"attention\": \"comfy kitchen attention\",\n      \"model\": [\n        \"32\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelAttentionBackend\",\n    \"_meta\": {\n      \"title\": \"#73 Model Attention Backend\"\n    }\n  },\n  \"93\": {\n    \"inputs\": {\n      \"source_fps\": 24,\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"mode\": [\n        \"97\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SourceAudioPolicy\",\n    \"_meta\": {\n      \"title\": \"#93 H3 Source Audio Policy\"\n    }\n  },\n  \"94\": {\n    \"inputs\": {\n      \"start\": \"Existing Video\"\n    },\n    \"class_type\": \"MiniMaxH3AVStartModeParam\",\n    \"_meta\": {\n      \"title\": \"#94 Start Mode — FIXED Existing Video\"\n    }\n  },\n  \"95\": {\n    \"inputs\": {\n      \"value\": 1\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#95 Active Extensions — FIXED 1\"\n    }\n  },\n  \"96\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#96 Audio Feather — FIXED 8\"\n    }\n  },\n  \"97\": {\n    \"inputs\": {\n      \"source_audio\": \"Keep source audio\"\n    },\n    \"class_type\": \"MiniMaxH3AVSourceAudioModeParam\",\n    \"_meta\": {\n      \"title\": \"#97 Source Audio — FIXED Keep source audio\"\n    }\n  },\n  \"98\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"preview_1\": [\n        \"39\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3LastActiveVHSPreviewBarrier\",\n    \"_meta\": {\n      \"title\": \"#98 H3 Last Active VHS Preview Barrier\"\n    }\n  },\n  \"99\": {\n    \"inputs\": {\n      \"filenames\": [\n        \"65\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3FinalizeVHSOutput\",\n    \"_meta\": {\n      \"title\": \"#99 H3 Final Stream Output Sink\"\n    }\n  },\n  \"101\": {\n    \"inputs\": {\n      \"images\": [\n        \"66\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3Validate24FPSVideo\",\n    \"_meta\": {\n      \"title\": \"#101 H3 Validate 24 FPS Video\"\n    }\n  },\n  \"102\": {\n    \"inputs\": {\n      \"audio_vae\": [\n        \"29\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3AudioVAECompatibility\",\n    \"_meta\": {\n      \"title\": \"#102 H3 Audio VAE Compatibility\"\n    }\n  },\n  \"116\": {\n    \"inputs\": {\n      \"keyframe_state\": \"{\\\"count\\\":1,\\\"positions\\\":[380]}\",\n      \"indexing\": \"1-based\",\n      \"crop\": \"center\",\n      \"+ Add keyframe\": null,\n      \"- Remove keyframe\": null,\n      \"conditioning\": [\n        \"55\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"keyframe_image_1\": [\n        \"117\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CustomKeyframes\",\n    \"_meta\": {\n      \"title\": \"#116 H3 Custom Keyframes — TEMPORAL ANCHOR\"\n    }\n  },\n  \"117\": {\n    \"inputs\": {\n      \"image\": \"keyframe_4_20261011_022741.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#117 KeyFrame — Load Image 1\"\n    }\n  },\n  \"120\": {\n    \"inputs\": {\n      \"prompt\": \"subject_definitions:\\n<Subject 1> is 骗子1, a tall, slender man of about thirty-five with a long narrow face, gray-green eyes, swept-back short dark-brown hair, a neat dark-brown mustache, and a small brown mole beside his right nostril; <Picture 2> applies only to his permanent identity.\\n<Subject 2> is 骗子2, a compact, sturdy man of about thirty-two with a rounded-square face, amber-brown eyes, thick short chestnut curls, a clean-shaven face, and a small dark mole below the left corner of his mouth; <Picture 3> applies only to his permanent identity.\\n<Subject 3> is 仆人1, a slim young man of about nineteen with a rounded face, warm-brown eyes, short fluffy dark-brown hair with neat bangs, and three light freckles beside the right side of his nose; <Picture 4> applies only to his permanent identity.\\n\\nsummary:\\nA 17.5-second continuation of the palace weaving-room scene, beginning with the preserved incoming camera and performance state. After the shared opening context, a mixed strategy uses the continuing lateral move for ensemble continuity and explicit speaker-motivated cuts whenever the doorway speaker would otherwise be too small for readable articulation. Every view preserves the established left-right loom layout, current clothing, seated positions, doorway relationship, and story progression.\\n\\nretention_analysis:\\n<Picture 1> supplies only the palace weaving room's architectural and material appearance, while <Picture 5> supplies the consistent structure, scale, and wood construction of the two treadle looms. <Picture 2>, <Picture 3>, and <Picture 4> are identity-only references and do not overwrite current costume, pose, blocking, or the bodies already established by the preceding video. The retained visual guidance supports the stern seated working tableau, the servant's continuous withdrawal and door closure, and the final reduction of tension without requiring exact reference framing.\\n\\ndetailed_description:\\nContinue the incoming image and camera direction without replaying earlier dialogue. <Subject 1> remains at the left loom, settling fully into his established seated place with his torso toward the loom and both hands at its controls. <Subject 2> remains seated at the right loom, straight-backed, with one hand poised over the empty weaving area and the other raised in a restrained stopping gesture toward the doorway. Only <Subject 3>'s head and upper edge of his posture appear through the doorway while his body stays outside. The established floor positions and left-right loom arrangement remain unchanged.\\n\\nThe carried view already keeps <Subject 1>'s face and mouth readable while <Subject 2> and <Subject 3> listen with relaxed closed lips and no speech-like articulation. <Subject 1> (S1) says, <d>[Chinese] 放在门外。</d>\\n\\n<Subject 1> finishes articulating, closes his lips, and remains a natural seated listener. The camera cuts from <Subject 1> to a readable doorway composition of <Subject 3>, whose face and mouth are now large enough to read while he stays behind the threshold; <Subject 1> and <Subject 2> retain their established loom positions. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With the doorway view established, <Subject 3> (S2) replies, <d>[Chinese] 可是陛下吩咐，要好好招待二位。</d> As <Subject 3> speaks, the composition also preserves the tense three-person relationship: <Subject 1> is seated at the left loom without turning, and <Subject 2> sits upright at the right loom with one hand hovering over the empty weaving area and the other held toward the door.\\n\\n<Subject 3> ends his articulation and closes his lips at the threshold. The camera cuts from <Subject 3> to <Subject 2>, achieving a clear seated view of <Subject 2>'s face and mouth without moving either loom or either seated man; <Subject 3> remains visible in the doorway context. <Subject 1> and <Subject 3> listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 2>'s view established, <Subject 2> (S3) states, <d>[Chinese] 现在正是最关键的时候。</d> His readable view holds through the brief pause; every other visible character remains a natural closed-mouth listener. <Subject 2> (S3) continues, <d>[Chinese] 任何震动，都可能影响布料的纹理。</d>\\n\\n<Subject 2> finishes speaking, lowers his speech-like mouth movement, and becomes a stern listener. The camera cuts from <Subject 2> back to <Subject 3>, clearly acquiring <Subject 3>'s face and mouth at the doorway while <Subject 1> and <Subject 2> remain seated at their looms. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With the threshold view secured, <Subject 3> (S2) answers, <d>[Chinese] 是，是，我明白了。</d>\\n\\n<Subject 3> ends articulation and closes his lips, then cautiously backs into the corridor until his head continuously leaves the doorway; the door swings along its existing boundary and closes fully rather than making him disappear abruptly. The camera transfers emphasis from the departing <Subject 3> to <Subject 2> with a cut to a readable seated view, preserving <Subject 1> at the left loom and <Subject 2> at the right. The closed door remains behind them; <Subject 1> sits composed with hands at the loom, while <Subject 2> stays rigid, fingers hovering over the empty weaving area and gaze angled toward the door. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. Once the closed-door view and <Subject 2>'s face are established, <Subject 2> (S3) says, <d>[Chinese] 差一点。</d>\\n\\nAfter the line, <Subject 2> closes his lips, lowers his shoulders, eases slightly toward the chair back, and leaves one hand beside the loom, retaining a trace of alarm. <Subject 1> relaxes his seated posture and hands without changing place, glances toward <Subject 2>, and shifts from stern concentration to calm confidence. The lateral camera motion settles on both seated men, the two looms, and the closed door, followed by a brief natural hold with breathing, blinking, cloth movement, and weight settling only.\\n\\noverall_soundscape:\\nMaintain restrained palace weaving-room ambience with light air reverberation in the stone-and-timber interior, small loom creaks, chair and clothing friction, and soft wood contact from hands and mechanisms. Add spatially consistent retreating footsteps, hinge movement, the narrowing doorway, and a low wooden door closure, followed by subtle cloth and chair sounds as the two seated men relax. No subtitles, narration, extra voices, or on-screen text.\\n\\nnon_diegetic_music:\\nN/A\"\n    },\n    \"class_type\": \"CR Prompt Text\",\n    \"_meta\": {\n      \"title\": \"#120 ⚙️ CR Prompt Text（提示词）\"\n    }\n  },\n  \"124\": {\n    \"inputs\": {\n      \"text\": \"{\\n    \\\"source_fps\\\": 24.0,\\n    \\\"source_frame_count\\\": 243.12,\\n    \\\"source_duration\\\": 10.13,\\n    \\\"source_width\\\": 1728,\\n    \\\"source_height\\\": 960,\\n    \\\"loaded_fps\\\": 24.0,\\n    \\\"loaded_frame_count\\\": 243,\\n    \\\"loaded_duration\\\": 10.125,\\n    \\\"loaded_width\\\": 1728,\\n    \\\"loaded_height\\\": 960\\n}\",\n      \"anything\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#124 #-1 Show Any\"\n    }\n  },\n  \"125\": {\n    \"inputs\": {\n      \"value\": 17.5\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#125 Float(时长秒)\"\n    }\n  },\n  \"126\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"125\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#126 Math Expression\"\n    }\n  },\n  \"127\": {\n    \"inputs\": {\n      \"text\": \"243\",\n      \"anything\": [\n        \"126\",\n        1\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#127 #-1 Show Any\"\n    }\n  },\n  \"137\": {\n    \"inputs\": {\n      \"image\": \"仆人1_20261010_232853.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#110 Reference Image 4\"\n    }\n  },\n  \"138\": {\n    \"inputs\": {\n      \"image\": \"脚踏织机_20261003_174333.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#111 Reference Image 5\"\n    }\n  },\n  \"141\": {\n    \"inputs\": {\n      \"image\": \"骗子1_20261008_135109.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#68 Reference Image 2\"\n    }\n  },\n  \"142\": {\n    \"inputs\": {\n      \"image\": \"王宫织造室_20261003_173205.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#69 Reference Image 1\"\n    }\n  },\n  \"143\": {\n    \"inputs\": {\n      \"image\": \"骗子2_20261008_135128.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#109 Reference Image 3\"\n    }\n  }\n}",
+    "node_mapping": "{\"load_video_node_id\": \"66\", \"duration_seconds_node_id\": \"125\", \"prompt_node_id\": \"120\", \"keyframe_node_1\": \"117\", \"keyframe_node_2\": \"128\", \"keyframe_node_3\": \"129\", \"keyframe_node_4\": \"130\", \"keyframe_node_5\": \"131\", \"keyframe_node_6\": \"132\", \"keyframe_node_7\": \"133\", \"keyframe_node_8\": \"134\", \"custom_keyframes_node_id\": \"116\", \"video_save_node_id\": \"65\", \"reference_to_video_node_id\": \"55\", \"load_image_node_1\": \"142\", \"load_image_node_2\": \"141\", \"load_image_node_3\": \"143\", \"load_image_node_4\": \"137\", \"load_image_node_5\": \"138\", \"load_image_node_6\": \"140\", \"load_image_node_7\": \"135\", \"load_image_node_8\": \"136\", \"load_image_node_9\": \"139\"}"
+  },
+  "previous_video_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/videos/shot_005_clip_1_84cd96be_20261011_024625.mp4",
+  "user_camera_requirements": {
+    "status": "UNKNOWN",
+    "requirements": []
+  },
+  "physical_evidence": {
+    "resource_hashes": {
+      "<Picture 1>": "78845413108bcc1ebd9ca9d31fe349b0a72d07b57df6d14b41d7e7ea98ca3144",
+      "<Picture 2>": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+      "<Picture 3>": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+      "<Picture 4>": "c926ef108a91c55161065f362ea3a21e5a58d9f92eb1adf745f97fbbd44c82b6",
+      "<Picture 5>": "51e432bc4ced07c0b3e1825ab8a9b20e442f2151fc846686618512a337f13be5",
+      "TemporalAnchor:clip-2-KF6": "5809d7544e4e100f8360f6dfc893dc993b31fff2cb87623fa440f3595a541a31"
+    },
+    "previous_clip": {
+      "clip_index": 1,
+      "clip_plan_revision": 1,
+      "generated_by_task_id": "84cd96be-4318-4e96-a9a7-edeb249d9904",
+      "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_005_clip_1_84cd96be_20261011_024625.mp4",
+      "physical_output": {
+        "frame_count": 362,
+        "fps": 24,
+        "timebase": "1/24",
+        "video_duration": 15.083333333333334,
+        "has_audio": true,
+        "audio_duration": 15.075,
+        "audio_start_time": 0.0,
+        "width": 864,
+        "height": 480,
+        "sha256": "55f62657fc10f58bc5b1a6d99d992b73b50ace49a05d6315f8d62660c08aed90",
+        "physical_output_role": "CLIP_ONLY"
+      },
+      "source_frame_start": 0
+    },
+    "duration_limits": {
+      "minimum": 4.0,
+      "maximum": 20.0,
+      "absolute_maximum": 20.0,
+      "frame_rule": "existing frozen workflow duration-to-frames conversion"
+    },
+    "temporal_anchors": [
+      {
+        "anchor_id": "clip-2-KF6",
+        "time_seconds": 12.75,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261011_022741.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_4_20261011_022741.png",
+        "source": {
+          "type": "KEYFRAME",
+          "id": "KF6",
+          "keyframe_index": 6,
+          "image_task_id": "b608571c-2298-467e-a83e-13d7b89272fa"
+        },
+        "description": null
+      }
+    ],
+    "reference_binder": {
+      "template_path": "/Volumes/Data/AI-NovelFlow-V2/backend/workflows/temporal_extend_h3_v1_20260925.json",
+      "sha256": "46ba428cb44b60e2a3317d849cc8bc3537166779ffdd90fbc486287adcb32f27",
+      "purpose": "Existing unbound optional-image binder capability only; not an execution workflow replacement"
+    }
+  },
+  "music_contract": {
+    "value": "N/A",
+    "source_stage": "13_RAW",
+    "source_log_id": "0d087081-99be-498f-bcf5-b94304d7419e",
+    "source_excerpt": "保持王宫织造室内部克制而真实的室内环境底噪，包括宽阔石木空间的轻微空气回响、织机木构件因接触和承重产生的细小吱呀声、坐下与调整重心时的椅面和衣料摩擦声、手掌接触织机操作部位的轻微木质触碰声。走廊方向带有与距离一致的轻缓退步声，随后出现房门沿铰链移动、门缝收窄以及门板最终闭合的低沉木质声响。最后保留肩膀放松、身体靠向椅背和手移回织机旁所产生的细微衣料与木件 Foley；不添加无来源音乐或无关声源。",
+    "source_raw_sha256": "6b86aa46bc8e1152fe43d8cb88d889f591ee81d76186404e379536ffc9f25f57",
+    "interpretation": "REVIEWED_NO_ADDED_MUSIC"
+  },
+  "source": {
+    "task_id": "45bc29fa-8f3b-4d55-8a49-fa68fde4d880",
+    "builder_log_id": "0d087081-99be-498f-bcf5-b94304d7419e",
+    "snapshot_path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/fixtures/h3_multi_keyframe_phase_a/shot5_c2_temporal_extend.json",
+    "snapshot_file_sha256": "e1b4310878b224362b013b75d994b0f2a021e7f6b38f52008b1d86d9f314603a",
+    "physical_evidence_origin": "Saved pre-optimizer request physical bindings/resource hashes; no optimizer output or selected execution decisions",
+    "music_evidence_origin": "Manual review of exact saved #13 Raw overall_soundscape; no added music",
+    "hashes": {
+      "canonical_plan": "a6a26000e69e9c941438508da7d344ffa1fbedcb2fe0c38e3a105f763a07458c",
+      "builder_input": "32be701c3368cef5fb9090c43a6d5df09aa19643d57d5517ec69aaaff1649145",
+      "reference_manifest": "def1cbad3717dc87fe02812ad6f8842dc867cbf65a08a0b75c0f919f0c4c1af3",
+      "workflow": "374e70459d9d47a0ca94c76ff21bd398a35b66521fe5293153654d5bb98a0796",
+      "user_camera_requirements": "2119a60b0f87c2bc7707d8f117f22e528fdbdb07c40a266b9071d170c59385e8",
+      "physical_evidence": "a15202bc70eb38bf61a2c504ef940dd96de6e68748e2b5f4bf98609461b32233",
+      "music_contract": "45681ff05f8dfe7c03acd00653de8cd4afce9366d544493068ce3b85a9e81ff4"
+    }
+  }
+}

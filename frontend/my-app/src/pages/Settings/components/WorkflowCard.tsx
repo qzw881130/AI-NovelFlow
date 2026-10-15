@@ -95,7 +95,10 @@ export function WorkflowCard({
                   {t('promptConfig.systemDefault')}
                 </span>
               )}
-              {workflow.isActive && (
+              {workflow.availableForNewTasks === false && (
+                <span className="text-xs text-gray-500">已退役 · 仅供历史查看</span>
+              )}
+              {workflow.isActive && workflow.availableForNewTasks !== false && (
                 <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
               )}
               {!isMappingComplete && (
@@ -124,7 +127,7 @@ export function WorkflowCard({
         </div>
         
         <div className="flex items-center gap-2">
-          {!workflow.isActive && (
+          {!workflow.isActive && workflow.availableForNewTasks !== false && (
             <button
               type="button"
               onClick={() => onSetDefault(workflow)}

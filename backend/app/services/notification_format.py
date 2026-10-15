@@ -31,6 +31,11 @@ LABELS = {
 }
 
 ERROR_SUMMARIES = {
+    "SILENT_CLIP_NOT_COVERED": "当前导演合同尚不支持无对白 Clip",
+    "SILENT_ANCHOR_RELATION_MUST_BE_NULL": "无对白 Clip 的 Anchor 不应关联对白",
+    "ANCHOR_RELATION_INVALID": "Anchor 与对白的到达关系不合法",
+    "PHASE_B_PREFLIGHT_FAILED": "Phase B 执行合同检查未通过",
+    "PHASE_B_DIRECTOR_FAILED": "Phase B 导演规划请求失败",
     "DIALOGUE_DUPLICATED_IN_PROMPT": "台词重复校验未通过",
     "DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID": "台词出现次数不符合要求",
     "DIALOGUE_ORDER_INVALID": "台词顺序不符合要求",
@@ -60,6 +65,7 @@ _PRIVATE = re.compile(
     r"constraint failed|duplicate key|no such table|sql statement|[A-Za-z]+Error:)|"
     r"(?:\b(?:select|insert|update|delete)\b.{0,30}\b(?:from|into|set)\b))"
 )
+VIDEO_FAILURES = {"clip.generation.failed", "clip.result.recovery.failed", "shot.generation.failed"}
 
 
 def _safe_text(value, limit=100):
@@ -168,13 +174,17 @@ def resolve_business_context(db, row):
     pseudo_clip = bool(row.shot_id and isinstance(row.clip_id, str)
                        and row.clip_id.startswith(f"{row.shot_id}:clip:"))
     needs_task_clip = bool(row.task_id and not _positive_index(details.get("clip_index")) and not pseudo_clip)
+    needs_failure = bool(row.task_id and row.event_type in VIDEO_FAILURES)
+    needs_task_metadata = needs_task_clip or needs_failure
     if row.shot_id:
         prompt_failure = row.event_type == "clip.prompt.build.failed"
         columns = [Shot.index, Chapter.number, Novel.title, Task.started_at, Task.completed_at, Task.current_step]
         if prompt_failure:
             columns.append(Shot.video_director_plan)
-        if needs_task_clip:
+        if needs_task_metadata:
             columns.extend([Task.metadata_json, Task.shot_id])
+        if needs_failure:
+            columns.append(Task.error_message)
         result = (db.query(*columns)
                   .join(Chapter, Shot.chapter_id == Chapter.id)
                   .join(Novel, Chapter.novel_id == Novel.id)
@@ -182,23 +192,29 @@ def resolve_business_context(db, row):
                   .filter(Shot.id == row.shot_id).first())
     elif row.chapter_id:
         columns = [Chapter.number, Novel.title, Task.started_at, Task.completed_at, Task.current_step]
-        if needs_task_clip:
+        if needs_task_metadata:
             columns.extend([Task.metadata_json, Task.shot_id])
+        if needs_failure:
+            columns.append(Task.error_message)
         result = (db.query(*columns)
                   .join(Novel, Chapter.novel_id == Novel.id)
                   .outerjoin(Task, Task.id == row.task_id)
                   .filter(Chapter.id == row.chapter_id).first())
     elif row.novel_id:
         columns = [Novel.title, Task.started_at, Task.completed_at, Task.current_step]
-        if needs_task_clip:
+        if needs_task_metadata:
             columns.extend([Task.metadata_json, Task.shot_id])
+        if needs_failure:
+            columns.append(Task.error_message)
         result = (db.query(*columns)
                   .outerjoin(Task, Task.id == row.task_id)
                   .filter(Novel.id == row.novel_id).first())
     elif row.task_id:
         columns = [Task.started_at, Task.completed_at, Task.current_step]
-        if needs_task_clip:
+        if needs_task_metadata:
             columns.extend([Task.metadata_json, Task.shot_id])
+        if needs_failure:
+            columns.append(Task.error_message)
         result = db.query(*columns).filter(Task.id == row.task_id).first()
     else:
         return {}
@@ -211,13 +227,30 @@ def resolve_business_context(db, row):
     context = dict(zip(keys, values))
     if row.shot_id and row.event_type == "clip.prompt.build.failed":
         context["prompt_error"] = _matching_prompt_error(values[len(keys)], row, details)
-    if needs_task_clip:
+    if needs_task_metadata:
         offset = len(keys) + (1 if row.shot_id and row.event_type == "clip.prompt.build.failed" else 0)
         try:
             meta = json.loads(values[offset] or "{}")
             task_shot_id = values[offset + 1]
             if isinstance(meta, dict) and (not row.shot_id or task_shot_id == row.shot_id):
                 context["clip_number"] = _positive_index(meta.get("clip_index"))
+                # Do not describe a historical failure using a newer retry's state.
+                same_attempt = not (context.get("started_at") and row.timestamp
+                                    and _naive_utc(context["started_at"]) > _naive_utc(row.timestamp))
+                if needs_failure and same_attempt:
+                    context["task_error"] = values[offset + 2]
+                    mode = meta.get("capability") or (meta.get("execution_contract") or {}).get("capability")
+                    context["generation_mode"] = mode if mode in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"} else None
+                    phase_b = meta.get("h3_phase_b") or {}
+                    if phase_b.get("status") == "FAILED":
+                        compiled = phase_b.get("compiler_result")
+                        context["failure_stage"] = (
+                            "Phase B Compiler" if compiled and compiled.get("status") != "CANDIDATE_FOR_REVIEW" else
+                            "Phase B Preflight" if phase_b.get("preflight") else
+                            "Phase B 输入准备" if phase_b.get("llm_call_count") == 0 else
+                            "#13 Phase B 导演规划")
+                    else:
+                        context["failure_step"] = _safe_text(context.get("current_step"), 80)
         except (TypeError, ValueError, IndexError):
             pass
     return context
@@ -266,7 +299,7 @@ def format_notification(row, context=None):
         target = ""
     else:
         target = "任务"
-    error_summary, error_codes = (_error_summary(details.get("error_code"), context.get("prompt_error"), row.message)
+    error_summary, error_codes = (_error_summary(details.get("error_code"), context.get("prompt_error"), row.message, context.get("task_error"))
                                   if code.endswith((".failed", ".error")) else (None, []))
     prompt_stage = code == "clip.generation.failed" and (
         any(value.startswith("DIALOGUE_") or value in {"PICTURE_MAPPING_AUDIT_FAILED", "PHANTOM_PICTURE_REFERENCE"}
@@ -360,10 +393,19 @@ def format_notification(row, context=None):
             stage = "H3 Preflight"
         if code == "clip.prompt.build.failed" or prompt_stage:
             stage = "H3 提示词构建"
+        if code in VIDEO_FAILURES:
+            stage = context.get("failure_stage") or stage or context.get("failure_step") or "未知（查看任务记录）"
+            summary = summary or "未取得可安全展示的错误摘要，请查看任务详情"
         if stage:
             facts.append(f"阶段：{stage}")
         if summary:
             facts.append(f"原因：{summary}")
+        if code in VIDEO_FAILURES:
+            # Only the explicit task identifier is allowed; arbitrary UUIDs,
+            # exception text, paths and credentials still fail _safe_text.
+            task_id = str(row.task_id or "")
+            facts.append("任务 ID：" + (task_id if _UUID.fullmatch(task_id) else "未知"))
+            facts.append("生成模式：" + (context.get("generation_mode") or "UNKNOWN"))
         if code == "clip.generation.failed":
             facts.append("结果：" + ("视频未生成" if prompt_stage else "生成任务已失败"))
         if code == "clip.prompt.optimize.failed" and details.get("blocking_findings"):

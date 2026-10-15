@@ -29,13 +29,30 @@ export type TemplateType =
   | 'h3_single_frame_prompt'
   | 'h3_first_last_frame_prompt'
   | 'h3_multi_keyframe_prompt'
+  | 'h3_multi_keyframe_director_phase_b'
   | 'h3_execution_optimizer_prompt'
   | 'h3_preflight_repair_prompt';
 
+export interface BoundNovel {
+  novel_id: string;
+  novel_title: string;
+  author: string | null;
+  binding_type: 'explicit';
+}
+
 export const promptTemplateApi = {
+  fetchConfigTypes: () => api.get<TemplateType[]>('/prompt-templates/config-types'),
   /** 获取模板列表 */
   fetchList: (type: TemplateType) => 
     api.get<PromptTemplate[]>(`/prompt-templates/?type=${type}`),
+
+  fetchBoundNovels: async (id: string, signal?: AbortSignal): Promise<BoundNovel[]> => {
+    const response = await fetch(`${API_BASE}/prompt-templates/${encodeURIComponent(id)}/bound-novels`, { signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json() as { success: boolean; data?: BoundNovel[] };
+    if (!result.success || !Array.isArray(result.data)) throw new Error('Invalid binding response');
+    return result.data;
+  },
 
   /** 创建模板 */
   create: (data: { name: string; description: string; template: string; type: TemplateType }) => 

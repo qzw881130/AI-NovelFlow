@@ -163,12 +163,12 @@ def _manifest_reference(slot, state_index=None, *, source_type="KEYFRAME_IMAGE",
     }
 
 
-def test_prompt_route_single_control_uses_11(monkeypatch):
-    assert _prompt_route(monkeypatch, [state(2, 4, image="/k2.png")], [2]) == "h3_single_frame_prompt"
+def test_prompt_route_single_control_uses_13(monkeypatch):
+    assert _prompt_route(monkeypatch, [state(2, 4, image="/k2.png")], [2]) == "h3_multi_keyframe_prompt"
 
 
-def test_prompt_route_start_end_pair_uses_12(monkeypatch):
-    assert _prompt_route(monkeypatch, [state(1, 0, "START"), state(2, 10, "END", image="/end.png")], [1, 2]) == "h3_first_last_frame_prompt"
+def test_prompt_route_start_end_pair_uses_13(monkeypatch):
+    assert _prompt_route(monkeypatch, [state(1, 0, "START"), state(2, 10, "END", image="/end.png")], [1, 2]) == "h3_multi_keyframe_prompt"
 
 
 def test_prompt_route_two_non_endpoint_controls_uses_13(monkeypatch):
@@ -184,15 +184,15 @@ def test_prompt_route_ordinary_plus_timed_uses_13(monkeypatch):
 
 
 def test_prompt_route_timed_control_counts_when_excluded_from_ordinary(monkeypatch):
-    assert _prompt_route(monkeypatch, [state(3, 7, timed=True)], [], [{"anchor_id": "clip-1-KF3", "source": {"type": "KEYFRAME", "id": "KF3"}}]) == "h3_single_frame_prompt"
+    assert _prompt_route(monkeypatch, [state(3, 7, timed=True)], [], [{"anchor_id": "clip-1-KF3", "source": {"type": "KEYFRAME", "id": "KF3"}}]) == "h3_multi_keyframe_prompt"
 
 
 def test_prompt_route_carry_in_does_not_count(monkeypatch):
-    assert _prompt_route(monkeypatch, [], [], carry=2) == "h3_single_frame_prompt"
+    assert _prompt_route(monkeypatch, [], [], carry=2) == "h3_multi_keyframe_prompt"
 
 
-def test_prompt_route_zero_controls_uses_11(monkeypatch):
-    assert _prompt_route(monkeypatch, [], []) == "h3_single_frame_prompt"
+def test_prompt_route_zero_controls_uses_13(monkeypatch):
+    assert _prompt_route(monkeypatch, [], []) == "h3_multi_keyframe_prompt"
 
 
 def test_prompt_mapping_minimal_hole_keeps_middle_state_text_only(monkeypatch):
@@ -213,7 +213,7 @@ def test_prompt_mapping_minimal_hole_keeps_middle_state_text_only(monkeypatch):
     assert "Picture 3" not in prompt
 
 
-def test_single_state_11_uses_manifest_picture_identity(monkeypatch):
+def test_single_state_13_uses_manifest_picture_identity(monkeypatch):
     states = [state(2, 4, image="/middle.png")]
     manifest = {"version": 1, "references": [
         _manifest_reference(1, 2, time=4),
@@ -227,7 +227,7 @@ def test_single_state_11_uses_manifest_picture_identity(monkeypatch):
     assert "Picture 2" not in prompt
 
 
-def test_start_end_12_uses_manifest_picture_identity(monkeypatch):
+def test_start_end_13_uses_manifest_picture_identity(monkeypatch):
     states = [state(1, 0, "START"), state(2, 10, "END", image="/end.png")]
     manifest = {"version": 1, "references": [
         _manifest_reference(1, 1, source_type="SHOT_IMAGE", time=0),

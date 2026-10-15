@@ -8,6 +8,7 @@ import { usePromptConfigState, TEMPLATE_TYPE_CONFIG } from './hooks/usePromptCon
 import { TemplateCard } from './components/TemplateCard';
 import { EditModal } from './components/EditModal';
 import { ViewModal } from './components/ViewModal';
+import { BoundNovelsModal } from './components/BoundNovelsModal';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { toast } from '../../stores/toastStore';
 
@@ -36,6 +37,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   h3_single_frame_prompt: <Video className="h-4 w-4" />,
   h3_first_last_frame_prompt: <Video className="h-4 w-4" />,
   h3_multi_keyframe_prompt: <Video className="h-4 w-4" />,
+  h3_multi_keyframe_director_phase_b: <Video className="h-4 w-4" />,
   h3_execution_optimizer_prompt: <Video className="h-4 w-4" />,
   h3_preflight_repair_prompt: <Video className="h-4 w-4" />,
 };
@@ -65,6 +67,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   h3_single_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_first_last_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_multi_keyframe_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  h3_multi_keyframe_director_phase_b: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_execution_optimizer_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_preflight_repair_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
 };
@@ -78,7 +81,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
-  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'] },
+  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'] },
 };
 
 const CATEGORIES: TemplateCategory[] = ['story_context', 'style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
@@ -92,7 +95,7 @@ const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
   shot_image: 'shot_image_prompt',
   video_director: 'video_mode_recommender',
   keyframe_image: 'temporal_reference_selector',
-  video_generation: 'h3_single_frame_prompt',
+  video_generation: 'h3_multi_keyframe_prompt',
 };
 
 const isTemplateCategory = (value: string | null): value is TemplateCategory => (
@@ -135,7 +138,7 @@ const getTemplateDisplayDescription = (template: PromptTemplate, t: any): string
 
 // 渲染模板列表
 function TemplateList({
-  templates, loading, type, onView, onEdit, onCopy, onDelete, getDisplayName, getDisplayDescription
+  templates, loading, type, onView, onEdit, onCopy, onDelete, onBindings, getDisplayName, getDisplayDescription
 }: {
   templates: PromptTemplate[];
   loading: boolean;
@@ -144,6 +147,7 @@ function TemplateList({
   onEdit: (type: TemplateType, t?: PromptTemplate) => void;
   onCopy: (t: PromptTemplate) => void;
   onDelete: (t: PromptTemplate) => void;
+  onBindings: (t: PromptTemplate) => void;
   getDisplayName: (t: PromptTemplate) => string;
   getDisplayDescription: (t: PromptTemplate) => string;
 }) {
@@ -154,7 +158,7 @@ function TemplateList({
     <div className="space-y-3">
       {templates.map((template) => (
         <TemplateCard key={template.id} template={template} type={type} onView={onView} onEdit={onEdit}
-          onCopy={onCopy} onDelete={onDelete} getDisplayName={getDisplayName} getDisplayDescription={getDisplayDescription} />
+          onCopy={onCopy} onDelete={onDelete} onBindings={onBindings} getDisplayName={getDisplayName} getDisplayDescription={getDisplayDescription} />
       ))}
     </div>
   );
@@ -169,6 +173,7 @@ function TemplateSection({
   onEdit,
   onCopy,
   onDelete,
+  onBindings,
   getDisplayName,
   getDisplayDescription,
 }: {
@@ -179,6 +184,7 @@ function TemplateSection({
   onEdit: (type: TemplateType, t?: PromptTemplate) => void;
   onCopy: (t: PromptTemplate) => void;
   onDelete: (t: PromptTemplate) => void;
+  onBindings: (t: PromptTemplate) => void;
   getDisplayName: (t: PromptTemplate) => string;
   getDisplayDescription: (t: PromptTemplate) => string;
 }) {
@@ -194,8 +200,11 @@ function TemplateSection({
           <Plus className="h-4 w-4" />{t('promptConfig.newPrompt')}
         </button>
       </div>
+      {type === 'h3_multi_keyframe_director_phase_b' && <p className="rounded bg-violet-50 p-3 text-sm text-violet-900">
+        Phase B 正式候选。系统预设表示本类型的默认模板；仅在生成页面显式选择 Phase B 后启用。小说可选择同类型的自定义版本。旧 #13/#14/#14A 保留兼容；历史实验模板不参与此选择。
+      </p>}
       <TemplateList templates={templates} loading={loading} type={type}
-        onView={onView} onEdit={onEdit} onCopy={onCopy} onDelete={onDelete}
+        onView={onView} onEdit={onEdit} onCopy={onCopy} onDelete={onDelete} onBindings={onBindings}
         getDisplayName={getDisplayName} getDisplayDescription={getDisplayDescription} />
     </div>
   );
@@ -208,6 +217,7 @@ export default function PromptConfig() {
   const displayName = (tp: PromptTemplate) => getTemplateDisplayName(tp, t);
   const displayDesc = (tp: PromptTemplate) => getTemplateDisplayDescription(tp, t);
   const [isExportingAll, setIsExportingAll] = useState(false);
+  const [boundTemplate, setBoundTemplate] = useState<PromptTemplate | null>(null);
 
   const initialCategory = getCategoryFromParams(searchParams);
   const [activeCategory, setActiveCategory] = useState<TemplateCategory>(initialCategory);
@@ -216,12 +226,16 @@ export default function PromptConfig() {
     [initialCategory]: getTypeFromParams(searchParams, initialCategory),
   });
 
-  const templateTypes = CATEGORY_CONFIG[activeCategory].types;
-  const activeTab = activeTabByCategory[activeCategory];
+  const templateTypes = CATEGORY_CONFIG[activeCategory].types.filter(type => state.configurableTypes.includes(type));
+  const requestedTab = activeTabByCategory[activeCategory];
+  const activeTab = templateTypes.includes(requestedTab) ? requestedTab : templateTypes[0];
 
   useEffect(() => {
     const category = getCategoryFromParams(searchParams);
-    const type = getTypeFromParams(searchParams, category);
+    if (!state.configurableTypes.length) return;
+    const requested = getTypeFromParams(searchParams, category);
+    const type = state.configurableTypes.includes(requested) ? requested
+      : CATEGORY_CONFIG[category].types.find(value => state.configurableTypes.includes(value))!;
     if (searchParams.get('category') !== category || searchParams.get('type') !== type) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.set('category', category);
@@ -231,7 +245,7 @@ export default function PromptConfig() {
     }
     setActiveCategory(category);
     setActiveTabByCategory(prev => ({ ...prev, [category]: type }));
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, state.configurableTypes]);
 
   const updateUrl = (category: TemplateCategory, type: TemplateType) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -331,7 +345,7 @@ export default function PromptConfig() {
 
       {/* Tab 内容区 */}
       <div role="tabpanel" className="card">
-        <TemplateSection
+        {activeTab && <TemplateSection
           type={activeTab}
           templates={state.templatesByType[activeTab]}
           loading={state.loadingByType[activeTab]}
@@ -339,9 +353,10 @@ export default function PromptConfig() {
           onEdit={state.openModal}
           onCopy={state.handleCopy}
           onDelete={state.handleDelete}
+          onBindings={setBoundTemplate}
           getDisplayName={displayName}
           getDisplayDescription={displayDesc}
-        />
+        />}
       </div>
 
       <EditModal show={state.showModal} onClose={() => state.setShowModal(false)} onSave={state.handleSave}
@@ -349,6 +364,9 @@ export default function PromptConfig() {
 
       <ViewModal show={state.showViewModal} template={state.viewingPrompt} onClose={() => state.setShowViewModal(false)}
         onCopy={state.handleCopy} getDisplayName={displayName} getDisplayDescription={displayDesc} />
+
+      {boundTemplate && <BoundNovelsModal key={boundTemplate.id} template={boundTemplate}
+        onClose={() => setBoundTemplate(null)} getDisplayName={displayName} />}
     </div>
   );
 }

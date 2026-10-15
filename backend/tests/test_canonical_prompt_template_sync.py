@@ -15,7 +15,7 @@ KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 KEYFRAME_IMAGE_SHA256 = "3164a133b38f671feafbd0a43f5d2c885193854bbb5ac057ded4b1b65f4f8e8a"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
-CLIP_PLANNER_SHA256 = "c12fce25131c2d312162f394b5b8c96b74c492758a79cf8e0917ae558725e932"
+CLIP_PLANNER_SHA256 = "e75f95cecaa2cd1f1741288c8eae4595eb8be0074bf12864062ca987438f0494"
 CLIP_BOUNDARY_CONTRACT_RULES = (
     "Tolerance is `0.05` seconds",
     "compare decimal times as written, without rounding",
@@ -264,8 +264,14 @@ def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_se
     assert planner.template == _prompt(PLANNER_FILE)
     assert keyframe_image.id == keyframe_image_id
     assert keyframe_image.template == _prompt(KEYFRAME_IMAGE_FILE)
-    assert transition.id == transition_id
-    assert transition.template == _prompt(TRANSITION_FILE)
+    assert transition.id != transition_id
+    assert transition.template == _prompt("10_NovelFlow_KeyframeTransition_Planner_V2.txt")
+    historical = db_session.get(PromptTemplate, transition_id)
+    assert historical.template == "stale transition" and historical.is_active
+    novel.keyframe_transition_prompt_template_id = transition_id
+    assert resolve_prompt_template(
+        db_session, novel, "keyframe_transition_prompt_template_id", "keyframe_transition"
+    ).id == transition_id
     assert clip_planner.id == clip_planner_id
     assert clip_planner.template == _prompt(CLIP_PLANNER_FILE)
 

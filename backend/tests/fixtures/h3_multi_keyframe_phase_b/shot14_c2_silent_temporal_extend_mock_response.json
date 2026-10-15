@@ -1,0 +1,43 @@
+{
+  "optimized_duration": 6.5,
+  "dialogue_events": [],
+  "anchors": [
+    {
+      "id": "KF4",
+      "decision": "RETIME",
+      "optimized_time": 2.0,
+      "arrival_relation": null,
+      "reason": "Offline contract test only; not a director decision."
+    },
+    {
+      "id": "KF5",
+      "decision": "RETIME",
+      "optimized_time": 3.8,
+      "arrival_relation": null,
+      "reason": "Offline contract test only; not a director decision."
+    },
+    {
+      "id": "KF6",
+      "decision": "RETIME",
+      "optimized_time": 6.0,
+      "arrival_relation": null,
+      "reason": "Offline contract test only; not a director decision."
+    },
+    {
+      "id": "clip-2-KF4",
+      "decision": "RETIME",
+      "optimized_time": 2.0,
+      "arrival_relation": null,
+      "reason": "Offline contract test only; not a director decision."
+    },
+    {
+      "id": "clip-2-KF5",
+      "decision": "RETIME",
+      "optimized_time": 3.8,
+      "arrival_relation": null,
+      "reason": "Offline contract test only; not a director decision."
+    }
+  ],
+  "detailed_description": "人物保持沉默，依序执行当前 Clip 授权的离开动作，保留妻子独处的结束状态。",
+  "overall_soundscape": "仅保留有场景和实际动作依据的环境声、脚步和衣料声，不生成声音对白或旁白。"
+}

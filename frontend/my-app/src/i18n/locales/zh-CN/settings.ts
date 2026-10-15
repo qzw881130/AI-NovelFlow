@@ -273,6 +273,16 @@ export default {
     createPrompt: '新建提示词模板',
     viewPrompt: '查看提示词模板',
     systemPresetReadonly: '系统预设（只读）',
+    lastModified: '最后修改',
+    unknown: '未知',
+    boundNovels: '绑定小说',
+    loadingBindings: '正在加载绑定小说…',
+    loadBindingsFailed: '绑定小说查询失败，请关闭后重试。',
+    noBoundNovels: '暂无小说显式绑定此模板',
+    author: '作者',
+    bindingType: '绑定方式',
+    explicitBinding: '显式指定',
+    boundNovelCount: '共 {count} 本小说',
 
     categories: {
       storyContext: '故事上下文',
@@ -336,7 +346,9 @@ export default {
       h3PreflightRepairPromptDesc: '局部修复合同问题，最多一次 LLM 调用',
       h3ExecutionOptimizerPrompt: 'MiniMax H3 执行提示词优化',
       h3ExecutionOptimizerPromptDesc: '基于视觉输入优化 H3 执行表达，保留导演意图与局部说话人归属',
-      h3MultiKeyframePrompt: 'MiniMax H3 多关键帧视频提示词构建',
+      h3MultiKeyframeDirectorPhaseB: 'MiniMax H3 单阶段导演规划（Phase B）',
+    h3MultiKeyframeDirectorPhaseBDesc: '正式候选；仅显式启用 Phase B 的任务使用。保留旧 #13/#14 回退；系统预设可复制为自定义版本。',
+    h3MultiKeyframePrompt: 'MiniMax H3 多关键帧视频提示词构建',
       h3MultiKeyframePromptDesc: '用于构建 MiniMax H3 多关键帧视频最终提示词',
     },
 

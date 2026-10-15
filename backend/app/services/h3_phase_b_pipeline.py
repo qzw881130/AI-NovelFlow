@@ -1,0 +1,264 @@
+"""Opt-in semantic Clip adapter for the existing Phase B Director/Compiler.
+
+No queue, workflow selection or video persistence lives here. The Clip worker
+continues to own those operations. Legacy #13/#14 is an explicit alternative,
+never an automatic recovery call after a failed Phase B request.
+"""
+import hashlib
+import json
+from copy import deepcopy
+from pathlib import Path
+from time import monotonic
+
+from app.services import h3_single_stage_experiment as compiler
+from app.services.director_context import effective_visual_states
+from app.services.h3_continuation import continuation_contract, target_frames
+from app.services.h3_execution_optimizer import workflow_duration_limits
+from app.services.video_director_ai import safe_json_dict, append_video_ai_call, resolve_prompt_template
+from app.utils.path_utils import url_to_local_path
+
+PIPELINE = "phase_b"
+VERSION = "H3_PHASE_B_LIMITED_V2"
+TEMPLATE_TYPE = "h3_multi_keyframe_director_phase_b"
+
+
+def digest(value):
+    return hashlib.sha256(value.encode() if isinstance(value, str) else
+                          json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def file_hash(path):
+    with Path(path).open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def runtime_snapshot(*, plan, builder_input, manifest, workflow, previous_path, execution_contract,
+                     shot_description=None):
+    """Adapt live, already validated upstream data to Phase B's saved-input contract."""
+    capability = builder_input["clip"]["capability"]
+    expected_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",
+                     "TEMPORAL_EXTEND": "TEMPORAL_EXTEND"}[capability]
+    if workflow.type != expected_type:
+        raise ValueError("PHASE_B_WORKFLOW_MODE_MISMATCH")
+    # Never feed prior Prompt/optimized times, task results or #14 answers back
+    # into planning. The same upstream projector used by the legacy builder is used.
+    canonical = {k: deepcopy(plan.get(k)) for k in ("keyframes", "transitions", "dialogue_timeline_source", "clip_plan")}
+    canonical["keyframes"], start_resolution = effective_visual_states(canonical["keyframes"] or [], shot_description)
+    references = deepcopy(manifest)
+    temporal = deepcopy((execution_contract.get("temporal_anchor_manifest") or {}).get("anchors", []))
+    resources = [(f"<Picture {r['slot']}>", r) for r in references["references"]]
+    resources += [("TemporalAnchor:" + r["anchor_id"], r) for r in temporal]
+    hashes = {}
+    for key, resource in resources:
+        resource["local_path"] = resource.get("local_path") or url_to_local_path(resource["image_url"])
+        hashes[key] = file_hash(resource["local_path"])
+    workflow_data = {k: getattr(workflow, k, None) for k in ("id", "type", "workflow_json", "node_mapping")}
+    data = {"canonical_plan": canonical, "builder_input": deepcopy(builder_input),
+            "reference_manifest": references, "workflow": workflow_data,
+            "previous_video_path": previous_path,
+            "physical_evidence": {"resource_hashes": hashes, "previous_clip": execution_contract.get("previous_clip"),
+                "temporal_anchors": temporal,
+                "duration_limits": workflow_duration_limits(safe_json_dict(workflow.extension), capability)},
+            # This limited route explicitly has no added score. It does not
+            # claim to infer a music instruction from Canonical or a prior #13.
+            "music_contract": {"value": "N/A", "source_stage": "PHASE_B_RUNTIME_POLICY", "interpretation": "NO_ADDED_SCORE"},
+            "user_camera_requirements": deepcopy(plan.get("user_camera_requirements") or {
+                "status": "UNKNOWN", "requirements": [], "source": "No explicit structured user lock recorded; preserve Canonical camera facts"})}
+    data["source"] = {"kind": "LIVE_SEMANTIC_CLIP", "start_visual_resolution": start_resolution, "hashes": {
+        k: compiler._snapshot_digest(v) for k, v in data.items() if k != "previous_video_path"}}
+    return data
+
+
+def input_fingerprint(prepared, template):
+    # Preview filenames are derived caches, not authority; resource byte hashes,
+    # source times, Canonical, route and the selected template are authority.
+    payload = deepcopy(prepared["llm_input"])
+    for item in payload["visual_previews"]:
+        item.pop("proxy_url", None)
+    for item in payload["previous_av"]["preview_frames"]:
+        item.pop("proxy_url", None)
+    return digest({"version": VERSION, "input": payload, "resources": prepared["resource_hashes"],
+                   "workflow": prepared["source"]["hashes"]["workflow"],
+                   "template_id": template.id, "template": template.template})
+
+
+def preflight(prepared, result):
+    """Phase B fact/format contract; #14 prose heuristics remain diagnostics only."""
+    review = result.get("review") or {}
+    checks = {**review.get("structure", {}), **review.get("structured_authority", {}),
+              **result.get("continuation_checks", {})}
+    checks["compiler_completed"] = result.get("status") == "CANDIDATE_FOR_REVIEW"
+    checks["contract_checks_present"] = (set(compiler.STRUCTURAL_CHECKS) <= set(review.get("structure", {}))
+                                           and len(review.get("structured_authority", {})) == 8)
+    checks["picture_audit"] = result.get("picture_audit", {}).get("passed") is True
+    # Scope and all Canonical states/actions are retained independently from
+    # optional reference choices. Natural-language coverage is not certified.
+    checks["canonical_scope_available"] = bool(prepared["llm_input"]["canonical"]["owned_visual_states"])
+    return {"contract": VERSION, "passed": all(v is True for v in checks.values()), "checks": checks,
+            "native_diagnostics": review.get("native_prompt_diagnostics", {}),
+            "director_semantics": "REVIEW_REQUIRED; no automatic natural-language quality certification"}
+
+
+async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest, workflow,
+                               previous_path, execution_contract, llm=None):
+    """Persist one #13 attempt (or a matching compiled reuse); never call #14/A."""
+    from app.services.llm_service import LLMService
+    from app.services.llm.http_retry import single_attempt_llm_request
+    template = resolve_prompt_template(db, novel, None, TEMPLATE_TYPE)
+    plan = safe_json_dict(shot.video_director_plan)
+    metadata = safe_json_dict(task.metadata_json)
+    record = {"pipeline": PIPELINE, "version": VERSION, "status": "PREPARING", "clip_index": builder_input["clip"]["clip_index"],
+              "template": {"id": template.id, "name": template.name, "sha256": digest(template.template)},
+              "workflow_id": workflow.id, "workflow_type": workflow.type, "llm_call_count": 0}
+
+    def persist():
+        current = safe_json_dict(task.metadata_json)
+        current["h3_phase_b"] = record
+        task.metadata_json = json.dumps(current, ensure_ascii=False)
+        db.commit()
+
+    started = monotonic()
+    try:
+        snapshot = runtime_snapshot(plan=plan, builder_input=builder_input, manifest=manifest, workflow=workflow,
+                                    previous_path=previous_path, execution_contract=execution_contract,
+                                    shot_description=getattr(shot, "description", None))
+        prepared = compiler.prepare_multi_keyframe_phase_b(snapshot, runtime=True)
+        if prepared["status"] != "PREPARED":
+            raise ValueError("PHASE_B_INPUT_NOT_COVERED: " + "; ".join(prepared.get("reasons") or ["Unknown input error"]))
+        fingerprint = input_fingerprint(prepared, template)
+        record.update(input_fingerprint=fingerprint, director_input=prepared["llm_input"],
+                      resource_hashes=prepared["resource_hashes"], continuation=prepared["continuation"])
+        cached = None
+        if metadata.get("skip_llm_when_prompt_exists"):
+            cached = next((c.get("parsed_result") for c in reversed(plan.get("ai_calls") or [])
+                           if (c.get("parsed_result") or {}).get("version") == VERSION
+                           and (c.get("parsed_result") or {}).get("input_fingerprint") == fingerprint
+                           and (c.get("parsed_result") or {}).get("status") == "COMPILED"), None)
+            if not cached:
+                raise ValueError("PHASE_B_REUSABLE_PLAN_MISSING: re-run Director for this input/template")
+        if cached:
+            raw = cached["raw_response"]
+            record["reuse"] = True
+        else:
+            task.current_step = "#13 Phase B 单阶段导演规划..."
+            record.update(status="DIRECTING", llm_call_count=1)
+            persist()
+            with single_attempt_llm_request():
+                response = await (llm or LLMService()).chat_completion(
+                    system_prompt=template.template, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
+                    images=prepared["images"], response_format="json_object", temperature=0.3, max_tokens=4500,
+                    task_type=TEMPLATE_TYPE, prompt_template_name=template.name,
+                    novel_id=novel.id, chapter_id=shot.chapter_id)
+            record["llm_response"] = response
+            if not response.get("success"):
+                raise ValueError("PHASE_B_DIRECTOR_FAILED: " + str(response.get("error") or response.get("message") or "LLM failed"))
+            raw = response.get("content") or ""
+        record["raw_response"] = raw
+        result = compiler.compile_multi_keyframe_phase_b(prepared, raw)
+        record["compiler_result"] = result
+        record["preflight"] = preflight(prepared, result)
+        if not record["preflight"]["passed"]:
+            raise ValueError("PHASE_B_PREFLIGHT_FAILED: " + str(result.get("reasons") or record["preflight"]["checks"]))
+        record.update(status="COMPILED", elapsed_seconds=round(monotonic() - started, 3),
+                      final_prompt_sha256=digest(result["prompt"]))
+        task.prompt_text = result["prompt"]
+        persist()
+        append_video_ai_call(shot, {"step": "13", "title": "#13 单阶段导演规划（Phase B）", "task_type": TEMPLATE_TYPE,
+            "prompt_template_name": template.name, "clip_index": record["clip_index"], "parsed_result": record,
+            "response": raw, "final_prompt": result["prompt"], "workflow_type": workflow.type})
+        db.commit()
+        return result["prompt"]
+    except Exception as exc:
+        record.update(status="FAILED", error=str(exc), elapsed_seconds=round(monotonic() - started, 3))
+        persist()
+        raise
+
+
+def apply_execution(task, original_duration, manifest, paths):
+    """Project the compiled selection into the worker's existing physical route."""
+    metadata = safe_json_dict(task.metadata_json)
+    record = metadata.get("h3_phase_b") or {}
+    if record.get("status") != "COMPILED" or not record.get("preflight", {}).get("passed"):
+        raise ValueError("PHASE_B_EXECUTION_NOT_APPROVED")
+    result = record["compiler_result"]
+    if digest(task.prompt_text) != record["final_prompt_sha256"]:
+        raise ValueError("PHASE_B_FINAL_PROMPT_CHANGED")
+    selected = deepcopy(result["reference_manifest"])
+    original = (manifest or {}).get("references", [])
+    if len(original) != len(paths or []):
+        raise ValueError("PHASE_B_REFERENCE_PATH_MISMATCH")
+    selected_paths = []
+    for ref in selected["references"]:
+        slot = ref["source_slot"]
+        source = original[slot - 1]
+        path = paths[slot - 1]
+        if (source["image_url"] != ref["image_url"] or file_hash(path) != record["resource_hashes"][f"<Picture {slot}>"]):
+            raise ValueError("PHASE_B_REFERENCE_SOURCE_CHANGED")
+        selected_paths.append(path)
+    duration = result["execution_decisions"]["timing"]["optimized_duration"]
+    # Compiler projects timing/alias only. Physical paths come from the frozen
+    # live asset catalog, never from Director prose or a guessed filename.
+    temporal = deepcopy(result["temporal_manifest"])
+    original_temporal = {a["anchor_id"]: a for a in
+                         (metadata.get("execution_contract", {}).get("temporal_anchor_manifest") or {}).get("anchors", [])}
+    for anchor in temporal["anchors"]:
+        source = original_temporal[anchor["anchor_id"]]
+        path = source.get("local_path") or url_to_local_path(source["image_url"])
+        if source["image_url"] != anchor["image_url"] or file_hash(path) != record["resource_hashes"]["TemporalAnchor:" + anchor["anchor_id"]]:
+            raise ValueError("PHASE_B_TEMPORAL_SOURCE_CHANGED")
+        anchor["local_path"] = path
+    durations = {"original_duration": original_duration, "optimized_duration": duration, "effective_duration": duration,
+                 "duration_delta": duration - original_duration, "duration_source": VERSION,
+                 "target_frame_count": target_frames(duration)}
+    metadata.update(durations, video_reference_manifest=selected)
+    metadata.setdefault("execution_contract", {}).update(h3_execution=durations,
+        temporal_anchor_manifest=temporal)
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    task.reference_images = json.dumps([{"label": f"Picture {r['slot']} / {r['kind']}", "url": r["image_url"]}
+                                        for r in selected["references"]], ensure_ascii=False)
+    return duration, temporal, selected, selected_paths
+
+
+def verify_submission(task, workflow, graph, uploads, previous_path=None):
+    """Last deterministic check on the actual bound API graph, before POST /prompt."""
+    from app.services.clip_execution_inspector_service import submitted_evidence
+    metadata = safe_json_dict(task.metadata_json)
+    record = metadata["h3_phase_b"]
+    result = record["compiler_result"]
+    mapping = safe_json_dict(workflow.node_mapping)
+    evidence = submitted_evidence(graph, {"output_node_id": mapping.get("video_save_node_id")})
+    checks = {"prompt": bool(evidence["prompt"]) and evidence["prompt"]["text"] == result["prompt"] == task.prompt_text,
+              "frames": evidence["requested_latent_frame_count"] == target_frames(metadata["effective_duration"]),
+              "duration": graph.get(str(mapping.get("duration_seconds_node_id")), {}).get("inputs", {}).get("value") == metadata["effective_duration"],
+              "workflow": workflow.id == record["workflow_id"] and workflow.type == record["workflow_type"]}
+    refs = graph.get(str(mapping.get("reference_to_video_node_id")), {}).get("inputs", {})
+    filenames = uploads["reference_filenames"]
+    expected = result["reference_manifest"]["references"]
+    checks["picture_count"] = len(filenames) == len(expected) == sum(k.startswith("ref_images.ref_image_") for k in refs)
+    checks["picture_order"] = all(
+        refs.get(f"ref_images.ref_image_{i}") == [str(mapping.get(f"load_image_node_{i+1}")), 0]
+        and graph.get(str(mapping.get(f"load_image_node_{i+1}")), {}).get("inputs", {}).get("image") == filename
+        for i, filename in enumerate(filenames))
+    checks["picture_bytes"] = all(file_hash(r.get("local_path") or url_to_local_path(r["image_url"])) ==
+                                  record["resource_hashes"][f"<Picture {r['source_slot']}>"] for r in expected)
+    if record.get("continuation"):
+        from types import SimpleNamespace
+        bound = SimpleNamespace(id=workflow.id, type=workflow.type, node_mapping=workflow.node_mapping,
+                                workflow_json=json.dumps(graph))
+        current = continuation_contract(bound, metadata["capability"], previous_path, metadata["execution_contract"])
+        checks["previous_av"] = current == record["continuation"]
+        checks["previous_upload"] = graph.get(str(mapping.get("load_video_node_id")), {}).get("inputs", {}).get("video") == uploads.get("previous_filename")
+    else:
+        checks["no_previous_av"] = not previous_path and not evidence["previous_av_nodes"]
+    anchors = result["temporal_manifest"]["anchors"]
+    checks["temporal_bytes"] = all(file_hash(url_to_local_path(a["image_url"])) ==
+                                   record["resource_hashes"]["TemporalAnchor:" + a["anchor_id"]] for a in anchors)
+    checks["temporal_positions"] = [p for n in evidence["anchor_nodes"] for p in n["positions"]] == [a["frame_position"] for a in anchors]
+    checks["temporal_images"] = len(uploads.get("temporal_filenames", [])) == len(anchors) and all(
+        graph.get(str(mapping.get(f"keyframe_node_{i+1}")), {}).get("inputs", {}).get("image") == name
+        for i, name in enumerate(uploads.get("temporal_filenames", [])))
+    record["submission_preflight"] = {"passed": all(checks.values()), "checks": checks, "graph_sha256": digest(graph)}
+    metadata["h3_phase_b"] = record
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    if not all(checks.values()):
+        raise ValueError("PHASE_B_SUBMISSION_BINDING_FAILED: " + ", ".join(k for k, v in checks.items() if not v))

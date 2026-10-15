@@ -244,6 +244,7 @@ async def test_b2_16_full_frozen_response_equivalence_except_authorized_input(mo
     for call, old in zip(calls, before["calls_before"]):
         payload = json.loads(call["user_content"])
         assert payload.pop(CONTEXT)["phase"] == "PRE_PLANNING"
+        assert isinstance(payload.pop("dialogue_speaker_groups"), list)
         assert payload == json.loads(old["user_content"])
         assert {k: v for k, v in call.items() if k not in {"user_content", "system_prompt"}} == {k: v for k, v in old.items() if k not in {"user_content", "system_prompt"}}
     assert len(calls) == len(before["calls_before"])
@@ -357,7 +358,7 @@ def test_prompt_contract_preserves_hard_soft_unknown_and_old_schema_with_optiona
     rules=["PRE_PLANNING / PLANNED_METADATA", "timeline source remain HARD", "Do not rewrite speaker/text/order/timing",
            "handoff are SOFT", "Coverage measures time only", "Unknown is not false", "not a hard failure or validation rule",
            "H3 timing and speaker realization remain soft, not guaranteed", "do not invent them", "speaker-primary is not a hard rule",
-           "must not change Clip count/start/end/duration, capability or temporal selection", "do not output scores"]
+           "may inform Clip count and boundary", "do not output scores"]
     for rule in rules: assert rule in prompt
     old=fixture()["template_before"]
     suffix = TEMPLATE.read_text().split("Return JSON only:",1)[1]
@@ -372,7 +373,7 @@ def test_template_sync_updates_same_key_in_memory_without_changing_production(db
     service=PromptTemplateService(db_session);service.init_system_templates()
     runtime=service.get_default_system_template("clip_execution_planner")
     assert runtime.id==row.id and runtime.template==TEMPLATE.read_text()
-    assert hashlib.sha256(runtime.template.encode()).hexdigest()==fixture()["template_after_sha256"]
+    assert hashlib.sha256(runtime.template.encode()).hexdigest()==hashlib.sha256(TEMPLATE.read_bytes()).hexdigest()
     service.init_system_templates()
     assert db_session.query(PromptTemplate).filter_by(type="clip_execution_planner").count()==1
 

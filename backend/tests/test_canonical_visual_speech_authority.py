@@ -2,7 +2,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from app.api import shots as shot_api
 from app.models.novel import Chapter, Novel
@@ -13,10 +12,6 @@ from app.repositories.novel_repository import NovelRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.repositories.shot_repository import ShotRepository
 from app.schemas.shot import PlanVideoKeyframesRequest
-from app.services.canonical_visual_speech_authority import (
-    CanonicalVisualSpeechAuthorityViolation,
-    find_visual_speech_authority,
-)
 
 
 def _state(index, time_seconds, description, role="INTERMEDIATE"):
@@ -81,41 +76,6 @@ class FakeTemplateRepo:
         return self.get_default_system_template(template_type)
 
 
-@pytest.mark.parametrize(
-    ("text", "category"),
-    [
-        ("皇帝嘴唇微启，处于说话状态", "MOUTH_LIP_SPEECH_STATE"),
-        ("侍从1回答皇帝", "SPEAKING_AUTHORITY"),
-        ("侍从2接话，身体微微前倾", "SPEAKING_AUTHORITY"),
-        ("皇帝听完回答后仍微微皱眉", "LISTENING_AUTHORITY"),
-        ("侍从2闭嘴，皇帝开始回答", "MOUTH_LIP_SPEECH_STATE"),
-        ("侍从2嘴唇由微启逐渐闭合", "MOUTH_LIP_SPEECH_STATE"),
-        ("The emperor starts speaking while the attendant listens", "SPEAKING_AUTHORITY"),
-        ("Her lips are closed for the reply", "MOUTH_LIP_SPEECH_STATE"),
-    ],
-)
-def test_detector_rejects_explicit_speech_authority(text, category):
-    matches = find_visual_speech_authority(text)
-    assert matches
-    assert category in {item.category for item in matches}
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "皇帝皱眉，转头看向侍从1",
-        "侍从听到声音后转头看向门口",
-        "侍从受到呼喊后回头看向门口",
-        "皇帝看到对方动作后皱眉",
-        "皇帝微笑，嘴角轻轻上扬",
-        "侍从以点头回应皇帝的视线",
-        "The emperor raises his hand and looks toward the mirror.",
-    ],
-)
-def test_detector_allows_visual_reaction_and_expression(text):
-    assert find_visual_speech_authority(text) == []
-
-
 def test_clean_canonical_visual_state_normalizes():
     states, _, _ = shot_api._normalize_keyframe_planner_result({"keyframes": [
         _state(1, 0, None, role="START"),
@@ -127,16 +87,16 @@ def test_clean_canonical_visual_state_normalizes():
 @pytest.mark.parametrize("description", [
     "皇帝嘴唇微启，处于说话状态",
     "侍从1回答皇帝",
+    "禁止新增说话；皇帝没有开口。",
+    "皇帝低声说道，宫廷总管望向他。",
 ])
-def test_canonical_visual_state_rejects_speech_authority(description):
-    with pytest.raises(
-        CanonicalVisualSpeechAuthorityViolation,
-        match=r"VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION.*state_index=2.*description",
-    ):
-        shot_api._normalize_keyframe_planner_result({"keyframes": [
-            _state(1, 0, None, role="START"),
-            _state(2, 4, description),
-        ]}, None, 8)
+def test_canonical_visual_state_does_not_block_speech_words(description):
+    states, _, validation = shot_api._normalize_keyframe_planner_result({"keyframes": [
+        _state(1, 0, None, role="START"),
+        _state(2, 4, description),
+    ]}, None, 8)
+    assert validation["passed"]
+    assert states[1]["description"] == description
 
 
 def test_transition_payload_excludes_all_dialogue_authority():
@@ -162,7 +122,7 @@ def test_transition_payload_excludes_all_dialogue_authority():
     assert payload["to_keyframe"]["time_seconds"] == 4
 
 
-def test_empty_start_does_not_recover_raw_shot_narrative():
+def test_empty_start_resolves_declared_shot_reference_without_dynamic_story():
     shot = _shot("皇帝皱眉询问，侍从1与侍从2先后恭敬回答")
     content = shot_api._build_keyframe_transition_user_content(
         shot,
@@ -177,7 +137,7 @@ def test_empty_start_does_not_recover_raw_shot_narrative():
         "index": 1,
         "role": "START",
         "time_seconds": 0,
-        "description": "",
+        "description": shot.description,
     }
     assert payload["to_keyframe"]["description"] == "皇帝抬起右手"
     assert payload["segment_index"] == 1
@@ -186,50 +146,45 @@ def test_empty_start_does_not_recover_raw_shot_narrative():
     assert payload["shot"]["props"] == []
     assert payload["shot"]["duration"] == 18
     assert payload["shot"]["continuity_mode"] == "NORMAL"
-    assert "皇帝皱眉询问，侍从1与侍从2先后恭敬回答" not in serialized
+    assert payload["start_visual_resolution"][0]["status"] == "RESOLVED"
     assert "皇帝开口询问，侍从回答" not in serialized
-    assert "询问" not in serialized
-    assert "回答" not in serialized
+    assert "causal_context" not in payload  # Unmarked V1 still excludes Dialogue/story input.
 
 
 @pytest.mark.parametrize("position", ["from", "to"])
-def test_stale_transition_endpoint_is_rejected(position):
+def test_transition_endpoint_speech_words_are_projected_without_blocking(position):
     from_state = _state(1, 0, "皇帝站在镜前", role="START")
     to_state = _state(2, 4, "皇帝抬起右手")
     if position == "from":
         from_state["description"] = "皇帝嘴唇微启，处于说话状态"
     else:
         to_state["description"] = "侍从1回答皇帝"
-    with pytest.raises(
-        CanonicalVisualSpeechAuthorityViolation,
-        match=r"VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
-    ):
-        shot_api._build_keyframe_transition_user_content(
-            _shot(), from_state, to_state, 1,
-        )
+    payload = _payload(shot_api._build_keyframe_transition_user_content(
+        _shot(), from_state, to_state, 1,
+    ))
+    assert payload["from_keyframe"]["description"] == from_state["description"]
+    assert payload["to_keyframe"]["description"] == to_state["description"]
 
 
 @pytest.mark.asyncio
-async def test_stale_state_blocks_transition_llm_before_call():
-    llm = SequenceLLM([_transition_content("不会被调用")])
-    with pytest.raises(HTTPException, match="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION"):
-        await shot_api._plan_keyframe_transitions(
-            FakeDB(),
-            SimpleNamespace(id="novel", keyframe_transition_prompt_template_id=None),
-            SimpleNamespace(id="chapter"),
-            _shot(),
-            [
-                _state(1, 0, "皇帝站在镜前", role="START"),
-                _state(2, 4, "皇帝嘴唇微启，处于说话状态"),
-            ],
-            FakeTemplateRepo(),
-            llm,
-        )
-    assert llm.calls == []
+async def test_transition_llm_receives_visual_state_with_speech_words(monkeypatch):
+    monkeypatch.setattr(shot_api, "get_style", lambda *_args, **_kwargs: ("", None))
+    llm = SequenceLLM([_transition_content("皇帝低声说道")])
+    transitions = await shot_api._plan_keyframe_transitions(
+        FakeDB(),
+        SimpleNamespace(id="novel", keyframe_transition_prompt_template_id=None),
+        SimpleNamespace(id="chapter"),
+        _shot(),
+        [_state(1, 0, "皇帝站在镜前", role="START"),
+         _state(2, 4, "皇帝嘴唇微启，处于说话状态")],
+        FakeTemplateRepo(), llm,
+    )
+    assert len(llm.calls) == 1
+    assert transitions[0]["transition_description"] == "皇帝低声说道"
 
 
 @pytest.mark.asyncio
-async def test_transition_output_validation_retries_once_then_accepts(monkeypatch):
+async def test_transition_output_speech_words_do_not_cause_retry(monkeypatch):
     monkeypatch.setattr(shot_api, "get_style", lambda *_args, **_kwargs: ("", None))
     llm = SequenceLLM([
         _transition_content("皇帝嘴唇微启，开始说话"),
@@ -248,14 +203,12 @@ async def test_transition_output_validation_retries_once_then_accepts(monkeypatc
         FakeTemplateRepo(),
         llm,
     )
-    assert len(llm.calls) == 2
-    retry_payload = _payload(llm.calls[1]["user_content"])
-    assert retry_payload["previous_validation_failure"]["category"] == "MOUTH_LIP_SPEECH_STATE"
-    assert transitions[0]["transition_description"] == "皇帝转向镜子，右手抬至袖口；侍从1向后半步"
+    assert len(llm.calls) == 1
+    assert transitions[0]["transition_description"] == "皇帝嘴唇微启，开始说话"
 
 
 @pytest.mark.asyncio
-async def test_transition_output_validation_hard_fails_after_one_retry(monkeypatch):
+async def test_transition_output_speech_words_do_not_overwrite_existing_plan(monkeypatch):
     monkeypatch.setattr(shot_api, "get_style", lambda *_args, **_kwargs: ("", None))
     llm = SequenceLLM([
         _transition_content("皇帝嘴唇微启，开始说话"),
@@ -263,20 +216,16 @@ async def test_transition_output_validation_hard_fails_after_one_retry(monkeypat
     ])
     shot = _shot()
     shot.video_director_plan = json.dumps({"transitions": [{"old": True}]})
-    with pytest.raises(HTTPException, match="TRANSITION_SPEECH_AUTHORITY_VIOLATION"):
-        await shot_api._plan_keyframe_transitions(
-            FakeDB(),
-            SimpleNamespace(id="novel", keyframe_transition_prompt_template_id=None),
-            SimpleNamespace(id="chapter"),
-            shot,
-            [
-                _state(1, 0, "皇帝站在镜前", role="START"),
-                _state(2, 4, "皇帝抬起右手"),
-            ],
-            FakeTemplateRepo(),
-            llm,
-        )
-    assert len(llm.calls) == 2
+    transitions = await shot_api._plan_keyframe_transitions(
+        FakeDB(),
+        SimpleNamespace(id="novel", keyframe_transition_prompt_template_id=None),
+        SimpleNamespace(id="chapter"),
+        shot,
+        [_state(1, 0, "皇帝站在镜前", role="START"), _state(2, 4, "皇帝抬起右手")],
+        FakeTemplateRepo(), llm,
+    )
+    assert len(llm.calls) == 1
+    assert transitions[0]["transition_description"] == "皇帝嘴唇微启，开始说话"
     assert json.loads(shot.video_director_plan)["transitions"] == [{"old": True}]
 
 
@@ -346,9 +295,12 @@ def _planner_content(description):
 
 
 @pytest.mark.asyncio
-async def test_planner_retries_speech_violation_once_then_persists_clean_plan(db_session, monkeypatch):
+async def test_planner_accepts_visual_state_speech_words_without_retry(db_session, monkeypatch):
     novel, chapter, shot = _planning_fixture(db_session)
     monkeypatch.setattr(shot_api, "get_style", lambda *_args, **_kwargs: ("", None))
+    async def no_transitions(*_args, **_kwargs):
+        return []
+    monkeypatch.setattr(shot_api, "_plan_keyframe_transitions", no_transitions)
     llm = SequenceLLM([
         _planner_content("皇帝嘴唇微启，处于说话状态"),
         json.dumps({"keyframes": [_state(1, 0, None, role="START")]}, ensure_ascii=False),
@@ -367,44 +319,28 @@ async def test_planner_retries_speech_violation_once_then_persists_clean_plan(db
     )
     persisted = json.loads(ShotRepository(db_session).get_by_id(shot.id).video_director_plan)
     assert result["success"] is True
-    assert len(llm.calls) == 2
-    retry_payload = _payload(llm.calls[1]["user_content"])
-    retry_instruction = retry_payload["retry_instruction"]
-    assert "violations 是已发现问题" in retry_instruction
-    assert "不是完整错误列表" in retry_instruction
-    assert "重新审查整个 candidate plan" in retry_instruction
-    assert "逐个检查所有 Visual States" in retry_instruction
-    assert "未被 previous failure 明确列出" in retry_instruction
-    assert "完整、整体重新验证后的 canonical plan" in retry_instruction
-    assert len(retry_payload["previous_failed_attempts"]) == 1
+    assert len(llm.calls) == 1
     assert persisted["canonical_visual_plan"] is True
-    assert persisted["keyframes"] == [_state(1, 0.0, "", role="START")]
-    assert "嘴唇微启" not in json.dumps(persisted["keyframes"], ensure_ascii=False)
+    assert persisted["keyframes"][1]["description"] == "皇帝嘴唇微启，处于说话状态"
 
 
 @pytest.mark.asyncio
-async def test_planner_hard_fails_after_second_speech_violation_without_persisting_states(db_session, monkeypatch):
+async def test_planner_speech_words_do_not_replace_first_candidate(db_session, monkeypatch):
     novel, chapter, shot = _planning_fixture(db_session)
     monkeypatch.setattr(shot_api, "get_style", lambda *_args, **_kwargs: ("", None))
+    async def no_transitions(*_args, **_kwargs):
+        return []
+    monkeypatch.setattr(shot_api, "_plan_keyframe_transitions", no_transitions)
     llm = SequenceLLM([
         _planner_content("皇帝嘴唇微启，处于说话状态"),
         _planner_content("侍从1回答皇帝"),
     ])
-    with pytest.raises(HTTPException, match="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION"):
-        await shot_api.plan_video_keyframes(
-            novel.id,
-            chapter.id,
-            shot.id,
-            PlanVideoKeyframesRequest(force=True),
-            db_session,
-            NovelRepository(db_session),
-            ChapterRepository(db_session),
-            ShotRepository(db_session),
-            PromptTemplateRepository(db_session),
-            llm,
-        )
+    result = await shot_api.plan_video_keyframes(
+        novel.id, chapter.id, shot.id, PlanVideoKeyframesRequest(force=True),
+        db_session, NovelRepository(db_session), ChapterRepository(db_session),
+        ShotRepository(db_session), PromptTemplateRepository(db_session), llm,
+    )
     persisted = json.loads(ShotRepository(db_session).get_by_id(shot.id).video_director_plan)
-    assert len(llm.calls) == 2
-    assert persisted["existing_marker"] is True
-    assert "canonical_visual_plan" not in persisted
-    assert "嘴唇微启" not in json.dumps(persisted.get("keyframes", []), ensure_ascii=False)
+    assert result["success"] is True
+    assert len(llm.calls) == 1
+    assert persisted["keyframes"][1]["description"] == "皇帝嘴唇微启，处于说话状态"

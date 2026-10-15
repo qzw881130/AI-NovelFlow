@@ -8,9 +8,6 @@ from app.services import video_director_ai as h3
 from test_canonical_h3_manifest_speech_authority import dialogue, invoke
 
 
-ERROR = "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"
-
-
 @pytest.mark.parametrize("mention", [
     "不得出现对话气泡。",
     "禁止字幕、文字和对白气泡。",
@@ -54,9 +51,13 @@ def test_exact_canonical_reference_keeps_existing_id_projection(monkeypatch):
     ('卫兵低声说道：“请稍等。”', []),
     ('卫兵转身并喊道“快来人”。', []),
 ])
-def test_new_rewritten_or_reassigned_speech_fails_all_body_fields(monkeypatch, field, event, assigned):
-    with pytest.raises(RuntimeError, match=ERROR):
-        invoke(monkeypatch, states=[], body=f"{field}:\n{event}", dialogues=assigned)
+def test_speech_prose_does_not_block_body_fields(monkeypatch, field, event, assigned):
+    prompt, _, _, record = invoke(monkeypatch, states=[], body=f"{field}:\n{event}", dialogues=assigned)
+    if event == 'Jun说：“我们是布商。”':
+        assert "Jun说：assigned dialogue D1" in prompt
+    else:
+        assert event in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 @pytest.mark.parametrize("body", [
@@ -69,10 +70,14 @@ def test_new_rewritten_or_reassigned_speech_fails_all_body_fields(monkeypatch, f
     "Jun：assigned dialogue D1。",
     'lip-sync instructions: Jun说：“快让我们进去。”',
     "<Subject 1> lip-syncs to invented words.",
+    "禁止新增说话。",
+    "皇帝没有开口。",
+    "皇帝低声说道。",
 ])
-def test_safe_mention_never_masks_event_or_speaker_assignment(monkeypatch, body):
-    with pytest.raises(RuntimeError, match=ERROR):
-        invoke(monkeypatch, states=[], body="summary:\n" + body, dialogues=[dialogue()])
+def test_speech_mentions_do_not_block_prose(monkeypatch, body):
+    prompt, _, _, record = invoke(monkeypatch, states=[], body="summary:\n" + body, dialogues=[dialogue()])
+    assert body in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
 
 
 HISTORY = json.loads((Path(__file__).parent / "fixtures/h3_speech_mention_history.json").read_text())
@@ -98,8 +103,14 @@ def test_failed_historical_body_passes_exact_production_projection(case):
 
 
 @pytest.mark.parametrize("case", HISTORY, ids=lambda case: case["clip"])
-def test_historical_negative_list_cannot_authorize_new_speech(case):
-    assert ERROR in h3._canonical_visual_body_speech_issues(
-        case["body"] + '\naction:\n卫兵转身并喊道“快来人”。',
-        {name: f"<Subject {i}>" for i, name in enumerate(case["characters"], 1)},
-    )
+def test_historical_body_with_speech_prose_does_not_block(case):
+    body = case["body"] + '\naction:\n卫兵转身并喊道“快来人”。'
+    subjects = {name: f"<Subject {i}>" for i, name in enumerate(case["characters"], 1)}
+    body = h3._remove_canonical_h3_internal_self_check(body)
+    body = h3._remove_generated_dialogue_timeline(body)
+    body = h3._project_canonical_soundscape(body)
+    body = h3._remove_dialogue_text_from_builder_body(body, case["dialogues"])
+    timeline = h3._render_dialogue_timeline_block(case["dialogues"], case["silent_characters"], subjects)
+    prompt = h3._insert_canonical_dialogue_timeline(body, timeline)
+    assert h3._audit_final_h3_prompt(prompt, case["dialogues"], case["silent_characters"],
+                                     subjects, canonical_visual_body=body)["passed"]

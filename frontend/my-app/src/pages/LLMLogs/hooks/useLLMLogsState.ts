@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
 import { llmLogsApi, LLM_CANCELLED_MESSAGE, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
+import { TEMPLATE_TYPE_CONFIG } from '../../PromptConfig/hooks/usePromptConfigState';
 
 export type PromptTab = 'params' | 'system' | 'user' | 'images' | 'response';
 
@@ -14,7 +15,7 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   shot_image: ['shot_image_prompt'],
   video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -196,6 +197,7 @@ export function useLLMLogsState() {
       keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage', image_quality_review_prompt: 'keyframeImage',
       clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
       h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
+      h3_multi_keyframe_director_phase_b: 'videoGeneration',
       h3_preflight_repair_prompt: 'videoGeneration',
     };
     return type && categories[type]
@@ -224,6 +226,7 @@ export function useLLMLogsState() {
       h3_single_frame_prompt: t('promptConfig.types.h3SingleFramePrompt'),
       h3_first_last_frame_prompt: t('promptConfig.types.h3FirstLastFramePrompt'),
       h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
+      h3_multi_keyframe_director_phase_b: `#${TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.fileNumber} ${t(TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.nameKey)}`,
       h3_execution_optimizer_prompt: t('promptConfig.types.h3ExecutionOptimizerPrompt'),
       h3_preflight_repair_prompt: t('promptConfig.types.h3PreflightRepairPrompt'),
     };

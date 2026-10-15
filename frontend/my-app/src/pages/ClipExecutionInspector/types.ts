@@ -8,6 +8,7 @@ export interface FrameSample {
   reasons: string[]; event_refs: string[]; image_url: string; detail_url: string;
 }
 export interface Projection {
+  h3_phase_b?: any;
   projection_version: number;
   clip_ref: { novel_id: string; chapter_id: string; shot_id: string; shot_index: number; clip_index: number; clip_plan_revision: number | null; legacy: boolean };
   artifact: { task_id: string; artifact_id: string; video_sha256: string | null; result_url: string; capability: string; artifact_kind: string; identity_status: string; comfyui_prompt_id: string | null; workflow_sha256: string; prompt_sha256: string };

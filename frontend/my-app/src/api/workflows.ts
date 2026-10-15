@@ -45,6 +45,7 @@ export interface WorkflowImportPreview {
 }
 
 export const workflowApi = {
+  fetchGenerationTypes: () => api.get<string[]>('/workflows/generation-types'),
   /** 获取工作流列表 */
   fetchList: (type?: string) => api.get<Workflow[]>(`/workflows/${type ? `?type=${type}` : ''}`),
 

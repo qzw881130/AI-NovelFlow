@@ -13,6 +13,7 @@ from app.models.workflow import Workflow
 from app.repositories import WorkflowRepository
 from app.constants.workflow import (
     WORKFLOW_TYPES,
+    RETIRED_H3_WORKFLOW_TYPES,
     DEFAULT_WORKFLOWS,
     DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
@@ -473,6 +474,10 @@ class WorkflowService:
                 "message": "工作流不存在"
             }
 
+        if workflow.type in RETIRED_H3_WORKFLOW_TYPES:
+            return {"success": False, "status_code": 410,
+                    "message": "该工作流仅供历史查看，新 H3 任务使用多参考及现有续生成工作流。"}
+
         # 将该类型的所有工作流设为非激活
         self.workflow_repo.deactivate_all_by_type(workflow.type)
 
@@ -606,6 +611,7 @@ class WorkflowService:
                 "typeName": WORKFLOW_TYPES.get(w.type, w.type),
                 "isSystem": w.is_system,
                 "isActive": w.is_active,
+                "availableForNewTasks": w.type not in RETIRED_H3_WORKFLOW_TYPES,
                 "nodeMapping": json.loads(w.node_mapping) if w.node_mapping else None,
                 "extension": json.loads(w.extension) if w.extension else None,
                 "createdAt": format_datetime(w.created_at),
@@ -629,6 +635,7 @@ class WorkflowService:
             "workflowJson": workflow.workflow_json,
             "isSystem": workflow.is_system,
             "isActive": workflow.is_active,
+            "availableForNewTasks": workflow.type not in RETIRED_H3_WORKFLOW_TYPES,
             "nodeMapping": json.loads(workflow.node_mapping) if workflow.node_mapping else None,
             "extension": json.loads(workflow.extension) if workflow.extension else None,
             "createdAt": format_datetime(workflow.created_at),

@@ -72,7 +72,7 @@ export function getAdjacentCanonicalTransitions(
 }
 
 export function canUseLegacyShotGeneration(plan?: VideoDirectorPlan | null): boolean {
-  return !isCanonicalVisualPlan(plan);
+  return false; // Retired generation entry; historical plans remain readable.
 }
 
 export function buildVideoDirectorShotSavePayload(shot: {
@@ -97,7 +97,5 @@ export function shouldAutoRecommendLegacyVideoMode(
   currentShotId: string,
   recommendingShotId: string | null,
 ): boolean {
-  return !isCanonicalVisualPlan(plan)
-    && !plan.recommended_mode
-    && recommendingShotId !== currentShotId;
+  return false; // #07 is no longer a new-task mode selector.
 }

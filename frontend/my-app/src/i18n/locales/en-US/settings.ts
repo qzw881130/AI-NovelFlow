@@ -271,6 +271,16 @@ export default {
     createPrompt: 'Create Prompt Template',
     viewPrompt: 'View Prompt Template',
     systemPresetReadonly: 'System Preset (Read-only)',
+    lastModified: 'Last modified',
+    unknown: 'Unknown',
+    boundNovels: 'Bound novels',
+    loadingBindings: 'Loading bound novels…',
+    loadBindingsFailed: 'Failed to load bound novels. Close and try again.',
+    noBoundNovels: 'No novels explicitly bind this template',
+    author: 'Author',
+    bindingType: 'Binding type',
+    explicitBinding: 'Explicitly selected',
+    boundNovelCount: '{count} novels',
 
     categories: {
       storyContext: 'Story Context',
@@ -334,7 +344,9 @@ export default {
       h3PreflightRepairPromptDesc: 'Bounded local contract repair; one LLM call',
       h3ExecutionOptimizerPrompt: 'MiniMax H3 Execution Prompt Optimizer',
       h3ExecutionOptimizerPromptDesc: 'Optimize H3 execution using visual inputs while preserving director intent and event speaker ownership',
-      h3MultiKeyframePrompt: 'MiniMax H3 Multi-Keyframe Video Prompt Builder',
+      h3MultiKeyframeDirectorPhaseB: 'MiniMax H3 Single-Stage Director (Phase B)',
+    h3MultiKeyframeDirectorPhaseBDesc: 'Candidate for opt-in Phase B tasks. Legacy #13/#14 remains available. Copy the system preset to customize.',
+    h3MultiKeyframePrompt: 'MiniMax H3 Multi-Keyframe Video Prompt Builder',
       h3MultiKeyframePromptDesc: 'Build the final MiniMax H3 multi-keyframe video prompt',
     },
 

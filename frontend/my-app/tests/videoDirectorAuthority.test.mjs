@@ -136,11 +136,11 @@ test('J: canonical adjacent transitions come from plan.transitions', () => {
 
 test('K: canonical path cannot use legacy shot generation fallback', () => {
   assert.equal(canUseLegacyShotGeneration(makeCanonicalPlan(3)), false);
-  assert.equal(canUseLegacyShotGeneration({}), true);
+  assert.equal(canUseLegacyShotGeneration({}), false);
 });
 
-test('historical noncanonical plan can retain automatic legacy #07 behavior', () => {
-  assert.equal(shouldAutoRecommendLegacyVideoMode({}, 'shot-1', null), true);
+test('historical noncanonical plan never starts a new legacy #07 call', () => {
+  assert.equal(shouldAutoRecommendLegacyVideoMode({}, 'shot-1', null), false);
   assert.equal(shouldAutoRecommendLegacyVideoMode({ recommended_mode: 'MULTI_KEYFRAME' }, 'shot-1', null), false);
   assert.equal(shouldAutoRecommendLegacyVideoMode({}, 'shot-1', 'shot-1'), false);
 });

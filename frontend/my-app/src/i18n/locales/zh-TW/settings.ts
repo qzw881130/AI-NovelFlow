@@ -164,6 +164,16 @@ export default {
     createPrompt: '建立提示詞範本',
     viewPrompt: '檢視提示詞範本',
     systemPresetReadonly: '系統預設（唯讀）',
+    lastModified: '最後修改',
+    unknown: '未知',
+    boundNovels: '綁定小說',
+    loadingBindings: '正在載入綁定小說…',
+    loadBindingsFailed: '查詢綁定小說失敗，請關閉後重試。',
+    noBoundNovels: '暫無小說明確綁定此範本',
+    author: '作者',
+    bindingType: '綁定方式',
+    explicitBinding: '明確指定',
+    boundNovelCount: '共 {count} 本小說',
     effectiveImageReviewNotice: '系統預設與使用者自訂版本均由提示詞管理保存；新評審使用目前有效版本。',
 
     categories: {

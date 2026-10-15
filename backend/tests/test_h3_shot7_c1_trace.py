@@ -68,10 +68,14 @@ def test_t3_missing_fact_negation_or_other_actor_does_not_resolve(t3):
     assert trace("transition_3", T3_CITATION, t3=t3)["status"] != "RESOLVED"
 
 
-def test_t4_opening_canonical_action_resolves_but_scope_instruction_does_not():
+def test_t4_opening_action_and_current_clip_scope_keep_distinct_provenance():
     opening = trace("transition_4", T4_OPENING)
     assert opening["status"] == "RESOLVED" and opening["method"] == "EXACT"
-    assert trace("transition_4", T4_SCOPE)["status"] == "UNRESOLVED"
+    scope = trace("transition_4", T4_SCOPE)
+    assert scope["status"] == "RESOLVED"
+    assert scope["resolution_status"] == "AUTHORIZED_SOURCE_REATTRIBUTED"
+    assert scope["resolved_source_id"] == "transition_4.clip_scope.execution_scope"
+    assert scope["mismatch_reason"] == "EXECUTION_SCOPE_QUOTED_AS_CANONICAL_SOURCE"
 
 
 def test_c2_exclusive_state_and_missing_source_stay_unresolved():

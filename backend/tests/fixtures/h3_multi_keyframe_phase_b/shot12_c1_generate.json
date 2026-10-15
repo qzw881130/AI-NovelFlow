@@ -1,0 +1,1343 @@
+{
+  "canonical_plan": {
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 3.0,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 金红色夕阳笼罩王宫大厅，远处织造室亮窗仍位于窗外纵深处；大全景沿窗前至宝座方向展开。\nCharacters:\n- 皇帝: 已从最初的窗前位置向大厅内侧移开数步，位于左侧前景，身体以四分之三侧面朝向宫廷总管，视线仍牵向远处亮窗，神情向往。\n- 宫廷总管: 位于皇帝后方右侧中景，站姿恭敬，视线朝向皇帝。\n- 骗子1: 位于远处织造室亮窗内，双手置于一架脚踏织机的操作位置。\n- 骗子2: 与骗子1保持间隔，双手置于另一架脚踏织机的操作位置。\nAction: 皇帝与宫廷总管形成前后错落的双人关系，远处两架织机及其操作者作为深景可辨。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 3,
+        "time_seconds": 7.2,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅窗前区域，夕阳与织造室灯光在纵深方向相连；摄影机仍处于同一侧轴线，构图略向皇帝收紧。\nCharacters:\n- 皇帝: 位于窗前通向大厅内部的路径上，前后脚错开并直立停定，头部重新转向远处织造室亮窗；先前的笑意已经消失，眉间收紧。\n- 宫廷总管: 位于皇帝身后右侧，身体朝向皇帝，双手恭敬置于身前。\n- 骗子1: 位于远处亮窗内，身体朝向脚踏织机，手脚处于操作位置。\n- 骗子2: 位于另一架脚踏织机前，与骗子1保持固定间隔。\nAction: 皇帝停在迈步后的明确位置，紧绷姿态与远处明亮织造室形成对照。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 4,
+        "time_seconds": 9.3,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅窗前至宝座方向的连续空间内，远处织造室亮窗仍处于背景纵深。\nCharacters:\n- 皇帝: 身体已经转向宫廷总管，双肩略显僵硬，双手收拢在身侧，眉头紧锁，视线直对宫廷总管。\n- 宫廷总管: 与皇帝相隔数步，身体微微前倾，神情关切，目光集中在皇帝脸上。\n- 骗子1: 仍位于远处亮窗内的一架脚踏织机前。\n- 骗子2: 仍位于另一架脚踏织机前，与骗子1保持间隔。\nAction: 两名前景人物形成正面交流关系，皇帝的不安成为构图中心，织造室作为深景压力来源保留在画面内。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 5,
+        "time_seconds": 14.0,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅宝座一侧，摄影机沿原有轴线进入中远景；窗外金红余晖和远处织造室亮窗仍可从侧后方看见。\nCharacters:\n- 皇帝: 已坐在高背宝座上，身体略向前倾，视线低垂；一只手压住扶手，另一只手的食指落在扶手边缘，神情焦虑而专注。\n- 宫廷总管: 站在宝座侧前方数步之外，身体朝向皇帝，保持克制恭敬的姿态。\n- 骗子1: 在远处织造室亮窗内呈小比例身影，面向脚踏织机。\n- 骗子2: 在同一亮窗纵深内面向另一架脚踏织机。\nAction: 皇帝已经抵达并坐稳于宝座，宫廷总管与他形成高低分明的空间关系。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 6,
+        "time_seconds": 17.7,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅宝座区域，中景构图延续同一摄影机轨迹，远处织造室灯光留在背景边缘。\nCharacters:\n- 皇帝: 坐在高背宝座上，头部抬起，背部离开前倾姿态而重新挺直；一只手仍搭在扶手上，眼神转为明亮而集中，紧锁的眉头有所舒展。\n- 宫廷总管: 站在宝座侧前方，视线朝向皇帝，姿态谨慎。\n- 骗子1: 位于远处亮窗内的脚踏织机前。\n- 骗子2: 位于另一架脚踏织机前，与骗子1保持间隔。\nAction: 皇帝的姿态由低沉收束转为挺直清醒，宝座与宫廷总管的位置关系保持稳定。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 7,
+        "time_seconds": 42.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅宝座区域，连续中远景纳入高背宝座、宫廷总管以及背景中的窗外织造室灯光。\nCharacters:\n- 皇帝: 已站在高背宝座前方，脊背挺直，一手抬至胸前形成明确的命令姿态，视线坚定地落在宫廷总管身上，神情威严。\n- 宫廷总管: 站在皇帝侧前方，身体完全朝向皇帝，双手收于身前，等待姿态端正。\n- 骗子1: 仍在远处织造室亮窗内面向脚踏织机。\n- 骗子2: 仍在另一架脚踏织机前，与骗子1保持间隔。\nAction: 皇帝已经由宝座上的坐姿转换为宝座前的站立主导位置，宫廷总管处于清晰的受命位置。",
+        "timed_visual_target": true,
+        "prompt_text": "将画面编辑为42.8秒时已经到达的单一静态剧情瞬间：王宫大厅宝座区域的连续中远景中，皇帝已经离开宝座并站到高背宝座前方，占据明确的主导位置；宫廷总管站在皇帝侧前方端正受命；远处背景的织造室亮窗内，骗子1与骗子2分别位于两架脚踏织机前并保持间隔。必须清楚完成皇帝由坐姿到宝座前站立姿态的实质变化，不得仍坐在宝座上，也不得将变化弱化为起身过程。\n\n<image_1>是当前Shot的主分镜基线，仅用于回查皇帝、宫廷总管、骗子1、骗子2的身份与稳定外观，以及王宫大厅、远处织造室和整体视觉风格基线；当前时间点的人物位置、姿态、空间关系、景别和构图严格以本提示所述当前视觉状态为准，不把画面退回主分镜初始状态，也不沿用其中与当前状态冲突的坐姿或旧布局。\n\n<image_2>是高背宝座的正式道具外观参考，仅用于保持高背宝座的形制、材质、装饰、结构比例与稳定外观；参考图中的展示背景、排版及其他未列物体不得进入最终剧情画面。\n\nSCENE PARTICIPANTS：画面中恰好有四名唯一可见人物：皇帝、宫廷总管、骗子1、骗子2，每人各出现且只出现一次。保持四人身份清楚且互不混淆，禁止复制、融合或互换任何角色；骗子1与骗子2是远处织造室亮窗内的两名独立人物，不得由参考图中的展示视图生成额外演员，不得添加侍从、卫兵、路人、人影、剪影、背景人群、镜中人物或第五个人。\n\n皇帝已经完整站立在高背宝座前方，身体离开座面，双脚稳定落地，脊背挺直，形成清楚可见的站立主导位置；一手明确抬至胸前构成命令姿态，另一只手自然配合站姿；头部和视线坚定地落在宫廷总管身上，神情威严。不得让皇帝仍坐在宝座上、半起身、倚靠座面或同时出现坐姿与站姿两个版本。\n\n宫廷总管站在皇帝侧前方，与皇帝形成清晰的受命空间关系；身体完全朝向皇帝，双手收于身前，站姿端正而稳定，注意方向明确落在皇帝身上。不得让宫廷总管背对、侧离皇帝或占据皇帝的主导位置。\n\n骗子1保持在远处织造室的一扇亮窗内，面向一架脚踏织机。骗子2保持在另一架脚踏织机前，与骗子1之间留有明确间隔。两人均属于背景纵深中的远处人物，尺度和透视符合距离，不得移动到王宫大厅前景，不得合并为一人，也不得复制成更多人物。\n\n场景保持为王宫大厅的宝座区域，高背宝座完整纳入构图并位于皇帝身后，明确显示皇帝已经从宝座转移到其前方。背景中保留窗外织造室的暖亮灯光，并让两架脚踏织机及两名骗子在远处亮窗内可辨认，但不得抢夺前景皇帝与宫廷总管的视觉重心。保持王宫建筑结构、空间纵深、时代材质、稳定照明逻辑和道具相对尺度一致；不要从参考图带入额外人物或展示背景，不要为了丰富画面添加未要求的物件，也不要强行加入当前画面未指定可见的宫廷摆钟。\n\n摄影机采用已经稳定到达的连续中远景，清楚纳入高背宝座、站在宝座前的皇帝、侧前方的宫廷总管，以及背景亮窗内的织造室灯光、骗子1、骗子2和两架脚踏织机。保持合理的镜头轴线、左右空间方向、自然透视和前中后景层次，不跳轴、不镜像翻转人物关系；构图重心首先落在皇帝的站立命令姿态与宫廷总管的受命姿态上，同时保证背景织造室信息清晰可读。\n\n保持角色身份、年龄特征、发型、面部、体型比例、服装与配饰稳定，不因姿态和位置变化而换装或改变身份。整体采用2D chibi cartoon rendering：干净圆润线条、平涂色彩、简洁赛璐璐阴影；人形角色保持稳定的2.5至3头身比例和简化面部特征，同时保留可识别的年龄线索、发型、服装与身份特征。环境和道具使用相同的二维线条与阴影语言，但高背宝座、脚踏织机和建筑保持其原有结构、功能比例与相对尺度，不赋予建筑或物体Q版人体结构。高质量、细节清晰、自然人体比例、正确透视、自然遮挡、环境连续稳定。\n\n最终只生成42.8秒这一时刻的一幅完整剧情画面，不生成皇帝起身前后的并排对比，不出现动作残影、重复人物、多时间状态、漫画分格、多面板、拼贴、contact sheet、角色多视图、设定页或参考图排版。不得生成字幕、对白框、标题、标签、说明文字、logo、水印或UI；不得添加现代物件。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_5_20261013_204157.png",
+        "image_task_id": "96dadedb-9a3a-4790-aeb9-2acfddb46808"
+      },
+      {
+        "index": 8,
+        "time_seconds": 59.0,
+        "role": "END",
+        "description": "Scene: 王宫大厅宝座区域，夕阳余光转暗，远处织造室灯光依然明亮；摄影机停留在同一侧轴线的稳定中远景。\nCharacters:\n- 皇帝: 站在高背宝座前，挺直的姿态较前一状态放松，抬起的手已经自然垂下，面部恢复轻松并带有淡淡笑意，视线落在宫廷总管身上。\n- 宫廷总管: 位于皇帝侧前方，腰身深躬，双手恭敬收拢，维持正式行礼姿态。\n- 骗子1: 在远处织造室亮窗内保持面向脚踏织机的忙碌姿态。\n- 骗子2: 在另一架脚踏织机前保持忙碌姿态，与骗子1之间留有固定间隔。\nAction: 皇帝与躬身的宫廷总管构成前景最终关系，高背宝座居于皇帝身后，两名骗子与亮着灯的织造室留在深景。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 3.0,
+        "transition_description": "皇帝沿窗前至高背宝座的方向向大厅内侧移动数步，逐渐进入画面左侧前景；临近终点时放慢脚步，将身体调整为朝向宫廷总管的四分之三侧面，同时保持视线牵向远处织造室亮窗，最终以向往神情稳定站定。宫廷总管只做必要的小幅移步与重心调整，落在皇帝后方右侧中景，维持恭敬站姿并注视皇帝。骗子1与骗子2始终留在远处亮窗内，彼此保持间隔，各自在对应脚踏织机前维持双手处于操作位置，仅有克制的手臂调整，不改变深景从属地位。摄影机全程不切换机位，以稳定的轻微平移和缓慢拉远配合皇帝向大厅内侧的位移，使皇帝始终保持主要视觉重心，同时逐步纳入宫廷总管、远处亮窗及两架织机；至3秒时停在沿窗前至宝座方向展开的大全景，形成皇帝左侧前景、宫廷总管后方右侧中景、两名骗子位于亮窗深景的前后错落构图。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 3.0,
+        "end_time": 7.2,
+        "transition_description": "从现有大全景连续开始，皇帝由左侧前景沿窗前通向大厅内部的路径再迈出一步，身体逐渐转为直立，仍不越过宫廷总管所在的后方右侧关系。宫廷总管留在皇帝身后右侧中景，视线随皇帝的移动微调，身体始终朝向皇帝，并将双手稳妥收置于身前。摄影机保持原有侧轴线，先以极轻微的平移补偿皇帝的位移，同时维持宫廷总管在前后错落关系中的清晰视觉分量，不追随远处人物；远处亮窗内，骗子1与骗子2保持固定间隔和各自织机前的位置，以幅度很小的连续手脚操作维持深景动态。接近末段时，摄影机沿原机位方向缓慢推进并略向皇帝收紧，使皇帝与宫廷总管自然共同成为构图重点；皇帝完成这一步后前后脚错开停定，头部重新转向远处织造室亮窗，原有向往笑意逐渐消失，眉间收紧，身体呈现紧绷状态。最终停在皇帝位于通向大厅内部的路径上、宫廷总管恭敬立于其身后右侧、两名骗子仍处远处亮窗内各自织机操作位置的连续构图。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 7.2,
+        "end_time": 9.3,
+        "transition_description": "延续原有同侧轴线与略向皇帝收紧的构图。皇帝先保持前后脚错开的停定位置，紧锁眉头望向远处织造室亮窗；随后头部率先向身后右侧的宫廷总管转动，肩部与躯干连续跟随，双手逐渐收拢至身侧，双脚仅作必要的原地调整，最终使身体完整朝向宫廷总管。宫廷总管始终留在皇帝身后右侧数步处，不改变双方站位；当皇帝转来时，他将上身轻微前倾，目光稳定集中到皇帝脸上，形成关切而克制的正面关系。摄影机不切换机位，在原方向上极轻微平移并缓慢推进：前段将构图重心自然收至皇帝紧绷的转身动作，后段再把宫廷总管纳入清晰的双人关系构图，同时始终保留远处亮窗。骗子1与骗子2分别留在各自脚踏织机前并保持固定间隔，只维持低强度、连续的织机操作，不进入前景焦点。结束时皇帝双肩僵硬、双手收于身侧并直视宫廷总管，宫廷总管微微前倾与其相对，皇帝的不安处于构图中心，明亮织造室继续作为深景背景保留。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 9.3,
+        "end_time": 14.0,
+        "transition_description": "皇帝从面向宫廷总管的僵硬站姿中移开视线，转身沿大厅原有纵深朝高背宝座走去；双手仍收在身侧，步伐克制而沉重。宫廷总管随皇帝的移动直起上身，向宝座侧前方小幅调整站位并始终转身朝向皇帝，为其让出通往宝座的路径，最终停在宝座前数步之外，保持克制恭敬的姿态。皇帝抵达宝座前后转身靠近座面，屈膝坐下并稳住身体，随后略向前倾，一只手压上扶手，另一只手的食指落在扶手边缘，视线逐渐低垂，神情维持焦虑而专注。摄影机从原机位沿既有轴线平稳向宝座方向移动并轻微调整取景，持续以皇帝为视觉中心，同时让宫廷总管保留在侧前方关系位置；构图自然过渡至宝座一侧的中远景，侧后方的金红余晖与远处织造室亮窗始终维持空间连续。骗子1与骗子2保持在亮窗纵深内各自的脚踏织机前，仅呈小比例背景身影，不改变彼此间隔。运动在皇帝坐稳、宫廷总管站定，并形成明确高低空间关系时停止。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 14.0,
+        "end_time": 17.7,
+        "transition_description": "延续原有轴线与机位，摄影机从宝座一侧的中远景平稳缓慢推进至中景，始终以皇帝为视觉主体，同时将宫廷总管保留在宝座侧前方，并让远处织造室亮窗自然退至背景边缘。皇帝从低垂视线和略微前倾的坐姿开始，先缓慢抬起头，将目光由扶手附近移向前方；随后背部逐渐离开前倾状态，肩颈舒展并重新挺直。一只手始终稳定搭在扶手上，另一只手的食指从压在扶手边缘的紧张状态略微放松；他的眉头逐渐舒展，眼神转为明亮而集中。宫廷总管保持在宝座侧前方数步之外，不改变站位，只以克制的重心微调和持续朝向皇帝的视线形成必要反应，不抢占主体。骗子1与骗子2继续分别位于远处亮窗内各自的脚踏织机前，保持彼此间隔和背景小比例关系，仅允许轻微、连续的身体重心变化。最终摄影机稳定停在宝座区域的中景构图：皇帝端坐挺直、抬头凝视前方，一手仍搭扶手，神情清醒集中；宫廷总管仍谨慎站在侧前方，宝座、人物方位及远处织造室灯光连续不变。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 17.7,
+        "end_time": 42.8,
+        "transition_description": "同一镜头延续宝座区域的中景机位。皇帝先保持挺直坐姿和集中视线，宫廷总管仍在宝座侧前方谨慎站立；摄影机以极缓慢的后移和轻微横向调整维持两人的空间关系，同时让高背宝座与背景织造室灯光持续留在构图中。随后宫廷总管原地将身体逐渐完全转向皇帝，双手收拢至身前，站姿变得端正，摄影机仅作平稳的构图补偿，使他的姿态变化短暂清晰可读，不改变双方所在方向。皇帝接着从宝座座面向前移重心，离开扶手并连续起身，朝宝座正前方迈出有限一步；宫廷总管不靠近，只以视线和上身朝向持续跟随皇帝的位置变化。摄影机同步缓慢拉远并略作平移，从原有中景自然扩展为中远景，始终保留皇帝、宫廷总管和高背宝座，不跳轴、不改变观察方向。皇帝在宝座前站稳后挺直脊背，将一手抬至胸前形成明确的命令姿态，坚定注视宫廷总管；宫廷总管停在皇帝侧前方，完全朝向皇帝，双手收于身前。骗子1与骗子2始终分别留在远处亮窗内各自的脚踏织机前并保持间隔，不进入前景，也不成为构图中心。到42.8秒时，摄影机稳定停在连续中远景：皇帝站在高背宝座前占据主导位置，宫廷总管保持端正等待姿态，背景织造室灯光和两名骗子的位置连续不变。"
+      },
+      {
+        "segment_index": 7,
+        "from_keyframe_index": 7,
+        "to_keyframe_index": 8,
+        "start_time": 42.8,
+        "end_time": 59.0,
+        "transition_description": "从既有中远景和同侧轴线连续展开：皇帝始终站在高背宝座前，不移动脚下位置，先维持挺直身姿、胸前命令手势和投向宫廷总管的坚定视线；随后抬起的手臂逐渐放松并自然垂至身侧，肩背随之略微松弛，威严神情缓和为淡淡笑意。宫廷总管保持在皇帝侧前方并面向皇帝，前段双手收于身前、端正站定；至后段，他从原位平稳俯身，腰身逐渐形成深躬，双手继续恭敬收拢，最终停在正式行礼姿态。摄影机不切换机位、不越轴，以稳定中远景为主；前段保持皇帝为视觉重心，56.15秒后仅作轻微而连续的构图调整，让宫廷总管的俯身动作与皇帝共同清晰进入前景关系，至57.6秒完成自然的双人重心分配，此后稳定停住。骗子1与骗子2始终留在远处织造室亮窗内，各自在原有脚踏织机前维持间隔，以有限、连续的织造动作形成深景活动，摄影机不追随或放大他们。夕阳余光在全段中缓慢转暗，织造室灯光保持明亮；结束时皇帝手臂垂下、姿态放松并带淡淡笑意看向宫廷总管，宫廷总管深躬定住，高背宝座位于皇帝身后，两名骗子及织机仍处于深景。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "皇帝",
+        "text": "我真想亲自去看看。",
+        "start_time": 1.0,
+        "end_time": 3.0,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "向往好奇"
+      },
+      {
+        "id": "D2",
+        "speaker": "宫廷总管",
+        "text": "陛下若想去，现在就可以召他们准备。",
+        "start_time": 3.2,
+        "end_time": 6.95,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬建议"
+      },
+      {
+        "id": "D3",
+        "speaker": "皇帝",
+        "text": "若我看不见……",
+        "start_time": 7.15,
+        "end_time": 8.4,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "迟疑恐惧"
+      },
+      {
+        "id": "D4",
+        "speaker": "宫廷总管",
+        "text": "陛下？",
+        "start_time": 8.6,
+        "end_time": 9.1,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "疑惑关切"
+      },
+      {
+        "id": "D5",
+        "speaker": "皇帝",
+        "text": "若我看不见，岂不是显得愚蠢？",
+        "start_time": 9.3,
+        "end_time": 12.3,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "低声焦虑"
+      },
+      {
+        "id": "D6",
+        "speaker": "皇帝",
+        "text": "而且，我是这个国家的皇帝。",
+        "start_time": 12.5,
+        "end_time": 15.25,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "自尊不安"
+      },
+      {
+        "id": "D7",
+        "speaker": "皇帝",
+        "text": "如果连我都看不见……",
+        "start_time": 15.45,
+        "end_time": 17.45,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "恐惧难言"
+      },
+      {
+        "id": "D8",
+        "speaker": "皇帝",
+        "text": "我不必亲自去。",
+        "start_time": 17.65,
+        "end_time": 19.15,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "突然释然"
+      },
+      {
+        "id": "D9",
+        "speaker": "宫廷总管",
+        "text": "陛下的意思是？",
+        "start_time": 19.35,
+        "end_time": 20.85,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "谨慎询问"
+      },
+      {
+        "id": "D10",
+        "speaker": "皇帝",
+        "text": "先派一个人去看看。",
+        "start_time": 21.05,
+        "end_time": 23.05,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "重新镇定"
+      },
+      {
+        "id": "D11",
+        "speaker": "皇帝",
+        "text": "一个聪明、可靠，而且绝对称职的人。",
+        "start_time": 23.25,
+        "end_time": 26.75,
+        "duration": 3.5,
+        "estimated_speech_duration": 3.5,
+        "min_required_duration": 3.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "认真盘算"
+      },
+      {
+        "id": "D12",
+        "speaker": "宫廷总管",
+        "text": "老大臣如何？",
+        "start_time": 26.95,
+        "end_time": 28.2,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "试探建议"
+      },
+      {
+        "id": "D13",
+        "speaker": "皇帝",
+        "text": "对。",
+        "start_time": 28.4,
+        "end_time": 28.9,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "立即赞同"
+      },
+      {
+        "id": "D14",
+        "speaker": "皇帝",
+        "text": "他为王国效力几十年，从未出过差错。",
+        "start_time": 29.1,
+        "end_time": 32.85,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "信任肯定"
+      },
+      {
+        "id": "D15",
+        "speaker": "皇帝",
+        "text": "人人都说他聪明、诚实、谨慎。",
+        "start_time": 33.05,
+        "end_time": 35.8,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "笃定评价"
+      },
+      {
+        "id": "D16",
+        "speaker": "皇帝",
+        "text": "如果那块布真的具有神奇的力量，他一定能够看见。",
+        "start_time": 36.0,
+        "end_time": 41.25,
+        "duration": 5.25,
+        "estimated_speech_duration": 5.25,
+        "min_required_duration": 5.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "自我安慰"
+      },
+      {
+        "id": "D17",
+        "speaker": "皇帝",
+        "text": "传我的命令。",
+        "start_time": 41.45,
+        "end_time": 42.7,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "威严决断"
+      },
+      {
+        "id": "D18",
+        "speaker": "皇帝",
+        "text": "请老大臣明天一早去织造室。",
+        "start_time": 42.9,
+        "end_time": 45.9,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "正式下令"
+      },
+      {
+        "id": "D19",
+        "speaker": "皇帝",
+        "text": "让他仔细看看布料织得怎么样。",
+        "start_time": 46.1,
+        "end_time": 49.35,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃嘱咐"
+      },
+      {
+        "id": "D20",
+        "speaker": "皇帝",
+        "text": "颜色如何。",
+        "start_time": 49.55,
+        "end_time": 50.55,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项要求"
+      },
+      {
+        "id": "D21",
+        "speaker": "皇帝",
+        "text": "花纹如何。",
+        "start_time": 50.75,
+        "end_time": 51.75,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项要求"
+      },
+      {
+        "id": "D22",
+        "speaker": "皇帝",
+        "text": "进展如何。",
+        "start_time": 51.95,
+        "end_time": 52.95,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项要求"
+      },
+      {
+        "id": "D23",
+        "speaker": "皇帝",
+        "text": "回来以后，一样一样说给我听。",
+        "start_time": 53.15,
+        "end_time": 56.15,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "期待而威严"
+      },
+      {
+        "id": "D24",
+        "speaker": "宫廷总管",
+        "text": "遵命，陛下。",
+        "start_time": 56.35,
+        "end_time": 57.35,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬领命"
+      }
+    ],
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 15.25,
+        "planned_duration": 15.25,
+        "capability": "GENERATE",
+        "visual_state_indexes": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "carry_in_state_index": null,
+        "continuity_to_previous": "NONE",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 15.25,
+          "fixed_dialogue_duration": 13.25,
+          "overlap_duration": 0.0,
+          "minimum_execution_duration": 13.25,
+          "workflow_budget": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": true,
+          "reason": "该段完整涵盖皇帝从窗前移动、转向宫廷总管、走向宝座并坐稳的连续视觉段落，以D6结束后的语音间隙收束。15.25秒略高于15秒软目标，是为避免拆分D6，并保留KF5所确立的宝座高低关系及其后的初始姿态变化；时长仍低于20秒上限。D1、D4-D6均有完整的主要注意支持；D2到D3由宫廷总管向皇帝的主要注意交接属于合理的双人构图转换，D2后段的交接参与不构成支持缺失。所有实际可见性与面部可读性仍保持未知，因此不据此改变边界或构图。",
+          "reason_missing": false,
+          "status": "ABOVE_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        }
+      }
+    ]
+  },
+  "builder_input": {
+    "shot": {
+      "id": "cf48298c-87d3-44da-867e-c2d3de1c9113",
+      "index": 12,
+      "duration": 59,
+      "continuity_mode": "CONTINUOUS_TAKE",
+      "characters": [
+        "皇帝",
+        "宫廷总管",
+        "骗子1",
+        "骗子2"
+      ],
+      "official_character_appearances": {
+        "皇帝": "单一主体全身照，一名约五十五岁的人类男性君主，气质讲究、威严中带着明显的虚荣感，身高约一百七十五厘米，体态略丰腴，腰腹圆润而肩背尚挺，四肢完整并从头到脚清晰可见；脸型偏宽的椭圆形，中庭适中，额头高而饱满，颧骨柔和，下颌圆厚，下巴短，左眼下方有一颗细小褐痣；眼睛为浅蓝灰色中等大小的双眼皮眼，外眼角微垂，眼型与眼睛颜色不得改变；鼻梁高而略带弧度，鼻尖圆润，鼻翼较窄，鼻孔细小向下；嘴唇偏薄，天然嘴角略向下，中性展示时牙齿不可见；皮肤为偏冷的浅肤色，眼周与额头有细密年龄纹；银灰色微卷头发长度及耳并向后梳，发际线后移，留有修整精致的银灰色短络腮胡与小尖须；稳定身份标记包括浅蓝灰色微垂眼、左眼下褐痣、后移发际线、银灰短须和略丰腴体态；基础造型采用欧洲童话式前现代宫廷礼服，头戴固定于头顶中央的金色小型王冠，上身穿宝蓝色天鹅绒长礼服与金线滚边象牙白衬衫，肩披深红色短斗篷，下身穿深蓝色及膝裤、白色长袜和带金色搭扣的黑色低跟宫廷鞋，试穿紫袍等情境服装不作为永久造型；以自然中性站姿展示，双手、双腿和鞋袜完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓、胡须形状与全部独特标记一致，禁止改变物种、年龄段与男性君主气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故增加配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "宫廷总管": "单一主体全身照，一名约四十八岁的人类男性宫廷总管，气质谨慎、干练而克制，身高约一百七十三厘米，体型清瘦，肩线端正，四肢完整并从头到脚清晰可见；脸型瘦削偏长，额头高，中庭较长，颧骨清楚，下颌线锐利，下巴略向前，右侧太阳穴有一块指尖大小的浅褐色斑；眼睛为深蓝灰色狭长内双眼，外眼角略下垂，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄而稍向下，鼻翼薄，鼻孔细小；嘴唇薄，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，眼下有轻微阴影和细纹；深灰色直发整齐向后梳并束成短低发束，发际线略后移，留有修整整齐的深灰色短山羊胡；稳定身份标记包括清瘦长脸、深蓝灰色狭长眼、右太阳穴浅褐斑和短山羊胡；基础服装为欧洲童话式前现代高级宫廷官员服饰，上身穿黑紫色长外套、银灰刺绣背心与白色高领衬衫，下身穿黑色及膝裤、深灰长袜和黑色银扣宫廷鞋，胸前左侧固定佩戴一枚小型银质王室职务徽章；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型和胡须轮廓以及全部标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机伤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切或肢体残缺。",
+        "骗子1": "单一主体全身照，一名约三十五岁的人类男性，气质精明而从容，身材高瘦，约一百八十五厘米，头身比例修长，四肢完整并从头到脚清晰可见；长窄脸，中庭偏长，额头宽而平，颧骨略高，下颌线清晰，下巴稍尖，右侧鼻翼旁有一颗小褐痣；眼睛为细长的灰绿色双眼皮眼，外眼角微微上挑，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄，鼻翼收束，鼻孔较小且略向下；嘴唇偏薄，天然嘴角轻微上扬，中性展示时牙齿不可见；皮肤为偏暖的浅肤色，表面略有风吹日晒形成的细纹；深棕色微卷短发向后梳理，发际线两侧略高，留有修剪整齐的深棕色小胡子，下巴无须；稳定身份标记包括高瘦轮廓、右鼻翼旁褐痣、灰绿色上挑眼和整齐小胡子；基础服装为欧洲童话式前现代旅行绅士装束，头戴深炭灰色宽边毡礼帽，上身穿墨绿色合体长外套、米白衬衫与暗金色领巾，下身穿深褐色及膝马裤、灰色长袜和黑色低跟皮鞋，不固定任何手持物；以自然中性站姿展示，双手和双脚均完整可见且不被遮挡，保持脸型、面部比例、头身比、发型轮廓和所有独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故新增配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "骗子2": "单一主体全身照，一名约三十二岁的人类男性，气质殷勤活络，身高约一百七十厘米，体型略显敦实但动作灵便，头身比例约为七头身，四肢完整并从头到脚清晰可见；脸型圆中带方，额头饱满，颧骨不高，下颌较宽，下巴短圆，左侧嘴角下方有一颗明显的小黑痣；眼睛为中等大小的琥珀褐色圆杏眼，双眼皮清楚，外眼角平缓，眼型与眼睛颜色不得改变；鼻梁较短，鼻尖圆钝，鼻翼稍宽，鼻孔小而端正；嘴唇中等偏厚，天然嘴角微微上翘，中性展示时牙齿不可见；皮肤为暖调浅麦色，双颊略带自然红润；栗褐色浓密短卷发从左侧分开，发际线圆润，面部刮得干净，没有胡须；稳定身份标记包括稍矮敦实的轮廓、琥珀褐色圆杏眼、左嘴角下方黑痣和左分短卷发；基础服装为欧洲童话式前现代考究旅行服，头戴棕红色宽边礼帽，上身穿酒红色短外套、奶油白衬衫和深蓝色领结，下身穿黑褐色及膝马裤、米灰色长袜及深棕色搭扣皮鞋，不固定任何手持物；以自然中性站姿展示，双手与双脚全部可见且不受遮挡，保持脸型、面部比例、头身比、发型轮廓及全部独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。"
+      },
+      "scene": "王宫大厅",
+      "props": [
+        "宫廷摆钟",
+        "高背宝座",
+        "脚踏织机",
+        "织造室灯"
+      ]
+    },
+    "visual_control_route": "multi",
+    "visual_controls": [
+      {
+        "index": 1,
+        "role": "START",
+        "time_seconds": 0.0,
+        "description": "",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF1",
+        "physical_picture_index": 1,
+        "physical_picture": "<Picture 1>",
+        "physical_reference_status": "IMAGE_BACKED"
+      },
+      {
+        "index": 2,
+        "role": "INTERMEDIATE",
+        "time_seconds": 3.0,
+        "description": "Scene: 金红色夕阳笼罩王宫大厅，远处织造室亮窗仍位于窗外纵深处；大全景沿窗前至宝座方向展开。\nCharacters:\n- 皇帝: 已从最初的窗前位置向大厅内侧移开数步，位于左侧前景，身体以四分之三侧面朝向宫廷总管，视线仍牵向远处亮窗，神情向往。\n- 宫廷总管: 位于皇帝后方右侧中景，站姿恭敬，视线朝向皇帝。\n- 骗子1: 位于远处织造室亮窗内，双手置于一架脚踏织机的操作位置。\n- 骗子2: 与骗子1保持间隔，双手置于另一架脚踏织机的操作位置。\nAction: 皇帝与宫廷总管形成前后错落的双人关系，远处两架织机及其操作者作为深景可辨。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF2",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 3,
+        "role": "INTERMEDIATE",
+        "time_seconds": 7.2,
+        "description": "Scene: 王宫大厅窗前区域，夕阳与织造室灯光在纵深方向相连；摄影机仍处于同一侧轴线，构图略向皇帝收紧。\nCharacters:\n- 皇帝: 位于窗前通向大厅内部的路径上，前后脚错开并直立停定，头部重新转向远处织造室亮窗；先前的笑意已经消失，眉间收紧。\n- 宫廷总管: 位于皇帝身后右侧，身体朝向皇帝，双手恭敬置于身前。\n- 骗子1: 位于远处亮窗内，身体朝向脚踏织机，手脚处于操作位置。\n- 骗子2: 位于另一架脚踏织机前，与骗子1保持固定间隔。\nAction: 皇帝停在迈步后的明确位置，紧绷姿态与远处明亮织造室形成对照。",
+        "timed_visual_target": true,
+        "semantic_state_label": "KF3",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 4,
+        "role": "INTERMEDIATE",
+        "time_seconds": 9.3,
+        "description": "Scene: 王宫大厅窗前至宝座方向的连续空间内，远处织造室亮窗仍处于背景纵深。\nCharacters:\n- 皇帝: 身体已经转向宫廷总管，双肩略显僵硬，双手收拢在身侧，眉头紧锁，视线直对宫廷总管。\n- 宫廷总管: 与皇帝相隔数步，身体微微前倾，神情关切，目光集中在皇帝脸上。\n- 骗子1: 仍位于远处亮窗内的一架脚踏织机前。\n- 骗子2: 仍位于另一架脚踏织机前，与骗子1保持间隔。\nAction: 两名前景人物形成正面交流关系，皇帝的不安成为构图中心，织造室作为深景压力来源保留在画面内。",
+        "timed_visual_target": false,
+        "semantic_state_label": "KF4",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      },
+      {
+        "index": 5,
+        "role": "INTERMEDIATE",
+        "time_seconds": 14.0,
+        "description": "Scene: 王宫大厅宝座一侧，摄影机沿原有轴线进入中远景；窗外金红余晖和远处织造室亮窗仍可从侧后方看见。\nCharacters:\n- 皇帝: 已坐在高背宝座上，身体略向前倾，视线低垂；一只手压住扶手，另一只手的食指落在扶手边缘，神情焦虑而专注。\n- 宫廷总管: 站在宝座侧前方数步之外，身体朝向皇帝，保持克制恭敬的姿态。\n- 骗子1: 在远处织造室亮窗内呈小比例身影，面向脚踏织机。\n- 骗子2: 在同一亮窗纵深内面向另一架脚踏织机。\nAction: 皇帝已经抵达并坐稳于宝座，宫廷总管与他形成高低分明的空间关系。",
+        "timed_visual_target": true,
+        "semantic_state_label": "KF5",
+        "physical_picture_index": null,
+        "physical_picture": null,
+        "physical_reference_status": "TEXT_ONLY"
+      }
+    ],
+    "physical_picture_manifest": [
+      {
+        "picture_index": 1,
+        "picture": "<Picture 1>",
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "SHOT_IMAGE",
+        "source_keyframe_index": 1,
+        "source_role": "START",
+        "source_time_seconds": 0.0,
+        "source_image_task_id": null,
+        "source_identity": null,
+        "source_id": null,
+        "source_name": null,
+        "prompt_time_seconds": 0.0
+      },
+      {
+        "picture_index": 2,
+        "picture": "<Picture 2>",
+        "kind": "SCENE",
+        "source_type": "SCENE_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "name": "王宫大厅"
+        },
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "source_name": "王宫大厅"
+      },
+      {
+        "picture_index": 3,
+        "picture": "<Picture 3>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝"
+        },
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "source_name": "皇帝"
+      },
+      {
+        "picture_index": 4,
+        "picture": "<Picture 4>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管"
+        },
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "source_name": "宫廷总管"
+      },
+      {
+        "picture_index": 5,
+        "picture": "<Picture 5>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_name": "骗子1"
+      },
+      {
+        "picture_index": 6,
+        "picture": "<Picture 6>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_name": "骗子2"
+      },
+      {
+        "picture_index": 7,
+        "picture": "<Picture 7>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机"
+        },
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "source_name": "脚踏织机"
+      },
+      {
+        "picture_index": 8,
+        "picture": "<Picture 8>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "5108feff-a970-40ef-9555-8cd2b8320821",
+          "name": "织造室灯"
+        },
+        "source_id": "5108feff-a970-40ef-9555-8cd2b8320821",
+        "source_name": "织造室灯"
+      },
+      {
+        "picture_index": 9,
+        "picture": "<Picture 9>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+          "name": "高背宝座"
+        },
+        "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+        "source_name": "高背宝座"
+      }
+    ],
+    "reference_binding_contract": {
+      "characters": [
+        {
+          "picture": "<Picture 3>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝",
+          "subject": "<Subject 1>",
+          "body_state_id": "KF1",
+          "body_role": null,
+          "body_binding": "INITIAL_DIRECTOR_BODY"
+        },
+        {
+          "picture": "<Picture 4>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管",
+          "subject": "<Subject 2>",
+          "body_state_id": "KF1",
+          "body_role": null,
+          "body_binding": "INITIAL_DIRECTOR_BODY"
+        },
+        {
+          "picture": "<Picture 5>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1",
+          "subject": "<Subject 3>",
+          "body_state_id": "KF1",
+          "body_role": null,
+          "body_binding": "INITIAL_DIRECTOR_BODY"
+        },
+        {
+          "picture": "<Picture 6>",
+          "kind": "CHARACTER_IDENTITY",
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2",
+          "subject": "<Subject 4>",
+          "body_state_id": "KF1",
+          "body_role": null,
+          "body_binding": "INITIAL_DIRECTOR_BODY"
+        }
+      ],
+      "resources": [
+        {
+          "picture": "<Picture 1>",
+          "kind": "DIRECTOR_VISUAL_ANCHOR",
+          "asset_id": null,
+          "name": null,
+          "source_keyframe_index": 1
+        },
+        {
+          "picture": "<Picture 2>",
+          "kind": "SCENE",
+          "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "name": "王宫大厅",
+          "source_keyframe_index": null
+        },
+        {
+          "picture": "<Picture 7>",
+          "kind": "PROP",
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机",
+          "source_keyframe_index": null
+        },
+        {
+          "picture": "<Picture 8>",
+          "kind": "PROP",
+          "asset_id": "5108feff-a970-40ef-9555-8cd2b8320821",
+          "name": "织造室灯",
+          "source_keyframe_index": null
+        },
+        {
+          "picture": "<Picture 9>",
+          "kind": "PROP",
+          "asset_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+          "name": "高背宝座",
+          "source_keyframe_index": null
+        }
+      ],
+      "subjects": {
+        "皇帝": "<Subject 1>",
+        "宫廷总管": "<Subject 2>",
+        "骗子1": "<Subject 3>",
+        "骗子2": "<Subject 4>"
+      },
+      "continuation": false,
+      "motion_ownership": [
+        {
+          "subject": "<Subject 1>",
+          "name": "皇帝",
+          "motion_class": "TRANSLATIONAL_MOTION",
+          "evidence": [
+            {
+              "from_state": 3,
+              "to_state": 3,
+              "clause": "皇帝停在迈步后的明确位置"
+            }
+          ]
+        },
+        {
+          "subject": "<Subject 2>",
+          "name": "宫廷总管",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        },
+        {
+          "subject": "<Subject 3>",
+          "name": "骗子1",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        },
+        {
+          "subject": "<Subject 4>",
+          "name": "骗子2",
+          "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+          "evidence": []
+        }
+      ],
+      "findings": []
+    },
+    "picture_mapping_contract": {
+      "authority": "physical_picture_manifest",
+      "numbering": "dense_1_based_manifest_order",
+      "image_less_visual_states": "text_only_no_picture_number",
+      "temporal_anchor_domain": "separate_from_ordinary_pictures"
+    },
+    "clip": {
+      "clip_index": 1,
+      "start_time": 0.0,
+      "end_time": 15.25,
+      "planned_duration": 15.25,
+      "capability": "GENERATE",
+      "continuity_to_previous": "NONE",
+      "visual_state_indexes": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "carry_in_state_index": null
+    },
+    "clip_visible_characters": [
+      "皇帝",
+      "宫廷总管",
+      "骗子1",
+      "骗子2"
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "皇帝",
+        "text": "我真想亲自去看看。",
+        "start_time": 1.0,
+        "end_time": 3.0,
+        "shot_start_time": 1.0,
+        "shot_end_time": 3.0,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "向往好奇",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D2",
+        "speaker": "宫廷总管",
+        "text": "陛下若想去，现在就可以召他们准备。",
+        "start_time": 3.2,
+        "end_time": 6.95,
+        "shot_start_time": 3.2,
+        "shot_end_time": 6.95,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬建议",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D3",
+        "speaker": "皇帝",
+        "text": "若我看不见……",
+        "start_time": 7.15,
+        "end_time": 8.4,
+        "shot_start_time": 7.15,
+        "shot_end_time": 8.4,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "迟疑恐惧",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D4",
+        "speaker": "宫廷总管",
+        "text": "陛下？",
+        "start_time": 8.6,
+        "end_time": 9.1,
+        "shot_start_time": 8.6,
+        "shot_end_time": 9.1,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "疑惑关切",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D5",
+        "speaker": "皇帝",
+        "text": "若我看不见，岂不是显得愚蠢？",
+        "start_time": 9.3,
+        "end_time": 12.3,
+        "shot_start_time": 9.3,
+        "shot_end_time": 12.3,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "低声焦虑",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      },
+      {
+        "id": "D6",
+        "speaker": "皇帝",
+        "text": "而且，我是这个国家的皇帝。",
+        "start_time": 12.5,
+        "end_time": 15.25,
+        "shot_start_time": 12.5,
+        "shot_end_time": 15.25,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "自尊不安",
+        "segment_index": 1,
+        "is_continuation": false,
+        "continues_in_next_clip": false
+      }
+    ],
+    "dialogue_timeline_status": {
+      "status": "ok",
+      "source": "official_projection",
+      "estimated_speech_duration": 13.25,
+      "dialogue_gap_duration": 0.0,
+      "lead_in_duration": 0.0,
+      "overflow_seconds": 0.0
+    },
+    "silent_characters": [
+      "骗子1",
+      "骗子2"
+    ],
+    "temporal_anchors": [],
+    "conditioning": {
+      "previous_av_present": false,
+      "previous_av": null,
+      "temporal_domain": "separate_timed_conditioning_no_ordinary_picture"
+    },
+    "control_counts": {
+      "semantic_control_count": 5,
+      "owned_state_count": 5,
+      "ordinary_reference_count": 9,
+      "temporal_anchor_count": 0,
+      "previous_av_present": false
+    },
+    "transitions": [
+      {
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 3.0,
+        "transition_description": "皇帝沿窗前至高背宝座的方向向大厅内侧移动数步，逐渐进入画面左侧前景；临近终点时放慢脚步，将身体调整为朝向宫廷总管的四分之三侧面，同时保持视线牵向远处织造室亮窗，最终以向往神情稳定站定。宫廷总管只做必要的小幅移步与重心调整，落在皇帝后方右侧中景，维持恭敬站姿并注视皇帝。骗子1与骗子2始终留在远处亮窗内，彼此保持间隔，各自在对应脚踏织机前维持双手处于操作位置，仅有克制的手臂调整，不改变深景从属地位。摄影机全程不切换机位，以稳定的轻微平移和缓慢拉远配合皇帝向大厅内侧的位移，使皇帝始终保持主要视觉重心，同时逐步纳入宫廷总管、远处亮窗及两架织机；至3秒时停在沿窗前至宝座方向展开的大全景，形成皇帝左侧前景、宫廷总管后方右侧中景、两名骗子位于亮窗深景的前后错落构图。",
+        "segment_index": 1,
+        "canonical_source_id": "transition_1",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 0.0,
+        "clip_local_end_time": 3.0,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      },
+      {
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 3.0,
+        "end_time": 7.2,
+        "transition_description": "从现有大全景连续开始，皇帝由左侧前景沿窗前通向大厅内部的路径再迈出一步，身体逐渐转为直立，仍不越过宫廷总管所在的后方右侧关系。宫廷总管留在皇帝身后右侧中景，视线随皇帝的移动微调，身体始终朝向皇帝，并将双手稳妥收置于身前。摄影机保持原有侧轴线，先以极轻微的平移补偿皇帝的位移，同时维持宫廷总管在前后错落关系中的清晰视觉分量，不追随远处人物；远处亮窗内，骗子1与骗子2保持固定间隔和各自织机前的位置，以幅度很小的连续手脚操作维持深景动态。接近末段时，摄影机沿原机位方向缓慢推进并略向皇帝收紧，使皇帝与宫廷总管自然共同成为构图重点；皇帝完成这一步后前后脚错开停定，头部重新转向远处织造室亮窗，原有向往笑意逐渐消失，眉间收紧，身体呈现紧绷状态。最终停在皇帝位于通向大厅内部的路径上、宫廷总管恭敬立于其身后右侧、两名骗子仍处远处亮窗内各自织机操作位置的连续构图。",
+        "segment_index": 2,
+        "canonical_source_id": "transition_2",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 3.0,
+        "clip_local_end_time": 7.2,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      },
+      {
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 7.2,
+        "end_time": 9.3,
+        "transition_description": "延续原有同侧轴线与略向皇帝收紧的构图。皇帝先保持前后脚错开的停定位置，紧锁眉头望向远处织造室亮窗；随后头部率先向身后右侧的宫廷总管转动，肩部与躯干连续跟随，双手逐渐收拢至身侧，双脚仅作必要的原地调整，最终使身体完整朝向宫廷总管。宫廷总管始终留在皇帝身后右侧数步处，不改变双方站位；当皇帝转来时，他将上身轻微前倾，目光稳定集中到皇帝脸上，形成关切而克制的正面关系。摄影机不切换机位，在原方向上极轻微平移并缓慢推进：前段将构图重心自然收至皇帝紧绷的转身动作，后段再把宫廷总管纳入清晰的双人关系构图，同时始终保留远处亮窗。骗子1与骗子2分别留在各自脚踏织机前并保持固定间隔，只维持低强度、连续的织机操作，不进入前景焦点。结束时皇帝双肩僵硬、双手收于身侧并直视宫廷总管，宫廷总管微微前倾与其相对，皇帝的不安处于构图中心，明亮织造室继续作为深景背景保留。",
+        "segment_index": 3,
+        "canonical_source_id": "transition_3",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 7.2,
+        "clip_local_end_time": 9.3,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      },
+      {
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 9.3,
+        "end_time": 14.0,
+        "transition_description": "皇帝从面向宫廷总管的僵硬站姿中移开视线，转身沿大厅原有纵深朝高背宝座走去；双手仍收在身侧，步伐克制而沉重。宫廷总管随皇帝的移动直起上身，向宝座侧前方小幅调整站位并始终转身朝向皇帝，为其让出通往宝座的路径，最终停在宝座前数步之外，保持克制恭敬的姿态。皇帝抵达宝座前后转身靠近座面，屈膝坐下并稳住身体，随后略向前倾，一只手压上扶手，另一只手的食指落在扶手边缘，视线逐渐低垂，神情维持焦虑而专注。摄影机从原机位沿既有轴线平稳向宝座方向移动并轻微调整取景，持续以皇帝为视觉中心，同时让宫廷总管保留在侧前方关系位置；构图自然过渡至宝座一侧的中远景，侧后方的金红余晖与远处织造室亮窗始终维持空间连续。骗子1与骗子2保持在亮窗纵深内各自的脚踏织机前，仅呈小比例背景身影，不改变彼此间隔。运动在皇帝坐稳、宫廷总管站定，并形成明确高低空间关系时停止。",
+        "segment_index": 4,
+        "canonical_source_id": "transition_4",
+        "projection_mode": "CLIP_INTERSECTION",
+        "clip_local_start_time": 9.3,
+        "clip_local_end_time": 14.0,
+        "target_state_owned": true,
+        "action_progress": "CANONICAL_START"
+      },
+      {
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 14.0,
+        "end_time": 17.7,
+        "transition_description": "延续原有轴线与机位，摄影机从宝座一侧的中远景平稳缓慢推进至中景，始终以皇帝为视觉主体，同时将宫廷总管保留在宝座侧前方，并让远处织造室亮窗自然退至背景边缘。皇帝从低垂视线和略微前倾的坐姿开始，先缓慢抬起头，将目光由扶手附近移向前方；随后背部逐渐离开前倾状态，肩颈舒展并重新挺直。一只手始终稳定搭在扶手上，另一只手的食指从压在扶手边缘的紧张状态略微放松；他的眉头逐渐舒展，眼神转为明亮而集中。宫廷总管保持在宝座侧前方数步之外，不改变站位，只以克制的重心微调和持续朝向皇帝的视线形成必要反应，不抢占主体。骗子1与骗子2继续分别位于远处亮窗内各自的脚踏织机前，保持彼此间隔和背景小比例关系，仅允许轻微、连续的身体重心变化。最终摄影机稳定停在宝座区域的中景构图：皇帝端坐挺直、抬头凝视前方，一手仍搭扶手，神情清醒集中；宫廷总管仍谨慎站在侧前方，宝座、人物方位及远处织造室灯光连续不变。",
+        "segment_index": 5,
+        "canonical_source_id": "transition_5",
+        "projection_mode": "CROSS_CLIP_OPENING",
+        "clip_local_start_time": 14.0,
+        "clip_local_end_time": 15.25,
+        "target_state_owned": false,
+        "action_progress": "CANONICAL_START",
+        "execution_scope": "Only the opening slice of this original transition overlaps this Clip. Show only its initial progression; do not perform later actions or claim arrival at the unowned target state. The full source remains Shot authority for the following Clip."
+      }
+    ],
+    "visual_attention_timeline": {
+      "version": 1,
+      "time_base": "CLIP_SECONDS",
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 3.2,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 0,
+          "source_start_time_seconds": 0.0,
+          "source_end_time_seconds": 3.2
+        },
+        {
+          "start_time_seconds": 3.2,
+          "end_time_seconds": 5.8,
+          "primary_subjects": [
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 1,
+          "source_start_time_seconds": 3.2,
+          "source_end_time_seconds": 5.8
+        },
+        {
+          "start_time_seconds": 5.8,
+          "end_time_seconds": 7.4,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "handoff": {
+            "from": [
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          },
+          "source_window_index": 2,
+          "source_start_time_seconds": 5.8,
+          "source_end_time_seconds": 7.4,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 7.4,
+          "end_time_seconds": 8.4,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 3,
+          "source_start_time_seconds": 7.4,
+          "source_end_time_seconds": 8.4
+        },
+        {
+          "start_time_seconds": 8.4,
+          "end_time_seconds": 9.3,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 4,
+          "source_start_time_seconds": 8.4,
+          "source_end_time_seconds": 9.3
+        },
+        {
+          "start_time_seconds": 9.3,
+          "end_time_seconds": 15.25,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "source_window_index": 5,
+          "source_start_time_seconds": 9.3,
+          "source_end_time_seconds": 19.25
+        }
+      ],
+      "characters": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管",
+          "subject": "<Subject 2>"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1",
+          "subject": "<Subject 3>"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2",
+          "subject": "<Subject 4>"
+        }
+      ]
+    },
+    "workflow_capability": {
+      "max_clip_duration": 20.0,
+      "frame_count": null,
+      "workflow_name": "Minimax H3 多参考生视频 V20260928"
+    },
+    "workflow_type": "multi_reference_video",
+    "workflow_name": "Minimax H3 多参考生视频 V20260928"
+  },
+  "reference_manifest": {
+    "references": [
+      {
+        "slot": 1,
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "SHOT_IMAGE",
+        "image_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/shots/shot_cf48298c_20261013_165224.png",
+        "source_keyframe_index": 1,
+        "source_role": "START",
+        "source_time_seconds": 0.0,
+        "source_image_task_id": null,
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/shots/shot_cf48298c_20261013_165224.png"
+      },
+      {
+        "kind": "SCENE",
+        "source_name": "王宫大厅",
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "name": "王宫大厅"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "slot": 3
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "slot": 4
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "slot": 5
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "slot": 6
+      },
+      {
+        "kind": "PROP",
+        "source_name": "脚踏织机",
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/脚踏织机_20261003_174333.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/脚踏织机_20261003_174333.png",
+        "slot": 7
+      },
+      {
+        "kind": "PROP",
+        "source_name": "织造室灯",
+        "source_id": "5108feff-a970-40ef-9555-8cd2b8320821",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "5108feff-a970-40ef-9555-8cd2b8320821",
+          "name": "织造室灯"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/织造室灯_20261003_185703.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/织造室灯_20261003_185703.png",
+        "slot": 8
+      },
+      {
+        "kind": "PROP",
+        "source_name": "高背宝座",
+        "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+          "name": "高背宝座"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+        "slot": 9
+      }
+    ]
+  },
+  "workflow": {
+    "id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+    "type": "multi_reference_video",
+    "workflow_json": "{\n  \"115\": {\n    \"inputs\": {\n      \"aspect_ratio\": \"16:9 (Widescreen)\",\n      \"megapixels\": [\n        \"171\",\n        0\n      ],\n      \"multiple\": 32\n    },\n    \"class_type\": \"ResolutionSelector\",\n    \"_meta\": {\n      \"title\": \"#115 Resolution Selector (Size)\"\n    }\n  },\n  \"119\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_fp16.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#119 Load VAE\"\n    }\n  },\n  \"120\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#120 Load VAE\"\n    }\n  },\n  \"121\": {\n    \"inputs\": {\n      \"samples\": [\n        \"125\",\n        0\n      ],\n      \"vae\": [\n        \"120\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#121 VAE Decode Audio\"\n    }\n  },\n  \"122\": {\n    \"inputs\": {\n      \"samples\": [\n        \"125\",\n        0\n      ],\n      \"vae\": [\n        \"119\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#122 VAE Decode\"\n    }\n  },\n  \"123\": {\n    \"inputs\": {\n      \"sampler_name\": \"euler\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#123 KSamplerSelect\"\n    }\n  },\n  \"124\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": 6,\n      \"denoise\": 1,\n      \"model\": [\n        \"141\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#124 BasicScheduler\"\n    }\n  },\n  \"125\": {\n    \"inputs\": {\n      \"noise\": [\n        \"129\",\n        0\n      ],\n      \"guider\": [\n        \"126\",\n        0\n      ],\n      \"sampler\": [\n        \"123\",\n        0\n      ],\n      \"sigmas\": [\n        \"124\",\n        0\n      ],\n      \"latent_image\": [\n        \"136\",\n        1\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#125 SamplerCustomAdvanced\"\n    }\n  },\n  \"126\": {\n    \"inputs\": {\n      \"model\": [\n        \"141\",\n        0\n      ],\n      \"conditioning\": [\n        \"136\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#126 Basic Guider\"\n    }\n  },\n  \"127\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_bf16.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#127 Load Diffusion Model\"\n    }\n  },\n  \"128\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#128 Load CLIP\"\n    }\n  },\n  \"129\": {\n    \"inputs\": {\n      \"noise_seed\": 1898630828\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#129 RandomNoise\"\n    }\n  },\n  \"130\": {\n    \"inputs\": {\n      \"fps\": 24,\n      \"bit_depth\": 8,\n      \"color_space\": \"sRGB\",\n      \"codec\": \"none\",\n      \"images\": [\n        \"122\",\n        0\n      ],\n      \"audio\": [\n        \"121\",\n        0\n      ]\n    },\n    \"class_type\": \"CreateVideo\",\n    \"_meta\": {\n      \"title\": \"#130 Create Video\"\n    }\n  },\n  \"131\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"132\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#131 Math Expression\"\n    }\n  },\n  \"132\": {\n    \"inputs\": {\n      \"value\": 16.25\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#132 Float (Duration)\"\n    }\n  },\n  \"136\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"138\",\n        0\n      ],\n      \"width\": [\n        \"115\",\n        0\n      ],\n      \"height\": [\n        \"115\",\n        1\n      ],\n      \"length\": [\n        \"131\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"128\",\n        0\n      ],\n      \"vae\": [\n        \"119\",\n        0\n      ],\n      \"audio_vae\": [\n        \"120\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"137\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"139\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"172\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"173\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"175\",\n        0\n      ],\n      \"ref_images.ref_image_5\": [\n        \"174\",\n        0\n      ],\n      \"ref_images.ref_image_6\": [\n        \"176\",\n        0\n      ],\n      \"ref_images.ref_image_7\": [\n        \"177\",\n        0\n      ],\n      \"ref_images.ref_image_8\": [\n        \"178\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#136 MiniMax H3 Reference to Video\"\n    }\n  },\n  \"137\": {\n    \"inputs\": {\n      \"image\": \"shot_cf48298c_20261013_165224.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#137 Reference Image 1\"\n    }\n  },\n  \"138\": {\n    \"inputs\": {\n      \"value\": \"subject_definitions:\\n<Subject 1> is 皇帝, a slightly full, upright man of about fifty-five with a broad oval face, high forehead, rounded jaw, pale blue-gray eyes, a small brown mole beneath the left eye, swept-back silver-gray hair, and a neat silver-gray beard and pointed goatee. <Picture 3> supplies identity only for <Subject 1>; current clothing comes from <Picture 1>.\\n<Subject 2> is 宫廷总管, a lean, straight-shouldered man of about forty-eight with a long angular face, high forehead, pronounced cheekbones, narrow dark blue-gray eyes, a light brown mark at the right temple, slicked-back dark-gray hair, and a neat short goatee. <Picture 4> supplies identity only for <Subject 2>; current clothing comes from <Picture 1>.\\n<Subject 3> is 骗子1, a tall, slender man of about thirty-five with a long narrow face, gray-green eyes, a small brown mole beside the right nostril, swept-back wavy dark-brown hair, and a tidy mustache. <Picture 5> supplies identity only for <Subject 3>; current clothing comes from <Picture 1>.\\n<Subject 4> is 骗子2, a shorter, stockier but agile man of about thirty-two with a rounded-square face, amber-brown eyes, a small dark mole below the left corner of his mouth, warm light-tan skin, thick chestnut curls, and no beard. <Picture 6> supplies identity only for <Subject 4>; current clothing comes from <Picture 1>.\\n\\nsummary:\\nA 16.25-second palace scene uses a mixed strategy: controlled same-axis movement preserves the hall's continuous geography, while brief speaker-motivated cuts secure readable faces and mouths during rapid exchanges. The Emperor's initial longing turns into anxiety as he confronts the possibility of being unable to see the cloth, walks to the throne, and sits in troubled thought.\\n\\nretention_analysis:\\n<Picture 1> guides the opening costumes, bodies, sunset-lit staging, established left-right order, and the four-character arrangement. <Picture 2> supplies the palace hall's architectural appearance. <Picture 7> identifies the two treadle looms, <Picture 8> supports the distant weaving-room light, and <Picture 9> identifies the high-backed throne. The identity images apply only to their bound Subjects and do not overwrite canonical costume, pose, floor position, blocking, or action. Preserve the Emperor's authorized path from the window toward the throne, the steward's respectful rear-right and later throne-side relation, and the two swindlers' fixed separation at their respective looms.\\n\\ndetailed_description:\\nBegin from <Picture 1>: golden-red sunset fills the palace hall from <Picture 2>. <Subject 1> stands at the left foreground window with hands behind his back, gazing toward the illuminated weaving room. <Subject 2> waits respectfully behind and to his right. Deep beyond them, <Subject 3> and <Subject 4> remain separated at their respective treadle looms from <Picture 7>, making restrained continuous working motions. Preserve all established floor positions except for the explicitly assigned movement toward the throne. A modest same-axis camera adjustment gives <Subject 1> a useful profile-to-three-quarter view with his face and mouth readable while retaining the distant lit room. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With the view settled, <Subject 1> (S1) says, <d>[Chinese] 我真想亲自去看看。</d>\\n\\nAs he finishes, <Subject 1> stops articulating and closes his lips naturally. Make a deliberate cut transferring emphasis from <Subject 1> to <Subject 2>, achieving a readable view of <Subject 2>'s face and mouth while he remains standing in his established rear-right position; <Subject 1>, <Subject 3>, and <Subject 4> listen or continue their authorized background work with relaxed closed lips and no speech-like articulation. With that view established, <Subject 2> (S2) answers, <d>[Chinese] 陛下若想去，现在就可以召他们准备。</d>\\n\\nWhen the answer ends, <Subject 2> relaxes his mouth and becomes an attentive listener. Cut from <Subject 2> back to <Subject 1>, securing a readable face and mouth as <Subject 1> completes one further step along the established window-to-throne path, stops with staggered feet, and tightens his brow toward the distant light; nobody changes sides or leaves the assigned blocking. <Subject 2>, <Subject 3>, and <Subject 4> remain natural closed-mouth listeners or silent workers with no speech-like articulation. Once the Emperor's troubled view is acquired, <Subject 1> (S1) says, <d>[Chinese] 若我看不见……</d>\\n\\n<Subject 1> ends the fragment, closes his lips, and turns his head and shoulders toward the steward without translating his feet. Cut from <Subject 1> to <Subject 2>, whose concerned face and mouth are clearly readable while he remains several steps behind-right and inclines his upper body slightly. <Subject 1>, <Subject 3>, and <Subject 4> keep relaxed closed lips with natural reactions and no speech-like articulation. With the steward's view established, <Subject 2> (S2) asks, <d>[Chinese] 陛下？</d>\\n\\n<Subject 2> finishes, closes his lips, and resumes restrained listening. Cut deliberately from <Subject 2> to <Subject 1>, obtaining a readable front three-quarter view of <Subject 1> while preserving their facing positions and the steward's distance; all other visible characters listen naturally with relaxed closed lips and no speech-like articulation. Once that view is secure, <Subject 1> (S1) says, <d>[Chinese] 若我看不见，岂不是显得愚蠢？</d>\\n\\nDuring and after this admission, <Subject 1> breaks eye contact, turns, and walks with controlled heavy steps along the established depth toward the high-backed throne from <Picture 9>. The camera travels on the same side of the axis, maintaining readable articulation without moving anyone merely for framing. <Subject 2> straightens, makes only the authorized small adjustment toward the throne's front side, yields the path, and stays respectfully oriented toward the Emperor. After a brief natural pause, the maintained view still clearly shows <Subject 1>'s face and mouth; <Subject 2> and every other visible character keep relaxed closed lips with no speech-like articulation. <Subject 1> (S1) continues, <d>[Chinese] 而且，我是这个国家的皇帝。</d>\\n\\nAs he speaks, <Subject 1> reaches the throne, turns, bends his knees, and sits securely. He leans slightly forward, lowers his gaze, presses one hand to an armrest, and rests the other index finger tensely at its edge. <Subject 2> stops several steps in front and to the side, while <Subject 3> and <Subject 4> remain small, separated workers in the luminous depth. Near the end, the camera begins only a very slow push; <Subject 1> shows merely the initial tendency to raise his head and slightly ease his finger, without straightening fully or reaching a brighter later expression. After speech ends, his lips close and the anxious seated arrangement settles naturally.\\n\\noverall_soundscape:\\nRestrained palace-room tone with spacious natural reverberation; measured footsteps on the hard floor, subtle cloth movement, turns and weight shifts, then quiet seat compression and hand contact on the throne. From the distant weaving room come subdued wooden treadle rhythms and soft textile friction from two continuously operated looms, remaining subordinate because of distance. No extra human vocalization, narration, subtitles, or on-screen text.\\n\\nnon_diegetic_music:\\nN/A\"\n    },\n    \"class_type\": \"PrimitiveStringMultiline\",\n    \"_meta\": {\n      \"title\": \"#138 Input Text (Prompt)\"\n    }\n  },\n  \"139\": {\n    \"inputs\": {\n      \"image\": \"王宫大厅_20261003_173128.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#139 Reference Image 2\"\n    }\n  },\n  \"141\": {\n    \"inputs\": {\n      \"max_resolution\": 1024,\n      \"jpeg_quality\": 80,\n      \"suppress_default_preview\": true,\n      \"preview_frames\": [\n        \"131\",\n        1\n      ],\n      \"preview_fps\": 12,\n      \"tiny_vae\": \"none\",\n      \"model\": [\n        \"149\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelPreviewOverrideKJ\",\n    \"_meta\": {\n      \"title\": \"#141 Model Preview Override\"\n    }\n  },\n  \"142\": {\n    \"inputs\": {\n      \"model\": [\n        \"127\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3MemoryEfficientSageAttentionPatch\",\n    \"_meta\": {\n      \"title\": \"#142 MiniMax H3 Mem Eff Sage Attention Patch\"\n    }\n  },\n  \"147\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors\",\n      \"strength_model\": 0.75,\n      \"model\": [\n        \"142\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#147 Load LoRA\"\n    }\n  },\n  \"149\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"147\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#149 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"169\": {\n    \"inputs\": {\n      \"filename_prefix\": \"video/MiniMax_H3\",\n      \"format\": \"auto\",\n      \"format.codec\": \"auto\",\n      \"codec\": \"auto\",\n      \"video-preview\": \"\",\n      \"video\": [\n        \"130\",\n        0\n      ]\n    },\n    \"class_type\": \"SaveVideo\",\n    \"_meta\": {\n      \"title\": \"#169 Save Video（低分辨率）\"\n    }\n  },\n  \"171\": {\n    \"inputs\": {\n      \"value\": 0.4\n    },\n    \"class_type\": \"easy float\",\n    \"_meta\": {\n      \"title\": \"#171 Megapixels\"\n    }\n  },\n  \"172\": {\n    \"inputs\": {\n      \"image\": \"皇帝_20261008_135050.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#172 Reference Image 3\"\n    }\n  },\n  \"173\": {\n    \"inputs\": {\n      \"image\": \"宫廷总管_20261008_135015.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#173 Reference Image 4\"\n    }\n  },\n  \"174\": {\n    \"inputs\": {\n      \"image\": \"骗子2_20261008_135128.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#174 Reference Image 6\"\n    }\n  },\n  \"175\": {\n    \"inputs\": {\n      \"image\": \"骗子1_20261008_135109.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#175 Reference Image 5\"\n    }\n  },\n  \"176\": {\n    \"inputs\": {\n      \"image\": \"脚踏织机_20261003_174333.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#176 Reference Image 7\"\n    }\n  },\n  \"177\": {\n    \"inputs\": {\n      \"image\": \"织造室灯_20261003_185703.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#177 #-1 Reference Image 8\"\n    }\n  },\n  \"178\": {\n    \"inputs\": {\n      \"image\": \"高背宝座_20261003_174455.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#178 #-1 Reference Image 9\"\n    }\n  }\n}",
+    "node_mapping": "{\"prompt_node_id\": \"138\", \"video_save_node_id\": \"169\", \"megapixels_node_id\": \"171\", \"megapixels_value\": \"0.4\", \"duration_seconds_node_id\": \"132\", \"load_image_node_1\": \"137\", \"load_image_node_2\": \"139\", \"load_image_node_3\": \"172\", \"load_image_node_4\": \"173\", \"load_image_node_5\": \"175\", \"load_image_node_6\": \"174\", \"load_image_node_7\": \"176\", \"load_image_node_8\": \"177\", \"load_image_node_9\": \"178\", \"reference_to_video_node_id\": \"136\"}"
+  },
+  "previous_video_path": null,
+  "user_camera_requirements": {
+    "status": "UNKNOWN",
+    "requirements": []
+  },
+  "physical_evidence": {
+    "resource_hashes": {
+      "<Picture 1>": "3fd50b703c19c53e208b50aaf7102b271986c0c9f7d548d0e79b69ae5ebfdb84",
+      "<Picture 2>": "fd902afaffc28118b5d8be2b1e66acb37ec7d9bb20bafef0f6b1464173c681ac",
+      "<Picture 3>": "caa170bb09a68f341b47ce750d09b007b48293e1edbc1d29b814b42e59ff801e",
+      "<Picture 4>": "7aa57eb14192fa2fe6da8ff34f818679d2414397196c9cd5163cf6e85009dea3",
+      "<Picture 5>": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+      "<Picture 6>": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+      "<Picture 7>": "51e432bc4ced07c0b3e1825ab8a9b20e442f2151fc846686618512a337f13be5",
+      "<Picture 8>": "c1d0cd1ddf14d54b5cc55efe6aeb9b4e8e545dee301e3381a27a5ea1ae5bab84",
+      "<Picture 9>": "ae7391f8cac5a713eb1b3604c6925e3a747f3a527f0f28dd07bc6db2e8dbd3cd"
+    },
+    "previous_clip": null,
+    "duration_limits": {
+      "minimum": 4.0,
+      "maximum": 20.0,
+      "absolute_maximum": 20.0,
+      "frame_rule": "existing frozen workflow duration-to-frames conversion"
+    },
+    "temporal_anchors": []
+  },
+  "music_contract": {
+    "value": "N/A",
+    "source_stage": "13_RAW",
+    "source_log_id": "00140d34-04d3-44c0-849c-678f770ccebd",
+    "source_excerpt": "宽阔王宫大厅中自然、克制的室内空间底噪与轻微回响；脚步经过硬质地面的沉稳声响，转身和行走时细微的衣料摩擦，鞋底停定与重心调整的轻响。远处织造室传来与两架脚踏织机连续操作相符的低沉木质机械声、踏板节奏和轻微织造摩擦声，并因距离而保持柔和、从属。接近高背宝座时加入脚步靠近、衣料移动、坐下时座面承重及手掌接触扶手的细小 Foley。声音随摄影机距离自然改变，不凭空加入音乐或无关声源。",
+    "source_raw_sha256": "1bb828d44c753f7fb578cc8f406be5cfcdd8705f1913956849f8396d9582ebce",
+    "interpretation": "REVIEWED_NO_ADDED_MUSIC"
+  },
+  "source": {
+    "task_id": "5c919770-a7ef-4e82-a1d9-d5d13ddd42b8",
+    "builder_log_id": "00140d34-04d3-44c0-849c-678f770ccebd",
+    "snapshot_path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/fixtures/h3_multi_keyframe_phase_a/shot12_c1_generate.json",
+    "snapshot_file_sha256": "1c06e834da25b104b737c4436cc61dc06bbd1c97c03380fc3e42ec1a86b3aba3",
+    "physical_evidence_origin": "Saved pre-optimizer request physical bindings/resource hashes; no optimizer output or selected execution decisions",
+    "music_evidence_origin": "Manual review of exact saved #13 Raw overall_soundscape; no added music",
+    "hashes": {
+      "canonical_plan": "f755c9865b97515329ddbcc149d171fddbf51e408524bd0bb5c168257fc555ae",
+      "builder_input": "432c255ab135240b5a672952495e2794785fe993a1ac55ce45236aa2f99edd0d",
+      "reference_manifest": "0acfd97cc9e3a29f2b572ce13c11d2d5fd98cef6a914201d8404e956223e6a10",
+      "workflow": "1dcff2be505db32734e5332893bb8a9966ce3fc0432caef39d05411529519351",
+      "user_camera_requirements": "2119a60b0f87c2bc7707d8f117f22e528fdbdb07c40a266b9071d170c59385e8",
+      "physical_evidence": "2e846afdb6c7ad15f1c676b8b4a205151ccc8513cf2b2a0f68454da6707fa668",
+      "music_contract": "7f6a9b5baaa32475f6c805c2e428dc5b190e83248c02c944e563b77b0c787738"
+    }
+  }
+}

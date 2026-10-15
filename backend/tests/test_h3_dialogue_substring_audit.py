@@ -66,13 +66,13 @@ def test_swapped_speaker_or_order_fails():
     assert "DIALOGUE_ORDER_INVALID" in audit(swapped_order)["blocking_issues"]
 
 
-def test_added_structured_or_explicit_outside_dialogue_fails():
+def test_added_structured_dialogue_fails_but_prose_does_not():
     prompt = assembled()
     added = "D5:\n  speaker: <Subject 1>\n  start_time: 7.5s\n  end_time: 8.0s\n  exact_dialogue: 新台词。\n"
     assert not audit(prompt.replace("summary:\n", added + "summary:\n", 1))["passed"]
     body = BODY + "\n侍从1说道：“新台词。”"
     result = audit(assembled(body=body), body=body)
-    assert "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE" in result["blocking_issues"]
+    assert result["passed"]
 
 
 @pytest.mark.parametrize("states,step", [

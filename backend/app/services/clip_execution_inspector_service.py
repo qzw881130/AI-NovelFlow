@@ -9,7 +9,7 @@ from app.services.inspector_frame_service import InspectorFrameService, build_ma
 from app.services.inspector_store import InspectorError, InspectorStore, digest, utc_now
 
 HEADERS = ("subject_definitions", "official_character_identity_lock", "keyframe_timeline", "dialogue_timeline",
-           "summary", "detailed_description", "overall_soundscape", "reference_authority",
+           "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music", "reference_authority",
            "character_identity_binding", "existing_body_binding", "initial_body_binding", "motion_ownership",
            "visual_attention_owner", "foreground_speaker", "background_entrant", "background_motion_subject")
 DEDICATED = HEADERS[-4:]
@@ -158,6 +158,11 @@ class ClipExecutionInspectorService:
         graph = decode(task.workflow_json, {}, warnings, "Task.workflow_json")
         plan = decode(shot.video_director_plan if shot else None, {}, warnings, "Shot.video_director_plan")
         contract = metadata.get("execution_contract") or {}
+        phase_b = metadata.get("h3_phase_b") if metadata.get("h3_prompt_pipeline") == "phase_b" else None
+        phase_result = (phase_b or {}).get("compiler_result") or {}
+        phase_decisions = phase_result.get("execution_decisions") or {}
+        generation_events = {e["id"]: e for e in (phase_decisions.get("timing") or {}).get("dialogue_events", [])}
+        generation_anchors = {a["id"]: a for a in phase_decisions.get("anchor_decisions", [])}
         physical = metadata.get("physical_output") or {}
         clip = contract.get("clip") or {}
         index = clip.get("clip_index", metadata.get("clip_index"))
@@ -196,7 +201,7 @@ class ClipExecutionInspectorService:
                 mismatch = fraction(physical[key]) != fraction(measured) if key == "fps" and key in physical else key in physical and physical[key] != measured
                 if mismatch:
                     conflicts.append({"code": "PHYSICAL_OUTPUT_DIFFERS_FROM_MEDIA", "field": key, "snapshot": physical[key], "measured": measured})
-        mapping = build_mapping(media, contract, physical, duration)
+        mapping = build_mapping(media, contract, physical, metadata.get("effective_duration", duration) if phase_b else duration)
         # Historical timing absent: Native browsing is retained instead of inventing a Clip grid.
         if not contract:
             warnings.append("EXECUTION_SNAPSHOT_MISSING")
@@ -255,7 +260,12 @@ class ClipExecutionInspectorService:
                 finish = round(float(span["end_time"]) - start, 9)
             src = [source(assignment_kind, task.id if assignment_kind == "TASK_SNAPSHOT" else task.shot_id,
                           f"dialogue_assignment/{i}", span, revision)]
-            if parsed:
+            if phase_b:
+                execution = generation_events.get(identity, {})
+                t, finish = execution.get("optimized_start"), execution.get("optimized_end")
+                src.append(source("TASK_SNAPSHOT", task.id, f"h3_phase_b/compiler_result/execution_decisions/timing/{identity}", execution, revision))
+                parsed = {"subject": execution.get("speaker"), "text": span.get("text"), "start": t, "end": finish}
+            if parsed and not phase_b:
                 src.append(sections["dialogue_timeline"]["source"])
                 if parsed.get("start") != t or parsed.get("end") != finish or parsed.get("text") != span.get("text"):
                     conflicts.append({"code": "DIALOGUE_ASSIGNMENT_DIFFERS_FROM_PROMPT", "dialogue_id": identity,
@@ -291,14 +301,37 @@ class ClipExecutionInspectorService:
                 conflicts.append({"code": "ANCHOR_POSITION_DIFFERS_FROM_SUBMITTED", "anchor": p, "submitted_positions": positions})
             event(f"physical:{anchor.get('anchor_id', i)}", "PHYSICAL_ANCHOR", f"Physical Anchor · position1 {p}", effective,
                   payload=payload, src=src, native_frame_index0=native)
-        owned = current_clip.get("visual_state_indexes", [])
-        carry = current_clip.get("carry_in_state_index")
-        for i, kf in enumerate(plan.get("keyframes", [])):
+        state_plan = plan
+        state_clip = current_clip
+        state_source = "CURRENT_PLAN"
+        if phase_b:
+            director_input = phase_b.get("director_input") or {}
+            canonical = director_input.get("canonical") or {}
+            state_clip = director_input.get("clip") or {}
+            states = list(canonical.get("owned_visual_states") or [])
+            if canonical.get("carry_in_visual_state"):
+                states.insert(0, canonical["carry_in_visual_state"])
+            state_plan = {"keyframes": states, "transitions": canonical.get("transitions") or []}
+            state_source = "TASK_SNAPSHOT"
+        owned = state_clip.get("visual_state_indexes", [])
+        carry = state_clip.get("carry_in_state_index")
+        for i, kf in enumerate(state_plan.get("keyframes", [])):
             t = finite(kf.get("time_seconds"))
             local = round(t - start, 9) if t is not None and start is not None else None
             if kf.get("index") != carry and (local is None or local < 0 or duration is None or local > duration):
                 continue
-            src = source("CURRENT_PLAN", task.shot_id, f"video_director_plan/keyframes/{i}", kf, plan.get("clip_plan_revision"))
+            src = source(state_source, task.id if phase_b else task.shot_id,
+                         f"h3_phase_b/director_input/canonical/states/{i}" if phase_b else f"video_director_plan/keyframes/{i}", kf, revision if phase_b else plan.get("clip_plan_revision"))
+            if phase_b:
+                choice = generation_anchors.get(f"KF{kf.get('index')}")
+                # No linear Story→Generation map. DROP keeps the Canonical
+                # state inspectable, with no invented generation arrival.
+                if choice:
+                    local = choice.get("optimized_time")
+                    kf = {**kf, "canonical_story_time": t, "execution_choice": choice}
+                    src = source("TASK_SNAPSHOT", task.id, f"h3_phase_b/anchors/{choice['id']}", choice, revision)
+                else:
+                    local = None
             existing = semantic_by_kf.get(kf.get("index"))
             if existing and local == existing["start"]:
                 existing["source_refs"].append(src)
@@ -306,16 +339,17 @@ class ClipExecutionInspectorService:
                 continue
             if existing:
                 conflicts.append({"code": "SEMANTIC_KF_DIFFERS_FROM_CURRENT_PLAN", "kf": kf.get("index"), "snapshot": existing["start"], "current": local})
-            event(f"semantic:current:{kf.get('index', i)}", "SEMANTIC_KF", f"KF{kf.get('index')}" + (" · carry-in" if kf.get("index") == carry else " · CURRENT_PLAN"),
+            event(f"semantic:current:{kf.get('index', i)}", "SEMANTIC_KF", f"KF{kf.get('index')}" + (" · carry-in" if kf.get("index") == carry else " · " + state_source),
                   local, payload={**kf, "owned": kf.get("index") in owned, "carry_in": kf.get("index") == carry}, src=[src])
-        for i, transition in enumerate(plan.get("transitions", [])):
+        for i, transition in enumerate(state_plan.get("transitions", [])):
             a, b = finite(transition.get("start_time")), finite(transition.get("end_time"))
             if a is None or b is None or start is None or end is None or b <= start or a >= end:
                 continue
             event(f"transition:{i}", "TRANSITION", f"KF{transition.get('from_keyframe_index')}→KF{transition.get('to_keyframe_index')}",
-                  max(0, a - start), min(end, b) - start,
+                  None if phase_b else max(0, a - start), None if phase_b else min(end, b) - start,
                   {**transition, "original_shot_range": [a, b], "clip_intersection": [max(start, a), min(end, b)]},
-                  [source("CURRENT_PLAN", task.shot_id, f"video_director_plan/transitions/{i}", transition, plan.get("clip_plan_revision"))])
+                  [source(state_source, task.id if phase_b else task.shot_id,
+                          f"h3_phase_b/director_input/canonical/transitions/{i}" if phase_b else f"video_director_plan/transitions/{i}", transition, revision if phase_b else plan.get("clip_plan_revision"))])
         for name, kind in [("existing_body_binding", "LIFECYCLE"), ("initial_body_binding", "LIFECYCLE"), ("motion_ownership", "MOTION")]:
             if name in sections:
                 event(f"rule:{name}", kind, name, 0 if duration is not None else None, duration,
@@ -370,7 +404,7 @@ class ClipExecutionInspectorService:
                                      "temporal_anchors": anchors, "previous_av": contract.get("previous_clip"),
                                      "source": source("TASK_SNAPSHOT", task.id, "metadata/video_reference_manifest", metadata.get("video_reference_manifest"), revision)},
                       "submitted": {k: v for k, v in submitted.items() if k != "prompt"},
-                      "historical_auxiliary": historical}
+                      "historical_auxiliary": historical, "h3_phase_b": phase_b}
         evidence = {"task_prompt": task_prompt, "submitted_prompt": submitted["prompt"], "final_prompt": final_prompt,
                     "workflow": graph, "metadata": metadata, "current_plan": plan,
                     "source_refs": [source("TASK_SNAPSHOT", task.id, "metadata_json", metadata, revision),

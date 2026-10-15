@@ -12,6 +12,7 @@ export interface Workflow {
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
+  availableForNewTasks?: boolean;
   nodeMapping?: {
     prompt_node_id?: string;
     save_image_node_id?: string;

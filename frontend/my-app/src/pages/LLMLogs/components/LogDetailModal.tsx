@@ -120,7 +120,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex-shrink-0 space-y-4 px-6 pt-6">
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span className="text-gray-500">{t('llmLogs.provider')}:</span>
               <span className="inline-flex items-center gap-1.5 font-medium">
                 <ProviderLogo provider={log.provider} label={log.provider} className="h-5 w-5" />
@@ -128,6 +128,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
               </span>
               <span className="text-gray-500">{t('llmLogs.model')}:</span><span className="font-medium">{log.model}</span>
               <span className="text-gray-500">{t('llmLogs.task')}:</span><span className="font-medium">{getTaskTypeLabel(log.task_type)}</span>
+              {log.task_type && <code className="break-all text-xs text-gray-500">{log.task_type}</code>}
               <span className={`px-2 py-1 text-xs ${getStatusBadgeConfig(log.status, log.error_message).bg} ${getStatusBadgeConfig(log.status, log.error_message).text} rounded-full`}>{getStatusBadgeConfig(log.status, log.error_message).label}</span>
               <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
               <span className="text-gray-500">{t('llmLogs.duration')}:</span>

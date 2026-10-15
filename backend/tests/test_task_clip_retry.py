@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from unittest.mock import patch
+import pytest
 
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
@@ -9,7 +10,8 @@ from app.models.workflow import Workflow
 from app.services.task_service import TaskService
 
 
-def test_retry_semantic_clip_preserves_revision_dialogue_dependency_duration_and_shot_url(db_session, tmp_path):
+@pytest.mark.parametrize("status", ["failed", "completed"])
+def test_retry_semantic_clip_preserves_revision_dialogue_dependency_duration_and_shot_url(db_session, tmp_path, status):
     novel = Novel(id="novel-1", title="Test")
     chapter = Chapter(id="chapter-1", novel_id=novel.id, number=1, title="Chapter")
     shot = Shot(
@@ -47,10 +49,11 @@ def test_retry_semantic_clip_preserves_revision_dialogue_dependency_duration_and
         "temporal_anchor_ids": [], "prompt_text": "old attempt prompt",
     }
     task = Task(
-        id="c2-task", type="shot_video", status="failed", novel_id=novel.id,
+        id="c2-task", type="shot_video", status=status, novel_id=novel.id,
         chapter_id=chapter.id, shot_id=shot.id, name="C2", workflow_id="continuation-workflow",
         metadata_json=json.dumps(clip_metadata), workflow_json='{"old": true}',
-        comfyui_prompt_id="old-prompt-id", seed=123, result_url="/api/files/failed.mp4",
+        comfyui_prompt_id="old-prompt-id" if status == "completed" else None,
+        seed=123, result_url="/api/files/old.mp4",
         error_message="old failure", progress=30,
     )
     db_session.add_all([novel, chapter, shot, previous, task, Workflow(
@@ -63,6 +66,7 @@ def test_retry_semantic_clip_preserves_revision_dialogue_dependency_duration_and
     def enqueue(*args, **kwargs):
         captured["args"] = args
         captured["kwargs"] = kwargs
+        kwargs["retry_db"].commit()  # Scheduling-only test; durable consumption has separate coverage.
 
     with patch("app.services.shot_video_service.enqueue_shot_video_task", side_effect=enqueue), \
          patch("app.services.task_service.url_to_local_path", return_value=str(previous_video)):
@@ -118,6 +122,7 @@ def test_retry_non_clip_shot_video_keeps_legacy_shot_level_behavior(db_session):
     def enqueue(*args, **kwargs):
         captured["args"] = args
         captured["kwargs"] = kwargs
+        kwargs["retry_db"].commit()
 
     with patch("app.services.shot_video_service.enqueue_shot_video_task", side_effect=enqueue):
         result = TaskService(db_session).retry_task(task.id)

@@ -45,12 +45,15 @@ export function useNovelsState() {
 
   const fetchAllTemplates = async () => {
     try {
+      const catalog = await promptTemplateApi.fetchConfigTypes();
+      if (!catalog.success || !catalog.data) return;
+      const types = TEMPLATE_TYPES.filter(type => catalog.data!.includes(type));
       const results = await Promise.all(
-        TEMPLATE_TYPES.map(type => promptTemplateApi.fetchList(type as any))
+        types.map(type => promptTemplateApi.fetchList(type as any))
       );
       
       const newTemplatesByType: Record<string, PromptTemplate[]> = {};
-      TEMPLATE_TYPES.forEach((type, index) => {
+      types.forEach((type, index) => {
         if (results[index].success && results[index].data) {
           newTemplatesByType[type] = results[index].data!;
         } else {

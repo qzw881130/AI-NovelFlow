@@ -239,6 +239,16 @@ export default {
     createPrompt: 'プロンプトテンプレートを作成',
     viewPrompt: 'プロンプトテンプレートを表示',
     systemPresetReadonly: 'システムプリセット（読み取り専用）',
+    lastModified: '最終更新',
+    unknown: '不明',
+    boundNovels: '紐付け小説',
+    loadingBindings: '紐付け小説を読み込み中…',
+    loadBindingsFailed: '紐付け小説を取得できませんでした。閉じて再試行してください。',
+    noBoundNovels: 'このテンプレートを明示的に選択した小説はありません',
+    author: '著者',
+    bindingType: '紐付け方法',
+    explicitBinding: '明示的に指定',
+    boundNovelCount: '合計 {count} 件',
 
     // プロンプトテンプレートタイプ
     types: {

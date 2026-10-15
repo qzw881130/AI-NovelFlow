@@ -6,6 +6,18 @@
 
 from typing import Dict, List
 
+# Business-entry retirement only: retain registry rows and IDs for history/export.
+RETIRED_H3_PROMPT_TYPES = frozenset({
+    "h3_single_frame_prompt", "h3_first_last_frame_prompt",
+})
+
+# Same template type and selection UI; separate records preserve V1 and user copies.
+TRANSITION_V1_NAME = "关键帧过渡规划"
+TRANSITION_V2_NAME = "关键帧过渡规划（因果上下文 V2）"
+TRANSITION_INPUT_V1 = "KEYFRAME_TRANSITION_VISUAL_V1"
+TRANSITION_INPUT_V2 = "KEYFRAME_TRANSITION_CAUSAL_V2"
+TRANSITION_CONTRACT_PREFIX = "INPUT_CONTRACT:"
+
 
 # ==================== 提示词模板类型定义 ====================
 
@@ -53,6 +65,7 @@ class PromptTemplateType:
     H3_FIRST_LAST_FRAME_PROMPT = "h3_first_last_frame_prompt"
     # MiniMax H3 多关键帧视频提示词
     H3_MULTI_KEYFRAME_PROMPT = "h3_multi_keyframe_prompt"
+    H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B = "h3_multi_keyframe_director_phase_b"
     H3_PREFLIGHT_REPAIR_PROMPT = "h3_preflight_repair_prompt"
     H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
 
@@ -82,6 +95,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
+    PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B,
     PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
     PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
 ]
@@ -89,6 +103,11 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B: {
+        "name_key": "promptConfig.types.h3MultiKeyframeDirectorPhaseB",
+        "desc_key": "promptConfig.types.h3MultiKeyframeDirectorPhaseBDesc",
+        "icon": "Video", "color": "rose", "file_number": "13",
+    },
     PromptTemplateType.IMAGE_QUALITY_REVIEW_PROMPT: {
         "name_key": "promptConfig.types.imageQualityReviewPrompt",
         "desc_key": "promptConfig.types.imageQualityReviewPromptDesc",
@@ -290,6 +309,7 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "h3_single_frame_prompt": "h3_single_frame_prompt_template_id",
     "h3_first_last_frame_prompt": "h3_first_last_frame_prompt_template_id",
     "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt_template_id",
+    "h3_multi_keyframe_director_phase_b": "h3_multi_keyframe_director_phase_b_template_id",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt_template_id",
     "h3_preflight_repair_prompt": "h3_preflight_repair_prompt_template_id",
 }

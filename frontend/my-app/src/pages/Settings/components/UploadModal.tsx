@@ -13,9 +13,10 @@ interface UploadModalProps {
   onSuccess: () => void;
   extensionConfigs: Record<string, any>;
   typeNames: Record<string, string>;
+  generationTypes: string[];
 }
 
-export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, typeNames }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, typeNames, generationTypes }: UploadModalProps) {
   const { t } = useTranslation();
   const [uploadType, setUploadType] = useState<WorkflowType>('character');
   const [uploadForm, setUploadForm] = useState({ name: '', description: '', file: null as File | null });
@@ -92,27 +93,9 @@ export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, type
               onChange={(e) => handleTypeChange(e.target.value as any)}
               className="input-field"
             >
-              <option value="character">{typeNames.character}</option>
-              <option value="scene">{typeNames.scene}</option>
-              <option value="shot_scene">{typeNames.shot_scene}</option>
-              <option value="shot_character_scene">{typeNames.shot_character_scene}</option>
-              <option value="shot_scene_prop">{typeNames.shot_scene_prop}</option>
-              <option value="shot">{typeNames.shot}</option>
-              <option value="keyframe_image">{typeNames.keyframe_image}</option>
-              <option value="single_image_edit">{typeNames.single_image_edit}</option>
-              <option value="multi_image_edit">{typeNames.multi_image_edit}</option>
-              <option value="video">{typeNames.video}</option>
-              <option value="first_last_video">{typeNames.first_last_video}</option>
-              <option value="three_frame_video">{typeNames.three_frame_video}</option>
-              <option value="four_frame_video">{typeNames.four_frame_video}</option>
-              <option value="multi_reference_video">{typeNames.multi_reference_video}</option>
-              <option value="video_upscale">{typeNames.video_upscale}</option>
-              <option value="TEMPORAL_EXTEND">{typeNames.TEMPORAL_EXTEND}</option>
-              <option value="VIDEO_CONTINUATION">{typeNames.VIDEO_CONTINUATION}</option>
-              <option value="transition">{typeNames.transition}</option>
-              <option value="prop">{typeNames.prop}</option>
-              <option value="voice_design">{typeNames.voice_design}</option>
-              <option value="audio">{typeNames.audio}</option>
+              {Object.entries(typeNames).filter(([type]) => generationTypes.includes(type)).map(([type, label]) => (
+                <option key={type} value={type}>{label}</option>
+              ))}
             </select>
           </div>
           <div>

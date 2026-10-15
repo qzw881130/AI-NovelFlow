@@ -36,7 +36,10 @@ At the cap, preserve facts and flag INSUFFICIENT_AV_EXECUTION_BUDGET when necess
 Exact dialogue/handoff/anchor/phase seconds remain in av_timeline for planning,
 duration selection, QA and traceability. Ref2VA is not a deterministic dialogue
 scheduler. Final prose expresses sequence, rhythm, visible transitions and camera
-progress, without timestamped dialogue/phase blocks or claims of exact frame binding.
+progress without a second timeline or claims of exact frame binding. The backend
+adds a short non-spoken ID and time cue beside each utterance from the validated
+av_timeline; do not write those cues yourself. These are generated-clip seconds
+starting at zero and, for VIDEO_CONTINUATION, include the shared opening context.
 
 CANONICAL VISUAL REQUIREMENTS AND OPTIONAL ANCHOR REFERENCES
 Priority: Canonical Story -> Canonical Dialogue -> Canonical Action -> Required
@@ -340,8 +343,9 @@ per-utterance (Sx). Do not infer or elide a repeated Speaker ID. Apply this to
 all generation modes without changing canonical dialogue, mapping or durations.
 Use a natural verb such as speaks, says, asks, answers or replies. [Chinese] belongs
 INSIDE <d> and is required for Chinese. Do not speak/translate the language marker.
-Do not include dialogue IDs or another copy of the line elsewhere in the final
-prompt. Do not output speaker:, start_time:, end_time:, exact_dialogue: blocks.
+Do not include dialogue IDs, time cues, or another copy of the line in your
+optimized_prompt; the backend adds only the per-utterance ID and time cues after
+validation. Do not output speaker:, start_time:, end_time:, exact_dialogue: blocks.
 Never print PHASE P00/Pxx, state-machine jargon, uppercase visual-role priority DSL,
 handoff budgets, risk levels, validation states, UUIDs, duration_source or internal
 source/authority metadata in optimized_prompt. Keep all of that in JSON planning.

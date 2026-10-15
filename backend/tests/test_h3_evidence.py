@@ -71,10 +71,16 @@ def test_real_content_errors_still_block(original,kind):
         assert result['semantic_consistency']['status']=='REVIEW_REQUIRED'
     if kind=='wrong_arrival_order':assert 'anchor_arrival_relation' in result['blocking_findings']
 
-def test_handoff_metadata_can_resolve_without_weakening_listener_contract(original):
+def test_handoff_prose_is_advisory_but_structured_speaker_remains_blocking(original):
     h=original['output']['av_timeline']['handoffs'][0]
     h['prompt_evidence']['listeners']=h['prompt_evidence']['listeners'].replace('naturally ','')
     result=audit(original)
     assert result['passed'] and 'handoffs.0.listeners' in result['evidence_provenance']['mismatches']
     original['output']['optimized_prompt']=original['output']['optimized_prompt'].replace(h['prompt_evidence']['listeners'].replace('listen with','listen naturally with'),'All other characters talk.')
-    assert not audit(original)['passed']
+    result=audit(original)
+    assert result['passed']
+    assert any(w.get('code')=='AUXILIARY_HANDOFF_EVIDENCE_UNMATCHED' for w in result['warnings'])
+    original['output']['av_timeline']['dialogue_events'][0]['speaker']='<Subject 4>'
+    result=audit(original)
+    assert not result['passed']
+    assert 'dialogue_timeline_matches_prompt_and_initial' in result['blocking_findings']

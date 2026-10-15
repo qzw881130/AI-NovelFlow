@@ -184,7 +184,8 @@ def test_database_rejects_racing_active_descriptors(db_session, db_engine):
         db_session.commit()
     db_session.rollback()
     assert db_session.query(BackgroundJob).count()==1
-    # A finished execution has the same identity and cannot be revived by API retry.
+    # Ordinary enqueue retains its identity even after completion. Only the
+    # explicit video retry path may create a new persisted attempt identity.
     job=db_session.get(BackgroundJob,job_id);job.status="completed";db_session.commit()
     assert _manager(db_engine).persist(_request(task.id,"changed"),"image")==job_id
     db_session.refresh(job)

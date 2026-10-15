@@ -7,6 +7,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.prompt_template import PromptTemplate
+from app.constants.prompt_template import TRANSITION_V2_NAME
 
 
 class PromptTemplateRepository:
@@ -45,6 +46,10 @@ class PromptTemplateRepository:
     
     def get_default_system_template(self, template_type: str = "character") -> Optional[PromptTemplate]:
         """获取同类型、已启用的系统模板；相同创建时间按 ID 稳定排序。"""
+        if template_type == "keyframe_transition":
+            preferred = self.get_by_name_and_type(TRANSITION_V2_NAME, template_type)
+            if preferred and preferred.is_active:
+                return preferred
         return self.db.query(PromptTemplate).filter(
             PromptTemplate.is_system == True,
             PromptTemplate.type == template_type,

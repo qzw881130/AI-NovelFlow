@@ -3,6 +3,7 @@
 These checks reject structural mistakes and explicit blocking contradictions.
 They do not certify cinematic feasibility, lip sync, or arbitrary prose semantics.
 """
+import math
 import re
 from collections import Counter
 
@@ -12,6 +13,78 @@ SECTIONS = (
 )
 # Product compactness guard, not a claimed MiniMax model/context limit.
 MAX_PROMPT_CHARACTERS = 12000
+_DIALOGUE_PATTERN = re.compile(
+    r"(<Subject \d+>)\s+\((S\d+)\)\s+([^<>]+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>", re.S)
+
+
+def dialogue_time_cue(event):
+    """A non-spoken cue on the generated clip clock, including any EXTEND context."""
+    if not isinstance(event, dict):
+        raise ValueError("DIALOGUE_TIME_CUE_SOURCE_INVALID")
+    for key in ("optimized_start", "optimized_end"):
+        value = event.get(key)
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+            raise ValueError("DIALOGUE_TIME_CUE_SOURCE_INVALID")
+    return (f"[{event['id']} @ {float(event['optimized_start']):.15g}-"
+            f"{float(event['optimized_end']):.15g}s generated-clip]")
+
+
+def compile_dialogue_time_cues(prompt, canonical, timeline):
+    """Annotate existing utterances without changing their text or visual prose."""
+    parts = sections(prompt)
+    events = timeline.get("dialogue_events") if isinstance(timeline, dict) else None
+    if not parts or not isinstance(events, list) or len(events) != len(canonical):
+        raise ValueError("DIALOGUE_TIME_CUE_SOURCE_INVALID")
+    duration = timeline.get("optimized_duration")
+    if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+            or not math.isfinite(duration) or duration <= 0):
+        raise ValueError("DIALOGUE_TIME_CUE_SOURCE_INVALID")
+    if any(not isinstance(event, dict) or not isinstance(event.get("optimized_start"), (int, float))
+           or not isinstance(event.get("optimized_end"), (int, float))
+           or isinstance(event.get("optimized_start"), bool) or isinstance(event.get("optimized_end"), bool)
+           or not math.isfinite(event["optimized_start"]) or not math.isfinite(event["optimized_end"])
+           or not 0 <= event["optimized_start"] < event["optimized_end"] <= duration + 0.000001
+           for event in events):
+        raise ValueError("DIALOGUE_TIME_CUE_SOURCE_INVALID")
+    detail = parts["detailed_description"]
+    matches = list(_DIALOGUE_PATTERN.finditer(detail))
+    if len(matches) != len(canonical):
+        raise ValueError("DIALOGUE_TIME_CUE_TARGET_INVALID")
+    if re.search(r"\bD\d+\b", prompt):
+        actual = dialogue_events(prompt)
+        cues = [dialogue_time_cue(event) for event in events]
+        if (len(actual) == len(events)
+                and re.findall(r"\bD\d+\b", prompt) == [event.get("id") for event in events]
+                and all(event.get("id") == source.get("id")
+                        and event.get("speaker") == source.get("speaker")
+                        and item["speaker"] == source.get("speaker")
+                        and item["exact_dialogue"] == source.get("exact_dialogue")
+                        for item, source, event in zip(actual, canonical, events))
+                and all(item["speech_lead"].lstrip().startswith(cue + " ")
+                        and prompt.count(cue) == 1 for item, cue in zip(actual, cues))):
+            return prompt  # A validated saved result may be reused unchanged.
+        raise ValueError("DIALOGUE_TIME_CUE_TARGET_INVALID")
+    replacements = []
+    for match, source, event in zip(matches, canonical, events):
+        if (event.get("id") != source.get("id") or event.get("speaker") != source.get("speaker")
+                or match[1] != source.get("speaker") or match[5] != source.get("exact_dialogue")):
+            raise ValueError("DIALOGUE_TIME_CUE_BINDING_INVALID")
+        cue = dialogue_time_cue(event)
+        prefix_end = detail.find(")", match.start(), match.end()) + 1
+        if prefix_end <= match.start():
+            raise ValueError("DIALOGUE_TIME_CUE_TARGET_INVALID")
+        replacements.append((prefix_end, cue))
+    for position, cue in reversed(replacements):
+        detail = detail[:position] + " " + cue + detail[position:]
+    # Replace exactly the parsed section body, preserving all six headings.
+    section = re.search(r"(?ms)^detailed_description:[ \t]*\n(?P<body>.*?)(?=^overall_soundscape:[ \t]*$)", prompt)
+    if not section or section["body"].strip() != parts["detailed_description"]:
+        raise ValueError("DIALOGUE_TIME_CUE_TARGET_INVALID")
+    body = section["body"]
+    start = len(body) - len(body.lstrip())
+    end = len(body.rstrip())
+    compiled = body[:start] + detail + body[end:]
+    return prompt[:section.start("body")] + compiled + prompt[section.end("body"):]
 
 
 def sections(prompt):
@@ -42,9 +115,8 @@ def speaker_bindings(canonical):
 
 def dialogue_events(prompt):
     detail = sections(prompt).get("detailed_description", "")
-    pattern = r"(<Subject \d+>)\s+\((S\d+)\)\s+([^<>]+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>"
     result, previous_end = [], 0
-    for match in re.finditer(pattern, detail, re.S):
+    for match in _DIALOGUE_PATTERN.finditer(detail):
         result.append({"speaker": match[1], "speaker_id": match[2], "language": match[4],
                        "exact_dialogue": match[5], "prelude": detail[previous_end:match.start()],
                        "speech_lead": match[3], "span_start": match.start(), "span_end": match.end()})
@@ -167,10 +239,25 @@ def _handoff_evidence_is_local(actual, canonical, timeline):
     return True
 
 
-def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
+def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline, *, require_time_cues=False):
     parts = sections(prompt)
     actual = dialogue_events(prompt)
     mapping = speaker_bindings(canonical)
+    planned = timeline.get("dialogue_events") or []
+    cue_tokens = re.findall(r"\bD\d+\b", prompt)
+    try:
+        expected_cues = [dialogue_time_cue(event) for event in planned] if len(planned) == len(canonical) else []
+    except (KeyError, ValueError, TypeError):
+        expected_cues = []
+    has_cues = bool(cue_tokens) or require_time_cues
+    cues_valid = (len(actual) == len(canonical) == len(expected_cues)
+                  and cue_tokens == [event["id"] for event in planned]
+                  and all(actual[i]["speech_lead"].lstrip().startswith(cue + " ")
+                          and prompt.count(cue) == 1 for i, cue in enumerate(expected_cues))) if has_cues else True
+    prose_without_cues = prompt
+    if cues_valid and has_cues:
+        for cue in expected_cues:
+            prose_without_cues = prose_without_cues.replace(cue, "", 1)
     checks = {
         "h3_native_six_sections": bool(parts) and all(parts.values()),
         "compact_final_prompt": 0 < len(prompt) <= MAX_PROMPT_CHARACTERS,
@@ -192,8 +279,10 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
         "chinese_dialogue_language_marker": all(
             e["language"] == "Chinese" for e in actual if re.search(r"[\u3400-\u9fff]", e["exact_dialogue"])),
         "timing_internal_only": not re.search(r"\b\d+(?:\.\d+)?\s*(?:s\b|seconds?\b)",
-            "\n".join(value for key, value in parts.items() if key != "summary"), re.I),
+            "\n".join(value for key, value in sections(prose_without_cues).items() if key != "summary"), re.I),
     }
+    if has_cues:
+        checks["dialogue_time_cues"] = cues_valid
     expected_tags = sum(bool(re.search(r"[\u3400-\u9fff]", e["exact_dialogue"])) for e in canonical)
     checks["chinese_marker_count"] = prompt.count("[Chinese]") == expected_tags
     # Count complete <d> events, not substrings in other utterances or prose.

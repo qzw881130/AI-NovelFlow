@@ -505,14 +505,62 @@ def resolve_output_evidence(prompt, output, authority):
     sources.update({a['anchor_id']:a['visual_reference_description']
                     for a in policy.get('catalog', [])
                     if a.get('anchor_id') not in sources and a.get('visual_reference_description')})
+    # This catalog is assembled for the executing Clip. Never look in the Shot's
+    # other transitions, the LLM input as a whole, or historical Clip records.
+    clip_scopes={s['id']:(s.get('clip_scope') or {}).get('execution_scope')
+                 for s in policy.get('canonical_visual_sources', [])
+                 if isinstance(s,dict) and s.get('id') in sources
+                 and isinstance(s.get('clip_scope'),dict)}
+
+    def source_evidence(requirement):
+        declared=requirement.get('source_id')
+        quote=requirement.get('source_excerpt')
+        original=resolve_canonical_excerpt(sources.get(declared,''),requirement,authority)
+        entry={**original,'declared_source_id':declared,
+               'resolved_source_id':declared if original['status']=='RESOLVED' else None,
+               'source_excerpt':quote,
+               'resolution_status':'DECLARED_SOURCE' if original['status']=='RESOLVED' else original['status'],
+               'mismatch_reason':original.get('reason') if original['status']!='RESOLVED' else None}
+        # A missing/unknown declared ID, ambiguous citation, or ownership
+        # conflict is not a provenance typo that can be safely reassigned.
+        if declared not in sources or original['status']!='UNRESOLVED' or not isinstance(quote,str) or not quote.strip():
+            return entry
+        candidates=[]
+        for source_id,text in sources.items():
+            if source_id==declared or not isinstance(text,str):
+                continue
+            found=resolve_canonical_excerpt(text,requirement,authority)
+            if found['status']=='RESOLVED' and found['method'] in {'EXACT','CANONICAL_EVENT_LOCATIONS'} and not found['mismatch']:
+                candidates.append((source_id,found,'DECLARED_SOURCE_ID_MISMATCH'))
+        for source_id,text in clip_scopes.items():
+            if not isinstance(text,str):
+                continue
+            found=resolve_excerpt(text,quote)
+            if found['status']=='RESOLVED' and found['method']=='EXACT':
+                candidates.append((source_id+'.clip_scope.execution_scope',found,
+                                   'EXECUTION_SCOPE_QUOTED_AS_CANONICAL_SOURCE'))
+        if len(candidates)!=1:
+            if candidates:
+                entry.update(resolution_status='AMBIGUOUS_AUTHORIZED_SOURCE',
+                             mismatch_reason='MULTIPLE_AUTHORIZED_SOURCE_MATCHES')
+            return entry
+        resolved_id,found,reason=candidates[0]
+        return {**entry,**found,'declared_source_id':declared,
+                'resolved_source_id':resolved_id,'source_excerpt':quote,
+                'resolution_status':'AUTHORIZED_SOURCE_REATTRIBUTED',
+                'mismatch_reason':reason,'declared_status':original['status'],
+                'declared_reason':original.get('reason'),'mismatch':True}
     entries={}
     def add(path, text, supplied, scope):
         entries[path]={**resolve_excerpt(text,supplied), 'scope':scope}
     for i,r in enumerate(output.get('canonical_visual_requirements') or []):
         if not isinstance(r,dict):continue
+        source_entry=source_evidence(r)
+        resolved_id=source_entry.get('resolved_source_id') or r.get('source_id')
         entries[f'requirements.{i}.source'] = {
-            **resolve_canonical_excerpt(sources.get(r.get('source_id'), ''), r, authority),
-            'scope': 'canonical_source:' + str(r.get('source_id'))}
+            **source_entry,
+            'scope': ('clip_scope:' if isinstance(resolved_id,str) and
+                      resolved_id.endswith('.clip_scope.execution_scope') else 'canonical_source:') + str(resolved_id)}
         add(f'requirements.{i}.prompt',prompt,r.get('prompt_excerpt'),'optimized_prompt')
     timeline=output.get('av_timeline') or {}
     for i,a in enumerate(timeline.get('anchors') or []):

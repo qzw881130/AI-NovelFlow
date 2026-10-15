@@ -244,8 +244,9 @@ async def test_b1_11_planner_payload_decisions_and_phase_a_metadata_equal_frozen
     for call in original_calls:
         payload = json.loads(call["user_content"])
         assert payload.pop("dialogue_visual_planning_context")["phase"] == "PRE_PLANNING"
+        assert isinstance(payload.pop("dialogue_speaker_groups"), list)
         call["user_content"] = json.dumps(payload, ensure_ascii=False, indent=2)
-    # B2 authorizes this one input augmentation; every prior input remains identical.
+    # Read-only audiovisual planning hints add inputs; earlier authority remains identical.
     assert json.dumps(original_calls, ensure_ascii=False, sort_keys=True) == json.dumps(data["calls"], ensure_ascii=False, sort_keys=True)
     assert [{k: v for k, v in clip.items() if k != "visual_support_evidence"} for clip in clips] == data["clips"]
     assert validation == data["validation"] and anchors == data["temporal_anchors"]

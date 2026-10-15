@@ -231,6 +231,16 @@ export default {
     createPrompt: '프롬프트 템플릿 생성',
     viewPrompt: '프롬프트 템플릿 보기',
     systemPresetReadonly: '시스템 프리셋 (읽기 전용)',
+    lastModified: '마지막 수정',
+    unknown: '알 수 없음',
+    boundNovels: '연결된 소설',
+    loadingBindings: '연결된 소설을 불러오는 중…',
+    loadBindingsFailed: '연결된 소설을 불러오지 못했습니다. 닫고 다시 시도하세요.',
+    noBoundNovels: '이 템플릿에 명시적으로 연결된 소설이 없습니다',
+    author: '작가',
+    bindingType: '연결 방식',
+    explicitBinding: '명시적으로 지정',
+    boundNovelCount: '총 {count}편',
 
     // 프롬프트 템플릿 타입
     types: {
