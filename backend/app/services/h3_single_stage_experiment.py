@@ -898,8 +898,11 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         states = {s["index"]: s for s in plan["keyframes"]}
         owned = [states[i] for i in clip["visual_state_indexes"]]
         carry = states[clip["carry_in_state_index"]] if clip["carry_in_state_index"] is not None else None
-        if len(owned) < 2:
-            raise ValueError("MULTI_STATE_SAMPLE_REQUIRED")
+        # A semantic Clip may own one target while continuing from a separate
+        # carry-in state. Only owned states belong in its anchor catalog; carry-in
+        # remains context, and an empty owned scope is still unsupported.
+        if not owned:
+            raise ValueError("OWNED_VISUAL_STATE_REQUIRED")
         if len(old["visual_controls"]) != len(owned):
             raise ValueError("SAVED_STATES_MISMATCH")
         for state, saved in zip(owned, old["visual_controls"]):
@@ -911,9 +914,13 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
 
         bindings = old["reference_binding_contract"]["characters"]
         names = {b["subject"]: b["name"] for b in bindings}
+        # Binding records follow Picture order, which need not be Subject order.
+        # Validate the builder's explicit numbering, never renumber by image slot.
+        subject_order = {f"<Subject {i}>": name for i, name in enumerate(old["clip_visible_characters"], 1)}
         if (len(names) != len(bindings) or len(set(names.values())) != len(names)
-                or list(names.values()) != old["clip_visible_characters"]):
+                or names != subject_order):
             raise ValueError("UPSTREAM_SUBJECT_BINDING_AMBIGUOUS")
+        names = {subject: names[subject] for subject in subject_order}
         subject_for_name = {name: subject for subject, name in names.items()}
         appearances = old["shot"].get("official_character_appearances") or {}
         if any(not _stable_identity_marks(appearances.get(name)) for name in names.values()):
