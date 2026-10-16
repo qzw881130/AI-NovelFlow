@@ -25,6 +25,7 @@ from app.services.required_visual_state_images import (
 from app.models.novel import Novel, Chapter
 from app.models.workflow import Workflow
 from app.constants.workflow import RETIRED_H3_WORKFLOW_TYPES
+from app.constants.h3_prompt_pipeline import persisted_h3_prompt_pipeline
 from app.models.llm_log import LLMLog
 from app.repositories import TaskRepository, WorkflowRepository
 from app.repositories.shot_repository import ShotRepository
@@ -546,6 +547,11 @@ class TaskService:
             clip_metadata = json.loads(task.metadata_json or "{}")
         except (TypeError, ValueError):
             clip_metadata = {}
+        if task.type == "shot_video":
+            try:
+                route = persisted_h3_prompt_pipeline(clip_metadata)
+            except ValueError as exc:
+                return {"success": False, "message": str(exc), "status_code": 409}
         if task.type == "shot_export":
             from app.services.shot_export_service import create_export
             try:
@@ -595,7 +601,7 @@ class TaskService:
                 if not readiness["ready"]:
                     return {"success": False, "message": readiness["message"], "status_code": 409}
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
-            phase_b = clip_metadata.get("h3_prompt_pipeline") == "phase_b"
+            phase_b = route == "phase_b"
             # Semantic capability and physical workflow type are independent of
             # the Phase B/legacy prompt route. Older physical names still work.
             expected_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",

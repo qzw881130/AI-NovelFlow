@@ -25,3 +25,15 @@ test('video statistics live in chapter header; tabs retain other status sources'
   assert.match(mainHeader, /\{\(headerContextStats \|\| headerQueueStats\) && \(/);
   assert.match(mainHeader, /\{headerQueueStats\}/);
 });
+
+test('image generation queues share header actions without an extra row under the tabs', () => {
+  const header = source.slice(source.indexOf('data-testid="chapter-header"'), source.lastIndexOf('{/* TabNavigation */}'));
+  assert.match(header, /\{currentTab === 1 && renderQueueStats\(\)\}/);
+  assert.ok(header.indexOf('renderQueueStats()') < header.indexOf('renderChapterSwitch()'));
+  assert.ok(header.indexOf('renderChapterSwitch()') < header.indexOf('onClick={onResourcesManageClick}'));
+  assert.match(source, /const headerQueueStats = currentTab === 1 \? null : renderQueueStats\(\);/);
+  assert.match(source, /aria-label="任务队列统计" className="flex min-w-0 max-w-full flex-wrap items-center justify-end/);
+  assert.match(source, /if \(!hasQueueStats\) return null/);
+  assert.match(source, /生成分镜图：队列中 \{pendingShots.size\} 个/);
+  assert.match(source, /生成视频：队列中 \{pendingVideos.size\} 个/);
+});

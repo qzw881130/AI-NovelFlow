@@ -25,7 +25,7 @@ import { useChapterGenerateStore } from '../stores';
 import { useShotReferenceImages } from '../useShotReferenceImages';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
-import { shotsApi } from '../../../api/shots';
+import { shotsApi, DEFAULT_H3_PROMPT_PIPELINE } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
 import { RequiredImagesPreparation } from './RequiredImagesPreparation';
 import { VisualStateDescriptionEditor } from './VisualStateDescriptionEditor';
@@ -2689,7 +2689,7 @@ export function VideoGenTab({
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [planningClipsShotId, setPlanningClipsShotId] = useState<string | null>(null);
   const [optimizeH3Prompt, setOptimizeH3Prompt] = useState(true);
-  const [h3PromptPipeline, setH3PromptPipeline] = useState<'legacy' | 'phase_b'>('legacy');
+  const [h3PromptPipeline, setH3PromptPipeline] = useState<'legacy' | 'phase_b'>(DEFAULT_H3_PROMPT_PIPELINE);
   const [isSubmittingCanonicalShot, setIsSubmittingCanonicalShot] = useState(false);
   const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
@@ -4343,7 +4343,7 @@ export function VideoGenTab({
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <span className="shrink-0 text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
               <label className="flex min-w-0 items-center gap-1">H3 路径 <select className="min-w-0 max-w-full rounded border border-gray-200 bg-white py-0.5" aria-label="H3 Prompt 路径" value={h3PromptPipeline} onChange={e => setH3PromptPipeline(e.target.value as 'legacy' | 'phase_b')}>
-                <option value="legacy">Legacy #13 → #14</option><option value="phase_b">Phase B #13</option>
+                <option value="phase_b">Phase B V3 #13（默认）</option><option value="legacy">Legacy #13 → #14</option>
               </select></label>
               {h3PromptPipeline === 'legacy' && <label className="flex items-center gap-1 font-normal">
                 <input type="checkbox" checked={optimizeH3Prompt} onChange={event => setOptimizeH3Prompt(event.target.checked)} />

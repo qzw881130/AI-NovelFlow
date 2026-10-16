@@ -255,13 +255,23 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
         raise ValueError("H3_SINGLE_STAGE_SIX_SECTIONS_INVALID")
     ids = [event["id"] for event in canonical]
     detail = model_parts["detailed_description"]
+    phase_b = (execution_decisions is not None
+               and execution_decisions.get("decision_owner") == "NEW_13_PHASE_B")
+    reference_text = model_text
+    if director_only and phase_b:
+        # Phase B may refer to the upstream identity map, but never owns it.
+        # Remove only validated tags from the numbering guard, not from prose.
+        subjects = re.findall(r"<Subject\s+[^>]+>", model_text)
+        if any(subject not in subject_names for subject in subjects):
+            raise ValueError("H3_PHASE_B_UNDEFINED_SUBJECT_REFERENCE")
+        reference_text = re.sub(r"<Subject \d+>", "", model_text)
     expected_slots = [f"SPEECH_{i}" for i in range(1, len(canonical) + 1)] if director_only else ids
     slots = re.findall(r"\[\[([A-Z]+(?:_\d+|\d+))\]\]", detail)
     if (slots != expected_slots or model_text.count("[[") != len(expected_slots)
             or re.search(r"\bD\d+\b", re.sub(r"\[\[D\d+\]\]", "", model_text))
             or any(event["exact_dialogue"] in model_text for event in canonical)
             or (director_only and re.search(
-                r"<?(?:Subject|Picture)\s+\d+>?|\bS\d+\b", model_text))):
+                r"<?(?:Subject|Picture)\s+\d+>?|\bS\d+\b", reference_text))):
         raise ValueError("H3_SINGLE_STAGE_DIALOGUE_SLOTS_INVALID")
     if not isinstance(picture_mapping, list) or [item.get("picture_index") for item in picture_mapping] != list(range(1, len(picture_mapping) + 1)):
         raise ValueError("H3_SINGLE_STAGE_MANIFEST_NOT_DENSE")
@@ -307,7 +317,8 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
         picture = f"<Picture {item['picture_index']}>"
         kind, name = item.get("kind"), item.get("source_name")
         if kind == "CHARACTER_IDENTITY":
-            retention.append(f"{picture} — CHARACTER_IDENTITY for {subjects_for_name[name]} ({name}): stable identity only; not current clothing, pose, blocking, or action.")
+            identity = subjects_for_name[name] if phase_b else f"{subjects_for_name[name]} ({name})"
+            retention.append(f"{picture} — CHARACTER_IDENTITY for {identity}: stable identity only; not current clothing, pose, blocking, or action.")
         elif kind == "SCENE":
             retention.append(f"{picture} — SCENE / {name or 'current scene'}: environment appearance only; incidental people are not additional Subjects.")
         elif kind == "PROP":
@@ -320,8 +331,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
 
     if frozen_execution is not None and execution_decisions is not None:
         raise ValueError("H3_EXPERIMENT_EXECUTION_OWNER_AMBIGUOUS")
-    silent_phase_b = (not canonical and execution_decisions is not None
-                      and execution_decisions.get("decision_owner") == "NEW_13_PHASE_B")
+    silent_phase_b = not canonical and phase_b
     if silent_phase_b:
         # Absence of Canonical speech is a fact, not a new director action.
         # Retain source audio in a physical shared prefix; never mute/rewrite it.

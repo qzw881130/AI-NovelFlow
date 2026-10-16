@@ -267,7 +267,7 @@ export function ChapterGenerateLayout({
   const renderQueueStats = () => {
     if (!hasQueueStats) return null;
     return (
-      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+      <div role="group" aria-label="任务队列统计" className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 text-xs text-gray-600">
         <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-blue-700">
           生成分镜图：队列中 {pendingShots.size} 个
         </span>
@@ -736,7 +736,7 @@ export function ChapterGenerateLayout({
   }
 
   const headerContextStats = renderDialogueWarningStats();
-  const headerQueueStats = renderQueueStats();
+  const headerQueueStats = currentTab === 1 ? null : renderQueueStats();
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
@@ -758,6 +758,7 @@ export function ChapterGenerateLayout({
             </div>
           </div>
           <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {currentTab === 1 && renderQueueStats()}
             {renderVideoGenerationStats()}
             <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {renderChapterSwitch()}

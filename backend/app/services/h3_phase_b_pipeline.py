@@ -18,7 +18,8 @@ from app.services.video_director_ai import safe_json_dict, append_video_ai_call,
 from app.utils.path_utils import url_to_local_path
 
 PIPELINE = "phase_b"
-VERSION = "H3_PHASE_B_LIMITED_V2"
+# Invalidate compiled reuse after the Subject-reference assembly contract change.
+VERSION = "H3_PHASE_B_LIMITED_V3"
 TEMPLATE_TYPE = "h3_multi_keyframe_director_phase_b"
 
 

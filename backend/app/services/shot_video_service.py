@@ -4,6 +4,7 @@
 封装分镜视频生成的后台任务逻辑
 """
 import json
+from app.constants.h3_prompt_pipeline import persisted_h3_prompt_pipeline
 import os
 import random
 import hashlib
@@ -1176,10 +1177,13 @@ async def generate_shot_video_task(
             return
 
         metadata = safe_json_dict(task.metadata_json)
+        route = persisted_h3_prompt_pipeline(metadata)
+        if clip_metadata is not None and persisted_h3_prompt_pipeline(clip_metadata) != route:
+            raise ValueError("H3_PROMPT_PIPELINE_MISMATCH: Task and persisted Clip payload disagree")
         metadata["skip_llm_when_prompt_exists"] = skip_llm_when_prompt_exists
         if optimize_h3_prompt is not None:
             metadata["optimize_h3_prompt"] = optimize_h3_prompt
-        if metadata.get("h3_prompt_pipeline") == "phase_b":
+        if route == "phase_b":
             metadata.update(optimize_h3_prompt=False, preflight_auto_repair=False)
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         task.status = "running"
@@ -1387,7 +1391,7 @@ async def generate_shot_video_task(
             and clip_metadata.get("execution_contract", {}).get("capability") in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"}
         )
         phase_b_generate = clip_only_execution and clip_metadata.get("execution_contract", {}).get("capability") == "GENERATE"
-        single_stage_phase_b = safe_json_dict(task.metadata_json).get("h3_prompt_pipeline") == "phase_b"
+        single_stage_phase_b = route == "phase_b"
         if single_stage_phase_b and not clip_only_execution:
             raise ValueError("PHASE_B_REQUIRES_SEMANTIC_CLIP")
         phase_b_manifest = None

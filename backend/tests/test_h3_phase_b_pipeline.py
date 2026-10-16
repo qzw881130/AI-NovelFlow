@@ -104,7 +104,8 @@ class FakeComfy:
 
 @pytest.mark.parametrize('name', NAMES)
 @pytest.mark.parametrize('silent', [False, True], ids=['dialogue', 'silent'])
-def test_live_adapter_compiler_actual_builder_and_pre_submit(db_session, name, silent):
+@pytest.mark.parametrize('subject_tags', [False, True], ids=['name-prose-compatible', 'bound-subject-prose'])
+def test_live_adapter_compiler_actual_builder_and_pre_submit(db_session, name, silent, subject_tags):
     snap, args, selected = make_case(db_session, name, silent=silent)
     response = saved(name, '_mock_response')
     if silent:
@@ -114,6 +115,12 @@ def test_live_adapter_compiler_actual_builder_and_pre_submit(db_session, name, s
         # Mock prose tests the contract, not LLM action-coverage quality.
         response['detailed_description'] = '人物保持沉默，依序完成当前 Canonical 范围内的动作。'
         response['overall_soundscape'] = '只保留有场景和动作依据的环境声与衣料声。'
+    if subject_tags:
+        # Contract-only prose: no claim that this mock certifies action quality.
+        subject = snap['builder_input']['reference_binding_contract']['characters'][0]['subject']
+        response['detailed_description'] = subject + '依序完成当前 Canonical 动作。' + ''.join(
+            f'[[SPEECH_{i}]]' for i in range(1, len(response['dialogue_events']) + 1))
+        response['overall_soundscape'] = subject + '动作产生的衣料声及现有环境声。'
     llm = FakeDirector(response)
     before = deepcopy(snap)
     prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
@@ -123,6 +130,11 @@ def test_live_adapter_compiler_actual_builder_and_pre_submit(db_session, name, s
     assert request['system_prompt'] == selected.template
     assert request['task_type'] == pipe.TEMPLATE_TYPE
     wire = request['user_content']
+    bindings = json.loads(wire)['subject_bindings']
+    assert bindings == {b['subject']: b['name'] for b in snap['builder_input']['reference_binding_contract']['characters']}
+    if subject_tags:
+        assert subject in bindings and subject in prompt
+        assert 'Use only the existing <Subject N> tags in subject_bindings' in request['system_prompt']
     for key in ['frozen_execution', 'optimized_duration', 'optimized_start', 'optimized_time', 'authority_echo', 'execution_phases']:
         assert '"'+key+'"' not in wire
     assert snap == before
@@ -182,6 +194,21 @@ def test_reuse_requires_same_input_and_selected_template(db_session):
     assert len(llm.calls)==1
 
 
+def test_reuse_rejects_previous_compiler_contract_without_llm(db_session):
+    _, args, _ = make_case(db_session, NAMES[0])
+    llm = FakeDirector(saved(NAMES[0], '_mock_response'))
+    asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    plan = json.loads(args['shot'].video_director_plan)
+    plan['ai_calls'][-1]['parsed_result']['version'] = 'H3_PHASE_B_LIMITED_V2'
+    args['shot'].video_director_plan = json.dumps(plan)
+    metadata = json.loads(args['task'].metadata_json)
+    metadata['skip_llm_when_prompt_exists'] = True
+    args['task'].metadata_json = json.dumps(metadata)
+    with pytest.raises(ValueError, match='REUSABLE_PLAN_MISSING'):
+        asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    assert len(llm.calls) == 1
+
+
 @pytest.mark.parametrize('failure', ['speaker', 'duration', 'missing_action_catalog', 'llm_failure'])
 def test_failed_planning_persists_and_never_repairs(db_session, failure):
     snap, args, _ = make_case(db_session, NAMES[0])
@@ -235,15 +262,18 @@ def test_registry_sync_and_novel_selection(db_session):
     assert db_session.query(PromptTemplate).filter(PromptTemplate.type=='h3_multi_keyframe_prompt').count()>0
 
 
-def test_route_defaults_legacy_and_queue_payload_survives(monkeypatch):
+def test_new_route_defaults_phase_b_and_explicit_legacy_remains_available():
     from app.api.shots import SemanticClipGenerateRequest, BatchShotVideoRequest
-    from app.services import shot_video_service as worker
-    assert SemanticClipGenerateRequest().h3_prompt_pipeline=='legacy'
-    assert BatchShotVideoRequest(shot_ids=[]).h3_prompt_pipeline=='legacy'
-    # No worker is started; inspect persisted-job dispatch contract statically
-    # and use the actual API request validation for both routes.
-    assert SemanticClipGenerateRequest(h3_prompt_pipeline='phase_b').h3_prompt_pipeline=='phase_b'
-    with pytest.raises(ValueError): SemanticClipGenerateRequest(h3_prompt_pipeline='automatic')
+    from app.schemas.shot import GenerateVideoDirectorClipRequest, GenerateVideoRequest
+    for model, args in [(SemanticClipGenerateRequest, {}), (BatchShotVideoRequest, {'shot_ids': []}),
+                        (GenerateVideoDirectorClipRequest, {})]:
+        assert model(**args).h3_prompt_pipeline == 'phase_b'
+        for route in ('legacy', 'phase_b'):
+            assert model(**args, h3_prompt_pipeline=route).h3_prompt_pipeline == route
+        for route in ('automatic', '', None):
+            with pytest.raises(ValueError): model(**args, h3_prompt_pipeline=route)
+    # The retired/general video request is not converted into an H3 route.
+    assert 'h3_prompt_pipeline' not in GenerateVideoRequest.model_fields
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('case_name,cancel_during_upload',[(n,False) for n in NAMES]+[(NAMES[0],True)])
@@ -311,7 +341,7 @@ async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypat
         saves.append((task.id,kw));task.status='completed';task.result_url='/offline-result.mp4';db_session.commit()
     monkeypatch.setattr(worker,'_save_generated_video',save)
     result=await api.execute_semantic_clip(novel.id,shot.chapter_id,shot.id,index,
-        api.SemanticClipGenerateRequest(clip_plan_revision=1,h3_prompt_pipeline='phase_b',optimize_h3_prompt=True),
+        api.SemanticClipGenerateRequest(clip_plan_revision=1,optimize_h3_prompt=True),
         db_session,NovelRepository(db_session),ChapterRepository(db_session),TaskRepository(db_session),ShotRepository(db_session))
     assert len(jobs)==1
     task=db_session.get(Task,result['data']['taskId'])
@@ -333,6 +363,7 @@ async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypat
     assert shot.video_url=='/preserved-historical-shot.mp4'
     meta=json.loads(task.metadata_json)
     assert meta['h3_phase_b']['submission_preflight']['passed']
+    assert meta['h3_phase_b']['version'] == 'H3_PHASE_B_LIMITED_V3'
     assert meta['optimize_h3_prompt'] is False and meta['preflight_auto_repair'] is False
     assert task.workflow_json and task.comfyui_prompt_id
     assert json.loads(shot.video_director_plan)['ai_calls'][-1]['task_type']==pipe.TEMPLATE_TYPE

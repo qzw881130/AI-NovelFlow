@@ -1,0 +1,865 @@
+{
+  "source": {
+    "task_id": "df6831f8-6fcf-42aa-b8bb-d1f3fabd13f9",
+    "comfy_prompt_id": "e36c4cc0-19e7-4b24-8720-bf24540688f6",
+    "description": "Saved real Phase B input/response; subject_prose is an offline, manually reviewed reference-only adaptation, not a new LLM output.",
+    "files_sha256": {
+      "/Volumes/Data/tmp/h3_phase_b_shot16_17_batch_20261015/shot17_C1/director_input.json": "62a619f0730cc168fa3500deaedf5df02e2675b098879daf5d288b4f326b3b00",
+      "/Volumes/Data/tmp/h3_phase_b_shot16_17_batch_20261015/shot17_C1/director_response.txt": "8827a68799122c569c45dad3f0e5655f8728a6020418b68c7efaaf3efb98413e",
+      "/Volumes/Data/tmp/h3_phase_b_shot16_17_batch_20261015/shot17_C1/final_prompt.txt": "c3fe0ca1e49f26eaa2a907606ed2e598b603bd511c5e9472f9bf9ac1aeb9841d",
+      "/Volumes/Data/tmp/h3_shot17_c1_subject_only/candidate_prompt.txt": "acdd232007b21823f4e94e26311c742ada486554a38e7909983bcd4f485562e5"
+    }
+  },
+  "director_input": {
+    "experiment": "H3_MULTI_KEYFRAME_PHASE_B",
+    "builder": "13",
+    "route": "multi",
+    "shot": {
+      "id": "7471f4f1-c99d-422a-ac27-37576e1d6c54",
+      "index": 17,
+      "duration": 24,
+      "continuity_mode": "CONTINUOUS_TAKE",
+      "characters": [
+        "骗子1",
+        "骗子2",
+        "老大臣"
+      ],
+      "official_character_appearances": {
+        "骗子1": "单一主体全身照，一名约三十五岁的人类男性，气质精明而从容，身材高瘦，约一百八十五厘米，头身比例修长，四肢完整并从头到脚清晰可见；长窄脸，中庭偏长，额头宽而平，颧骨略高，下颌线清晰，下巴稍尖，右侧鼻翼旁有一颗小褐痣；眼睛为细长的灰绿色双眼皮眼，外眼角微微上挑，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄，鼻翼收束，鼻孔较小且略向下；嘴唇偏薄，天然嘴角轻微上扬，中性展示时牙齿不可见；皮肤为偏暖的浅肤色，表面略有风吹日晒形成的细纹；深棕色微卷短发向后梳理，发际线两侧略高，留有修剪整齐的深棕色小胡子，下巴无须；稳定身份标记包括高瘦轮廓、右鼻翼旁褐痣、灰绿色上挑眼和整齐小胡子；基础服装为欧洲童话式前现代旅行绅士装束，头戴深炭灰色宽边毡礼帽，上身穿墨绿色合体长外套、米白衬衫与暗金色领巾，下身穿深褐色及膝马裤、灰色长袜和黑色低跟皮鞋，不固定任何手持物；以自然中性站姿展示，双手和双脚均完整可见且不被遮挡，保持脸型、面部比例、头身比、发型轮廓和所有独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故新增配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "骗子2": "单一主体全身照，一名约三十二岁的人类男性，气质殷勤活络，身高约一百七十厘米，体型略显敦实但动作灵便，头身比例约为七头身，四肢完整并从头到脚清晰可见；脸型圆中带方，额头饱满，颧骨不高，下颌较宽，下巴短圆，左侧嘴角下方有一颗明显的小黑痣；眼睛为中等大小的琥珀褐色圆杏眼，双眼皮清楚，外眼角平缓，眼型与眼睛颜色不得改变；鼻梁较短，鼻尖圆钝，鼻翼稍宽，鼻孔小而端正；嘴唇中等偏厚，天然嘴角微微上翘，中性展示时牙齿不可见；皮肤为暖调浅麦色，双颊略带自然红润；栗褐色浓密短卷发从左侧分开，发际线圆润，面部刮得干净，没有胡须；稳定身份标记包括稍矮敦实的轮廓、琥珀褐色圆杏眼、左嘴角下方黑痣和左分短卷发；基础服装为欧洲童话式前现代考究旅行服，头戴棕红色宽边礼帽，上身穿酒红色短外套、奶油白衬衫和深蓝色领结，下身穿黑褐色及膝马裤、米灰色长袜及深棕色搭扣皮鞋，不固定任何手持物；以自然中性站姿展示，双手与双脚全部可见且不受遮挡，保持脸型、面部比例、头身比、发型轮廓及全部独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+        "老大臣": "单一主体全身照，一名约六十八岁的人类男性资深大臣，气质庄重、诚实而谨慎，身高约一百七十一厘米，身材清瘦，背部仅有轻微年龄形成的弧度，四肢完整并从头到脚清晰可见；脸型长椭圆，额头高且有横向细纹，中庭偏长，颧骨突出，下颌线清楚但略显松弛，下巴窄圆，左侧颧骨下方有一块小型浅褐老人斑；眼睛为清晰的浅灰蓝色深陷眼，大小适中，双眼皮较窄，外眼角微垂，眼型与眼睛颜色不得改变；鼻梁高而稍弯，鼻尖窄长，鼻翼薄，鼻孔向下；嘴唇较薄，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，眼周、额头和嘴角分布自然细纹；银白色柔软头发梳向后方并在颈后束成短低发束，发际线明显后移，留有整齐的银白色短须和窄山羊胡；稳定身份标记包括浅灰蓝色深陷眼、左颧下老人斑、高额头、银白短须和清瘦体态；基础服装为欧洲童话式前现代高级大臣官服，上身穿深藏蓝色长外套、银线滚边灰色背心与洁白领巾，下身穿黑色及膝裤、白色长袜和黑色银扣宫廷鞋，左胸固定佩戴一枚古旧的银蓝色王室功勋徽章，不将文件或查看织机的动作固定为身份造型；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型胡须轮廓与全部标记一致，禁止改变物种、年龄段和男性长者气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。"
+      },
+      "scene": "王宫织造室",
+      "props": [
+        "脚踏织机",
+        "老大臣官服"
+      ]
+    },
+    "clip": {
+      "clip_index": 1,
+      "start_time": 0.0,
+      "end_time": 11.7,
+      "planned_duration": 11.7,
+      "capability": "GENERATE",
+      "visual_state_indexes": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "carry_in_state_index": null,
+      "continuity_to_previous": "NONE"
+    },
+    "time_domains": {
+      "canonical": "SHOT_SECONDS",
+      "clip_projection": "CLIP_STORY_SECONDS",
+      "new_execution_decisions": "GENERATION_LOCAL_SECONDS",
+      "previous_previews": "PREVIOUS_AV_SOURCE_SECONDS",
+      "story_to_generation_mapping": "NOT_PROVIDED; do not infer a linear map or add overlap to selected generation times"
+    },
+    "canonical": {
+      "owned_visual_states": [
+        {
+          "index": 1,
+          "time_seconds": 0.0,
+          "role": "START",
+          "description": "Scene: 清晨的王宫织造室明亮安静，房门关闭，两架脚踏织机位于房间中央；中全景，机位从脚踏织机一侧拍向两名骗子与房门。画面可见人物严格限定为骗子1、骗子2，共2名。\nCharacters:\n- 骗子1: 位于画面左侧脚踏织机前，身体朝向房门，双手停在半空，目光与骗子2相接，嘴角正浮现笑意。\n- 骗子2: 位于画面右侧脚踏织机前，身体朝向骗子1，双手停下操作姿态，神情警觉而期待。\nAction: 敲门声后，骗子1与骗子2同时停止假装织布的动作并互相对视。",
+          "timed_visual_target": false
+        },
+        {
+          "index": 2,
+          "time_seconds": 6.4,
+          "role": "INTERMEDIATE",
+          "description": "Scene: 清晨明亮的王宫织造室，中全景仍从脚踏织机一侧朝向房门。\nCharacters:\n- 骗子1: 已从左侧脚踏织机前站起，位于织机与房门之间，身体朝向房门，双手整理平整自己的衣着。\n- 骗子2: 已回到右侧脚踏织机旁，身体前倾，双手保持检查织机的姿态，目光落在织机上。\nAction: 两架脚踏织机仍位于房间中央，关闭的房门处在两人前方。",
+          "timed_visual_target": false
+        },
+        {
+          "index": 3,
+          "time_seconds": 8.6,
+          "role": "INTERMEDIATE",
+          "description": "Scene: 王宫织造室，摄影机沿原有方向靠近房门一侧，脚踏织机仍保留在构图后方。\nCharacters:\n- 骗子1: 已抵达房门前，一只手放在房门的开启位置，身体侧向门口，衣着平整，神情殷勤而期待。\n- 骗子2: 留在右侧脚踏织机旁，姿态镇定，双手贴近织机的操作区域。\nAction: 房门仍然关闭，骗子1、房门与后方织机形成清晰的前后空间关系。",
+          "timed_visual_target": true
+        },
+        {
+          "index": 4,
+          "time_seconds": 10.2,
+          "role": "INTERMEDIATE",
+          "description": "Scene: 王宫织造室房门已经打开，门外晨光斜照进室内，摄影机从织机一侧连续朝门口推进。\nCharacters:\n- 骗子1: 站在打开的房门内侧，面向门槛，双臂热情地向两侧张开。\n- 骗子2: 位于后方右侧脚踏织机旁，保持专注检查织机的姿态。\n- 老大臣: 身着官服出现在门槛外，身体朝向室内，一只脚已接近门槛。\nAction: 打开的房门将老大臣框在门口，晨光从他身后进入房间。",
+          "timed_visual_target": true
+        }
+      ],
+      "carry_in_visual_state": null,
+      "transitions": [
+        {
+          "segment_index": 1,
+          "from_keyframe_index": 1,
+          "to_keyframe_index": 2,
+          "start_time": 0.0,
+          "end_time": 6.4,
+          "transition_description": "从起始中全景连续展开：骗子1保持在画面左侧脚踏织机前，先与骗子2维持短暂对视，嘴角笑意逐渐加深，随后收回悬停的双手，起身离开织机，朝前方关闭的房门迈出几步，停在左侧织机与房门之间；他始终面向房门，站稳后用双手迅速抚平并整理自己的衣着。约在1.8秒后，画面重心由骗子1自然扩展至两人：骗子2结束对视，从右侧织机前短暂直起身体，随即向右侧脚踏织机贴近并转回身，身体前倾，双手落到织机的检查位置，目光随之落向织机。摄影机保持脚踏织机一侧朝向房门的原有轴线与中全景，仅以极轻微、连续的构图调整同时容纳骗子1向房门方向的位移和骗子2回到织机旁的动作，不追随任何一人形成突兀特写。两架脚踏织机与关闭的房门全程保持原位，老大臣不进入画面。到6.4秒时，骗子1停在织机与房门之间面向房门，双手正在整理平整衣着；骗子2停在右侧织机旁前倾检查，双手保持在织机上方、目光落在织机上，画面稳定结束于目标构图。",
+          "canonical_source_id": "transition_1",
+          "clip_local_start_time": 0.0,
+          "clip_local_end_time": 6.4,
+          "target_state_owned": true,
+          "action_progress": "CANONICAL_START",
+          "projection_mode": "CLIP_INTERSECTION"
+        },
+        {
+          "segment_index": 2,
+          "from_keyframe_index": 2,
+          "to_keyframe_index": 3,
+          "start_time": 6.4,
+          "end_time": 8.6,
+          "transition_description": "骗子1从织机与房门之间的起始位置完成衣襟整理，短暂侧目看向右侧织机旁的骗子2，随后转回房门，沿原有朝向向前走近门口；骗子2始终留在右侧脚踏织机旁，只以小幅手部调整贴近织机操作区域并稳住前倾姿态，不离开原位。摄影机保持同一轴线，从织机一侧连续缓慢向房门方向推进并轻微平移补偿骗子1的移动，前段以骗子1为主要视觉中心，同时让骗子2的细微动作留在背景可读；后段逐渐将两人与织机纳入清晰的前后层次，并自然把构图重心向门前的骗子1倾斜，但仍保留骗子2和脚踏织机在后方。骗子1抵达关闭的房门前后侧身面向门口，抬起一只手准确放到房门的开启位置，另一只手收回身侧，神情转为殷勤而期待；摄影机在靠近房门一侧的位置平稳停住，房门保持关闭，骗子1位于前方，骗子2镇定地留在后方右侧织机旁，两架脚踏织机继续构成后景。",
+          "canonical_source_id": "transition_2",
+          "clip_local_start_time": 6.4,
+          "clip_local_end_time": 8.6,
+          "target_state_owned": true,
+          "action_progress": "CANONICAL_START",
+          "projection_mode": "CLIP_INTERSECTION"
+        },
+        {
+          "segment_index": 3,
+          "from_keyframe_index": 3,
+          "to_keyframe_index": 4,
+          "start_time": 8.6,
+          "end_time": 10.2,
+          "transition_description": "延续原机位与运动方向，骗子1从关闭的房门前施力将门扇连续打开，同时向门内侧横移半步，为门口让出空间；他的身体逐渐转向门槛，神情保持殷勤，随后双臂自然向左右展开并停在热情迎接的姿态。房门开启的过程中，门外晨光沿逐渐扩大的门缝斜照进织造室，老大臣身着官服从门外显现，身体朝向室内，并向门槛迈近一步，最终一只脚停在接近门槛的位置，尚未跨入房间。骗子2始终留在后方右侧脚踏织机旁，双手在织机操作区域进行有限的检查动作，不离开原位，也不因门口动静成为画面主焦点。摄影机不间断地从织机一侧沿原有方向缓慢向房门推进并作轻微构图补偿：前半段将视觉重心从后方的骗子2平顺移向开门的骗子1，后半段通过打开的门框逐渐纳入老大臣，同时继续维持骗子1与门外来者的主要空间关系，不单独追近老大臣。到达终点时，房门完全打开，骗子1站在门内侧面向门槛、双臂张开；老大臣被门框与身后晨光框住，一只脚接近门槛；骗子2仍在后方右侧专注检查脚踏织机，织机保留在构图后方。",
+          "canonical_source_id": "transition_3",
+          "clip_local_start_time": 8.6,
+          "clip_local_end_time": 10.2,
+          "target_state_owned": true,
+          "action_progress": "CANONICAL_START",
+          "projection_mode": "CLIP_INTERSECTION"
+        },
+        {
+          "segment_index": 4,
+          "from_keyframe_index": 4,
+          "to_keyframe_index": 5,
+          "start_time": 10.2,
+          "end_time": 13.5,
+          "transition_description": "老大臣从门槛外朝织造室内跨步进入，越过骗子1张开的双臂，随后在门内逐渐转身朝向房间中央的两架脚踏织机。骗子1从门内侧顺势向室内侧前方退让半步，为老大臣留出通道，始终保持双臂舒展和殷勤笑容，并最终停在老大臣侧前方。老大臣通过门口后，房门在他背后连续合拢直至关闭，门外斜入的晨光随门缝收窄而逐渐减弱。骗子2始终位于后方右侧脚踏织机旁，双手保持在检查位置，仅做必要的轻微姿态调整，不因老大臣入室而成为画面主焦点。摄影机延续原有朝门口推进的运动，先稳定容纳骗子1与跨过门槛的老大臣，再随老大臣进入轻微后撤并平滑转向室内中央，使视觉重心在12.4秒前由骗子1自然移交至老大臣，同时保持骗子2和织机处于纵深背景。最终摄影机停在沿老大臣入室方向朝向房间中央的连续机位：老大臣站在关闭的房门前并面向两架织机，骗子1位于其侧前方且双臂仍舒展，骗子2停在右侧织机旁，三人与两架织机形成由门口通向室内中央的纵深构图。",
+          "canonical_source_id": "transition_4",
+          "clip_local_start_time": 10.2,
+          "clip_local_end_time": 11.7,
+          "target_state_owned": false,
+          "action_progress": "CANONICAL_START",
+          "projection_mode": "CROSS_CLIP_OPENING",
+          "execution_scope": "Only the opening slice of this original transition overlaps this Clip. Show only its initial progression; do not perform later actions or claim arrival at the unowned target state. The full source remains Shot authority for the following Clip."
+        }
+      ],
+      "dialogue_timeline": [
+        {
+          "dialogue_id": "D1",
+          "segment_index": 1,
+          "speaker": "骗子1",
+          "text": "客人来了。",
+          "emotion_prompt": "狡猾期待",
+          "estimated_duration": 1.0,
+          "source_order": 1,
+          "start_time": 1.0,
+          "end_time": 2.0,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D1",
+          "local_start_time": 1.0,
+          "local_end_time": 2.0,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D2",
+          "segment_index": 1,
+          "speaker": "骗子2",
+          "text": "谁？",
+          "emotion_prompt": "警觉低声",
+          "estimated_duration": 0.5,
+          "source_order": 2,
+          "start_time": 2.2,
+          "end_time": 2.7,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D2",
+          "local_start_time": 2.2,
+          "local_end_time": 2.7,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D3",
+          "segment_index": 1,
+          "speaker": "老大臣",
+          "text": "奉陛下之命，我来查看新布的进展。",
+          "emotion_prompt": "苍老庄重",
+          "estimated_duration": 3.5,
+          "source_order": 3,
+          "start_time": 2.9,
+          "end_time": 6.4,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D3",
+          "local_start_time": 2.9,
+          "local_end_time": 6.4,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D4",
+          "segment_index": 1,
+          "speaker": "骗子1",
+          "text": "准备好了吗？",
+          "emotion_prompt": "压低声音确认",
+          "estimated_duration": 1.25,
+          "source_order": 4,
+          "start_time": 6.6,
+          "end_time": 7.85,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D4",
+          "local_start_time": 6.6,
+          "local_end_time": 7.85,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D5",
+          "segment_index": 1,
+          "speaker": "骗子2",
+          "text": "当然。",
+          "emotion_prompt": "镇定自信",
+          "estimated_duration": 0.5,
+          "source_order": 5,
+          "start_time": 8.05,
+          "end_time": 8.55,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D5",
+          "local_start_time": 8.05,
+          "local_end_time": 8.55,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D6",
+          "segment_index": 1,
+          "speaker": "骗子1",
+          "text": "大人。",
+          "emotion_prompt": "热情恭敬",
+          "estimated_duration": 0.5,
+          "source_order": 6,
+          "start_time": 8.75,
+          "end_time": 9.25,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D6",
+          "local_start_time": 8.75,
+          "local_end_time": 9.25,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        },
+        {
+          "dialogue_id": "D7",
+          "segment_index": 1,
+          "speaker": "骗子1",
+          "text": "我们已经恭候多时了。",
+          "emotion_prompt": "殷勤欢迎",
+          "estimated_duration": 2.25,
+          "source_order": 7,
+          "start_time": 9.45,
+          "end_time": 11.7,
+          "is_continuation": false,
+          "continues_in_next_clip": false,
+          "id": "D7",
+          "local_start_time": 9.45,
+          "local_end_time": 11.7,
+          "projection_mode": "intersection",
+          "dialogue_timing_source": "official_projection"
+        }
+      ]
+    },
+    "subject_bindings": {
+      "<Subject 1>": "骗子1",
+      "<Subject 2>": "骗子2",
+      "<Subject 3>": "老大臣"
+    },
+    "speaker_bindings": {
+      "<Subject 1>": "S1",
+      "<Subject 2>": "S2",
+      "<Subject 3>": "S3"
+    },
+    "speech_slots": [
+      {
+        "slot": "SPEECH_1",
+        "id": "D1",
+        "speaker": "<Subject 1>",
+        "fixed_duration": 1.0,
+        "original_start": 1.0,
+        "original_end": 2.0,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_2",
+        "id": "D2",
+        "speaker": "<Subject 2>",
+        "fixed_duration": 0.5,
+        "original_start": 2.2,
+        "original_end": 2.7,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_3",
+        "id": "D3",
+        "speaker": "<Subject 3>",
+        "fixed_duration": 3.5,
+        "original_start": 2.9,
+        "original_end": 6.4,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_4",
+        "id": "D4",
+        "speaker": "<Subject 1>",
+        "fixed_duration": 1.25,
+        "original_start": 6.6,
+        "original_end": 7.85,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_5",
+        "id": "D5",
+        "speaker": "<Subject 2>",
+        "fixed_duration": 0.5,
+        "original_start": 8.05,
+        "original_end": 8.55,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_6",
+        "id": "D6",
+        "speaker": "<Subject 1>",
+        "fixed_duration": 0.5,
+        "original_start": 8.75,
+        "original_end": 9.25,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      },
+      {
+        "slot": "SPEECH_7",
+        "id": "D7",
+        "speaker": "<Subject 1>",
+        "fixed_duration": 2.25,
+        "original_start": 9.45,
+        "original_end": 11.7,
+        "original_time_base": "CLIP_STORY_SECONDS"
+      }
+    ],
+    "anchor_catalog": [
+      {
+        "anchor_id": "KF1",
+        "canonical_state_index": 1,
+        "original_time": 0.0,
+        "original_time_base": "CLIP_STORY_SECONDS",
+        "source_time_base": "SHOT_SECONDS",
+        "source_time": 0.0,
+        "source_picture": "<Picture 1>",
+        "source_kind": "DIRECTOR_VISUAL_ANCHOR",
+        "linked_anchor_id": null
+      },
+      {
+        "anchor_id": "KF2",
+        "canonical_state_index": 2,
+        "original_time": 6.4,
+        "original_time_base": "CLIP_STORY_SECONDS",
+        "source_time_base": "SHOT_SECONDS",
+        "source_time": 6.4,
+        "source_picture": null,
+        "source_kind": "CANONICAL_VISUAL_STATE",
+        "linked_anchor_id": null
+      },
+      {
+        "anchor_id": "KF3",
+        "canonical_state_index": 3,
+        "original_time": 8.6,
+        "original_time_base": "CLIP_STORY_SECONDS",
+        "source_time_base": "SHOT_SECONDS",
+        "source_time": 8.6,
+        "source_picture": null,
+        "source_kind": "CANONICAL_VISUAL_STATE",
+        "linked_anchor_id": null
+      },
+      {
+        "anchor_id": "KF4",
+        "canonical_state_index": 4,
+        "original_time": 10.2,
+        "original_time_base": "CLIP_STORY_SECONDS",
+        "source_time_base": "SHOT_SECONDS",
+        "source_time": 10.2,
+        "source_picture": null,
+        "source_kind": "CANONICAL_VISUAL_STATE",
+        "linked_anchor_id": null
+      }
+    ],
+    "reference_selection_capability": {
+      "supported": true,
+      "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+      "reference_node_id": "136"
+    },
+    "reference_manifest": {
+      "version": 1,
+      "references": [
+        {
+          "slot": 1,
+          "kind": "DIRECTOR_VISUAL_ANCHOR",
+          "source_type": "SHOT_IMAGE",
+          "source_keyframe_index": 1,
+          "source_role": "START",
+          "source_time_seconds": 0.0,
+          "source_image_task_id": null,
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/shots/shot_7471f4f1_20261013_165812.png"
+        },
+        {
+          "kind": "SCENE",
+          "source_name": "王宫织造室",
+          "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "source_type": "SCENE_ASSET",
+          "source_identity": {
+            "asset_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+            "name": "王宫织造室"
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫织造室_20261003_173205.png",
+          "slot": 2
+        },
+        {
+          "kind": "CHARACTER_IDENTITY",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "source_type": "CHARACTER_ASSET",
+          "source_identity": {
+            "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "name": "骗子1"
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+          "slot": 3
+        },
+        {
+          "kind": "CHARACTER_IDENTITY",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "source_type": "CHARACTER_ASSET",
+          "source_identity": {
+            "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+            "name": "骗子2"
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+          "slot": 4
+        },
+        {
+          "kind": "CHARACTER_IDENTITY",
+          "source_name": "老大臣",
+          "source_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "source_type": "CHARACTER_ASSET",
+          "source_identity": {
+            "asset_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+            "name": "老大臣"
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/老大臣_20261010_233007.png",
+          "slot": 5
+        },
+        {
+          "kind": "PROP",
+          "source_name": "脚踏织机",
+          "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "source_type": "PROP_ASSET",
+          "source_identity": {
+            "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+            "name": "脚踏织机"
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/脚踏织机_20261003_174333.png",
+          "slot": 6
+        }
+      ],
+      "skipped_references": []
+    },
+    "picture_mapping": [
+      {
+        "picture_index": 1,
+        "picture": "<Picture 1>",
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "SHOT_IMAGE",
+        "source_keyframe_index": 1,
+        "source_role": "START",
+        "source_time_seconds": 0.0,
+        "source_image_task_id": null,
+        "source_identity": null,
+        "source_id": null,
+        "source_name": null
+      },
+      {
+        "picture_index": 2,
+        "picture": "<Picture 2>",
+        "kind": "SCENE",
+        "source_type": "SCENE_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "name": "王宫织造室"
+        },
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "source_name": "王宫织造室"
+      },
+      {
+        "picture_index": 3,
+        "picture": "<Picture 3>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_name": "骗子1"
+      },
+      {
+        "picture_index": 4,
+        "picture": "<Picture 4>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_name": "骗子2"
+      },
+      {
+        "picture_index": 5,
+        "picture": "<Picture 5>",
+        "kind": "CHARACTER_IDENTITY",
+        "source_type": "CHARACTER_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "name": "老大臣"
+        },
+        "source_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+        "source_name": "老大臣"
+      },
+      {
+        "picture_index": 6,
+        "picture": "<Picture 6>",
+        "kind": "PROP",
+        "source_type": "PROP_ASSET",
+        "source_keyframe_index": null,
+        "source_role": null,
+        "source_time_seconds": null,
+        "source_image_task_id": null,
+        "source_identity": {
+          "asset_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "name": "脚踏织机"
+        },
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "source_name": "脚踏织机"
+      }
+    ],
+    "temporal_anchor_manifest": {
+      "anchors": [],
+      "time_base": "CLIP_STORY_SECONDS"
+    },
+    "visual_previews": [
+      {
+        "id": "<Picture 1>",
+        "source_sha256": "621f40d1bc7bfb1e018bb7485a2bc54daf0dbbe5cbd128d445327f41ccbb9f2e",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/621f40d1bc7bfb1e018bb7485a2bc54daf0dbbe5cbd128d445327f41ccbb9f2e.jpg",
+        "type": "DIRECTOR_VISUAL_ANCHOR"
+      },
+      {
+        "id": "<Picture 2>",
+        "source_sha256": "78845413108bcc1ebd9ca9d31fe349b0a72d07b57df6d14b41d7e7ea98ca3144",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/78845413108bcc1ebd9ca9d31fe349b0a72d07b57df6d14b41d7e7ea98ca3144.jpg",
+        "type": "SCENE"
+      },
+      {
+        "id": "<Picture 3>",
+        "source_sha256": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509.jpg",
+        "type": "CHARACTER_IDENTITY"
+      },
+      {
+        "id": "<Picture 4>",
+        "source_sha256": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422.jpg",
+        "type": "CHARACTER_IDENTITY"
+      },
+      {
+        "id": "<Picture 5>",
+        "source_sha256": "b4ce6ecaab559ff6f9d9836ae4046c7b906b497aa0a25f72f6703fa89d67ab9b",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/b4ce6ecaab559ff6f9d9836ae4046c7b906b497aa0a25f72f6703fa89d67ab9b.jpg",
+        "type": "CHARACTER_IDENTITY"
+      },
+      {
+        "id": "<Picture 6>",
+        "source_sha256": "51e432bc4ced07c0b3e1825ab8a9b20e442f2151fc846686618512a337f13be5",
+        "proxy_url": "/api/files/_vision_proxy/v1_1024_q85/51e432bc4ced07c0b3e1825ab8a9b20e442f2151fc846686618512a337f13be5.jpg",
+        "type": "PROP"
+      }
+    ],
+    "previous_av": {
+      "continuation_contract": null,
+      "preview_frames": [],
+      "source_context_interval": null,
+      "generation_shared_prefix_interval": null
+    },
+    "camera_planning": {
+      "user_requirements": {
+        "status": "UNKNOWN",
+        "requirements": [],
+        "source": "No explicit structured user lock recorded; preserve Canonical camera facts"
+      },
+      "historical_mode_origin": "UNKNOWN_UNLESS_EXPLICITLY_DOCUMENTED",
+      "visual_attention": {
+        "version": 1,
+        "time_base": "CLIP_SECONDS",
+        "windows": [
+          {
+            "start_time_seconds": 0.0,
+            "end_time_seconds": 1.8,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            ],
+            "background_motion_subjects": [],
+            "source_window_index": 0,
+            "source_start_time_seconds": 0.0,
+            "source_end_time_seconds": 1.8
+          },
+          {
+            "start_time_seconds": 1.8,
+            "end_time_seconds": 2.8,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "background_motion_subjects": [],
+            "handoff": {
+              "from": [
+                "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+              ],
+              "to": [
+                "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+              ]
+            },
+            "source_window_index": 1,
+            "source_start_time_seconds": 1.8,
+            "source_end_time_seconds": 2.8,
+            "handoff_progress": {
+              "start": 0.0,
+              "end": 1.0
+            }
+          },
+          {
+            "start_time_seconds": 2.8,
+            "end_time_seconds": 6.4,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "background_motion_subjects": [],
+            "source_window_index": 2,
+            "source_start_time_seconds": 2.8,
+            "source_end_time_seconds": 6.4
+          },
+          {
+            "start_time_seconds": 6.4,
+            "end_time_seconds": 7.9,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            ],
+            "background_motion_subjects": [
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "source_window_index": 3,
+            "source_start_time_seconds": 6.4,
+            "source_end_time_seconds": 7.9
+          },
+          {
+            "start_time_seconds": 7.9,
+            "end_time_seconds": 9.4,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "background_motion_subjects": [],
+            "handoff": {
+              "from": [
+                "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+              ],
+              "to": [
+                "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+              ]
+            },
+            "source_window_index": 4,
+            "source_start_time_seconds": 7.9,
+            "source_end_time_seconds": 9.4,
+            "handoff_progress": {
+              "start": 0.0,
+              "end": 1.0
+            }
+          },
+          {
+            "start_time_seconds": 9.4,
+            "end_time_seconds": 11.7,
+            "primary_subjects": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ],
+            "background_motion_subjects": [
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "handoff": {
+              "from": [
+                "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+              ],
+              "to": [
+                "7a34f991-4797-4dd6-a326-43039022cd91"
+              ]
+            },
+            "source_window_index": 5,
+            "source_start_time_seconds": 9.4,
+            "source_end_time_seconds": 12.4,
+            "handoff_progress": {
+              "start": 0.0,
+              "end": 0.7666666666666667
+            }
+          }
+        ],
+        "characters": [
+          {
+            "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "character_name": "骗子1",
+            "subject": "<Subject 1>"
+          },
+          {
+            "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+            "character_name": "骗子2",
+            "subject": "<Subject 2>"
+          },
+          {
+            "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+            "character_name": "老大臣",
+            "subject": "<Subject 3>"
+          }
+        ]
+      },
+      "sources": "Canonical owned/carry states and scoped Transitions; never move people for composition"
+    },
+    "execution_budget": {
+      "story_duration": 11.7,
+      "duration_limits": {
+        "minimum": 4.0,
+        "maximum": 20.0,
+        "absolute_maximum": 20.0,
+        "frame_rule": "existing frozen workflow duration-to-frames conversion"
+      },
+      "overlap_seconds": 0.0,
+      "fixed_speech_lower_bound": 9.5,
+      "unknown_execution_cost": "NOT_ESTIMATED; camera/action costs require director judgment"
+    },
+    "music_policy": {
+      "value": "N/A",
+      "source": "PHASE_B_RUNTIME_POLICY"
+    }
+  },
+  "original_response": {
+    "optimized_duration": 11.7,
+    "dialogue_events": [
+      {
+        "id": "D1",
+        "start": 1.0
+      },
+      {
+        "id": "D2",
+        "start": 2.2
+      },
+      {
+        "id": "D3",
+        "start": 2.9
+      },
+      {
+        "id": "D4",
+        "start": 6.6
+      },
+      {
+        "id": "D5",
+        "start": 8.05
+      },
+      {
+        "id": "D6",
+        "start": 8.75
+      },
+      {
+        "id": "D7",
+        "start": 9.45
+      }
+    ],
+    "anchors": [
+      {
+        "id": "KF1",
+        "decision": "KEEP",
+        "optimized_time": 0.0,
+        "arrival_relation": {
+          "dialogue_id": "D1",
+          "position": "BEFORE"
+        },
+        "reason": "保留敲门后两人停手对视的明确起始构图"
+      },
+      {
+        "id": "KF2",
+        "decision": "KEEP",
+        "optimized_time": 6.4,
+        "arrival_relation": {
+          "dialogue_id": "D3",
+          "position": "AFTER"
+        },
+        "reason": "门外来意说明结束时，两人的迎客伪装已各自就位"
+      },
+      {
+        "id": "KF3",
+        "decision": "KEEP",
+        "optimized_time": 8.6,
+        "arrival_relation": {
+          "dialogue_id": "D5",
+          "position": "AFTER"
+        },
+        "reason": "回应完成后骗子1抵达仍关闭的房门并握住开启位置"
+      },
+      {
+        "id": "KF4",
+        "decision": "KEEP",
+        "optimized_time": 10.2,
+        "arrival_relation": {
+          "dialogue_id": "D7",
+          "position": "DURING"
+        },
+        "reason": "欢迎话进行中完成开门、亮出老大臣并形成迎接姿态"
+      }
+    ],
+    "detailed_description": "清晨明亮而安静的王宫织造室内，以脚踏织机一侧朝向关闭房门的中全景起始；两架织机保持在房间中央。敲门声刚落，骗子1在左侧织机前、骗子2在右侧织机前同时停住假装织布的双手并互相对视，画面严格只有二人。骗子1嘴角的笑意逐渐加深，脸部清楚朝向骗子2，[[SPEECH_1]]。画面重心自然扩展至两人；骗子2保持警觉的面部可读性，短暂直起身体作出低声回应，[[SPEECH_2]]。随后骗子2贴回右侧织机，转身前倾，双手落到操作区域并低头佯装检查；骗子1收回悬停的双手，起身离开左侧织机，朝关闭的房门迈出几步。老大臣仍在门外且不进入画面，他庄重的声音隔着关闭的门传入，[[SPEECH_3]]；这段话进行时，骗子1继续走到织机与房门之间并站稳，双手迅速抚平衣襟，骗子2则以小幅手部动作维持检查假象。摄影机始终守住原有轴线，只作轻微连续调整，同时保留两人、两架织机和房门的空间关系。\n骗子1完成大致整理后，短暂侧目看向后方右侧织机旁的骗子2，压低声音确认，[[SPEECH_4]]。他随即转回房门并继续向前；摄影机沿原方向缓慢向门口推进并轻微平移，骗子1成为主要视觉中心，但骗子2仍在纵深背景中可辨。骗子2不离开织机，只抬起视线并以镇定神情作答，脸部在现有中全景层次中保持可读，[[SPEECH_5]]，随即将目光重新落回织机。骗子1抵达仍关闭的房门前，侧身面向门口，一只手准确落在开启位置，另一只手收在身侧，衣着已经平整，神情殷勤而期待。\n摄影机延续同一轴线向门口缓慢推进。骗子1施力连续打开门扇，同时向门内侧横移半步让出门口；扩大的门缝引入斜照晨光，老大臣身着官服逐渐显现在门框外，身体朝向室内，一只脚迈近门槛但尚未跨入。骗子1在开门过程中热情而恭敬地招呼，[[SPEECH_6]]；骗子2始终留在后方右侧织机旁，双手只做有限的检查动作。门完全打开后，骗子1站在门内侧面向门槛，双臂自然向左右展开，老大臣被门框和身后晨光清晰框住，骗子2及脚踏织机继续保留在后景。骗子1维持殷勤笑容与舒展迎接姿态，[[SPEECH_7]]。欢迎话进行时，老大臣仅开始从门槛外向室内跨步，骗子1顺势向室内侧前方退让半步以腾出通道；摄影机稳定容纳两人的门口关系并开始把注意力平顺交向老大臣。片尾停在这段入室动作的初始进展：不让老大臣完成越过骗子1、转向织机或进入最终室内站位，房门也尚未在他身后合拢。",
+    "overall_soundscape": "安静石砌织造室的轻微室内空气感；开场清楚的门外敲门声，衣料摩擦、鞋履落在石地上的轻步声、双手触碰织机木件的细小声响、门闩与木门开启时克制的摩擦和铰链声，以及老大臣迈近门槛的脚步声。织机不自行运转，无音乐、无背景人声或额外发声。"
+  },
+  "subject_prose": {
+    "detailed_description": "清晨明亮而安静的王宫织造室内，以脚踏织机一侧朝向关闭房门的中全景起始；两架织机保持在房间中央。敲门声刚落，<Subject 1>在左侧织机前、<Subject 2>在右侧织机前同时停住假装织布的双手并互相对视，画面严格只有二人。<Subject 1>嘴角的笑意逐渐加深，脸部清楚朝向<Subject 2>，[[SPEECH_1]]。画面重心自然扩展至两人；<Subject 2>保持警觉的面部可读性，短暂直起身体作出低声回应，[[SPEECH_2]]。随后<Subject 2>贴回右侧织机，转身前倾，双手落到操作区域并低头佯装检查；<Subject 1>收回悬停的双手，起身离开左侧织机，朝关闭的房门迈出几步。<Subject 3>仍在门外且不进入画面，他庄重的声音隔着关闭的门传入，[[SPEECH_3]]；这段话进行时，<Subject 1>继续走到织机与房门之间并站稳，双手迅速抚平衣襟，<Subject 2>则以小幅手部动作维持检查假象。摄影机始终守住原有轴线，只作轻微连续调整，同时保留两人、两架织机和房门的空间关系。\n<Subject 1>完成大致整理后，短暂侧目看向后方右侧织机旁的<Subject 2>，压低声音确认，[[SPEECH_4]]。他随即转回房门并继续向前；摄影机沿原方向缓慢向门口推进并轻微平移，<Subject 1>成为主要视觉中心，但<Subject 2>仍在纵深背景中可辨。<Subject 2>不离开织机，只抬起视线并以镇定神情作答，脸部在现有中全景层次中保持可读，[[SPEECH_5]]，随即将目光重新落回织机。<Subject 1>抵达仍关闭的房门前，侧身面向门口，一只手准确落在开启位置，另一只手收在身侧，衣着已经平整，神情殷勤而期待。\n摄影机延续同一轴线向门口缓慢推进。<Subject 1>施力连续打开门扇，同时向门内侧横移半步让出门口；扩大的门缝引入斜照晨光，<Subject 3>身着官服逐渐显现在门框外，身体朝向室内，一只脚迈近门槛但尚未跨入。<Subject 1>在开门过程中热情而恭敬地招呼，[[SPEECH_6]]；<Subject 2>始终留在后方右侧织机旁，双手只做有限的检查动作。门完全打开后，<Subject 1>站在门内侧面向门槛，双臂自然向左右展开，<Subject 3>被门框和身后晨光清晰框住，<Subject 2>及脚踏织机继续保留在后景。<Subject 1>维持殷勤笑容与舒展迎接姿态，[[SPEECH_7]]。欢迎话进行时，<Subject 3>仅开始从门槛外向室内跨步，<Subject 1>顺势向室内侧前方退让半步以腾出通道；摄影机稳定容纳两人的门口关系并开始把注意力平顺交向<Subject 3>。片尾停在这段入室动作的初始进展：不让<Subject 3>完成越过<Subject 1>、转向织机或进入最终室内站位，房门也尚未在他身后合拢。",
+    "overall_soundscape": "安静石砌织造室的轻微室内空气感；开场清楚的门外敲门声，衣料摩擦、鞋履落在石地上的轻步声、双手触碰织机木件的细小声响、门闩与木门开启时克制的摩擦和铰链声，以及<Subject 3>迈近门槛的脚步声。织机不自行运转，无音乐、无背景人声或额外发声。"
+  }
+}

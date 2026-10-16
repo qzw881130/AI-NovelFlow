@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from app.services.director_context import effective_visual_states, transition_input_contract
 from app.constants.prompt_template import TRANSITION_INPUT_V1, TRANSITION_INPUT_V2
+from app.constants.h3_prompt_pipeline import DEFAULT_H3_PROMPT_PIPELINE, persisted_h3_prompt_pipeline
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
@@ -390,7 +391,7 @@ class BatchShotImageRequest(BaseModel):
 
 
 class BatchShotVideoRequest(BaseModel):
-    h3_prompt_pipeline: Literal["legacy", "phase_b"] = "legacy"
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     shot_ids: list[str]
     auto_complete_details: bool = True
     use_reference_audio: bool = True
@@ -403,7 +404,7 @@ class BatchShotVideoRequest(BaseModel):
 
 
 class SemanticClipGenerateRequest(BaseModel):
-    h3_prompt_pipeline: Literal["legacy", "phase_b"] = "legacy"
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     preflight_auto_repair: Optional[bool] = None
     use_reference_audio: bool = True
     auto_merge: bool = True
@@ -4180,6 +4181,8 @@ async def _prepare_automatic_shot(db: Session, parent: Task, child: Task, shot: 
 
 async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_child: Task, shot: Shot) -> str:
     from app.services.continuous_clip_av import cache_export_av_probes
+    # Resolve saved child intent before any upstream calls; not the new API default.
+    route = persisted_h3_prompt_pipeline(_safe_json_dict(batch_child.metadata_json))
     validate_artifact = cache_export_av_probes(validate_semantic_clip_artifact)
     if (_safe_json_dict(batch_child.metadata_json).get("automatic_shot")
             or _safe_json_dict(batch_child.metadata_json).get("auto_complete_details")):
@@ -4267,7 +4270,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                     shot.id,
                     index,
                     SemanticClipGenerateRequest(
-                        h3_prompt_pipeline=batch_metadata.get("h3_prompt_pipeline", "legacy"),
+                        h3_prompt_pipeline=route,
                         use_reference_audio=bool(batch_metadata.get("use_reference_audio", True)),
                         auto_merge=False,
                         skip_llm_when_prompt_exists=bool(batch_metadata.get("skip_llm_when_prompt_exists", False)

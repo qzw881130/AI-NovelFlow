@@ -4,6 +4,8 @@
 import { api } from './index';
 import { downloadQueuedShotExport } from './shotExports';
 
+export const DEFAULT_H3_PROMPT_PIPELINE = 'phase_b' as const;
+
 const shotReadsInFlight = new Map<string, Promise<{ success: boolean; data: Shot; message?: string }>>();
 
 // 分镜台词数据
@@ -560,7 +562,7 @@ export const shotsApi = {
           auto_complete_details: options.auto_complete_details ?? true,
           use_reference_audio: options.use_reference_audio ?? true,
           skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
-          h3_prompt_pipeline: options.h3_prompt_pipeline ?? 'legacy',
+          h3_prompt_pipeline: options.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
           optimize_h3_prompt: options.optimize_h3_prompt ?? false,
           preflight_auto_repair: options.preflight_auto_repair,
           force_rerun: options.force_rerun ?? true,
@@ -607,7 +609,7 @@ export const shotsApi = {
           workflow_id: options?.workflow_id,
           selected_mode: options?.selected_mode,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
-          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? 'legacy',
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
           optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           preflight_auto_repair: options?.preflight_auto_repair,
         }),
@@ -746,7 +748,7 @@ export const shotsApi = {
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
-          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? 'legacy',
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
           optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           preflight_auto_repair: options?.preflight_auto_repair,
           clip_plan_revision: options?.clip_plan_revision,

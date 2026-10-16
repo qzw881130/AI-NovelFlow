@@ -42,10 +42,12 @@ async def test_one_batch_prepares_two_shots_and_preserves_phase_b(db_session, mo
     async def merge(db,shot,*args):
         calls.append((shot.id,'merge'));shot.video_url='/api/files/'+shot.id+'-final.mp4';shot.video_status='completed';p=json.loads(shot.video_director_plan);p['assembly_status']='COMPLETED';shot.video_director_plan=json.dumps(p);db.commit();return {'success':True}
     monkeypatch.setattr(api,'execute_semantic_clip',execute);monkeypatch.setattr(api,'merge_video_director_clip_videos',merge)
-    result=await api.generate_shot_videos_batch('n','c',api.BatchShotVideoRequest(shot_ids=['s1','s2'],h3_prompt_pipeline='phase_b',auto_complete_details=True,force_rerun=False),db,NovelRepository(db),ChapterRepository(db),ShotRepository(db))
+    result=await api.generate_shot_videos_batch('n','c',api.BatchShotVideoRequest(shot_ids=['s1','s2'],auto_complete_details=True,force_rerun=False),db,NovelRepository(db),ChapterRepository(db),ShotRepository(db))
     bid=result['data']['batchTaskId'];assert queued==[bid]
     children=db.query(Task).filter(Task.parent_task_id==bid).order_by(Task.batch_order).all()
     assert [t.shot_id for t in children]==['s1','s2']
+    assert json.loads(db.get(Task,bid).metadata_json)['h3_prompt_pipeline']=='phase_b'
+    assert all(json.loads(t.metadata_json)['h3_prompt_pipeline']=='phase_b' for t in children)
     assert all(json.loads(t.metadata_json)['auto_complete_details'] and json.loads(t.metadata_json)['batch_mode']=='SEMANTIC_CLIP' for t in children)
     await api.run_shot_video_batch_task(bid)
     assert db.get(Task,bid).status==('failed' if first_fails else 'completed')

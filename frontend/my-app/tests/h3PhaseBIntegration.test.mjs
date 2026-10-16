@@ -36,14 +36,25 @@ test('failed result remains visible and legacy records do not acquire Phase B la
  assert.match(renderDetails({status:'FAILED'}),/未产生最终 Prompt/);
  assert.equal(render(undefined),'');
 });
-test('Clip and batch requests preserve explicit route; legacy remains default',async()=>{
+test('new Clip, batch and Shot requests default to Phase B and preserve explicit routes',async()=>{
  const requests=[];const fetch=async(url,opt)=>{requests.push(JSON.parse(opt.body));return {ok:true,json:async()=>({success:true}),text:async()=>'{"success":true}'};};
  const api=await load('api/shots.ts','shotsApi',{api:{},fetch,downloadQueuedShotExport:()=>{throw Error('not used')}});
  await api.generateVideoDirectorClip('n','c','s',1,{h3_prompt_pipeline:'phase_b',clip_plan_revision:3});
  await api.generateVideosBatch('n','c',{shot_ids:['s'],h3_prompt_pipeline:'phase_b'});
  await api.generateVideoDirectorClip('n','c','s',1);
- assert.deepEqual(requests.map(r=>r.h3_prompt_pipeline),['phase_b','phase_b','legacy']);
+ await api.generateVideosBatch('n','c',{shot_ids:['s']});
+ await api.generateVideo('n','c','s');
+ await api.generateVideoDirectorClip('n','c','s',1,{h3_prompt_pipeline:'legacy'});
+ await api.generateVideosBatch('n','c',{shot_ids:['s'],h3_prompt_pipeline:'legacy'});
+ await api.generateVideo('n','c','s',{h3_prompt_pipeline:'legacy'});
+ assert.deepEqual(requests.map(r=>r.h3_prompt_pipeline),['phase_b','phase_b','phase_b','phase_b','phase_b','legacy','legacy','legacy']);
  assert.equal(requests[0].clip_plan_revision,3);
+});
+test('route selector shares the request default and retains explicit Legacy',async()=>{
+ const source=await readFile(new URL('../src/pages/ChapterGenerate/components/VideoGenTab.tsx',import.meta.url),'utf8');
+ assert.match(source,/useState<'legacy' \| 'phase_b'>\(DEFAULT_H3_PROMPT_PIPELINE\)/);
+ assert.match(source,/<option value="phase_b">Phase B V3 #13（默认）<\/option>/);
+ assert.match(source,/<option value="legacy">Legacy #13 → #14<\/option>/);
 });
 test('novel template field has a distinct managed type in existing video category',async()=>{
  const fields=await load('pages/Novels/promptTemplateFields.ts','TEMPLATE_FIELDS');

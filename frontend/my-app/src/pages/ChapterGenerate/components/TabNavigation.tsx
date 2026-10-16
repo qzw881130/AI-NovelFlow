@@ -20,6 +20,7 @@ interface TabConfig {
   labelKey: string;
   icon: React.ReactNode;
   index: number;
+  disabled?: boolean;
 }
 
 const tabs: TabConfig[] = [
@@ -40,6 +41,7 @@ const tabs: TabConfig[] = [
     labelKey: 'chapterGenerate.tabAudioGen',
     icon: <Mic className="w-4 h-4" />,
     index: 2,
+    disabled: true,
   },
   {
     key: 'video_gen',
@@ -66,6 +68,7 @@ export function TabNavigation() {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
     }
+    if (tabs.find((tab) => String(tab.index + 1) === e.key)?.disabled) return;
 
     switch (e.key) {
       case '1':
@@ -101,11 +104,14 @@ export function TabNavigation() {
           return (
             <button
               key={tab.key}
+              disabled={tab.disabled}
               onClick={() => setCurrentTab(tab.index)}
               className={`
                 flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all relative
                 ${
-                  isActive
+                  tab.disabled
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : isActive
                     ? 'text-blue-600 bg-blue-50'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }
