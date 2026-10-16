@@ -667,9 +667,9 @@ export function ChapterGenerateLayout({
     return (
       <div className="h-full min-h-0 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
+        <div data-testid="chapter-header" className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex min-w-0 flex-1 basis-80 items-center gap-4">
               <Link
                 to={`/novels/${id}`}
                 className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
@@ -683,7 +683,9 @@ export function ChapterGenerateLayout({
                 <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
+              {renderQueueStats()}
+              <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
               {renderChapterSwitch()}
               {/* 章节资源管理按钮 */}
               <button
@@ -694,6 +696,7 @@ export function ChapterGenerateLayout({
                 <span>📦</span>
                 章节资源
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -701,11 +704,6 @@ export function ChapterGenerateLayout({
         {/* TabNavigation */}
         <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
           <TabNavigation />
-          {hasQueueStats && (
-            <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-              {renderQueueStats()}
-            </div>
-          )}
         </div>
 
         {/* AudioGenTab 完全接管 */}
@@ -736,7 +734,6 @@ export function ChapterGenerateLayout({
   }
 
   const headerContextStats = renderDialogueWarningStats();
-  const headerQueueStats = currentTab === 1 ? null : renderQueueStats();
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
@@ -758,7 +755,7 @@ export function ChapterGenerateLayout({
             </div>
           </div>
           <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
-            {currentTab === 1 && renderQueueStats()}
+            {renderQueueStats()}
             {renderVideoGenerationStats()}
             <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {renderChapterSwitch()}
@@ -779,10 +776,9 @@ export function ChapterGenerateLayout({
       {/* TabNavigation */}
       <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
         <TabNavigation />
-        {(headerContextStats || headerQueueStats) && (
+        {headerContextStats && (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">{headerContextStats}</div>
-            <div className="ml-auto min-w-0">{headerQueueStats}</div>
           </div>
         )}
       </div>

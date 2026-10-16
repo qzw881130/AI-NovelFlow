@@ -13,7 +13,7 @@ test('Chapter Generate status content participates in responsive document layout
 });
 
 test('video statistics live in chapter header; tabs retain other status sources', () => {
-  const header = source.slice(source.indexOf('data-testid="chapter-header"'), source.lastIndexOf('{/* TabNavigation */}'));
+  const header = source.slice(source.lastIndexOf('data-testid="chapter-header"'), source.lastIndexOf('{/* TabNavigation */}'));
   assert.match(header,/\{renderVideoGenerationStats\(\)\}/);
   assert.match(header,/\{renderChapterSwitch\(\)\}/);
   assert.match(header,/\{chapterSummary\}/);
@@ -22,16 +22,21 @@ test('video statistics live in chapter header; tabs retain other status sources'
   const mainHeader = source.slice(source.lastIndexOf('{\/\* TabNavigation \*\/}'));
   assert.doesNotMatch(mainHeader,/renderVideoGenerationStats\(\)/);
   assert.ok(mainHeader.indexOf('<TabNavigation />') < mainHeader.indexOf('{headerContextStats}'));
-  assert.match(mainHeader, /\{\(headerContextStats \|\| headerQueueStats\) && \(/);
-  assert.match(mainHeader, /\{headerQueueStats\}/);
+  assert.match(mainHeader, /\{headerContextStats && \(/);
+  assert.doesNotMatch(mainHeader, /renderQueueStats|headerQueueStats/);
 });
 
-test('image generation queues share header actions without an extra row under the tabs', () => {
-  const header = source.slice(source.indexOf('data-testid="chapter-header"'), source.lastIndexOf('{/* TabNavigation */}'));
-  assert.match(header, /\{currentTab === 1 && renderQueueStats\(\)\}/);
-  assert.ok(header.indexOf('renderQueueStats()') < header.indexOf('renderChapterSwitch()'));
-  assert.ok(header.indexOf('renderChapterSwitch()') < header.indexOf('onClick={onResourcesManageClick}'));
-  assert.match(source, /const headerQueueStats = currentTab === 1 \? null : renderQueueStats\(\);/);
+test('every chapter layout places queues in header actions, regardless of the selected tab', () => {
+  const headers = source.split('data-testid="chapter-header"').slice(1);
+  assert.equal(headers.length, 2, 'main and historical audio layouts');
+  for (const section of headers) {
+    const header = section.slice(0, section.indexOf('{/* TabNavigation */}'));
+    assert.match(header, /\{renderQueueStats\(\)\}/);
+    assert.ok(header.indexOf('renderQueueStats()') < header.indexOf('renderChapterSwitch()'));
+    assert.ok(header.indexOf('renderChapterSwitch()') < header.indexOf('onClick={onResourcesManageClick}'));
+    assert.doesNotMatch(section.slice(section.indexOf('{/* TabNavigation */}')), /renderQueueStats|headerQueueStats/);
+  }
+  assert.doesNotMatch(source, /headerQueueStats|currentTab === 1 && renderQueueStats/);
   assert.match(source, /aria-label="任务队列统计" className="flex min-w-0 max-w-full flex-wrap items-center justify-end/);
   assert.match(source, /if \(!hasQueueStats\) return null/);
   assert.match(source, /生成分镜图：队列中 \{pendingShots.size\} 个/);
