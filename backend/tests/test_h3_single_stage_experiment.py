@@ -433,6 +433,10 @@ def test_saved_director_response_quotes_only_recorded_stable_identity_marks():
 def test_stable_identity_clause_missing_is_not_invented():
     assert stage._stable_identity_marks("一名成年人；基础服装为深色外套。") is None
     assert stage._stable_identity_marks("稳定身份标记包括棕色眼睛；基础服装为红衣。") == "棕色眼睛"
+    assert stage._stable_identity_marks("稳定身份标记为宽额方脸、浓黑剑眉和深褐色眼睛。基础服装为王服。") == (
+        "宽额方脸、浓黑剑眉和深褐色眼睛"
+    )
+    assert stage._stable_identity_marks("稳定身份标记为；基础服装为深色外套。") is None
     assert "background prop's presence alone" in stage.DIRECTOR_ONLY_TEMPLATE.read_text()
 
 

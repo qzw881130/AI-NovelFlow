@@ -10,11 +10,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
-from app.models.novel import Chapter, Novel
+from app.models.novel import Chapter, Novel, Character, Scene, Prop
+from app.models.image_quality_review import ImageQualityReview
 from app.models.notification import BusinessEvent, NotificationDelivery, NotificationSettings
 from app.models.shot import Shot
 from app.models.task import Task
-from app.services.business_events import record_event
+from app.services.business_events import record_event, review_event
 from app.services.notification_format import LABELS, format_notification, resolve_business_context
 from app.services.notification_dedupe import failure_delivery_decision
 from app.services.notification_registry import EVENT_REGISTRY
@@ -69,6 +70,57 @@ def test_asset_parse_and_image_notifications_show_distinct_results(db):
     message = format_notification(generated, resolve_business_context(db, generated))
     assert "道具图片生成失败" in message and "生成结果：失败" in message
     assert novel.id not in message
+
+
+@pytest.mark.parametrize("task_type,entity_model,entity_field,label,name_label", [
+    ("character_portrait", Character, "character_id", "角色形象图", "角色：邹忌"),
+    ("scene_image", Scene, "scene_id", "场景图", "场景：临淄街市"),
+    ("prop_image", Prop, "prop_id", "道具图", "道具：战国车舆"),
+])
+def test_image_review_notification_identifies_asset(db, task_type, entity_model, entity_field, label, name_label):
+    novel, _, _ = _business_rows(db)
+    name = name_label.split("：", 1)[1]
+    entity = entity_model(novel_id=novel.id, name=name)
+    db.add(entity)
+    db.flush()
+    task = Task(type=task_type, name="无关任务标题", status="completed", novel_id=novel.id,
+                **{entity_field: entity.id})
+    db.add(task)
+    db.commit()
+    row = record_event(db, "image.review.warning", {"novel_id": novel.id, "task_id": task.id,
+                                                       "details": {"task_type": task_type}})
+    message = format_notification(row, resolve_business_context(db, row))
+    assert f"图片类型：{label}" in message
+    assert name_label in message
+    assert "无关任务标题" not in message
+
+
+def test_image_review_notification_identifies_shot_and_canonical_visual_state(db):
+    novel, chapter, shot = _business_rows(db)
+    task = Task(type="keyframe_image", name=f"生成关键帧图片: {shot.id}-3", status="completed",
+                novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
+                metadata_json=json.dumps({"canonical_image_provenance": {"state_index": 5}}))
+    db.add(task)
+    db.commit()
+    review = ImageQualityReview(task_id=task.id, status="success", overall="WARNING",
+                                input_snapshot_json=json.dumps({"task_type": "keyframe_image"}))
+    code, payload, dedupe, stamp = review_event(review, task)
+    row = record_event(db, code, payload, dedupe_key=dedupe, timestamp=stamp)
+    message = format_notification(row, resolve_business_context(db, row))
+    assert "图片类型：视觉状态图" in message
+    assert "分镜：第 7 个" in message
+    assert "视觉状态：第 5 个" in message
+    assert "视觉状态：第 3 个" not in message
+
+    shot_task = Task(type="shot_image", name="主分镜图", status="completed",
+                     novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id)
+    db.add(shot_task)
+    db.commit()
+    row = record_event(db, "image.review.failed", {"novel_id": novel.id, "chapter_id": chapter.id,
+                                                     "shot_id": shot.id, "task_id": shot_task.id})
+    message = format_notification(row, resolve_business_context(db, row))
+    assert "图片类型：主分镜图" in message and "分镜：第 7 个" in message
+    assert "视觉状态：" not in message
 
 
 def test_real_relationship_numbers_and_business_fields(db):

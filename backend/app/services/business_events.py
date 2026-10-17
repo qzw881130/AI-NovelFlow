@@ -125,7 +125,8 @@ def task_context(task):
     optimizer = meta.get("h3_prompt_optimizer") or {}
     anchor = (meta.get("reference_selector_input") or {}).get("current_anchor") or {}
     # Do not mistake legacy zero-based frame_index for the Director state index.
-    state_index = anchor.get("index") or meta.get("plan_keyframe_index")
+    provenance = meta.get("canonical_image_provenance") or {}
+    state_index = anchor.get("index") or provenance.get("state_index") or meta.get("plan_keyframe_index")
     return {"novel_id": task.novel_id, "chapter_id": task.chapter_id, "shot_id": task.shot_id,
             "task_id": task.id, "clip_id": meta.get("clip_id"),
             "llm_log_id": optimizer.get("llm_log_id"),

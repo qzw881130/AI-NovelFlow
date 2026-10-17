@@ -177,9 +177,11 @@ def _stable_identity_marks(appearance):
     """Quote the existing explicit identity clause, excluding portrait outfits."""
     if not isinstance(appearance, str):
         return None
-    _, marker, remainder = appearance.partition("稳定身份标记包括")
-    marks, boundary, _ = remainder.partition("；")
-    return marks.strip(" ，,。") if marker and boundary and marks.strip(" ，,。") else None
+    # Character descriptions use both the original "包括…；" and the newer
+    # "为…。" form. The punctuation closes the identity clause before the
+    # detailed portrait description begins.
+    match = re.search(r"稳定身份标记(?:包括|为)\s*([^；。\n]+)[；。]", appearance)
+    return match.group(1).strip(" ，,") if match and match.group(1).strip(" ，,") else None
 
 
 def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation, *, prompt_language=None):

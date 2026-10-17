@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from datetime import timezone
 
-from app.models.novel import Chapter, Novel
+from app.models.novel import Chapter, Novel, Character, Scene, Prop
 from app.models.shot import Shot
 from app.models.task import Task
 from app.services.notification_registry import EVENT_REGISTRY
@@ -153,7 +153,26 @@ def _matching_prompt_error(plan_text, row, details):
             return call.get("error_message") or parsed.get("error_code") or parsed.get("issues")
     except (TypeError, ValueError, AttributeError):
         return None
-    return None
+
+
+def _image_review_target(db, task_id):
+    """Resolve the reviewed asset by persisted task links, never by task-title suffixes."""
+    task = (db.query(Task.type, Task.character_id, Task.scene_id, Task.prop_id)
+            .filter(Task.id == task_id).first())
+    if not task:
+        return {}
+    result = {"image_task_type": task.type}
+    for type_name, field, model in (("character_portrait", "character_id", Character),
+                                    ("scene_image", "scene_id", Scene),
+                                    ("prop_image", "prop_id", Prop)):
+        entity_id = getattr(task, field)
+        if entity_id and (task.type == type_name or task.type == "single_image_edit"):
+            entity = db.query(model.name).filter(model.id == entity_id).first()
+            if entity:
+                result["image_entity_kind"] = type_name
+                result["image_entity_name"] = entity[0]
+                break
+    return result
 
 
 def _error_summary(*values):
@@ -260,6 +279,8 @@ def resolve_business_context(db, row):
                         context["failure_step"] = _safe_text(context.get("current_step"), 80)
         except (TypeError, ValueError, IndexError):
             pass
+    if row.event_type.startswith("image.review") and row.task_id:
+        context.update(_image_review_target(db, row.task_id))
     return context
 
 
@@ -366,6 +387,26 @@ def format_notification(row, context=None):
         if count is not None:
             facts.append(f"章节数量：{count}")
     if code.startswith("image.review"):
+        image_type = context.get("image_task_type") or details.get("task_type")
+        entity_kind = context.get("image_entity_kind")
+        image_label = {
+            "character_portrait": "角色形象图", "scene_image": "场景图", "prop_image": "道具图",
+            "keyframe_image": "视觉状态图", "shot_image": "主分镜图",
+        }.get(image_type)
+        if image_type == "single_image_edit":
+            base_label = {"character_portrait": "角色形象图", "scene_image": "场景图",
+                          "prop_image": "道具图"}.get(entity_kind) or ("分镜图片" if shot else "图片")
+            image_label = base_label + "（编辑）"
+        facts.append(f"图片类型：{image_label or '图片'}")
+        entity_name = _safe_text(context.get("image_entity_name"), 80)
+        entity_label = {"character_portrait": "角色", "scene_image": "场景", "prop_image": "道具"}.get(
+            entity_kind or image_type)
+        if entity_name and entity_label:
+            facts.append(f"{entity_label}：{entity_name}")
+        if shot:
+            facts.append(f"分镜：第 {shot} 个")
+        if state:
+            facts.append(f"视觉状态：第 {state} 个")
         facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "提醒" if code.endswith(".warning") else "异常" if code.endswith(".error") else "未通过"))
     if code.startswith("image.generation"):
         facts.append("生成结果：" + ("完成" if code.endswith(".completed") else "失败"))
