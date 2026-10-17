@@ -470,3 +470,94 @@ def test_handoff_does_not_delegate_dialogue_authority(mutation):
         response['handoffs'] = []
     result = stage.compile_multi_keyframe_phase_b(case['prepared'], response)
     assert result['status'] == 'VALIDATION_FAILED'
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_speaker_preparation_retimes_speech_and_arrivals_together(prepared, name):
+    """Synthetic Director choices exercise timing transport, not visual readiness QA."""
+    p = prepared[name]
+    original = saved(name, '_mock_response')
+    response = deepcopy(original)
+    delay = 0.45  # One mock decision, never a production minimum pause.
+    response['optimized_duration'] += delay
+    for event in response['dialogue_events']:
+        event['start'] = round(event['start'] + delay, 9)
+    for anchor in response['anchors']:
+        if anchor['decision'] != 'DROP' and anchor['optimized_time'] != 0:
+            anchor.update(decision='RETIME', optimized_time=round(anchor['optimized_time'] + delay, 9))
+    speaker = p['canonical'][0]['speaker']
+    prelude = (
+        ('After the protected shared prefix, ' if p['continuation'] else 'From the opening view, ')
+        + f'the authorized same-axis camera adjustment makes {speaker}\'s face and articulation readable '
+        'without changing anyone\'s position. Once this preparation is complete, '
+        f'{speaker} naturally begins the assigned utterance; other characters continue their authorized reactions. '
+    )
+    response['detailed_description'] = response['detailed_description'].replace(
+        '[[SPEECH_1]]', prelude + '[[SPEECH_1]]')
+    result = assert_handoff_prose_preserved(p, response)
+    baseline = stage.compile_multi_keyframe_phase_b(p, original)
+    assert dialogue_events(result['prompt'])[0]['prelude'].endswith(prelude)
+    assert result['execution_decisions']['timing']['optimized_duration'] == pytest.approx(
+        baseline['execution_decisions']['timing']['optimized_duration'] + delay)
+    assert result['execution_decisions']['gaps'] == baseline['execution_decisions']['gaps']
+    assert result['reference_manifest'] == baseline['reference_manifest']
+    assert result['picture_mapping'] == baseline['picture_mapping']
+    choices = {a['id']: a for a in result['execution_decisions']['anchor_decisions']}
+    retained = [{**a, 'time_seconds': choices[a['anchor_id']]['optimized_time']}
+                for a in p['temporal_anchors'] if choices[a['anchor_id']]['decision'] != 'DROP']
+    expected_anchors = project_temporal_anchor_positions(retained, response['optimized_duration']) if retained else []
+    assert result['temporal_manifest']['anchors'] == expected_anchors
+    # End times are derived from unchanged utterance lengths, not the old windows.
+    for event, old in zip(result['execution_decisions']['timing']['dialogue_events'],
+                          baseline['execution_decisions']['timing']['dialogue_events']):
+        assert event['optimized_start'] == pytest.approx(old['optimized_start'] + delay)
+        assert event['optimized_end'] == pytest.approx(old['optimized_end'] + delay)
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_ready_first_speaker_needs_no_compiler_added_delay(prepared, name):
+    p = prepared[name]
+    response = saved(name, '_mock_response')
+    start = p['continuation']['overlap_seconds'] if p['continuation'] else 0
+    response['dialogue_events'][0]['start'] = start
+    # Re-evaluate any relative arrival, retaining its physical picture binding.
+    end = start + p['canonical'][0]['duration']
+    for anchor in response['anchors']:
+        relation = anchor['arrival_relation']
+        if relation and relation['dialogue_id'] == p['canonical'][0]['id']:
+            time = anchor['optimized_time']
+            relation['position'] = 'BEFORE' if time <= start else 'DURING' if time <= end else 'AFTER'
+    local = f"{p['canonical'][0]['speaker']} is already identifiable in the established view and begins naturally. "
+    response['detailed_description'] = response['detailed_description'].replace(
+        '[[SPEECH_1]]', local + '[[SPEECH_1]]')
+    result = assert_handoff_prose_preserved(p, response)
+    assert result['execution_decisions']['timing']['dialogue_events'][0]['optimized_start'] == start
+    assert result['execution_decisions']['timing']['optimized_duration'] == response['optimized_duration']
+
+
+def test_saved_c3_first_speaker_preparation_preserves_steward_binding():
+    case = saved('test3_shot2_c3_speaker_handoff')
+    p, response = case['prepared'], case['original_response']
+    assert p['canonical'][0]['speaker'] == '<Subject 2>'
+    assert p['subject_names']['<Subject 2>'] == '宫廷总管'
+    # Existing authorized slow push and lateral compensation; no repositioning or cut.
+    local = ('After the shared prefix, the existing slow push and slight lateral compensation '
+             'make <Subject 2>\'s bowed face and articulation readable while preserving the established '
+             'positions and axis. <Subject 2> then naturally begins the assigned utterance. ')
+    for event in response['dialogue_events']:
+        event['start'] = round(event['start'] + 0.6, 9)
+    response['optimized_duration'] += 0.6
+    for anchor in response['anchors']:
+        if anchor['decision'] != 'DROP':
+            anchor.update(decision='RETIME', optimized_time=round(anchor['optimized_time'] + 0.6, 9))
+    response['detailed_description'] = response['detailed_description'].replace(
+        '[[SPEECH_1]]', local + '[[SPEECH_1]]')
+    result = assert_handoff_prose_preserved(p, response)
+    first = dialogue_events(result['prompt'])[0]
+    assert first['speaker'] == '<Subject 2>' and first['speaker_id'] == 'S1'
+    assert first['exact_dialogue'] == '他们声称，能够织出世界上最美丽的布。'
+    assert first['prelude'].endswith(local)
+    assert result['execution_decisions']['timing']['dialogue_events'][0]['optimized_start'] > 1.625
+    assert result['temporal_manifest']['anchors'] == []
+    assert len(result['picture_mapping']) == 9
+    assert p['execution_projection']['continuation_mode'] == 'EXTEND_ONLY'

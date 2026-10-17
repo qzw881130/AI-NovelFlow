@@ -28,31 +28,6 @@ def task_language(metadata):
     return None if value is None else validate_language(value)
 
 
-def director_language_instruction(language):
-    if language is None:
-        return ""
-    target = {"en": "English", "zh": "Chinese"}[validate_language(language)]
-    return f"""\n\nRUNTIME DESCRIPTIVE LANGUAGE CONTRACT — {LANGUAGE_CONTRACT}
-For this request, write all directing prose, camera/action/expression descriptions,
-speaker handoff, ambience/Foley and anchor reasons in {target}. This changes only
-descriptive language, never spoken dialogue language or any Canonical facts.
-Keep existing Subject tags and SPEECH slots verbatim. Do not output spoken lines.
-Translate scene/prop descriptive labels too, overriding any earlier instruction to
-preserve their wording; keep resource IDs, identities and bindings unchanged.
-The response has the five original planning fields PLUS localized_descriptions.
-This explicitly extends the original five-field-only rule for this request only.
-localized_descriptions must be an object with EXACTLY the keys from
-compiler_description_sources and string values translating each source text into
-{target}, preserving every descriptive fact. Copy already-correct text as needed.
-Do not summarize, add instructions, rename characters, create bindings or insert
-Subject/Picture/Speaker/dialogue tags in these translations. Character names must
-remain verbatim. These are descriptions, not authority or execution decisions.
-The backend owns subject_definitions, summary, retention_analysis and all numbering.
-Return no additional fields. Do not translate JSON keys, protocol tokens, IDs,
-SPEECH slots, timing markers or music_policy's N/A sentinel.
-"""
-
-
 def description_sources(subject_names, appearances, picture_mapping, stable_marks):
     sources = {}
     for subject, name in subject_names.items():

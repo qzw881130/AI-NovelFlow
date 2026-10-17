@@ -128,30 +128,72 @@ def test_language_cache_isolation(language_cases):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('language', ['en', 'zh'])
+@pytest.mark.parametrize('language', [None, 'en', 'zh'])
 async def test_formal_pipeline_uses_frozen_language_and_one_call(db_session, language):
     snap, args, selected = make_case(db_session, NAMES[0])
     task = args['task']
-    metadata = json.loads(task.metadata_json); metadata['video_prompt_language'] = language
+    metadata = json.loads(task.metadata_json)
+    if language is not None:
+        metadata['video_prompt_language'] = language
     task.metadata_json = json.dumps(metadata); db_session.commit()
     class Director(FakeDirector):
         async def chat_completion(self, **kwargs):
-            self.content = language_response(json.loads(kwargs['user_content']), saved(NAMES[0], '_mock_response'))
+            self.content = saved(NAMES[0], '_mock_response')
+            if language is not None:
+                self.content = language_response(json.loads(kwargs['user_content']), self.content)
             return await super().chat_completion(**kwargs)
     llm = Director({})
     await pipe.build_phase_b_prompt(**args, llm=llm)
     record = json.loads(task.metadata_json)['h3_phase_b']
     assert len(llm.calls) == 1
-    assert llm.calls[0]['system_prompt'].startswith(selected.template)
+    # The selected template is the complete System Prompt, including for a
+    # novel's custom template. Language is input data, never a hidden suffix.
+    assert llm.calls[0]['system_prompt'] == selected.template
     assert 'H3_PROMPT_LANGUAGE_V1' in llm.calls[0]['system_prompt']
-    assert record['video_prompt_language'] == language
+    assert record.get('video_prompt_language') == language
     assert record['status'] == 'COMPILED' and record['preflight']['passed']
-    assert record['director_input']['video_prompt_language'] == language
+    assert record['director_input'].get('video_prompt_language') == language
+    wire = json.loads(llm.calls[0]['user_content'])
+    assert wire.get('video_prompt_language') == language
+    parsed = record['compiler_result']['director_response']
+    assert ('localized_descriptions' in parsed) == (language is not None)
+    if language is not None:
+        assert record['effective_system_prompt'] == selected.template
+        assert record['effective_system_prompt_sha256'] == pipe.digest(selected.template)
+        assert set(parsed['localized_descriptions']) == set(wire['compiler_description_sources'])
+    else:
+        assert 'video_prompt_language' not in wire
     metadata = json.loads(task.metadata_json); metadata['skip_llm_when_prompt_exists'] = True
     task.metadata_json = json.dumps(metadata); db_session.commit()
     first = task.prompt_text
     await pipe.build_phase_b_prompt(**args, llm=llm)
     assert len(llm.calls) == 1 and task.prompt_text == first
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('language', [None, 'en', 'zh'])
+async def test_isolated_preview_uses_same_template_with_language_as_input(language):
+    snapshot = saved(NAMES[0])
+    if language is not None:
+        snapshot['video_prompt_language'] = language
+        snapshot['source']['hashes']['video_prompt_language'] = compiler._snapshot_digest(language)
+
+    class Director(FakeDirector):
+        max_retries = 0
+
+        async def chat_completion(self, **kwargs):
+            self.content = saved(NAMES[0], '_mock_response')
+            if language is not None:
+                self.content = language_response(json.loads(kwargs['user_content']), self.content)
+            return await super().chat_completion(**kwargs)
+
+    llm = Director({})
+    result = await compiler.preview_multi_keyframe_phase_b(snapshot, llm=llm)
+    assert result['status'] == 'CANDIDATE_FOR_REVIEW', result
+    assert len(llm.calls) == 1
+    assert llm.calls[0]['system_prompt'] == compiler.PHASE_B_TEMPLATE.read_text()
+    assert json.loads(llm.calls[0]['user_content']).get('video_prompt_language') == language
+    assert ('localized_descriptions' in result['director_response']) == (language is not None)
 
 
 @pytest.mark.parametrize('shot_number', [1, 2, 18])

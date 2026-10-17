@@ -1277,9 +1277,7 @@ async def preview_multi_keyframe_phase_b(snapshot, *, llm):
         return prepared
     if getattr(llm, "max_retries", None) != 0:
         return _phase_b_not_covered("ZERO_RETRY_CLIENT_REQUIRED")
-    from app.services.h3_prompt_language import director_language_instruction
-    request = {"system_prompt": PHASE_B_TEMPLATE.read_text(encoding="utf-8") +
-               director_language_instruction(prepared["llm_input"].get("video_prompt_language")),
+    request = {"system_prompt": PHASE_B_TEMPLATE.read_text(encoding="utf-8"),
                "user_content": json.dumps(prepared["llm_input"], ensure_ascii=False),
                "images": prepared["images"], "response_format": "json_object", "temperature": 0.3,
                "max_tokens": 4500, "task_type": "h3_multi_keyframe_prompt",

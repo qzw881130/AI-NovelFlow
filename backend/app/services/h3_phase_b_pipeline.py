@@ -7,7 +7,7 @@ never an automatic recovery call after a failed Phase B request.
 import hashlib
 import json
 from app.services.video_result_mode import is_candidate
-from app.services.h3_prompt_language import task_language, director_language_instruction, LANGUAGE_CONTRACT
+from app.services.h3_prompt_language import task_language, LANGUAGE_CONTRACT
 from copy import deepcopy
 from pathlib import Path
 from time import monotonic
@@ -82,6 +82,7 @@ def runtime_snapshot(*, plan, builder_input, manifest, workflow, previous_path, 
 def input_fingerprint(prepared, template):
     # Preview filenames are derived caches, not authority; resource byte hashes,
     # source times, Canonical, route and the selected template are authority.
+    # Frozen video_prompt_language stays in the input and separates language caches.
     payload = deepcopy(prepared["llm_input"])
     for item in payload["visual_previews"]:
         item.pop("proxy_url", None)
@@ -92,8 +93,7 @@ def input_fingerprint(prepared, template):
         payload["execution_policy"] = policy
     return digest({"version": VERSION, "input": payload, "resources": prepared["resource_hashes"],
                    "workflow": prepared["source"]["hashes"]["workflow"],
-                   "template_id": template.id, "template": template.template +
-                   director_language_instruction(payload.get("video_prompt_language"))})
+                   "template_id": template.id, "template": template.template})
 
 
 def preflight(prepared, result):
@@ -123,7 +123,8 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
     plan = safe_json_dict(shot.video_director_plan)
     metadata = safe_json_dict(task.metadata_json)
     language = task_language(metadata)
-    system_prompt = template.template + director_language_instruction(language)
+    # Language rules belong to the selected template; the choice is input data.
+    system_prompt = template.template
     record = {"pipeline": PIPELINE, "version": VERSION, "status": "PREPARING", "clip_index": builder_input["clip"]["clip_index"],
               "template": {"id": template.id, "name": template.name, "sha256": digest(template.template)},
               "workflow_id": workflow.id, "workflow_type": workflow.type, "llm_call_count": 0}
