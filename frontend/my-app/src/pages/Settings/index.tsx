@@ -44,6 +44,7 @@ export default function Settings() {
   const [formData, setFormData] = useState<SettingsFormData>(DEFAULT_CONFIG);
   
   const [saving, setSaving] = useState(false);
+  const [nameplateAvailable, setNameplateAvailable] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => getTabFromHash(window.location.hash));
   const isUserModifiedRef = useRef(false);
@@ -69,6 +70,7 @@ export default function Settings() {
         console.log('[Settings/index] API response:', result);
         if (result.success && result.data) {
           const config = result.data as any;
+          setNameplateAvailable(typeof config.showFirstAppearanceNames === 'boolean');
           setFormData({
             llmProvider: config.llmProvider || 'deepseek',
             llmModel: config.llmModel || 'deepseek-v4-flash',
@@ -276,6 +278,7 @@ export default function Settings() {
 
             {activeTab === 'generationQuality' && (
               <GenerationQualityConfig
+                nameplateAvailable={nameplateAvailable}
                 language={formData.videoPromptLanguage ?? 'en'}
                 onLanguageChange={videoPromptLanguage => {
                   handleUserModified();

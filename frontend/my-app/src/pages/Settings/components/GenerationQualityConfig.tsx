@@ -1,10 +1,11 @@
 import { useTranslation } from '../../../stores/i18nStore';
 
-export default function GenerationQualityConfig({ enabled, onChange, language, onLanguageChange, showFirstAppearanceNames, onShowFirstAppearanceNamesChange }: {
+export default function GenerationQualityConfig({ enabled, onChange, language, onLanguageChange, nameplateAvailable, showFirstAppearanceNames, onShowFirstAppearanceNamesChange }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   language: 'en' | 'zh';
   onLanguageChange: (language: 'en' | 'zh') => void;
+  nameplateAvailable: boolean;
   showFirstAppearanceNames: boolean;
   onShowFirstAppearanceNamesChange: (enabled: boolean) => void;
 }) {
@@ -30,13 +31,13 @@ export default function GenerationQualityConfig({ enabled, onChange, language, o
       </select>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.videoPromptLanguageDesc')}</p>
     </div>
-    <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-sm">
+    {nameplateAvailable && <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-sm">
       <input type="checkbox" checked={showFirstAppearanceNames}
         onChange={event => onShowFirstAppearanceNamesChange(event.target.checked)} className="mt-1" />
       <span>
         <span className="block font-medium text-gray-800">{t('systemSettings.showFirstAppearanceNames')}</span>
         <span className="mt-1 block max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.showFirstAppearanceNamesDesc')}</span>
       </span>
-    </label>
+    </label>}
   </section>;
 }
