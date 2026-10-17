@@ -27,6 +27,16 @@ BLOCKING_DIMENSIONS = frozenset(("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN
 STATUSES = {"PASS", "WARNING", "FAIL"}
 
 
+def _character_portrait_layout(workflow_name: str | None) -> str:
+    """Use the submitted workflow's explicit layout, not the character count in its prompt."""
+    name = (workflow_name or "").lower()
+    if any(label in name for label in ("四视图", "4视图", "four-view", "four view", "turnaround")):
+        return "four_view"
+    if any(label in name for label in ("主视图", "单图", "单一形象", "single-view", "single view")):
+        return "single_view"
+    return "unspecified"
+
+
 def _json(value, default):
     if not value:
         return default
@@ -80,14 +90,21 @@ def build_review_input(task: Task, structured_target: dict | None = None, *, gen
             })
     selector_input = metadata.get("reference_selector_input") or {}
     anchor = (selector_input.get("current_anchor") or {}) if isinstance(selector_input, dict) else {}
+    target = {"current_anchor": anchor, "task_description": task.description,
+              "structured_target": metadata.get("structured_target"),
+              "related_records": structured_target or {},
+              "authority_note": "关键帧以当前 current_anchor 和原始提示词为目标；Shot 的角色表仅是全镜头背景，不能据此判定当前帧人数。" if task.type == "keyframe_image" else "原始提示词及本任务结构化信息是目标。"}
+    if task.type == "character_portrait":
+        target["character_portrait_layout"] = {
+            "mode": _character_portrait_layout(task.workflow_name),
+            "workflow_name": task.workflow_name,
+            "counting_rule": "角色形象图按不同角色身份计数。四视图中的正面、侧面、背面和头像特写是同一角色的重复展示，不是四个人；单一形象图按目标中的单幅人物构图评审。若工作流未明确版式，结合原始提示词判断，不得仅凭同一角色的多视角展示判定多出人物。",
+        }
     return {
         "task_id": task.id, "task_type": task.type, "novel_id": task.novel_id,
         "chapter_id": task.chapter_id, "shot_id": task.shot_id,
         "original_prompt": task.prompt_text, "generated_image": task.result_url,
-        "target": {"current_anchor": anchor, "task_description": task.description,
-                   "structured_target": metadata.get("structured_target"),
-                   "related_records": structured_target or {},
-                   "authority_note": "关键帧以当前 current_anchor 和原始提示词为目标；Shot 的角色表仅是全镜头背景，不能据此判定当前帧人数。" if task.type == "keyframe_image" else "原始提示词及本任务结构化信息是目标。"},
+        "target": target,
         "references": references,
     }
 
@@ -236,7 +253,8 @@ async def execute_image_review(db: Session, review_id: str) -> ImageQualityRevie
         } for item in images]
         review.input_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
         db.commit()
-        user_input = {"original_prompt": snapshot["original_prompt"], "target": snapshot["target"],
+        user_input = {"task_type": snapshot["task_type"],
+                      "original_prompt": snapshot["original_prompt"], "target": snapshot["target"],
                       "images": [{"order": index + 1, "logical_id": item["logical_id"],
                                   "sources": item.get("sources"), "reference_type": item.get("reference_type"),
                                   "purpose": item.get("purpose"), "binding": item.get("binding")}

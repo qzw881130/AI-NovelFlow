@@ -40,6 +40,51 @@ def _task(db_session):
     return task
 
 
+@pytest.mark.parametrize("workflow_name,expected_mode", [
+    ("Qwen image 2.1【四视图】", "four_view"),
+    ("Z-image-turbo 单图生成", "single_view"),
+    ("通用角色工作流", "unspecified"),
+])
+def test_character_review_carries_only_character_layout(db_session, workflow_name, expected_mode):
+    task = Task(id="portrait-layout", type="character_portrait", status="completed",
+                name="生成角色形象", workflow_name=workflow_name,
+                prompt_text="single character, centered", result_url="/api/files/portrait.png")
+    db_session.add(task)
+    db_session.commit()
+    snapshot = build_review_input(task)
+    assert snapshot["target"]["character_portrait_layout"]["mode"] == expected_mode
+    assert "同一角色的重复展示" in snapshot["target"]["character_portrait_layout"]["counting_rule"]
+    task.type = "shot_image"
+    db_session.commit()
+    assert "character_portrait_layout" not in build_review_input(task)["target"]
+
+
+def test_character_review_sends_layout_and_task_type_to_model(db_session):
+    task = Task(id="portrait-review", type="character_portrait", status="completed",
+                name="生成角色形象", workflow_name="Qwen image 2.1【四视图】",
+                prompt_text="single character, centered", result_url="/api/files/portrait.png")
+    db_session.add_all([task, PromptTemplate(id="portrait-template", name="评审", type="image_quality_review_prompt",
+                                           template="按目标版式评审", is_system=True, is_active=True)])
+    db_session.commit()
+    calls = []
+
+    class FakeLLM:
+        provider, model = "test", "vision-test"
+
+        async def chat_completion(self, **kwargs):
+            calls.append(json.loads(kwargs["user_content"]))
+            return {"success": True, "content": json.dumps({"overall": "PASS", "summary": "同一角色四视图",
+                "dimensions": {name: {"status": "PASS", "summary": "符合要求"} for name in DIMENSIONS},
+                "issues": []}, ensure_ascii=False)}
+
+    with patch("app.services.image_quality_review.vision_proxy", side_effect=lambda url, **kw: {**kw, "url": url}), \
+         patch("app.services.image_quality_review.LLMService", FakeLLM):
+        review = asyncio.run(review_image_task(db_session, task.id))
+    assert review.overall == "PASS"
+    assert calls[0]["task_type"] == "character_portrait"
+    assert calls[0]["target"]["character_portrait_layout"]["mode"] == "four_view"
+
+
 def test_review_uses_active_template_and_preserves_task(db_session):
     task = _task(db_session)
     db_session.add(PromptTemplate(id="system-review", name="AI 图片质量评审", type="image_quality_review_prompt",
