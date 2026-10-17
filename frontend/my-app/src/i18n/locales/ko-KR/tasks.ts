@@ -4,6 +4,8 @@ import enUS from '../en-US/tasks';
 export default {
   tasks: {
     ...enUS.tasks,
+    chapterNumber: '제 {number} 장',
+    chapterContext: '제 {number} 장 · {title}',
     promptCharacterCount: '{count}자',
     comfyConfigNotInitialized: 'ComfyUI 설정 초기화 안 됨',
     comfyConfigMismatch: 'ComfyUI 설정 불일치',

@@ -4,6 +4,8 @@ import zhCN from '../zh-CN/tasks';
 export default {
   tasks: {
     ...zhCN.tasks,
+    chapterNumber: '章回 {number}',
+    chapterContext: '章回 {number} · {title}',
     promptCharacterCount: '{count} 字元',
     comfyConfigNotInitialized: 'ComfyUI 配置未初始化',
     comfyConfigMismatch: 'ComfyUI 配置不一致',

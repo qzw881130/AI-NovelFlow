@@ -37,6 +37,8 @@ export interface Task {
   progress: number;
   novel_id: string;
   chapter_id: string;
+  chapterNumber?: number | null;
+  chapterTitle?: string | null;
   character_id: string;
   scene_id: string;
   shot_id: string;

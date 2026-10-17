@@ -1595,6 +1595,7 @@ class TaskService:
                 "novelId": t.novel_id,
                 "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,
+                "chapterNumber": chapters.get(t.chapter_id).number if t.chapter_id and t.chapter_id in chapters else None,
                 "chapterTitle": chapters.get(t.chapter_id).title if t.chapter_id and t.chapter_id in chapters else None,
                 "characterId": t.character_id,
                 "sceneId": t.scene_id,

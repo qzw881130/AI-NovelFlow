@@ -115,6 +115,11 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const chapterLabel = task.chapterNumber != null
+    ? task.chapterTitle
+      ? t('tasks.chapterContext', { number: task.chapterNumber, title: task.chapterTitle })
+      : t('tasks.chapterNumber', { number: task.chapterNumber })
+    : task.chapterTitle || task.chapterId;
   const comfyError = task.comfyuiError;
   const comfyErrorTitles: Record<string, string> = {
     COMFYUI_CONFIG_NOT_INITIALIZED: t('tasks.comfyConfigNotInitialized'),
@@ -201,9 +206,10 @@ export function TaskCard({
           </div>
           <CandidateResultSummary task={task} onPreviewVideo={onPreviewVideo} />
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
-          {task.novelName && (
-            <p className="text-xs mt-2">
-              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">📖 {task.novelName}</span>
+          {(task.novelName || chapterLabel) && (
+            <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
+              {task.novelName && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">📖 {task.novelName}</span>}
+              {chapterLabel && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">📑 {chapterLabel}</span>}
             </p>
           )}
           {task.status === 'running' && (

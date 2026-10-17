@@ -16,8 +16,8 @@ const compiled = ts.transpileModule(source.replace(/^import[^;]+;\s*/gm, '').rep
 const icons = ['CheckCircle', 'XCircle', 'Loader2', 'Clock', 'AlertCircle', 'Terminal', 'ChevronUp', 'ChevronDown',
   'Play', 'Code', 'Trash2', 'Film', 'ImageIcon', 'User', 'ListTodo', 'Music', 'Copy'];
 const icon = props => React.createElement('svg', props);
-const TaskCard = new Function('React', ...icons, 'useTranslation', 'formatUserFacingError', `${compiled};return TaskCard;`)(
-  React, ...icons.map(() => icon), () => ({ t }), value => value);
+const TaskCard = new Function('React', ...icons, 'useTranslation', 'formatUserFacingError', 'CandidateResultSummary', `${compiled};return TaskCard;`)(
+  React, ...icons.map(() => icon), () => ({ t }), value => value, () => null);
 globalThis.fetch = async () => assert.fail('TaskCard must not fetch or mutate product data');
 
 export const baseTask = {
@@ -53,6 +53,18 @@ test('image task footer shows its real generation seed using the video footer st
     assert.ok(labels.some(label => renderToStaticMarkup(label).includes(`Seed: ${seed}`)));
   }
   assert.doesNotMatch(renderToStaticMarkup(renderCard({ ...baseTask, type: 'shot_image' })), /Seed:/);
+});
+
+test('task cards distinguish chapters even when shot numbers repeat', () => {
+  const first = renderToStaticMarkup(renderCard({ ...baseTask, name: '生成分镜图: Shot3', type: 'shot_image',
+    novelName: '同一部小说', chapterId: 'chapter-1', chapterNumber: 1, chapterTitle: '第一章 起始' }));
+  const second = renderToStaticMarkup(renderCard({ ...baseTask, name: '生成分镜图: Shot3', type: 'shot_image',
+    novelName: '同一部小说', chapterId: 'chapter-5', chapterNumber: 5, chapterTitle: '第五章 广开言路' }));
+  assert.match(first, /章回 1 · 第一章 起始/);
+  assert.match(second, /章回 5 · 第五章 广开言路/);
+  assert.doesNotMatch(first, /第五章 广开言路/);
+  assert.match(renderToStaticMarkup(renderCard({ ...baseTask, chapterId: 'chapter-5', chapterTitle: '第五章 广开言路' })), /第五章 广开言路/);
+  assert.match(renderToStaticMarkup(renderCard({ ...baseTask, chapterId: 'chapter-9' })), /chapter-9/);
 });
 
 const previous = { clip_index: 1, result_url: '/previous.mp4' };

@@ -33,6 +33,8 @@ export default {
     comfyuiHint: 'For ComfyUI task issues, check Clip status and regenerate missing Clips.',
     cancelled: 'Cancelled',
     taskId: 'Task ID',
+    chapterNumber: 'Chapter {number}',
+    chapterContext: 'Chapter {number} · {title}',
     taskType: 'Task Type',
     allTypes: 'All Types',
     status: 'Status',

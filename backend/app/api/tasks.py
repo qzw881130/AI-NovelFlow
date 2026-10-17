@@ -274,7 +274,7 @@ def _format_task_rows(tasks: list, db: Session) -> list:
     shot_ids = {t.shot_id for t in tasks if t.type == "shot_video" and t.shot_id}
 
     novels = {n.id: n for n in db.query(Novel).options(load_only(Novel.id, Novel.title)).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
-    chapters = {c.id: c for c in db.query(Chapter).options(load_only(Chapter.id, Chapter.title)).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
+    chapters = {c.id: c for c in db.query(Chapter).options(load_only(Chapter.id, Chapter.number, Chapter.title)).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
     workflows = {w.id: w for w in db.query(Workflow).options(load_only(Workflow.id, Workflow.is_system)).filter(Workflow.id.in_(workflow_ids)).all()} if workflow_ids else {}
     shots = {s.id: s for s in db.query(Shot).options(load_only(Shot.id, Shot.video_director_plan)).filter(Shot.id.in_(shot_ids)).all()} if shot_ids else {}
 

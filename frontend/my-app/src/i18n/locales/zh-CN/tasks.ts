@@ -33,6 +33,8 @@ export default {
     comfyuiHint: 'ComfyUI 任务异常时，可查看 Clip 状态并重新生成缺失 Clip。',
     cancelled: '已取消',
     taskId: '任务ID',
+    chapterNumber: '章回 {number}',
+    chapterContext: '章回 {number} · {title}',
     taskType: '任务类型',
     allTypes: '全部类型',
     status: '状态',

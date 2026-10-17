@@ -355,6 +355,8 @@ export interface Task {
   novelId?: string;
   novelName?: string;
   chapterId?: string;
+  chapterNumber?: number | null;
+  chapterTitle?: string | null;
   characterId?: string;
   shotId?: string;
   sourceTaskId?: string;
