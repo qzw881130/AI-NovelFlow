@@ -779,7 +779,7 @@ class FileStorageService:
 
             async def _run_direct_filter_merge():
                 loop = asyncio.get_event_loop()
-                cmd = ['ffmpeg']
+                cmd = ['ffmpeg', '-v', 'error']
                 for video_path in final_video_list:
                     cmd.extend(['-i', video_path])
 
@@ -788,7 +788,7 @@ class FileStorageService:
                     stream_filters.append(
                         f'[{index}:v:0]scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,'
                         f'pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,'
-                        f'fps=24,format=yuv420p,setpts=PTS-STARTPTS[v{index}]'
+                        f'fps=24,format=yuv420p,setsar=1,setpts=PTS-STARTPTS[v{index}]'
                     )
                     stream_filters.append(f'[{index}:a:0]aresample=48000,asetpts=PTS-STARTPTS[a{index}]')
                 concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(final_video_list)))
@@ -843,7 +843,7 @@ class FileStorageService:
                     normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mp4')
                     video_info = await _get_video_info(video_path)
                     normalize_cmd = [
-                        'ffmpeg',
+                        'ffmpeg', '-v', 'error',
                         '-i', video_path,
                     ]
 
@@ -854,7 +854,7 @@ class FileStorageService:
                         ])
 
                     normalize_cmd.extend([
-                        '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,format=yuv420p',
+                        '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,format=yuv420p,setsar=1',
                         '-c:v', 'libx264',
                         '-preset', 'medium',
                         '-crf', '18',
@@ -905,7 +905,7 @@ class FileStorageService:
             
                 # 使用 concat filter 重新编码输出。MP4/H.264 即使参数一致，直接 -c copy
                 # 拼接仍可能产生浏览器无法解码的 NAL 边界问题。
-                cmd = ['ffmpeg']
+                cmd = ['ffmpeg', '-v', 'error']
                 for video_path in normalized_paths:
                     cmd.extend(['-i', video_path])
                 normalized_streams = []
@@ -949,7 +949,7 @@ class FileStorageService:
                     print(f"[FileStorage] FFmpeg error: {result.stderr}")
                     return {
                         "success": False,
-                        "message": f"视频合并失败: {result.stderr[:200]}"
+                        "message": f"视频合并失败: {(result.stderr or '').strip()[-500:]}"
                     }
                 
                 # 检查输出文件是否存在
@@ -966,7 +966,7 @@ class FileStorageService:
                     if Path(working_output_path).exists():
                         Path(working_output_path).unlink()
                     fallback_cmd = [
-                        'ffmpeg',
+                        'ffmpeg', '-v', 'error',
                         '-f', 'concat',
                         '-safe', '0',
                         '-i', concat_file,
