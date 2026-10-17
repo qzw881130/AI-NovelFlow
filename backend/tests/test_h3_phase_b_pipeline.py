@@ -1,6 +1,7 @@
 """Limited production adapter: real local fixtures, in-memory DB, fake I/O only."""
 import asyncio
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -100,6 +101,19 @@ class FakeComfy:
         return {'success': True, 'prompt_id': 'offline-prompt'}
     async def wait_for_result(self, *args, **kwargs):
         return {'success': True, 'video_url': '/offline/output.mp4'}
+
+
+def test_phase_b_accepts_current_character_identity_clause(db_session):
+    snap, args, _ = make_case(db_session, NAMES[0])
+    appearances = snap['builder_input']['shot']['official_character_appearances']
+    for name, appearance in appearances.items():
+        updated = re.sub(r'稳定身份标记包括([^；]+)；', r'稳定身份标记为\1。', appearance)
+        assert updated != appearance
+        appearances[name] = updated
+    llm = FakeDirector(saved(NAMES[0], '_mock_response'))
+    prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    assert llm.calls and 'recorded stable features:' in prompt
+    assert json.loads(args['task'].metadata_json)['h3_phase_b']['status'] == 'COMPILED'
 
 
 @pytest.mark.parametrize('name', NAMES)
