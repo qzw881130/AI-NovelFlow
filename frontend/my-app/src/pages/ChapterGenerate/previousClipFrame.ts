@@ -55,6 +55,7 @@ export async function captureVideoFrame(video: HTMLVideoElement): Promise<File> 
     throw new Error('视频画面尚未就绪，请等待定位完成后截取');
   }
   const canvas = document.createElement('canvas');
+  const captureTime = video.currentTime;
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const context = canvas.getContext('2d');
@@ -65,7 +66,7 @@ export async function captureVideoFrame(video: HTMLVideoElement): Promise<File> 
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
       value => value ? resolve(value) : reject(new Error('视频帧编码失败')), 'image/png',
     ));
-    return new File([blob], `clip-frame-${video.currentTime.toFixed(3)}.png`, { type: 'image/png' });
+    return new File([blob], `clip-frame-${captureTime.toFixed(3)}.png`, { type: 'image/png' });
   } catch (error) {
     if (error instanceof Error && error.name === 'SecurityError') {
       throw new Error('视频跨域限制导致无法截帧，请使用系统内保存的视频');
