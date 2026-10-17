@@ -226,7 +226,10 @@ async def test_every_provider_aborts_instead_of_returning_fallback(provider_name
 @pytest.mark.asyncio
 async def test_character_parse_stops_without_creating_resources(llm_db, monkeypatch):
     from app.services.novel_service import NovelService
+    from app.services import parse_events
     from app.models.novel import Character
+    events = []
+    monkeypatch.setattr(parse_events, "publish", lambda code, payload: events.append(code))
     with llm_db() as db:
         service = NovelService.__new__(NovelService)
         service.db = db
@@ -239,6 +242,7 @@ async def test_character_parse_stops_without_creating_resources(llm_db, monkeypa
         assert not result["success"]
         assert LLM_CANCELLED_MESSAGE in result["message"]
         assert db.query(Character).count() == 0
+        assert events == ["character.parse.failed"]
 
 
 @pytest.mark.parametrize("status,error_message", [("success", None), ("error", "late network failure")])

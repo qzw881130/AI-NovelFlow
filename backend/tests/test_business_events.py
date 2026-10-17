@@ -53,6 +53,19 @@ def image_task(db):
     return task
 
 
+@pytest.mark.parametrize('task_type,entity', [('character_portrait', 'character'), ('scene_image', 'scene'), ('prop_image', 'prop')])
+@pytest.mark.parametrize('status,suffix', [('completed', 'completed'), ('failed', 'failed')])
+def test_asset_image_result_has_its_own_event_without_generic_duplicate(ledger, task_type, entity, status, suffix):
+    db, _ = ledger
+    task = Task(type=task_type, name='素材图片', status='running', novel_id='novel')
+    db.add(task); db.commit()
+    task.status = status
+    db.commit()
+    rows = db.query(BusinessEvent).filter_by(task_id=task.id).all()
+    assert [row.event_type for row in rows] == [f'{entity}.image.generation.{suffix}']
+    assert rows[0].needs_attention is (status == 'failed')
+
+
 def test_commit_only_no_duplicates_and_recovery_result(ledger):
     db, _ = ledger
     task = image_task(db)

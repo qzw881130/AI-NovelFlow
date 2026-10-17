@@ -502,7 +502,7 @@ async def parse_props(
         if updated_props:
             message_parts.append(f"更新 {len(updated_props)} 个道具")
         
-        return {
+        response = {
             "success": True,
             "data": [
                 {
@@ -526,10 +526,15 @@ async def parse_props(
                 "total": len(created_props) + len(updated_props)
             }
         }
+        from app.services.parse_events import publish_parse_result
+        publish_parse_result("prop.parse", novel_id, response)
+        return response
     
     except Exception as e:
         import traceback
         traceback.print_exc()
+        from app.services.parse_events import publish_parse_result
+        publish_parse_result("prop.parse", novel_id, failed=True)
         return {"success": False, "message": f"解析异常: {str(e)}"}
 
 

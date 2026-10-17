@@ -28,6 +28,13 @@ LABELS = {
     "image.review.error": "图片评审异常",
     "image.generation.completed": "图片生成完成", "image.generation.failed": "图片生成失败",
     "example.import.completed": "导入完成", "example.import.failed": "导入失败",
+    "story_world_context.parse.completed": "故事世界上下文解析完成", "story_world_context.parse.failed": "故事世界上下文解析失败",
+    "character.parse.completed": "角色解析完成", "character.parse.failed": "角色解析失败",
+    "scene.parse.completed": "场景解析完成", "scene.parse.failed": "场景解析失败",
+    "prop.parse.completed": "道具解析完成", "prop.parse.failed": "道具解析失败",
+    "character.image.generation.completed": "角色形象生成完成", "character.image.generation.failed": "角色形象生成失败",
+    "scene.image.generation.completed": "场景图片生成完成", "scene.image.generation.failed": "场景图片生成失败",
+    "prop.image.generation.completed": "道具图片生成完成", "prop.image.generation.failed": "道具图片生成失败",
 }
 
 ERROR_SUMMARIES = {
@@ -295,7 +302,8 @@ def format_notification(row, context=None):
         target = "Clip"
     elif code.startswith("visual_state."):
         target = ""
-    elif code.startswith("image."):
+    elif code.startswith("image.") or code.startswith(("story_world_context.parse", "character.parse", "scene.parse", "prop.parse",
+                                                       "character.image.", "scene.image.", "prop.image.")):
         target = ""
     else:
         target = "任务"
@@ -360,6 +368,14 @@ def format_notification(row, context=None):
     if code.startswith("image.review"):
         facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "提醒" if code.endswith(".warning") else "异常" if code.endswith(".error") else "未通过"))
     if code.startswith("image.generation"):
+        facts.append("生成结果：" + ("完成" if code.endswith(".completed") else "失败"))
+    if code.startswith(("story_world_context.parse", "character.parse", "scene.parse", "prop.parse")):
+        for key, label in (("created_count", "新增"), ("updated_count", "更新"), ("deleted_count", "删除")):
+            count = _nonnegative_count(details.get(key))
+            if count is not None:
+                facts.append(f"{label}数量：{count}")
+        facts.append("解析结果：" + ("完成" if code.endswith(".completed") else "失败"))
+    if code.startswith(("character.image.", "scene.image.", "prop.image.")):
         facts.append("生成结果：" + ("完成" if code.endswith(".completed") else "失败"))
 
     elapsed = _seconds(details.get("elapsed_time"))

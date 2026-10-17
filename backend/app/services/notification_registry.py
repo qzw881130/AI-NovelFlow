@@ -37,6 +37,20 @@ _EVENTS = (
 
 EVENT_REGISTRY = {code: NotificationEvent(code, name, category, description) for code, name, category, description in _EVENTS}
 for code, name, category, description, enabled in (
+    ("story_world_context.parse.completed", "故事世界上下文解析完成", "小说解析", "故事世界上下文建议已生成", True),
+    ("story_world_context.parse.failed", "故事世界上下文解析失败", "小说解析", "故事世界上下文建议未能生成", True),
+    ("character.parse.completed", "角色解析完成", "素材解析", "角色解析已完成", True),
+    ("character.parse.failed", "角色解析失败", "素材解析", "角色解析未能完成", True),
+    ("scene.parse.completed", "场景解析完成", "素材解析", "场景解析已完成", True),
+    ("scene.parse.failed", "场景解析失败", "素材解析", "场景解析未能完成", True),
+    ("prop.parse.completed", "道具解析完成", "素材解析", "道具解析已完成", True),
+    ("prop.parse.failed", "道具解析失败", "素材解析", "道具解析未能完成", True),
+    ("character.image.generation.completed", "角色形象生成完成", "角色生成", "角色形象图片已生成", True),
+    ("character.image.generation.failed", "角色形象生成失败", "角色生成", "角色形象图片未能生成", True),
+    ("scene.image.generation.completed", "场景图片生成完成", "场景生成", "场景图片已生成", True),
+    ("scene.image.generation.failed", "场景图片生成失败", "场景生成", "场景图片未能生成", True),
+    ("prop.image.generation.completed", "道具图片生成完成", "道具生成", "道具图片已生成", True),
+    ("prop.image.generation.failed", "道具图片生成失败", "道具生成", "道具图片未能生成", True),
     ("image.review.passed", "AI 评审通过", "图片质量评审", "图片质量评审 PASS，不改变图片生成状态", False),
     ("image.review.warning", "AI 评审提醒", "图片质量评审", "图片质量评审 WARNING，图片可保留", False),
     ("image.review.failed", "AI 评审不通过", "图片质量评审", "图片质量评审 FAIL；主分镜图生图阶段最多自动重生两次", True),

@@ -11,7 +11,10 @@ from app.repositories.novel_repository import NovelRepository
 from app.services.novel_service import NovelService
 
 
-def test_full_non_incremental_parse_deletes_missing_old_characters(db_session):
+def test_full_non_incremental_parse_deletes_missing_old_characters(db_session, monkeypatch):
+    from app.services import parse_events
+    events = []
+    monkeypatch.setattr(parse_events, "publish", lambda code, payload: events.append((code, payload)))
     novel = Novel(title="测试小说")
     db_session.add(novel)
     db_session.commit()
@@ -50,6 +53,7 @@ def test_full_non_incremental_parse_deletes_missing_old_characters(db_session):
 
     assert result["success"] is True
     assert result["statistics"]["created"] == 1
+    assert [code for code, _ in events] == ["character.parse.completed"]
     assert result["statistics"]["deleted"] == 1
     assert "母亲" in names
     assert "旁白" in names

@@ -54,6 +54,23 @@ def test_all_registered_events_have_explicit_business_titles(db):
         assert "事件：" not in message and "数据：" not in message and code not in message
 
 
+def test_asset_parse_and_image_notifications_show_distinct_results(db):
+    novel, chapter, _ = _business_rows(db)
+    parsed = record_event(db, "character.parse.completed", {
+        "novel_id": novel.id, "chapter_id": chapter.id,
+        "details": {"created_count": 2, "updated_count": 1},
+    })
+    message = format_notification(parsed, resolve_business_context(db, parsed))
+    assert "角色解析完成" in message
+    assert "新增数量：2" in message and "更新数量：1" in message
+    assert "📚 章节：第 7 章" in message
+
+    generated = record_event(db, "prop.image.generation.failed", {"novel_id": novel.id})
+    message = format_notification(generated, resolve_business_context(db, generated))
+    assert "道具图片生成失败" in message and "生成结果：失败" in message
+    assert novel.id not in message
+
+
 def test_real_relationship_numbers_and_business_fields(db):
     novel, chapter, shot = _business_rows(db)
     row = record_event(db, "clip.generation.completed", {

@@ -228,39 +228,45 @@ async def recommend_story_world_context(
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
-
-    template_repo = PromptTemplateRepository(db)
-    template = template_repo.resolve_for_type(
-        novel.story_world_context_prompt_template_id, "story_world_context_recommender")
-    if not template:
-        raise HTTPException(status_code=400, detail="未配置故事世界上下文推荐提示词模板")
-
-    novel_name = (novel.title or "").strip()
-    novel_description = (novel.description or "").strip() or novel_name
-    system_prompt = (template.template or "").replace("{{novel_name}}", novel_name).replace("{{novel_description}}", novel_description)
-    user_content = json.dumps({
-        "novel_name": novel_name,
-        "novel_description": novel_description,
-    }, ensure_ascii=False, indent=2)
-    result = await llm_service.chat_completion(
-        system_prompt=system_prompt,
-        user_content=user_content,
-        temperature=0.2,
-        max_tokens=1800,
-        response_format="json_object",
-        task_type="story_world_context_recommender",
-        prompt_template_name=template.name,
-        novel_id=novel.id,
-    )
-    if not result.get("success"):
-        raise HTTPException(status_code=500, detail=result.get("error") or "故事世界上下文推荐失败")
-
-    parsed = safe_parse_llm_json(result.get("content") or "", default=None)
     try:
-        context = StoryWorldContext.model_validate(parsed)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"#01 返回的故事世界上下文格式无效：{exc}") from exc
+        template_repo = PromptTemplateRepository(db)
+        template = template_repo.resolve_for_type(
+            novel.story_world_context_prompt_template_id, "story_world_context_recommender")
+        if not template:
+            raise HTTPException(status_code=400, detail="未配置故事世界上下文推荐提示词模板")
 
+        novel_name = (novel.title or "").strip()
+        novel_description = (novel.description or "").strip() or novel_name
+        system_prompt = (template.template or "").replace("{{novel_name}}", novel_name).replace("{{novel_description}}", novel_description)
+        user_content = json.dumps({
+            "novel_name": novel_name,
+            "novel_description": novel_description,
+        }, ensure_ascii=False, indent=2)
+        result = await llm_service.chat_completion(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            temperature=0.2,
+            max_tokens=1800,
+            response_format="json_object",
+            task_type="story_world_context_recommender",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error") or "故事世界上下文推荐失败")
+
+        parsed = safe_parse_llm_json(result.get("content") or "", default=None)
+        try:
+            context = StoryWorldContext.model_validate(parsed)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"#01 返回的故事世界上下文格式无效：{exc}") from exc
+    except Exception:
+        from app.services.parse_events import publish_parse_result
+        publish_parse_result("story_world_context.parse", novel_id, failed=True)
+        raise
+
+    from app.services.parse_events import publish_parse_result
+    publish_parse_result("story_world_context.parse", novel_id, {"success": True})
     return {
         "success": True,
         "data": {

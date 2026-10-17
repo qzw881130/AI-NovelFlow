@@ -24,7 +24,10 @@ def test_create_and_update_novel_story_context_prompt(client):
     assert detail_response.json()["data"]["storyWorldContextPromptTemplateId"] == "story-template-2"
 
 
-def test_recommend_and_lock_story_world_context_with_title_fallback(client):
+def test_recommend_and_lock_story_world_context_with_title_fallback(client, monkeypatch):
+    from app.services import parse_events
+    events = []
+    monkeypatch.setattr(parse_events, 'publish', lambda code, payload: events.append((code, payload)))
     captured = {}
     recommendation = {
         "world_type": "童话",
@@ -59,6 +62,9 @@ def test_recommend_and_lock_story_world_context_with_title_fallback(client):
     }
     assert "{{novel_name}}" not in captured["system_prompt"]
     assert captured["task_type"] == "story_world_context_recommender"
+    assert events == [('story_world_context.parse.completed', {
+        'novel_id': created['id'], 'chapter_id': None, 'source': 'novel.story_world_context.parse', 'details': {},
+    })]
 
     before_save = client.get(f"/api/novels/{created['id']}/story-world-context").json()["data"]
     assert before_save == {"context": None, "locked": False, "updatedAt": None}
@@ -72,3 +78,19 @@ def test_recommend_and_lock_story_world_context_with_title_fallback(client):
     assert saved["context"] == recommendation
     assert saved["locked"] is True
     assert saved["updatedAt"] is not None
+
+
+def test_failed_story_world_recommendation_records_failure(client, monkeypatch):
+    from app.services import parse_events
+    events = []
+    monkeypatch.setattr(parse_events, 'publish', lambda code, payload: events.append((code, payload)))
+
+    class FailedLLM:
+        async def chat_completion(self, **kwargs):
+            return {"success": False, "error": "offline"}
+
+    app.dependency_overrides[get_llm_service] = lambda: FailedLLM()
+    novel = client.post("/api/novels/", json={"title": "失败案例"}).json()["data"]
+    response = client.post(f"/api/novels/{novel['id']}/story-world-context/recommend")
+    assert response.status_code == 500
+    assert [code for code, _ in events] == ["story_world_context.parse.failed"]

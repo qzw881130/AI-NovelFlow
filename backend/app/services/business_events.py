@@ -25,6 +25,7 @@ from app.services.notification_registry import EVENT_REGISTRY
 logger = logging.getLogger(__name__)
 IDS = ("novel_id", "chapter_id", "shot_id", "visual_state_id", "clip_id", "task_id", "review_id", "llm_log_id")
 DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "review_id",
+               "created_count", "updated_count", "deleted_count",
                "failed_dimensions", "warning_dimensions", "review_dimensions", "template_id", "template_version",
                "llm_log_id", "result_key_sha256", "comfyui_prompt_id", "error_code", "stage",
                "blocking_findings", "repair_levels", "l1_invocations", "reused_result", "revision",
@@ -178,7 +179,10 @@ def task_events(task):
     code = None
     if task.type == "keyframe_image":
         code = f"visual_state.generation.{suffix}"
-    elif task.type in {"shot_image", "character_portrait", "scene_image", "prop_image", "single_image_edit"}:
+    elif task.type in {"character_portrait", "scene_image", "prop_image"}:
+        entity = {"character_portrait": "character", "scene_image": "scene", "prop_image": "prop"}[task.type]
+        code = f"{entity}.image.generation.{suffix}"
+    elif task.type in {"shot_image", "single_image_edit"}:
         code = f"image.generation.{suffix}"
     elif task.type == "shot_video":
         if meta.get("execution_scope") == "CLIP" or meta.get("clip_index"):

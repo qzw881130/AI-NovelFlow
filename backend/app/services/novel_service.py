@@ -23,6 +23,7 @@ from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
 from app.services.prop_policy import PROP_EXISTENCE_NONEXISTENT, invalidate_nonexistent_prop_references, normalize_prop_existence
+from app.services.parse_events import observed_parse
 
 
 class NovelService:
@@ -42,6 +43,7 @@ class NovelService:
     
     # ==================== 角色解析 ====================
     
+    @observed_parse("character.parse")
     async def parse_characters(
         self,
         novel_id: str,
@@ -218,6 +220,7 @@ class NovelService:
 
     # ==================== 道具解析 ====================
 
+    @observed_parse("prop.parse")
     async def parse_props(
         self,
         novel_id: str,
@@ -397,6 +400,7 @@ class NovelService:
 
     # ==================== 场景解析 ====================
     
+    @observed_parse("scene.parse")
     async def parse_scenes_from_chapters(
         self,
         novel_id: str,
@@ -534,6 +538,7 @@ class NovelService:
             traceback.print_exc()
             return {"success": False, "message": f"解析异常: {str(e)}"}
     
+    @observed_parse("scene.parse")
     async def parse_scenes(
         self,
         novel_id: str,
