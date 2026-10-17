@@ -997,7 +997,11 @@ export const createGenerationSlice: StateCreator<
               const isRunning = status === 'running' || status === 'processing';
               const isPending = status === 'pending' || status === 'queued';
               const isActive = isRunning || isPending;
-              const hasExistingVideo = !!(shot.videoUrl || state.shotVideos[shot.id] || (base.videoDirectorPlan as any)?.merged_video_url);
+              const isCanonical = (base.videoDirectorPlan as any)?.canonical_visual_plan === true;
+              // A completed Clip task is not a completed Shot assembly. In the
+              // canonical route the refreshed Shot owns the final media binding.
+              const hasExistingVideo = isCanonical ? !!base.videoUrl
+                : !!(shot.videoUrl || state.shotVideos[shot.id] || (base.videoDirectorPlan as any)?.merged_video_url);
               const isStaleFailedTask = (status === 'failed' || status === 'cancelled') && hasExistingVideo;
               const isFailed = (status === 'failed' || status === 'cancelled') && !isStaleFailedTask;
               const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error)
@@ -1015,15 +1019,18 @@ export const createGenerationSlice: StateCreator<
               else nextGeneratingVideos.delete(shot.id);
               if (isPending) nextPendingVideos.add(shot.id);
               else nextPendingVideos.delete(shot.id);
-              if (isCompleted && task.resultUrl) nextShotVideos[shot.id] = task.resultUrl;
+              if (isCanonical) {
+                if (base.videoUrl) nextShotVideos[shot.id] = base.videoUrl;
+                else delete nextShotVideos[shot.id];
+              } else if (isCompleted && task.resultUrl) nextShotVideos[shot.id] = task.resultUrl;
               else if (isActive) delete nextShotVideos[shot.id];
               else if (refreshed?.videoUrl) nextShotVideos[shot.id] = refreshed.videoUrl;
 
               return mergePolledVideoShot(shot, {
                 ...(refreshed || {}),
-                videoStatus: isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : isPending ? 'pending' : base.videoStatus,
-                videoUrl: isCompleted && task.resultUrl ? task.resultUrl : isActive ? null : base.videoUrl,
-                videoTaskId: isStaleFailedTask ? null : (task.id || base.videoTaskId),
+                videoStatus: isCanonical && isCompleted ? base.videoStatus : isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : isPending ? 'pending' : base.videoStatus,
+                videoUrl: isCanonical ? base.videoUrl : isCompleted && task.resultUrl ? task.resultUrl : isActive ? null : base.videoUrl,
+                videoTaskId: isCanonical ? base.videoTaskId : isStaleFailedTask ? null : (task.id || base.videoTaskId),
                 videoDirectorPlan,
               });
             });

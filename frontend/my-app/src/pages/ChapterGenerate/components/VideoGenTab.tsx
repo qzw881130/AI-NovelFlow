@@ -8,6 +8,7 @@ import { previousClipFrameTarget, type PreviousClipFrameTarget } from '../previo
 import { H3OptimizerResult } from './H3OptimizerResult';
 import { ClipVisualStateReferences } from './ClipVisualStateReferences';
 import { visualStatePromptIsCurrent } from '../clipVisualStateReferences';
+import { getChapterMergeReadiness } from '../chapterMergeReadiness';
 /**
  * VideoGenTab - 视频生成 Tab（阶段 4）
  *
@@ -2614,6 +2615,10 @@ export function VideoGenTab({
   // 合并视频相关状态
   const [mergingMode, setMergingMode] = useState<MergeVideoMode | null>(null);
   const [showMergeSelectModal, setShowMergeSelectModal] = useState(false);
+  const [mergeShots, setMergeShots] = useState<any[]>([]);
+  const [mergeReadinessLoading, setMergeReadinessLoading] = useState(false);
+  const [mergeReadinessError, setMergeReadinessError] = useState('');
+  const [mergeReadinessReload, setMergeReadinessReload] = useState(0);
   const [selectedMergeShotIds, setSelectedMergeShotIds] = useState<Set<string>>(new Set());
   const [mergeSelectionMode, setMergeSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [mergeIncludeTransitions, setMergeIncludeTransitions] = useState(false);
@@ -4319,17 +4324,36 @@ export function VideoGenTab({
     }
   };
 
-  const getMergeShotVideoUrl = (shot: any) => {
-    const shotId = shot?.id ? String(shot.id) : '';
-    return shot?.videoUrl || (shotId ? shotVideos[shotId] : undefined) || shot?.videoDirectorPlan?.merged_video_url;
-  };
+  // Read persisted Shot bindings when opening the picker. Task playback caches
+  // may contain a successful Clip even when the final Shot is not assembled.
+  useEffect(() => {
+    if (!showMergeSelectModal || !effectiveNovelId || !effectiveChapterId) return;
+    const controller = new AbortController();
+    setMergeReadinessLoading(true);
+    setMergeReadinessError('');
+    setMergeShots([]);
+    setSelectedMergeShotIds(new Set());
+    shotsApi.getShots(effectiveNovelId, effectiveChapterId, controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      if (!result.success || !Array.isArray(result.data)) throw new Error(result.message || '读取合并状态失败');
+      setMergeShots(result.data);
+      setSelectedMergeShotIds(new Set(result.data.filter(shot => getChapterMergeReadiness(shot).ready).map(shot => String(shot.id))));
+    }).catch(error => {
+      if (!controller.signal.aborted) setMergeReadinessError(error instanceof Error ? error.message : '读取合并状态失败');
+    }).finally(() => {
+      if (!controller.signal.aborted) setMergeReadinessLoading(false);
+    });
+    return () => controller.abort();
+  }, [showMergeSelectModal, effectiveNovelId, effectiveChapterId, mergeReadinessReload]);
 
-  const mergeReadyShotIds = () => shotsList
-    .filter((shot: any) => !!shot?.id && !!getMergeShotVideoUrl(shot))
+  const mergeReadyShotIds = () => mergeShots
+    .filter((shot: any) => getChapterMergeReadiness(shot).ready)
     .map((shot: any) => String(shot.id));
 
   const handleOpenMergeSelect = () => {
-    setSelectedMergeShotIds(new Set(mergeReadyShotIds()));
+    setMergeShots([]);
+    setSelectedMergeShotIds(new Set());
+    setMergeReadinessLoading(true);
     setMergeIncludeTransitions(false);
     setShowMergeSelectModal(true);
   };
@@ -4340,8 +4364,8 @@ export function VideoGenTab({
   };
 
   const applyMergeShotSelection = (shotId: string, mode: 'select' | 'deselect') => {
-    const shot = shotsList.find((item: any) => String(item.id) === shotId);
-    if (!shot || !getMergeShotVideoUrl(shot)) return;
+    const shot = mergeShots.find((item: any) => String(item.id) === shotId);
+    if (!getChapterMergeReadiness(shot).ready) return;
     setSelectedMergeShotIds(prev => {
       const next = new Set(prev);
       if (mode === 'select') next.add(shotId);
@@ -4373,8 +4397,14 @@ export function VideoGenTab({
   // 处理合并视频
   const handleMergeVideos = async (mode: MergeVideoMode, shotIds = Array.from(selectedMergeShotIds)) => {
     if (!effectiveNovelId || !effectiveChapterId) return;
+    if (mergeReadinessLoading || mergeReadinessError) return;
     if (shotIds.length === 0) {
       toast.error(t('chapterGenerate.noVideosToMerge'));
+      return;
+    }
+    const readyIds = new Set(mergeReadyShotIds());
+    if (shotIds.some(id => !readyIds.has(id))) {
+      toast.error('所选分镜尚无最终视频，请刷新合并状态后重选。');
       return;
     }
 
@@ -4405,8 +4435,6 @@ export function VideoGenTab({
     }
   };
 
-  // 计算已生成视频的数量
-  const videoCount = shotsList.filter((shot: any) => shot.videoUrl || shotVideos[shot.id]).length;
   const currentCanonicalPrimaryAction = currentIsCanonicalPlan ? (() => {
     if (isGeneratingCurrent || isCurrentVideoPending || isSubmittingCanonicalShot) {
       return { label: isCurrentVideoPending ? '队列中…' : '生成中…', disabled: true, onClick: () => undefined };
@@ -4533,7 +4561,7 @@ export function VideoGenTab({
               {showWorkspaceActionsMenu && (
                 <div className="absolute right-0 top-full z-[90] mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
                   <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">生产与下载</div>
-                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleOpenMergeSelect(); }} disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleOpenMergeSelect(); }} disabled={mergingMode !== null || !effectiveChapterId || shotsList.length === 0} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {mergingMode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Combine className="h-4 w-4" />}
                     {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
                   </button>
@@ -5014,9 +5042,12 @@ export function VideoGenTab({
             <div className="flex-1 overflow-y-auto p-4 pb-8">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <span className="text-sm text-gray-600">
-                  已选择 {selectedMergeShotIds.size} / 可合并 {mergeReadyShotIds().length} / 共 {shotsList.length} 个分镜
+                  {mergeReadinessLoading ? '正在核对最终视频…' : `已选择 ${selectedMergeShotIds.size} / 可合并 ${mergeReadyShotIds().length} / 共 ${mergeShots.length} 个分镜`}
                 </span>
                 <div className="flex items-center gap-4">
+                  <button type="button" onClick={() => setMergeReadinessReload(value => value + 1)}
+                    disabled={mergeReadinessLoading || mergingMode !== null}
+                    className="text-sm text-gray-600 hover:text-blue-600 disabled:opacity-50">刷新状态</button>
                   <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
                     <input
                       type="checkbox"
@@ -5029,6 +5060,7 @@ export function VideoGenTab({
                   </label>
                   <button
                     onClick={toggleMergeSelectAll}
+                    disabled={mergeReadinessLoading || !!mergeReadinessError}
                     className="text-sm flex items-center gap-1 text-gray-600 hover:text-pink-700 transition-colors"
                   >
                     {selectedMergeShotIds.size === mergeReadyShotIds().length && selectedMergeShotIds.size > 0 ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
@@ -5037,28 +5069,50 @@ export function VideoGenTab({
                 </div>
               </div>
 
+              {mergeReadinessError && <div role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {mergeReadinessError}，请刷新状态后再合并。
+              </div>}
+              {!mergeReadinessLoading && mergeShots.some(shot => !getChapterMergeReadiness(shot).ready) && (
+                <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <p className="mb-2 font-medium">以下分镜尚无最终视频，已排除。合并本章全部分镜前，请先处理：</p>
+                  <ul className="space-y-2">
+                    {mergeShots.filter(shot => !getChapterMergeReadiness(shot).ready).map(shot => (
+                      <li key={shot.id} className="flex items-start justify-between gap-2">
+                        <span>镜 {shot.index}：{getChapterMergeReadiness(shot).reason}</span>
+                        <button type="button" className="shrink-0 text-blue-700 hover:underline" onClick={() => {
+                          const position = shotsList.findIndex((item: any) => String(item.id) === String(shot.id));
+                          if (position >= 0) { setCurrentShot(String(shot.id), position + 1); setSelectedVideo(position + 1); }
+                          setShowMergeSelectModal(false);
+                        }}>查看分镜</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="grid grid-cols-4 gap-3">
-                {shotsList.map((shot: any, idx: number) => {
+                {mergeShots.map((shot: any, idx: number) => {
                   const shotId = shot?.id ? String(shot.id) : '';
                   const shotIndex = shot.index || idx + 1;
-                  const videoUrl = getMergeShotVideoUrl(shot);
+                  const thumbnailUrl = getShotImageUrl(shot);
+                  const readiness = getChapterMergeReadiness(shot);
                   const isSelected = shotId ? selectedMergeShotIds.has(shotId) : false;
-                  const isGenerating = shotId ? generatingVideos.has(shotId) || storePendingVideos.has(shotId) : false;
-                  const isFailed = shot?.videoStatus === 'failed';
-                  const isSelectable = !!shotId && !!videoUrl;
-                  const statusLabel = videoUrl ? '已生成' : isGenerating ? '生成中' : isFailed ? '失败' : '未生成';
+                  const isGenerating = shot?.videoStatus === 'generating';
+                  const isSelectable = readiness.ready;
+                  const statusLabel = readiness.label;
 
                   return (
                     <div
                       key={shotId || `merge-shot-${shotIndex}`}
                       onMouseDown={(event) => handleMergeShotMouseDown(event, shotId, isSelectable)}
                       onMouseEnter={() => handleMergeShotMouseEnter(shotId, isSelectable)}
-                      title={isSelectable ? `镜${shotIndex} 可合并` : `镜${shotIndex} ${statusLabel}`}
+                      title={`镜${shotIndex}：${readiness.reason}`}
+                      aria-disabled={!isSelectable}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
                         select-none
                         ${!isSelectable
-                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
+                          ? 'border-amber-300 bg-amber-50 cursor-not-allowed'
                           : 'cursor-pointer hover:shadow-md'
                         }
                         ${isSelectable && isSelected
@@ -5069,16 +5123,25 @@ export function VideoGenTab({
                         }
                       `}
                     >
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">#{shotIndex}</div>
+                      <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">#{shotIndex}</div>
                       {isSelectable && (
-                        <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                        <div className={`absolute top-1 right-1 z-10 w-5 h-5 rounded-full flex items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}>
                           {isSelected && <Check className="w-3 h-3 text-white" />}
                         </div>
                       )}
-                      <div className="w-full h-full flex items-center justify-center">
-                        {videoUrl ? <Film className="w-8 h-8 text-green-600" /> : isGenerating ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <Film className="w-8 h-8 text-gray-300" />}
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden rounded-md">
+                        {isSelectable ? <Film className="w-8 h-8 text-green-600" /> : isGenerating ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <Info className="w-8 h-8 text-amber-600" />}
+                        {thumbnailUrl && <img
+                          key={thumbnailUrl}
+                          src={thumbnailUrl}
+                          alt={`分镜 ${shotIndex} 主分镜图`}
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
+                          draggable={false}
+                          onError={event => { event.currentTarget.style.display = 'none'; }}
+                        />}
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
+                      <div className={`absolute bottom-0 left-0 right-0 z-10 px-1 py-0.5 text-xs text-center text-white rounded-b-lg ${isSelectable ? 'bg-black/60' : 'bg-amber-700'}`}>
                         {statusLabel} · {Number(shot.duration || 0)}s
                       </div>
                     </div>
@@ -5100,7 +5163,7 @@ export function VideoGenTab({
                 </button>
                 <button
                   onClick={() => handleMergeVideos(mergeIncludeTransitions ? 'shots_with_transitions' : 'shots_only')}
-                  disabled={selectedMergeShotIds.size === 0 || mergingMode !== null}
+                  disabled={mergeReadinessLoading || !!mergeReadinessError || selectedMergeShotIds.size === 0 || mergingMode !== null}
                   className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}

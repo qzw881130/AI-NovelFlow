@@ -104,6 +104,41 @@ test('later polls still publish changed director plans and completed video resul
   assert.equal(store.getState().generatingVideos.size, 0);
 });
 
+test('completed canonical Clip cannot replace an empty final Shot binding, including stale cache', async () => {
+  const fresh = { ...originalShot(), videoStatus: 'pending', videoUrl: null, videoTaskId: null,
+    videoDirectorPlan: { canonical_visual_plan: true, clip_plan_revision: 1,
+      clip_plan: [{ clip_index: 1, status: 'SUCCEEDED', video_url: '/clip.mp4' }] } };
+  const store = makeStore(async () => response([{ ...activeTask, status: 'completed', resultUrl: '/clip.mp4' }]),
+    async () => ({ success: true, data: fresh }));
+  store.setState({ shots: [{ ...fresh, videoStatus: 'completed', videoUrl: '/stale.mp4' }], shotVideos: { shot: '/stale.mp4' } });
+  await store.getState().checkVideoTaskStatus('chapter');
+  assert.equal(store.getState().shots[0].videoUrl, null);
+  assert.equal(store.getState().shots[0].videoStatus, 'pending');
+  assert.equal(store.getState().shots[0].videoTaskId, null);
+  assert.equal(store.getState().shotVideos.shot, undefined);
+  assert.equal(store.getState().shots[0].videoDirectorPlan.clip_plan[0].video_url, '/clip.mp4');
+});
+
+test('canonical assembly URL and Task remain authoritative when newest Clip task has another result', async () => {
+  const fresh = { ...originalShot(), videoStatus: 'completed', videoUrl: '/assembly.mp4', videoTaskId: 'assembly-task',
+    videoDirectorPlan: { canonical_visual_plan: true, clip_plan_revision: 1, assembly_status: 'COMPLETED' } };
+  const store = makeStore(async () => response([{ ...activeTask, status: 'completed', resultUrl: '/last-clip.mp4' }]),
+    async () => ({ success: true, data: fresh }));
+  await store.getState().checkVideoTaskStatus('chapter');
+  assert.equal(store.getState().shots[0].videoUrl, '/assembly.mp4');
+  assert.equal(store.getState().shotVideos.shot, '/assembly.mp4');
+  assert.equal(store.getState().shots[0].videoTaskId, 'assembly-task');
+});
+
+test('candidate completion never becomes a final Shot video through polling', async () => {
+  const store = makeStore(async () => response([{ ...activeTask, status: 'completed', resultUrl: '/candidate.mp4', resultMode: 'CANDIDATE_ONLY' }]),
+    async () => assert.fail('Candidate does not refresh official bindings'));
+  const before = store.getState().shots;
+  await store.getState().checkVideoTaskStatus('chapter');
+  assert.equal(store.getState().shots, before);
+  assert.equal(store.getState().shotVideos.shot, undefined);
+});
+
 test('active task status remains stable when the Shot detail still has an old terminal state', async () => {
   let shotReads = 0;
   const store = makeStore(async () => response([activeTask]), async () => {
