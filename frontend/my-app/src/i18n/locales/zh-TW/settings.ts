@@ -10,6 +10,8 @@ export default {
     videoPromptEnglish: "英文（預設）",
     videoPromptChinese: "中文",
     videoPromptLanguageDesc: "用於 H3 Phase B 的動作、鏡頭、人物外貌、場景道具及聲音描述。角色名、台詞原文與綁定標記保持不變；新任務採用此設定，歷史任務重試沿用原設定。",
+    showFirstAppearanceNames: '人物首次登場顯示姓名',
+    showFirstAppearanceNamesDesc: '合併章回影片時，在角色首次登場的分鏡開頭於畫面左上角顯示約 3 秒紅色姓名牌。依整部小說的章回及分鏡順序判斷；原始分鏡與 Clip 影片不變。',
     imageQualityReview: '圖片品質評審',
     autoImageReview: '生成圖片後自動 AI 評審',
     autoImageReviewDesc: '圖片生成成功後，後台自動呼叫 AI 進行品質評審。評審結果獨立記錄，不影響圖片生成狀態，不會自動觸發重繪，也不會阻斷影片生成。',

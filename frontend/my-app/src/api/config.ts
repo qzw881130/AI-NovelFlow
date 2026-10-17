@@ -6,6 +6,7 @@ import { api } from './index';
 export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
   comfyUITimeout?: number;

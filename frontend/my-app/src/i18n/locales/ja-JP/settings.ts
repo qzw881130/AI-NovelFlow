@@ -8,6 +8,8 @@ export default {
     videoPromptEnglish: "英語（既定）",
     videoPromptChinese: "中国語",
     videoPromptLanguageDesc: "H3 Phase B の動作、カメラ、外見、背景、小道具、音の説明に適用します。人物名、台詞、参照タグは変更しません。新規タスクに適用し、再試行は元の設定を保持します。",
+    showFirstAppearanceNames: '人物の初登場時に名前を表示',
+    showFirstAppearanceNamesDesc: '章の動画を結合するとき、作品内で人物が初登場するショットの冒頭約3秒間、左上に赤い名前札を表示します。元のショットと Clip 動画は変更しません。',
     title: 'システム設定',
     subtitle: 'LLM、プロキシ、ComfyUIの設定',
     llmConfig: 'LLM設定',

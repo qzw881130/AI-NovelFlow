@@ -50,6 +50,7 @@ class SystemConfigUpdate(BaseModel):
     timezone: Optional[str] = None
     autoImageReviewEnabled: Optional[bool] = None
     videoPromptLanguage: Optional[Literal["en", "zh"]] = None
+    showFirstAppearanceNames: Optional[bool] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -68,6 +69,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
             db.commit()
         if "auto_image_review_enabled_at" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
+            db.commit()
+        if "show_first_appearance_names" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN show_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
             db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
@@ -96,6 +100,7 @@ async def get_config(db: Session = Depends(get_db)):
             "llmTimeout": config.llm_timeout,
             "autoImageReviewEnabled": bool(config.auto_image_review_enabled),
             "videoPromptLanguage": config.video_prompt_language,
+            "showFirstAppearanceNames": bool(config.show_first_appearance_names),
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -136,6 +141,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_timeout": config.llm_timeout,
             "auto_image_review_enabled": bool(config.auto_image_review_enabled),
             "video_prompt_language": config.video_prompt_language,
+            "show_first_appearance_names": bool(config.show_first_appearance_names),
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -187,6 +193,8 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.videoPromptLanguage is not None:
             db_config.video_prompt_language = config.videoPromptLanguage
             updates["video_prompt_language"] = config.videoPromptLanguage
+        if config.showFirstAppearanceNames is not None:
+            db_config.show_first_appearance_names = config.showFirstAppearanceNames
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

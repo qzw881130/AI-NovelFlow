@@ -79,6 +79,7 @@ export default function Settings() {
             llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
             autoImageReviewEnabled: config.autoImageReviewEnabled ?? false,
             videoPromptLanguage: config.videoPromptLanguage ?? 'en',
+            showFirstAppearanceNames: config.showFirstAppearanceNames ?? false,
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -119,6 +120,7 @@ export default function Settings() {
         payload = {
           autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false,
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
+          showFirstAppearanceNames: formData.showFirstAppearanceNames ?? false,
         };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
@@ -283,6 +285,11 @@ export default function Settings() {
                 onChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, autoImageReviewEnabled: enabled }));
+                }}
+                showFirstAppearanceNames={formData.showFirstAppearanceNames ?? false}
+                onShowFirstAppearanceNamesChange={(enabled) => {
+                  handleUserModified();
+                  setFormData(previous => ({ ...previous, showFirstAppearanceNames: enabled }));
                 }}
               />
             )}

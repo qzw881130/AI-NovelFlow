@@ -27,6 +27,8 @@ export default {
     videoPromptEnglish: "English (default)",
     videoPromptChinese: "Chinese",
     videoPromptLanguageDesc: "Controls H3 Phase B action, camera, appearance, scene, prop and sound descriptions. Character names, original dialogue and binding markers stay unchanged. New tasks use this setting; retries retain their original setting.",
+    showFirstAppearanceNames: 'Show names on first character appearance',
+    showFirstAppearanceNamesDesc: 'When merging a chapter video, show red nameplates at the upper left for about 3 seconds at each character’s first shot in the novel. Raw Shot and Clip videos stay unchanged.',
     imageQualityReview: 'Image Quality Review',
     testConnection: 'Test Connection',
     connectionSuccess: 'Connection successful',

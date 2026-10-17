@@ -8,6 +8,8 @@ export default {
     videoPromptEnglish: "영어 (기본값)",
     videoPromptChinese: "중국어",
     videoPromptLanguageDesc: "H3 Phase B의 동작, 카메라, 외모, 장면, 소품, 소리 설명에 적용합니다. 인물 이름, 대사 원문, 바인딩 표시는 유지합니다. 새 작업에 적용되며 재시도는 기존 설정을 유지합니다.",
+    showFirstAppearanceNames: '인물 첫 등장 시 이름 표시',
+    showFirstAppearanceNamesDesc: '챕터 영상을 병합할 때 소설에서 인물이 처음 등장하는 쇼트의 시작 부분 약 3초 동안 왼쪽 위에 빨간 이름표를 표시합니다. 원본 쇼트와 Clip 영상은 변경하지 않습니다.',
     title: '시스템 설정',
     subtitle: 'LLM, 프록시 및 ComfyUI 설정',
     llmConfig: 'LLM 구성',

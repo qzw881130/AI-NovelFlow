@@ -54,6 +54,12 @@ from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
+from app.services.first_appearance_nameplates import (
+    RENDER_VERSION as NAMEPLATE_RENDER_VERSION,
+    build_nameplate_events,
+    render_first_appearance_nameplates,
+)
+from app.models.system_config import SystemConfig
 from app.services.novel_service import (
     NovelService,
 )
@@ -317,6 +323,31 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         if not result.get("success"):
             raise RuntimeError(result.get("message", "合并失败"))
 
+        raw_output_path = output_path
+        show_names = bool(db.query(SystemConfig.show_first_appearance_names).filter(SystemConfig.id == "default").scalar())
+        nameplate_events = build_nameplate_events(db, novel_id, chapter_id, segments) if show_names else []
+        nameplate_cache_hit = False
+        if nameplate_events:
+            nameplate_signature = sha256(json.dumps(
+                {"version": NAMEPLATE_RENDER_VERSION, "events": nameplate_events},
+                ensure_ascii=False, sort_keys=True,
+            ).encode("utf-8")).hexdigest()[:16]
+            output_path = output_dir / f"{mode}-{signature}-names-{nameplate_signature}.mp4"
+            nameplate_lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
+            async with nameplate_lock:
+                if output_path.is_file() and output_path.stat().st_size > 0:
+                    nameplate_cache_hit = True
+                else:
+                    temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.nameplates.tmp.mp4"
+                    try:
+                        task.progress = 85
+                        task.current_step = "正在叠加首次出场角色姓名..."
+                        db.commit()
+                        await render_first_appearance_nameplates(raw_output_path, temp_path, nameplate_events)
+                        os.replace(temp_path, output_path)
+                    finally:
+                        temp_path.unlink(missing_ok=True)
+
         relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
         video_url = f"/api/files/{relative_path.lstrip('/')}"
         all_shot_ids = {shot.id for shot in shots}
@@ -328,6 +359,8 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
         metadata.update({
             "cache_hit": cache_hit,
+            "nameplate_cache_hit": nameplate_cache_hit,
+            "nameplate_events": nameplate_events,
             "mode": mode,
             "video_variant": video_variant,
             "target_megapixels": target_megapixels,

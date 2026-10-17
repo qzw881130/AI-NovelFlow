@@ -34,6 +34,7 @@ export interface SystemConfig {
   llmTimeout?: number;  // 请求超时（秒）
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
   
   // 代理配置
   proxy: ProxyConfig;

@@ -82,6 +82,7 @@ export interface SettingsFormData {
   llmTimeout?: number;
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
   proxy: ProxyConfig;
   comfyUIHost: string;
   comfyUITimeout: number;
