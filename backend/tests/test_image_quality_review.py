@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from app.models.prompt_template import PromptTemplate
-from app.models.novel import Novel
+from app.models.novel import Novel, Character, Prop
 from app.models.task import Task
 from app.models.system_config import SystemConfig
 from app.services.image_quality_review import DIMENSIONS, build_review_input, create_image_review, current_image_reviews, normalize_review_response, review_image_task
@@ -83,6 +83,65 @@ def test_character_review_sends_layout_and_task_type_to_model(db_session):
     assert review.overall == "PASS"
     assert calls[0]["task_type"] == "character_portrait"
     assert calls[0]["target"]["character_portrait_layout"]["mode"] == "four_view"
+
+
+def test_shot_review_uses_only_submitted_reference_slots_and_bindings(db_session, monkeypatch):
+    from types import SimpleNamespace
+    from app.services import shot_image_service
+
+    novel = Novel(id="review-novel", title="参考图绑定")
+    character = Character(id="review-character", novel_id=novel.id, name="甲", image_url="/api/files/char.png")
+    prop = Prop(id="review-prop", novel_id=novel.id, name="王座", image_url="/api/files/prop.png")
+    task = Task(id="shot-ref-task", type="shot_image", status="completed", name="生成主分镜图",
+                novel_id=novel.id, prompt_text="甲坐在王座上", result_url="/api/files/generated.png")
+    db_session.add_all([novel, character, prop, task])
+    db_session.commit()
+
+    monkeypatch.setattr(shot_image_service, "url_to_local_path", lambda url: url if url else None)
+    monkeypatch.setattr(shot_image_service, "local_path_to_url", lambda path: f"/api/files/{path}")
+
+    class FakeClient:
+        async def upload_image(self, path):
+            return {"success": path != "scene.png", "filename": path if path != "scene.png" else None}
+
+    workflow = {key: {"inputs": {"image": ""}} for key in ("11", "22", "33")}
+    mapping = {"character_reference_image_node_id": "11", "scene_reference_image_node_id": "22",
+               "prop_reference_image_node_id": "33"}
+    asyncio.run(shot_image_service._upload_references_and_update_workflow(
+        SimpleNamespace(client=FakeClient()), workflow, mapping, "characters.png", "scene.png",
+        task, db_session, task.id, prop_reference_paths={"王座": "prop.png"},
+        character_names=["甲"], scene_name="宫殿", prop_names=["王座"],
+    ))
+    references = json.loads(task.reference_images)
+    assert [item["picture"] for item in references] == [1, 3]
+    assert references[0]["members"] == ["甲"]
+    assert references[0]["sources"] == ["CHAR:review-character"]
+    assert references[1]["sources"] == ["PROP:王座"]
+    assert json.loads(task.workflow_json)["22"]["inputs"]["image"] == ""
+    snapshot = build_review_input(task)
+    assert [item["picture"] for item in snapshot["references"]] == [1, 3]
+    assert snapshot["references"][0]["name"] == "角色合并图"
+    assert snapshot["references"][1]["members"] == ["王座"]
+
+    db_session.add(PromptTemplate(id="shot-ref-template", name="评审", type="image_quality_review_prompt",
+                                  template="核对参考图来源", is_system=True, is_active=True))
+    db_session.commit()
+    calls = []
+
+    class FakeLLM:
+        provider, model = "test", "vision-test"
+
+        async def chat_completion(self, **kwargs):
+            calls.append(json.loads(kwargs["user_content"]))
+            return {"success": True, "content": _response()}
+
+    with patch("app.services.image_quality_review.vision_proxy", side_effect=lambda url, **kw: {**kw, "url": url}), \
+         patch("app.services.image_quality_review.LLMService", FakeLLM):
+        asyncio.run(review_image_task(db_session, task.id))
+    assert [item["logical_id"] for item in calls[0]["images"]] == ["GENERATED_OUTPUT", "Picture1", "Picture3"]
+    assert calls[0]["images"][1]["name"] == "角色合并图"
+    assert calls[0]["images"][1]["members"] == ["甲"]
+    assert calls[0]["images"][2]["sources"] == ["PROP:王座"]
 
 
 def test_review_uses_active_template_and_preserves_task(db_session):

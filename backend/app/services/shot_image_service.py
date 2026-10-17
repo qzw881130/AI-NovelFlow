@@ -424,6 +424,9 @@ async def generate_shot_image_task(
                 db,
                 task_id,
                 prop_reference_paths=prop_reference_paths,
+                character_names=shot_characters,
+                scene_name=shot_scene,
+                prop_names=shot_props,
             )
 
             # 调用 ComfyUI 生成图片
@@ -738,6 +741,9 @@ async def _upload_references_and_update_workflow(
     db,
     task_id: str,
     prop_reference_paths: Optional[Dict[str, str]] = None,
+    character_names: Optional[list[str]] = None,
+    scene_name: Optional[str] = None,
+    prop_names: Optional[list[str]] = None,
 ):
     """
     上传参考图并更新工作流
@@ -757,21 +763,54 @@ async def _upload_references_and_update_workflow(
     db.commit()
     print(f"[ShotTask {task_id}] Uploading compact reference images before submission")
 
+    character_members = []
+    for name in character_names or []:
+        character = db.query(Character).filter(
+            Character.novel_id == task.novel_id, Character.name == name,
+        ).first()
+        if character and character.image_url and url_to_local_path(character.image_url):
+            character_members.append({"name": name, "source": f"CHAR:{character.id}"})
+    prop_members = []
+    for name in prop_names or []:
+        prop = db.query(Prop).filter(
+            Prop.novel_id == task.novel_id, Prop.name == name,
+            Prop.existence == PROP_EXISTENCE_REAL,
+        ).first()
+        if prop and prop.image_url and url_to_local_path(prop.image_url):
+            prop_members.append({"name": name, "source": f"PROP:{name}"})
+
     reference_items_by_key = {}
     if character_reference_path:
         character_url = local_path_to_url(character_reference_path)
         if character_url:
-            reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
+            reference_items_by_key["character_reference_image_node_id"] = {
+                "label": "角色合并图", "url": character_url, "path": character_reference_path,
+                "kind": "CHARACTER_IDENTITY", "members": [item["name"] for item in character_members],
+                "sources": [item["source"] for item in character_members],
+                "purpose": "角色身份与稳定外观参考，不复制展示排版",
+            }
     if scene_reference_path:
         scene_url = local_path_to_url(scene_reference_path)
         if scene_url:
-            reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
+            reference_items_by_key["scene_reference_image_node_id"] = {
+                "label": "场景图", "url": scene_url, "path": scene_reference_path,
+                "kind": "SCENE", "name": scene_name, "sources": [f"SCENE:{scene_name}"] if scene_name else [],
+                "purpose": "场景身份与建筑空间参考",
+            }
     if prop_reference_paths:
         prop_label = "、".join(prop_reference_paths.keys())
         prop_path = next((path for path in prop_reference_paths.values() if path), None)
         prop_url = local_path_to_url(prop_path) if prop_path else None
         if prop_path and prop_url:
-            prop_item = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
+            selected_props = prop_members if "合并道具图" in prop_reference_paths else [
+                item for item in prop_members if item["name"] in prop_reference_paths
+            ]
+            prop_item = {
+                "label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path,
+                "kind": "PROP", "members": [item["name"] for item in selected_props],
+                "sources": [item["source"] for item in selected_props],
+                "purpose": "道具外观与形制参考，不复制展示排版",
+            }
             reference_items_by_key["prop_reference_image_node_id"] = prop_item
             first_custom_key = _get_first_custom_reference_node_key(node_mapping)
             if first_custom_key:
@@ -779,17 +818,6 @@ async def _upload_references_and_update_workflow(
 
     reference_node_keys = _get_compact_reference_node_keys(node_mapping)
     reference_items = [reference_items_by_key.get(key) for key in reference_node_keys]
-    visible_reference_items = [item for item in reference_items if item]
-
-    task.reference_images = (
-        json.dumps(
-            [{"label": item["label"], "url": item["url"]} for item in visible_reference_items],
-            ensure_ascii=False,
-        )
-        if visible_reference_items
-        else None
-    )
-    db.commit()
 
     uploaded_filenames = []
     for item in reference_items:
@@ -797,7 +825,7 @@ async def _upload_references_and_update_workflow(
             uploaded_filenames.append(None)
             continue
         upload_result = await comfyui_service.client.upload_image(item["path"])
-        if upload_result.get("success"):
+        if upload_result.get("success") and upload_result.get("filename"):
             uploaded_filenames.append(upload_result.get("filename"))
             print(
                 f"[ShotTask {task_id}] {item['label']} uploaded successfully: "
@@ -810,6 +838,7 @@ async def _upload_references_and_update_workflow(
                 f"{upload_result.get('message')}"
             )
 
+    submitted_references = []
     for index, ref_key in enumerate(reference_node_keys):
         node_id = node_mapping.get(ref_key)
         node_id_str = str(node_id) if node_id else ""
@@ -818,6 +847,10 @@ async def _upload_references_and_update_workflow(
         uploaded_filename = uploaded_filenames[index] if index < len(uploaded_filenames) else None
         if uploaded_filename:
             submitted_workflow[node_id_str]["inputs"]["image"] = uploaded_filename
+            item = reference_items[index]
+            submitted_references.append({
+                key: value for key, value in item.items() if key != "path"
+            } | {"picture": index + 1})
             print(
                 f"[ShotTask {task_id}] Set <Picture {index + 1}> node "
                 f"{node_id_str} to {uploaded_filename}"
@@ -827,6 +860,7 @@ async def _upload_references_and_update_workflow(
             disconnect_reference_chain(submitted_workflow, node_id_str)
             print(f"[ShotTask {task_id}] Disconnected unused reference node {node_id_str}")
 
+    task.reference_images = json.dumps(submitted_references, ensure_ascii=False) if submitted_references else None
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()
     print(f"[ShotTask {task_id}] Saved workflow with reference images to task")

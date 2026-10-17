@@ -80,11 +80,12 @@ def build_review_input(task: Task, structured_target: dict | None = None, *, gen
                 item = {"url": item}
             if not isinstance(item, dict):
                 raise ValueError("参考图记录格式无效")
-            binding = next((b for b in bindings if b.get("picture") == index), {})
+            picture = item.get("picture") or index
+            binding = next((b for b in bindings if b.get("picture") == picture), {})
             references.append({
-                "picture": index, "url": item.get("url"), "kind": item.get("kind"),
+                "picture": picture, "url": item.get("url"), "kind": item.get("kind"),
                 "sources": item.get("sources") or binding.get("sources") or [], "purpose": item.get("purpose"),
-                "name": item.get("name"), "members": item.get("members"),
+                "name": item.get("name") or item.get("label"), "members": item.get("members"),
                 "binding": binding, "character_ids": item.get("character_ids"),
                 "character_assets": item.get("character_assets"), "sha256": item.get("sha256"),
             })
@@ -240,9 +241,9 @@ async def execute_image_review(db: Session, review_id: str) -> ImageQualityRevie
         for ref in snapshot["references"]:
             images.append(await asyncio.to_thread(
                 vision_proxy, ref["url"], logical_id=f"Picture{ref['picture']}",
-                name=f"参考图 {ref['picture']}", role="reference",
+                name=ref["name"] or f"参考图 {ref['picture']}", role="reference",
                 reference_type=ref["kind"], sources=ref["sources"],
-                purpose=ref["purpose"], binding=ref["binding"]))
+                members=ref["members"], purpose=ref["purpose"], binding=ref["binding"]))
             expected_hash = ref.get("sha256") or ref["binding"].get("sha256")
             if expected_hash and images[-1].get("source_sha256") != expected_hash:
                 raise ValueError(f"Picture {ref['picture']} 文件已变化，无法按实际生成参考图评审")
@@ -257,6 +258,7 @@ async def execute_image_review(db: Session, review_id: str) -> ImageQualityRevie
                       "original_prompt": snapshot["original_prompt"], "target": snapshot["target"],
                       "images": [{"order": index + 1, "logical_id": item["logical_id"],
                                   "sources": item.get("sources"), "reference_type": item.get("reference_type"),
+                                  "name": item.get("name"), "members": item.get("members"),
                                   "purpose": item.get("purpose"), "binding": item.get("binding")}
                                  for index, item in enumerate(images)]}
         llm = LLMService()
