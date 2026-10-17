@@ -1,0 +1,254 @@
+{
+  "470": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image 1"
+    }
+  },
+  "477": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#477 Load Diffusion Model"
+    }
+  },
+  "478": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#478 Load CLIP"
+    }
+  },
+  "479": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#479 Load VAE"
+    }
+  },
+  "480": {
+    "inputs": {
+      "width": [
+        "517",
+        0
+      ],
+      "height": [
+        "518",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "#480 Empty Latent Image"
+    }
+  },
+  "481": {
+    "inputs": {
+      "samples": [
+        "546",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#481 VAE Decode"
+    }
+  },
+  "485": {
+    "inputs": {
+      "prompt": [
+        "516",
+        0
+      ],
+      "negative_prompt": "",
+      "resolution": 1280,
+      "clip": [
+        "478",
+        0
+      ],
+      "images.image_1": [
+        "470",
+        0
+      ],
+      "images.image_2": [
+        "510",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "#485 Text Encode Qwen Image 2.1"
+    }
+  },
+  "494": {
+    "inputs": {
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "481",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "#494 Save Image (Advanced)"
+    }
+  },
+  "510": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image 2"
+    }
+  },
+  "515": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "494",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#515 Save Image"
+    }
+  },
+  "516": {
+    "inputs": {
+      "prompt": "请根据已提供的参考图和任务提示词生成图片。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#516 #-1 ⚙️ CR Prompt Text(提示词)"
+    }
+  },
+  "517": {
+    "inputs": {
+      "value": 1280
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#517 #-1 Int 宽度"
+    }
+  },
+  "518": {
+    "inputs": {
+      "value": 720
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#518 #-1 Int 高度"
+    }
+  },
+  "541": {
+    "inputs": {
+      "lora_name": "qwen_image_2.1_turbo_lora_avg_rank_178_bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "477",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#541 Load LoRA (Turbo)"
+    }
+  },
+  "542": {
+    "inputs": {
+      "noise_seed": 314624761551443
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#542 RandomNoise"
+    }
+  },
+  "543": {
+    "inputs": {
+      "model": [
+        "541",
+        0
+      ],
+      "conditioning": [
+        "485",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#543 Basic Guider"
+    }
+  },
+  "544": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#544 KSamplerSelect"
+    }
+  },
+  "545": {
+    "inputs": {
+      "sigmas": "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "#545 ManualSigmas"
+    }
+  },
+  "546": {
+    "inputs": {
+      "noise": [
+        "542",
+        0
+      ],
+      "guider": [
+        "543",
+        0
+      ],
+      "sampler": [
+        "544",
+        0
+      ],
+      "sigmas": [
+        "545",
+        0
+      ],
+      "latent_image": [
+        "480",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#546 SamplerCustomAdvanced"
+    }
+  }
+}

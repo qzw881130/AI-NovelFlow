@@ -249,6 +249,32 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
 # 注意：列表顺序决定默认激活优先级，每种类型的第一个工作流会成为默认激活
 # nameKey/descriptionKey: 翻译键，前端通过此键获取多语言文本
 EXTRA_SYSTEM_WORKFLOWS = [
+    # Qwen Image 2.1 Turbo variants use the same model/sampler as the 9-image
+    # edit workflow, with only the reference slots needed by each task type.
+    {
+        "filename": f"qwen_image_2_1_turbo_{wf_type}_v20261018.json",
+        "type": wf_type,
+        "name": f"Qwen Image 2.1 Turbo {label} V20261018",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen Image 2.1 Turbo {label} V20261018",
+        "description": f"Qwen Image 2.1 Turbo {label}，{reference_description}",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Qwen Image 2.1 Turbo {label}，{reference_description}",
+        "node_mapping": {
+            "prompt_node_id": "516",
+            "save_image_node_id": "515",
+            "width_node_id": "517",
+            "height_node_id": "518",
+            **reference_mapping,
+        },
+    }
+    for wf_type, label, reference_description, reference_mapping in [
+        ("shot_scene", "分镜生图（场景）", "使用场景参考图", {"scene_reference_image_node_id": "470"}),
+        ("shot_character_scene", "分镜生图（角色+场景）", "依次使用角色、场景参考图", {"character_reference_image_node_id": "470", "scene_reference_image_node_id": "510"}),
+        ("shot_scene_prop", "分镜生图（场景+道具）", "依次使用场景、道具参考图", {"scene_reference_image_node_id": "470", "prop_reference_image_node_id": "510"}),
+        ("shot", "分镜生图（角色+场景+道具）", "依次使用角色、场景、道具参考图", {"character_reference_image_node_id": "470", "scene_reference_image_node_id": "510", "prop_reference_image_node_id": "503"}),
+        ("keyframe_image", "关键帧生图", "使用单张关键帧参考图", {"reference_image_node_id": "470"}),
+        ("single_image_edit", "单图编辑", "使用单张原图", {"load_image_node_id": "470"}),
+    ]
+] + [
     {
         "filename": "multi_reference_video_minimax_h3_ref2va_20260928.json",
         "type": "multi_reference_video",
