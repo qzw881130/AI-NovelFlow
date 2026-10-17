@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 from app.constants.h3_prompt_pipeline import DEFAULT_H3_PROMPT_PIPELINE
+from app.services.effective_execution import ContinuationMode
 
 
 VideoMode = Literal["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"]
@@ -221,9 +222,17 @@ class GenerateVideoRequest(BaseModel):
     skip_llm_when_prompt_exists: bool = Field(False, description="已有最终视频提示词时跳过 LLM，直接提交工作流")
 
 
+from app.services.video_result_mode import ResultMode
+from app.services.h3_prompt_language import PromptLanguage
+
+
 class GenerateVideoDirectorClipRequest(BaseModel):
     """重新生成单个 Video Director Clip 请求"""
 
+    result_mode: ResultMode = "APPLY"
+    video_prompt_language: Optional[PromptLanguage] = None
+
+    continuation_mode: ContinuationMode = "AUTO"
     h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")

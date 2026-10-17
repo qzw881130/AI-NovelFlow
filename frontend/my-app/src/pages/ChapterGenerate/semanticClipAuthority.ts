@@ -130,7 +130,8 @@ export function getCarryInLabel(clip: Pick<SemanticClipPlan, 'previous_clip_inde
 }
 
 const isTaskForClipRevision = (task: Task, clip: SemanticClipPlan, revision: number) => (
-  task.clipExecution?.execution_scope === 'CLIP'
+  task.clipExecution?.result_mode !== 'CANDIDATE_ONLY'
+  && task.clipExecution?.execution_scope === 'CLIP'
   && Number(task.clipExecution.clip_plan_revision || 0) === Number(revision)
   && Number(task.clipExecution.clip_index || 0) === Number(clip.clip_index)
 );
@@ -140,8 +141,13 @@ export function resolveSemanticClipTask(clip: SemanticClipPlan, tasks: Task[], r
     const exact = tasks.find((task) => String(task.id) === String(clip.generated_by_task_id));
     return exact && isTaskForClipRevision(exact, clip, revision) ? exact : undefined;
   }
+  // Material replacement clears current Clip authority but preserves historical
+  // Tasks. A terminal Task must not make that reset Clip look completed/failed.
+  const reset = ['PLANNED', 'PENDING'].includes(String(clip.execution_status || '').toUpperCase())
+    && !clip.video_url && !clip.local_path;
   return tasks
     .filter((task) => isTaskForClipRevision(task, clip, revision))
+    .filter((task) => !reset || ['pending', 'queued', 'processing', 'running'].includes(String(task.status).toLowerCase()))
     .sort((a, b) => String(b.completedAt || b.updated_at || b.created_at || '').localeCompare(String(a.completedAt || a.updated_at || a.created_at || '')))[0];
 }
 

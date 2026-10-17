@@ -4,6 +4,7 @@
 封装任务相关的业务逻辑和后台任务
 """
 import json
+from app.services.video_result_mode import is_candidate, validate_candidate_source
 import re
 import uuid
 from datetime import datetime, timezone
@@ -171,6 +172,8 @@ class TaskService:
     @staticmethod
     def _mark_related_task_failed(task: Task, db: Session) -> None:
         """Keep entity generation status in sync when a task is cancelled."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return
         if task.type == "character_portrait" and task.character_id:
             character = CharacterRepository(db).get_by_id(task.character_id)
             if character and character.portrait_task_id == task.id:
@@ -194,7 +197,7 @@ class TaskService:
 
     @staticmethod
     def _cleanup_cancelled_video_task(task: Task, db: Session) -> None:
-        if task.type != "shot_video" or not task.shot_id:
+        if task.type != "shot_video" or not task.shot_id or is_candidate(safe_json_dict(task.metadata_json)):
             return
         shot_repo = ShotRepository(db)
         shot = shot_repo.get_by_id(task.shot_id)
@@ -452,6 +455,8 @@ class TaskService:
         history.append(prior)
         metadata.update(background_job_attempt=str(uuid.uuid4()), background_job_history=history)
         metadata.pop("comfyui_error", None)
+        if is_candidate(metadata):
+            metadata.pop("candidate_result", None)
         if clip_only:
             metadata.update(prompt_text="", approval_status="GENERATING")
             metadata.pop("actual_duration", None)
@@ -594,10 +599,16 @@ class TaskService:
             ):
                 return {"success": False, "message": "Clip 重试失败：Shot 中已不存在相同 revision/Clip identity", "status_code": 409}
 
+            from app.services.effective_execution import task_execution_projection, continuation_mode
+            try:
+                validate_candidate_source(shot, clip_metadata)
+                task_execution_projection(shot_plan, plan_clip, clip_metadata)
+            except ValueError as exc:
+                return {"success": False, "message": str(exc), "status_code": 409}
             capability = clip_metadata.get("capability")
             if shot_plan.get("canonical_visual_plan") is True:
                 from app.services.clip_execution_compiler import get_canonical_execution_readiness
-                readiness = get_canonical_execution_readiness(shot, shot_plan, [plan_clip])
+                readiness = get_canonical_execution_readiness(shot, shot_plan, [plan_clip], continuation_mode=continuation_mode(clip_metadata))
                 if not readiness["ready"]:
                     return {"success": False, "message": readiness["message"], "status_code": 409}
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
@@ -1247,6 +1258,9 @@ class TaskService:
 
     async def _recover_completed_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed ComfyUI video prompt when the original worker missed persistence."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return False
+
         if not task.shot_id or not prompt_history:
             return False
 
@@ -1377,6 +1391,9 @@ class TaskService:
 
     async def _recover_completed_single_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed single-clip shot video prompt when the worker missed persistence."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return False
+
         if task.type != "shot_video" or not task.shot_id or not prompt_history:
             return False
         try:
@@ -1471,13 +1488,15 @@ class TaskService:
             if metadata.get("execution_scope") != "CLIP":
                 return None
             keys = (
+                "result_mode", "candidate_result", "source_revision", "source_clip_plan_fingerprint",
                 "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
                 "capability", "planned_duration", "requested_duration", "optimized_duration", "effective_duration",
                 "duration_delta", "actual_duration", "actual_duration_delta", "assembled_media_duration", "assembled_result",
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
                 "artifact_kind", "physical_output", "execution_contract",
-                "clip_playback", "h3_prompt_pipeline",
+                "clip_playback", "h3_prompt_pipeline", "video_prompt_language", "continuation_mode", "execution_projection",
+                "planned_capability", "effective_capability", "suppressed_temporal_anchor_ids",
             )
             return {key: metadata.get(key) for key in keys if key in metadata}
 

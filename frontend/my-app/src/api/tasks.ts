@@ -30,6 +30,7 @@ export interface ComfyUIError {
 }
 
 export interface Task {
+  resultMode?: import('./shots').VideoResultMode;
   id: string;
   type: string;
   status: string;
@@ -55,6 +56,16 @@ export interface Task {
   shotImageQuality?: { generation_count?: number; max_generations?: number; status?: 'PASS' | 'WARNING' | 'FAIL' | 'ERROR'; attempts?: Array<{ number: number; image_url: string; review_id?: string | null; verdict: string }> } | null;
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {
+    video_prompt_language?: 'en' | 'zh' | null;
+    result_mode?: import('./shots').VideoResultMode;
+    source_revision?: number;
+    source_clip_plan_fingerprint?: string;
+    candidate_result?: { url: string; local_path: string; sha256: string; actual_duration?: number; adopted: false; task_id: string; clip_index: number };
+    continuation_mode?: import('./shots').ContinuationMode;
+    execution_projection?: import('./shots').ExecutionPolicyProjection;
+    planned_capability?: string;
+    effective_capability?: string;
+    suppressed_temporal_anchor_ids?: string[];
   h3_prompt_pipeline?: 'legacy' | 'phase_b';
   h3_phase_b?: any;
     clip_playback?: { independent_url?: string | null; review_url?: string | null; independent_media?: { video_duration?: number } | null } | null;

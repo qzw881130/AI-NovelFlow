@@ -78,6 +78,7 @@ export default function Settings() {
             llmTemperature: config.llmTemperature,
             llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
             autoImageReviewEnabled: config.autoImageReviewEnabled ?? false,
+            videoPromptLanguage: config.videoPromptLanguage ?? 'en',
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -115,7 +116,10 @@ export default function Settings() {
           },
         };
       } else if (activeTab === 'generationQuality') {
-        payload = { autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false };
+        payload = {
+          autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false,
+          videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
+        };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
@@ -270,6 +274,11 @@ export default function Settings() {
 
             {activeTab === 'generationQuality' && (
               <GenerationQualityConfig
+                language={formData.videoPromptLanguage ?? 'en'}
+                onLanguageChange={videoPromptLanguage => {
+                  handleUserModified();
+                  setFormData(previous => ({ ...previous, videoPromptLanguage }));
+                }}
                 enabled={formData.autoImageReviewEnabled ?? false}
                 onChange={(enabled) => {
                   handleUserModified();

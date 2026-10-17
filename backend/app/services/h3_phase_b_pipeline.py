@@ -6,6 +6,8 @@ never an automatic recovery call after a failed Phase B request.
 """
 import hashlib
 import json
+from app.services.video_result_mode import is_candidate
+from app.services.h3_prompt_language import task_language, director_language_instruction, LANGUAGE_CONTRACT
 from copy import deepcopy
 from pathlib import Path
 from time import monotonic
@@ -34,7 +36,7 @@ def file_hash(path):
 
 
 def runtime_snapshot(*, plan, builder_input, manifest, workflow, previous_path, execution_contract,
-                     shot_description=None):
+                     shot_description=None, video_prompt_language=None):
     """Adapt live, already validated upstream data to Phase B's saved-input contract."""
     capability = builder_input["clip"]["capability"]
     expected_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",
@@ -65,6 +67,13 @@ def runtime_snapshot(*, plan, builder_input, manifest, workflow, previous_path, 
             "music_contract": {"value": "N/A", "source_stage": "PHASE_B_RUNTIME_POLICY", "interpretation": "NO_ADDED_SCORE"},
             "user_camera_requirements": deepcopy(plan.get("user_camera_requirements") or {
                 "status": "UNKNOWN", "requirements": [], "source": "No explicit structured user lock recorded; preserve Canonical camera facts"})}
+    if execution_contract.get("execution_projection") is not None:
+        data["physical_evidence"]["execution_projection"] = deepcopy(execution_contract["execution_projection"])
+        # Preserve the original anchor catalog for strict policy replay, including
+        # anchors deliberately absent from the physical manifest.
+        canonical["temporal_anchors"] = deepcopy(plan.get("temporal_anchors") or [])
+    if video_prompt_language is not None:
+        data["video_prompt_language"] = video_prompt_language
     data["source"] = {"kind": "LIVE_SEMANTIC_CLIP", "start_visual_resolution": start_resolution, "hashes": {
         k: compiler._snapshot_digest(v) for k, v in data.items() if k != "previous_video_path"}}
     return data
@@ -78,9 +87,13 @@ def input_fingerprint(prepared, template):
         item.pop("proxy_url", None)
     for item in payload["previous_av"]["preview_frames"]:
         item.pop("proxy_url", None)
+    policy = prepared.get("execution_projection") or {}
+    if policy.get("continuation_mode", "AUTO") != "AUTO":
+        payload["execution_policy"] = policy
     return digest({"version": VERSION, "input": payload, "resources": prepared["resource_hashes"],
                    "workflow": prepared["source"]["hashes"]["workflow"],
-                   "template_id": template.id, "template": template.template})
+                   "template_id": template.id, "template": template.template +
+                   director_language_instruction(payload.get("video_prompt_language"))})
 
 
 def preflight(prepared, result):
@@ -94,7 +107,8 @@ def preflight(prepared, result):
     checks["picture_audit"] = result.get("picture_audit", {}).get("passed") is True
     # Scope and all Canonical states/actions are retained independently from
     # optional reference choices. Natural-language coverage is not certified.
-    checks["canonical_scope_available"] = bool(prepared["llm_input"]["canonical"]["owned_visual_states"])
+    checks["canonical_scope_available"] = compiler.has_phase_b_canonical_scope(
+        prepared["llm_input"]["clip"], prepared["llm_input"]["canonical"])
     return {"contract": VERSION, "passed": all(v is True for v in checks.values()), "checks": checks,
             "native_diagnostics": review.get("native_prompt_diagnostics", {}),
             "director_semantics": "REVIEW_REQUIRED; no automatic natural-language quality certification"}
@@ -108,9 +122,14 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
     template = resolve_prompt_template(db, novel, None, TEMPLATE_TYPE)
     plan = safe_json_dict(shot.video_director_plan)
     metadata = safe_json_dict(task.metadata_json)
+    language = task_language(metadata)
+    system_prompt = template.template + director_language_instruction(language)
     record = {"pipeline": PIPELINE, "version": VERSION, "status": "PREPARING", "clip_index": builder_input["clip"]["clip_index"],
               "template": {"id": template.id, "name": template.name, "sha256": digest(template.template)},
               "workflow_id": workflow.id, "workflow_type": workflow.type, "llm_call_count": 0}
+    if language is not None:
+        record.update(video_prompt_language=language, language_contract=LANGUAGE_CONTRACT,
+                      effective_system_prompt=system_prompt, effective_system_prompt_sha256=digest(system_prompt))
 
     def persist():
         current = safe_json_dict(task.metadata_json)
@@ -122,7 +141,7 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
     try:
         snapshot = runtime_snapshot(plan=plan, builder_input=builder_input, manifest=manifest, workflow=workflow,
                                     previous_path=previous_path, execution_contract=execution_contract,
-                                    shot_description=getattr(shot, "description", None))
+                                    shot_description=getattr(shot, "description", None), video_prompt_language=language)
         prepared = compiler.prepare_multi_keyframe_phase_b(snapshot, runtime=True)
         if prepared["status"] != "PREPARED":
             raise ValueError("PHASE_B_INPUT_NOT_COVERED: " + "; ".join(prepared.get("reasons") or ["Unknown input error"]))
@@ -131,7 +150,8 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                       resource_hashes=prepared["resource_hashes"], continuation=prepared["continuation"])
         cached = None
         if metadata.get("skip_llm_when_prompt_exists"):
-            cached = next((c.get("parsed_result") for c in reversed(plan.get("ai_calls") or [])
+            calls = (plan.get("ai_calls") or []) + ([{"parsed_result": metadata.get("h3_phase_b") or {}}] if is_candidate(metadata) else [])
+            cached = next((c.get("parsed_result") for c in reversed(calls)
                            if (c.get("parsed_result") or {}).get("version") == VERSION
                            and (c.get("parsed_result") or {}).get("input_fingerprint") == fingerprint
                            and (c.get("parsed_result") or {}).get("status") == "COMPILED"), None)
@@ -146,7 +166,7 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
             persist()
             with single_attempt_llm_request():
                 response = await (llm or LLMService()).chat_completion(
-                    system_prompt=template.template, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
+                    system_prompt=system_prompt, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
                     images=prepared["images"], response_format="json_object", temperature=0.3, max_tokens=4500,
                     task_type=TEMPLATE_TYPE, prompt_template_name=template.name,
                     novel_id=novel.id, chapter_id=shot.chapter_id)
@@ -164,9 +184,10 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                       final_prompt_sha256=digest(result["prompt"]))
         task.prompt_text = result["prompt"]
         persist()
-        append_video_ai_call(shot, {"step": "13", "title": "#13 单阶段导演规划（Phase B）", "task_type": TEMPLATE_TYPE,
-            "prompt_template_name": template.name, "clip_index": record["clip_index"], "parsed_result": record,
-            "response": raw, "final_prompt": result["prompt"], "workflow_type": workflow.type})
+        if not is_candidate(metadata):
+            append_video_ai_call(shot, {"step": "13", "title": "#13 单阶段导演规划（Phase B）", "task_type": TEMPLATE_TYPE,
+                "prompt_template_name": template.name, "clip_index": record["clip_index"], "parsed_result": record,
+                "response": raw, "final_prompt": result["prompt"], "workflow_type": workflow.type})
         db.commit()
         return result["prompt"]
     except Exception as exc:

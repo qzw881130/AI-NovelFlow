@@ -1,3 +1,4 @@
+import { CandidateResultSummary } from './CandidateResultSummary';
 import {
   CheckCircle, XCircle, Loader2, Clock, AlertCircle,
   Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo, Music, Copy
@@ -198,6 +199,7 @@ export function TaskCard({
               <Copy className="h-3.5 w-3.5" />
             </button>
           </div>
+          <CandidateResultSummary task={task} onPreviewVideo={onPreviewVideo} />
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
           {task.novelName && (
             <p className="text-xs mt-2">

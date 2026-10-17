@@ -240,7 +240,7 @@ def get_generate_visual_start_readiness(shot, plan: dict, clip: dict) -> dict:
     return result
 
 
-def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None = None) -> dict:
+def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None = None, *, continuation_mode="AUTO") -> dict:
     """Project execution blockers without reinterpreting historical temporal plans."""
     blockers = []
     plan_clips = plan.get("clip_plan") if isinstance(plan, dict) else None
@@ -261,7 +261,9 @@ def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None
         return {"ready": False, "code": blocker["code"], "message": blocker["message"], "blocking_clips": [blocker]}
     states = {f"KF{item['index']}": item for item in plan.get("keyframes") or [] if isinstance(item, dict) and "index" in item}
     anchors = {str(item.get("anchor_id")): item for item in plan.get("temporal_anchors") or [] if isinstance(item, dict)}
-    for clip in clips if isinstance(clips, list) else []:
+    from app.services.effective_execution import project_effective_execution
+    for original_clip in clips if isinstance(clips, list) else []:
+        clip = project_effective_execution(plan, original_clip, continuation_mode)["effective_clip"]
         readiness = get_generate_visual_start_readiness(shot, plan, clip)
         if readiness["applicable"] and not readiness["ready"]:
             blockers.append(readiness)
@@ -307,6 +309,9 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
         except (TypeError, ValueError):
             continue
 
+    projection = clip.get("execution_projection") or {}
+    suppressed_indexes = set(projection.get("suppressed_state_indexes") or [])
+    suppressed_urls = set(projection.get("suppressed_image_urls") or [])
     shot_image_url = _shot_image_url(shot)
     ordered = []
     for raw_index in clip.get("visual_state_indexes") or []:
@@ -322,6 +327,8 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
         if index in temporal_indexes:
             continue
         image_url = state.get("image_url") or state.get("imageUrl")
+        if index in suppressed_indexes or image_url in suppressed_urls:
+            continue
         source_type = "KEYFRAME_IMAGE"
         resolved_state = dict(state)
         if not image_url and index == 1 and str(state.get("role") or "").upper() == "START":
@@ -356,6 +363,8 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
                 continue
             references.append({**resource, "slot": len(references) + 1})
         manifest["skipped_references"] = skipped
+    if any(r.get("image_url") in suppressed_urls for r in references):
+        raise ClipExecutionCompileError("SUPPRESSED_TEMPORAL_REFERENCE_RETURNED")
     return manifest
 
 

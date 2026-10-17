@@ -21,6 +21,7 @@ class SystemConfig(Base):
     llm_timeout = Column(Integer, default=1800, nullable=True)  # 请求超时（秒）
     auto_image_review_enabled = Column(Boolean, default=False, nullable=False)
     auto_image_review_enabled_at = Column(DateTime(timezone=True), nullable=True)
+    video_prompt_language = Column(String, default="en", nullable=False)
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

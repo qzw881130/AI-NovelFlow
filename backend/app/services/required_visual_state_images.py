@@ -1,5 +1,6 @@
 """Derived execution images and the shared final image write; no preparation state."""
 from __future__ import annotations
+from app.services.video_result_mode import is_candidate
 
 import hashlib
 import json
@@ -72,7 +73,7 @@ def image_exists(url):
     return bool(url and Path(url_to_local_path(url) or url).is_file())
 
 
-def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=None) -> list[dict]:
+def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=None, *, continuation_mode="AUTO") -> list[dict]:
     """Two independent authorities, deduplicated by current Shot/State identity."""
     if plan.get("canonical_visual_plan") is not True or (plan.get("clip_plan_validation") or {}).get("temporal_contract") != "ELIGIBLE_THEN_SELECTED_V1":
         return []
@@ -81,10 +82,12 @@ def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=N
     states = {f"KF{s['index']}": s for s in plan.get("keyframes", [])}
     anchors = {a.get("anchor_id"): a for a in plan.get("temporal_anchors", [])}
     items = {}
-    for clip in plan.get("clip_plan", []):
-        ci = clip.get("clip_index")
+    from app.services.effective_execution import project_effective_execution
+    for original_clip in plan.get("clip_plan", []):
+        ci = original_clip.get("clip_index")
         if clip_indexes is not None and ci not in clip_indexes:
             continue
+        clip = project_effective_execution(plan, original_clip, continuation_mode)["effective_clip"]
         start = get_generate_visual_start_readiness(shot, plan, clip)
         needs = []
         if start["applicable"]:
@@ -218,7 +221,7 @@ def commit_visual_state_image(db, shot, image_url: str, *, frame_index: int | No
     return consumers
 
 
-async def prepare_required_images(db, shot, revision: int, submit_keyframe, submit_start, *, clip_indexes=None, state_indexes=None):
+async def prepare_required_images(db, shot, revision: int, submit_keyframe, submit_start, *, clip_indexes=None, state_indexes=None, continuation_mode="AUTO"):
     """Thin per-item adapter around existing image entry points. Never starts video."""
     db.refresh(shot)
     plan = json_dict(shot.video_director_plan)
@@ -232,7 +235,7 @@ async def prepare_required_images(db, shot, revision: int, submit_keyframe, subm
     if clip_indexes is not None and not set(clip_indexes).issubset(valid_clips):
         raise ValueError("未知 Clip scope")
     tasks = db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["keyframe_image", "shot_image"])).all()
-    required = project_required_execution_images(shot, plan, tasks, clip_indexes)
+    required = project_required_execution_images(shot, plan, tasks, clip_indexes, continuation_mode=continuation_mode)
     if state_indexes is not None and not set(state_indexes).issubset({i["state_index"] for i in required}):
         raise ValueError("State 不属于当前 required scope")
     results = []
@@ -248,7 +251,7 @@ async def prepare_required_images(db, shot, revision: int, submit_keyframe, subm
             # authority, physical readiness and active attempt immediately before use.
             current_plan = json_dict(shot.video_director_plan)
             current_tasks = db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["keyframe_image", "shot_image"])).all()
-            current = next((i for i in project_required_execution_images(shot, current_plan, current_tasks, clip_indexes)
+            current = next((i for i in project_required_execution_images(shot, current_plan, current_tasks, clip_indexes, continuation_mode=continuation_mode)
                             if i["state_index"] == item["state_index"]), None)
             if current is None:
                 raise CanonicalExecutionConflict("REQUIRED_IMAGE_SCOPE_CHANGED")
@@ -309,11 +312,13 @@ def _has_approved_previous_av(db, chapter, shot, plan, clip):
             return False
         metadata = json_dict(task.metadata_json)
         contract = metadata.get("execution_contract") or {}
+        from app.services.effective_execution import task_execution_projection
+        effective = task_execution_projection(plan, previous, metadata)["effective_capability"]
         if (metadata.get("execution_scope") != "CLIP"
-                or metadata.get("approval_status") != "APPROVED"
+                or is_candidate(metadata) or metadata.get("approval_status") != "APPROVED"
                 or int(metadata.get("clip_index") or 0) != previous_index
                 or int(metadata.get("clip_plan_revision") or 0) != revision
-                or contract.get("capability") != previous.get("capability")):
+                or contract.get("capability") != effective):
             return False
         if contract.get("capability") in CONTINUOUS_CAPABILITIES:
             physical = metadata.get("physical_output") or {}
@@ -338,7 +343,7 @@ def _has_approved_previous_av(db, chapter, shot, plan, clip):
         return False
 
 
-def project_clip_execution_readiness(db, shot, plan, required):
+def project_clip_execution_readiness(db, shot, plan, required, *, continuation_mode="AUTO"):
     """Display known dependencies; execution independently validates physical AV."""
     from app.services.clip_execution_compiler import get_canonical_execution_readiness
     from app.models.novel import Chapter
@@ -350,7 +355,7 @@ def project_clip_execution_readiness(db, shot, plan, required):
         images_ready = all(c["ready"] for i in required for c in i["consumers"] if c["consumer_clip_index"] == ci)
         result = {"clip_index": ci, "images_ready": images_ready, "ready": images_ready,
                   "code": "READY" if images_ready else "REQUIRED_IMAGES_MISSING", "previous_clip_index": clip.get("previous_clip_index")}
-        guard = get_canonical_execution_readiness(shot, plan, [clip])
+        guard = get_canonical_execution_readiness(shot, plan, [clip], continuation_mode=continuation_mode)
         if not guard["ready"]:
             result.update(ready=False, code=guard["code"])
         if images_ready and guard["ready"] and clip.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:

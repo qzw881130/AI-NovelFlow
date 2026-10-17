@@ -219,7 +219,18 @@ export interface PrepareRequiredImageItem {
 }
 export interface PrepareRequiredImagesResult { items: PrepareRequiredImageItem[]; shot: Shot }
 
+export type VideoResultMode = 'APPLY' | 'CANDIDATE_ONLY';
+export type ContinuationMode = 'AUTO' | 'EXTEND_ONLY';
+export interface ExecutionPolicyProjection {
+  continuation_mode: ContinuationMode;
+  planned_capability: SemanticClipCapability;
+  effective_capability: SemanticClipCapability;
+  suppressed_temporal_anchor_ids: string[];
+  effective_temporal_anchors: Array<{ anchor_id: string; time_seconds?: number; image_url?: string }>;
+  planned_clip: { clip_index: number };
+}
 export interface VideoDirectorPlan {
+  execution_policy?: { continuation_mode: ContinuationMode; clips: ExecutionPolicyProjection[] };
   ai_history_deferred?: boolean;
   required_execution_images?: RequiredExecutionImage[];
   clip_execution_readiness?: Array<{ clip_index: number; images_ready: boolean; ready: boolean; code: string; previous_clip_index?: number | null }>;
@@ -353,8 +364,8 @@ export interface ShotUpdateRequest {
 export const shotsApi = {
   getShotAutoGeneration: (novelId: string, chapterId: string, shotId: string) =>
     api.get<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation`),
-  controlShotAutoGeneration: (novelId: string, chapterId: string, shotId: string, action: 'start' | 'pause' | 'resume') =>
-    api.post<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation/${action}`, {}),
+  controlShotAutoGeneration: (novelId: string, chapterId: string, shotId: string, action: 'start' | 'pause' | 'resume', continuationMode: ContinuationMode = 'AUTO') =>
+    api.post<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation/${action}`, action === 'start' ? { continuation_mode: continuationMode } : {}),
   getClipPlayback: (novelId: string, chapterId: string, shotId: string, clipIndex: number) =>
     api.get<{ independent_url: string | null; cumulative_url: string; independent_error?: string | null;
       review_url?: string | null; review_error?: string | null }>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${clipIndex}/playback`),
@@ -369,8 +380,9 @@ export const shotsApi = {
   /**
    * 获取单个分镜详情
    */
-  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal, includeAiHistory = false): Promise<{ success: boolean; data: Shot; message?: string }> => {
-    const url = `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`;
+  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal, includeAiHistory = false, continuationMode: ContinuationMode = 'AUTO'): Promise<{ success: boolean; data: Shot; message?: string }> => {
+    const url = `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`
+      + (continuationMode === 'AUTO' ? '' : `&continuation_mode=${continuationMode}`);
     if (signal) {
       const response = await fetch(url, { signal });
       return response.json();
@@ -545,9 +557,10 @@ export const shotsApi = {
     chapterId: string,
     options: {
       shot_ids: string[];
+      video_prompt_language?: 'en' | 'zh';
       auto_complete_details?: boolean;
       use_reference_audio?: boolean;
-      h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
+      continuation_mode?: ContinuationMode; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
       force_rerun?: boolean;
       auto_assemble?: boolean;
     }
@@ -563,6 +576,8 @@ export const shotsApi = {
           use_reference_audio: options.use_reference_audio ?? true,
           skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
           h3_prompt_pipeline: options.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
+          video_prompt_language: options.video_prompt_language,
+          continuation_mode: options.continuation_mode ?? 'AUTO',
           optimize_h3_prompt: options.optimize_h3_prompt ?? false,
           preflight_auto_repair: options.preflight_auto_repair,
           force_rerun: options.force_rerun ?? true,
@@ -737,7 +752,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     windowIndex: number,
-    options?: { use_reference_audio?: boolean; auto_merge?: boolean; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
+    options?: { video_prompt_language?: 'en' | 'zh'; result_mode?: VideoResultMode; use_reference_audio?: boolean; auto_merge?: boolean; continuation_mode?: ContinuationMode; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
@@ -747,8 +762,11 @@ export const shotsApi = {
         body: JSON.stringify({
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
+          result_mode: options?.result_mode ?? 'APPLY',
+          video_prompt_language: options?.video_prompt_language,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
           h3_prompt_pipeline: options?.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
+          continuation_mode: options?.continuation_mode ?? 'AUTO',
           optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           preflight_auto_repair: options?.preflight_auto_repair,
           clip_plan_revision: options?.clip_plan_revision,
@@ -1038,9 +1056,9 @@ export const shotsApi = {
   /**
    * 生成关键帧图片
    */
-  prepareRequiredImages: async (novelId: string, chapterId: string, shotId: string, revision: number, clipIndexes?: number[], stateIndexes?: number[]) =>
+  prepareRequiredImages: async (novelId: string, chapterId: string, shotId: string, revision: number, clipIndexes?: number[], stateIndexes?: number[], continuationMode: ContinuationMode = 'AUTO') =>
     api.post<PrepareRequiredImagesResult>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/prepare-required-images`, {
-      clip_plan_revision: revision, clip_indexes: clipIndexes, state_indexes: stateIndexes,
+      clip_plan_revision: revision, clip_indexes: clipIndexes, state_indexes: stateIndexes, continuation_mode: continuationMode,
     }),
 
   generateKeyframeImage: async (

@@ -126,6 +126,7 @@ class ShotRepository:
                     plan = json.loads(value) if isinstance(value, str) else dict(value)
                     plan.pop('required_execution_images', None)
                     plan.pop('clip_execution_readiness', None)
+                    plan.pop('execution_policy', None)
                     if plan.pop('ai_history_deferred', False) or any(
                         isinstance(call, dict) and call.get('details_deferred')
                         for call in plan.get('ai_calls', [])
@@ -314,7 +315,7 @@ class ShotRepository:
         self.db.refresh(shot)
         return shot
 
-    def to_response(self, shot: Shot, *, include_ai_history: bool = True) -> dict:
+    def to_response(self, shot: Shot, *, include_ai_history: bool = True, continuation_mode="AUTO") -> dict:
         """
         将分镜对象转换为响应字典
 
@@ -337,12 +338,18 @@ class ShotRepository:
         video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
         if video_director_plan.get("canonical_visual_plan") is True:
             tasks = self.db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["shot_image", "keyframe_image"])).all()
-            required = project_required_execution_images(shot, video_director_plan, tasks)
+            required = project_required_execution_images(shot, video_director_plan, tasks, continuation_mode=continuation_mode)
             video_director_plan["required_execution_images"] = required
-            video_director_plan["clip_execution_readiness"] = project_clip_execution_readiness(self.db, shot, video_director_plan, required)
+            video_director_plan["clip_execution_readiness"] = project_clip_execution_readiness(self.db, shot, video_director_plan, required, continuation_mode=continuation_mode)
             video_director_plan["execution_readiness"] = get_canonical_execution_readiness(
-                shot, video_director_plan,
+                shot, video_director_plan, continuation_mode=continuation_mode,
             )
+            from app.services.effective_execution import project_effective_execution, projection_record
+            video_director_plan["execution_policy"] = {
+                "continuation_mode": continuation_mode,
+                "clips": [projection_record(project_effective_execution(video_director_plan, c, continuation_mode))
+                          for c in video_director_plan.get("clip_plan") or []],
+            }
         if not include_ai_history and isinstance(video_director_plan.get("ai_calls"), list):
             # Projection only: never mutate persisted history or the current execution plan.
             summary_fields = {

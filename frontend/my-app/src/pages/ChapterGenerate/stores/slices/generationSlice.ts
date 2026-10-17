@@ -913,6 +913,7 @@ export const createGenerationSlice: StateCreator<
           // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
           const shotTasksMap: Record<string, any[]> = {};
           result.data.forEach((task: any) => {
+            if (task.resultMode === 'CANDIDATE_ONLY' || task.clipExecution?.result_mode === 'CANDIDATE_ONLY') return;
             // 优先使用 task.shotId 字段（后端返回驼峰格式）
             let shotId = task.shotId;
             if (!shotId) {

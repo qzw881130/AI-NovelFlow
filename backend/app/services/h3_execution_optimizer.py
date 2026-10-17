@@ -46,7 +46,7 @@ def _identity_picture_subjects(prompt, picture):
     for line in prompt.splitlines():
         definition = re.match(r"\s*(<Subject \d+>)\s+is\b", line)
         for sentence in re.split(r"(?<=[.!?。！？])\s+", line):
-            if picture not in sentence or not re.search(r"(?i)identity|↔|\bbind|\bapply", sentence):
+            if picture not in sentence or not re.search(r"(?i)identity|↔|\bbind|\bapply|稳定身份仅绑定到", sentence):
                 continue
             subjects = set(re.findall(r"<Subject \d+>", sentence))
             # Resolve only the explicit 'this Subject' in its own definition.

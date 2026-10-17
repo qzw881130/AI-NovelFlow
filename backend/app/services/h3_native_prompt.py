@@ -100,6 +100,7 @@ def declared_duration(prompt):
     parts = sections(prompt)
     if parts:
         values = re.findall(r"\b(\d+(?:\.\d+)?)[ -]second\b", parts["summary"], re.I)
+        values += re.findall(r"时长 (\d+(?:\.\d+)?) 秒", parts["summary"])
     else:
         # Historical records remain inspectable. New outputs must pass sections().
         values = re.findall(r"(?m)^\s*duration:\s*([\d.]+)s\s*$", prompt)

@@ -331,3 +331,142 @@ def test_saved_shot14_silent_clip_real_resources_and_contract():
     assert not r['reference_manifest'].get('excluded_references')
     assert all(a['decision'] == 'RETIME' and a['arrival_relation'] is None for a in r['execution_decisions']['anchor_decisions'])
     assert snapshot == before
+
+
+def assert_handoff_prose_preserved(p, response):
+    """Contract/transport assertions only; mock prose cannot certify directing quality."""
+    from app.services.h3_native_prompt import speaker_bindings
+    from app.services.h3_phase_b_pipeline import preflight
+    before = deepcopy((p, response))
+    result = stage.compile_multi_keyframe_phase_b(p, response)
+    assert result['status'] == 'CANDIDATE_FOR_REVIEW', result
+    check = preflight(p, result)
+    assert check['passed'], check
+    assert (p, response) == before
+    assert set(response) == {'optimized_duration', 'dialogue_events', 'anchors',
+                             'detailed_description', 'overall_soundscape'}
+    parts = sections(result['prompt'])
+    assert list(parts) == list(SECTIONS)
+    events = dialogue_events(result['prompt'])
+    bindings = speaker_bindings(p['canonical'])
+    assert [(e['speaker'], e['speaker_id'], e['exact_dialogue']) for e in events] == [
+        (e['speaker'], bindings[e['speaker']], e['exact_dialogue']) for e in p['canonical']]
+    # Exact per-slot preludes prove adjacency, not just presence somewhere in the Prompt.
+    source = response['detailed_description']
+    for i, event in enumerate(events, 1):
+        prelude, source = source.split(f'[[SPEECH_{i}]]', 1)
+        assert event['prelude'] == prelude
+    restored = parts['detailed_description']
+    for i, event in reversed(list(enumerate(events, 1))):
+        restored = restored[:event['span_start']] + f'[[SPEECH_{i}]]' + restored[event['span_end']:]
+    assert restored == response['detailed_description']
+    assert parts['overall_soundscape'] == response['overall_soundscape']
+    timing = result['execution_decisions']['timing']['dialogue_events']
+    for event, fact, requested in zip(timing, p['canonical'], response['dialogue_events']):
+        assert event['id'] == fact['id'] == requested['id']
+        assert event['speaker'] == fact['speaker']
+        assert event['optimized_start'] == requested['start']
+        assert event['optimized_end'] - event['optimized_start'] == pytest.approx(fact['duration'])
+    diagnostics = check['native_diagnostics']
+    for key in ('speaker_switch_camera_evidence', 'speaker_switch_listener_settle',
+                'speaker_switch_listener_scope'):
+        assert key in diagnostics and key not in check['checks']
+    assert check['director_semantics'].startswith('REVIEW_REQUIRED')
+    if p['continuation']:
+        assert all(e['optimized_start'] >= p['continuation']['overlap_seconds'] for e in timing)
+        assert all(result['continuation_checks'].values())
+    return result
+
+
+@pytest.mark.parametrize('scenario', ['alternating', 'listener_reaction', 'multiple_listeners'])
+def test_saved_c3_local_handoff_is_preserved_without_authority_changes(scenario):
+    case = saved('test3_shot2_c3_speaker_handoff')
+    p = case['prepared']; original = case['original_response']
+    response = deepcopy(original)
+    insertions = case['mock_handoff_insertions']
+    if scenario == 'listener_reaction':
+        insertions['SPEECH_3'] = (
+            "The existing continuous view keeps <Subject 1>'s listening reaction readable. "
+            '<Subject 1> keeps his mouth closed for this turn while <Subject 2> resumes speaking; '
+            'camera attention does not transfer the utterance to the listener. ')
+    elif scenario == 'multiple_listeners':
+        insertions['SPEECH_3'] += (
+            '<Subject 3>, <Subject 4> and <Subject 5> do not mouth the incoming words; '
+            'they continue the authorized clothing, belt and mirror actions until the Canonical stop. ')
+    for slot, prose in insertions.items():
+        marker = f'[[{slot}]]'
+        assert response['detailed_description'].count(marker) == 1
+        response['detailed_description'] = response['detailed_description'].replace(marker, prose + marker)
+    result = assert_handoff_prose_preserved(p, response)
+    historical = stage.compile_multi_keyframe_phase_b(p, original)
+    assert [e['speaker'] for e in p['canonical']] == ['<Subject 2>', '<Subject 1>', '<Subject 2>']
+    assert [e['id'] for e in p['canonical']] == ['D7', 'D8', 'D9']
+    for key in ('execution_decisions', 'picture_mapping', 'reference_manifest', 'temporal_manifest',
+                'continuation_checks'):
+        assert result[key] == historical[key]
+    for section in ('subject_definitions', 'summary', 'retention_analysis', 'non_diegetic_music'):
+        assert sections(result['prompt'])[section] == sections(historical['prompt'])[section]
+    assert len(result['picture_mapping']) == 9 and result['temporal_manifest']['anchors'] == []
+    assert p['continuation']['source_sha256'] == 'eced8e39fd99f5c13240df6302ff6f7426848ec8cbc528fdbe705f038929550a'
+    assert p['execution_projection']['continuation_mode'] == 'EXTEND_ONLY'
+    assert result['review']['native_prompt_diagnostics']['speaker_switch_camera_evidence'] is False
+    # Removing only the test insertions restores all original camera/action text.
+    restored = response['detailed_description']
+    for prose in insertions.values():
+        restored = restored.replace(prose, '', 1)
+    assert restored == original['detailed_description']
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_handoff_prose_uses_existing_mode_and_prefix_contract(prepared, name):
+    p = prepared[name]; response = saved(name, '_mock_response')
+    previous, incoming = [e['speaker'] for e in p['canonical'][:2]]
+    assert previous != incoming
+    local = (f'{previous} finishes speaking and quietly listens during the following turn. '
+             f'{incoming} naturally articulates while continuing the authorized action. ')
+    response['detailed_description'] = response['detailed_description'].replace('[[SPEECH_2]]', local + '[[SPEECH_2]]')
+    result = assert_handoff_prose_preserved(p, response)
+    baseline = stage.compile_multi_keyframe_phase_b(p, saved(name, '_mock_response'))
+    for key in ('execution_decisions', 'picture_mapping', 'reference_manifest', 'temporal_manifest', 'continuation_checks'):
+        assert result[key] == baseline[key]
+
+
+def test_consecutive_same_speaker_does_not_gain_compiler_handoff(prepared):
+    p = prepared[NAMES[0]]; response = saved(NAMES[0], '_mock_response')
+    assert p['canonical'][-2]['speaker'] == p['canonical'][-1]['speaker'] == '<Subject 1>'
+    response['detailed_description'] = response['detailed_description'].replace(
+        '[[SPEECH_5]]\n[[SPEECH_6]]',
+        '<Subject 1> continues naturally through both utterances while retaining the authorized action. '
+        '[[SPEECH_5]]\n[[SPEECH_6]]')
+    result = assert_handoff_prose_preserved(p, response)
+    assert dialogue_events(result['prompt'])[-1]['prelude'] == '\n'
+
+
+def test_offscreen_speech_and_visible_listeners_retain_motion():
+    from test_h3_phase_b_subject_references import shot17_case
+    p, response, _ = shot17_case()
+    original = deepcopy(response)
+    local = ('<Subject 3> speaks from outside the closed door and remains off-screen for this utterance; '
+             'no visible articulation or entrance is required. <Subject 1> and <Subject 2> listen without '
+             'mouthing these words while continuing their authorized walking, clothing and hand actions. ')
+    response['detailed_description'] = response['detailed_description'].replace('[[SPEECH_3]]', local + '[[SPEECH_3]]')
+    result = assert_handoff_prose_preserved(p, response)
+    baseline = stage.compile_multi_keyframe_phase_b(p, original)
+    assert result['execution_decisions'] == baseline['execution_decisions']
+    assert result['picture_mapping'] == baseline['picture_mapping']
+    assert dialogue_events(result['prompt'])[2]['speaker'] == '<Subject 3>'
+    assert response['detailed_description'].replace(local, '', 1) == original['detailed_description']
+
+
+@pytest.mark.parametrize('mutation', ['dialogue_id_in_prose', 'speaker_tag', 'handoffs_field'])
+def test_handoff_does_not_delegate_dialogue_authority(mutation):
+    case = saved('test3_shot2_c3_speaker_handoff')
+    response = case['original_response']
+    if mutation == 'dialogue_id_in_prose':
+        response['detailed_description'] += ' During D9 the listener is quiet.'
+    elif mutation == 'speaker_tag':
+        response['detailed_description'] += ' <Subject 2> (S1) speaks.'
+    else:
+        response['handoffs'] = []
+    result = stage.compile_multi_keyframe_phase_b(case['prepared'], response)
+    assert result['status'] == 'VALIDATION_FAILED'

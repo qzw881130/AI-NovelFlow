@@ -5,7 +5,7 @@
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, timezone
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -49,6 +49,7 @@ class SystemConfigUpdate(BaseModel):
     language: Optional[str] = None
     timezone: Optional[str] = None
     autoImageReviewEnabled: Optional[bool] = None
+    videoPromptLanguage: Optional[Literal["en", "zh"]] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -56,6 +57,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
     inspector = inspect(db.bind)
     if "system_configs" in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns("system_configs")}
+        if "video_prompt_language" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN video_prompt_language VARCHAR NOT NULL DEFAULT 'en'"))
+            db.commit()
         if "comfyui_timeout" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 900"))
             db.commit()
@@ -91,6 +95,7 @@ async def get_config(db: Session = Depends(get_db)):
             "llmTemperature": config.llm_temperature,
             "llmTimeout": config.llm_timeout,
             "autoImageReviewEnabled": bool(config.auto_image_review_enabled),
+            "videoPromptLanguage": config.video_prompt_language,
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -130,6 +135,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_temperature": config.llm_temperature,
             "llm_timeout": config.llm_timeout,
             "auto_image_review_enabled": bool(config.auto_image_review_enabled),
+            "video_prompt_language": config.video_prompt_language,
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -178,6 +184,9 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             if config.autoImageReviewEnabled and (not db_config.auto_image_review_enabled or db_config.auto_image_review_enabled_at is None):
                 db_config.auto_image_review_enabled_at = datetime.now(timezone.utc)
             db_config.auto_image_review_enabled = config.autoImageReviewEnabled
+        if config.videoPromptLanguage is not None:
+            db_config.video_prompt_language = config.videoPromptLanguage
+            updates["video_prompt_language"] = config.videoPromptLanguage
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled
@@ -378,6 +387,7 @@ def init_system_config(db: Session) -> None:
         "llm_max_tokens": config.llm_max_tokens,
         "llm_temperature": config.llm_temperature,
         "llm_timeout": config.llm_timeout,
+        "video_prompt_language": config.video_prompt_language,
         "proxy_enabled": config.proxy_enabled,
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,

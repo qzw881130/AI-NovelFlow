@@ -4,13 +4,18 @@ import type { SemanticClipPlan } from '../../api/shots';
 const NATIVE_ROLE = 'NATIVE_CONTINUITY_OUTPUT';
 
 export function getClipArtifactPresentation(clip: SemanticClipPlan, task?: Task) {
+  if (task?.clipExecution?.result_mode === 'CANDIDATE_ONLY') task = undefined;
   const continuous = clip.capability === 'EXTEND' || clip.capability === 'TEMPORAL_EXTEND';
   const metadata = task?.clipExecution;
   const physical = metadata?.physical_output;
   const contract = metadata?.execution_contract;
+  const policy = metadata?.execution_projection;
+  const effectiveCapability = policy?.planned_capability === clip.capability
+    && policy.continuation_mode === metadata?.continuation_mode
+    ? policy.effective_capability : clip.capability;
   const approved = task?.status === 'completed' && metadata?.approval_status === 'APPROVED';
   const nativeReady = continuous && approved && clip.generated_by_task_id === task?.id
-    && contract?.capability === clip.capability && contract?.artifact_kind === NATIVE_ROLE
+    && contract?.capability === effectiveCapability && contract?.artifact_kind === NATIVE_ROLE
     && physical?.physical_output_role === NATIVE_ROLE && physical?.output_node_id === '65'
     && !!task?.resultUrl && physical?.result_url === task.resultUrl && clip.video_url === task.resultUrl;
   const hasResult = !!(clip.video_url || task?.resultUrl);
@@ -43,6 +48,7 @@ export function getPreviousAvPresentation(
   const exact = !!previousClip && previousClip.clip_index === clip.previous_clip_index
     && previousClip.generated_by_task_id === previousTask?.id
     && (!task || previousTask?.clipExecution?.clip_plan_revision === task.clipExecution?.clip_plan_revision)
+    && previousTask?.clipExecution?.result_mode !== 'CANDIDATE_ONLY'
     && previousTask?.status === 'completed' && previousTask.clipExecution?.approval_status === 'APPROVED'
     && !!previousTask.resultUrl && previousTask.resultUrl === previousClip.video_url
     && (!previous || (previous.generated_by_task_id === previousTask.id && previous.result_url === previousTask.resultUrl));

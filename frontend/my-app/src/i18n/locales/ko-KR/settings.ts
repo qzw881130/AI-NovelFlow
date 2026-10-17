@@ -4,6 +4,10 @@ import enUS from '../en-US/settings';
 export default {
   systemSettings: {
     ...enUS.systemSettings,
+    videoPromptLanguage: "영상 프롬프트 언어",
+    videoPromptEnglish: "영어 (기본값)",
+    videoPromptChinese: "중국어",
+    videoPromptLanguageDesc: "H3 Phase B의 동작, 카메라, 외모, 장면, 소품, 소리 설명에 적용합니다. 인물 이름, 대사 원문, 바인딩 표시는 유지합니다. 새 작업에 적용되며 재시도는 기존 설정을 유지합니다.",
     title: '시스템 설정',
     subtitle: 'LLM, 프록시 및 ComfyUI 설정',
     llmConfig: 'LLM 구성',

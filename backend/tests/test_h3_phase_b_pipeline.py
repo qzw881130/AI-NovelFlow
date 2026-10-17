@@ -194,6 +194,71 @@ def test_reuse_requires_same_input_and_selected_template(db_session):
     assert len(llm.calls)==1
 
 
+def test_speaker_handoff_template_change_preserves_history_and_custom_selection(db_session):
+    """In-memory template update only; never synchronize a production template."""
+    from app.services.novel_prompt_templates import resolve_novel_prompt_template
+    case = saved('test3_shot2_c3_speaker_handoff')
+    before_body = case['baseline_system_template']
+    new_body = compiler.PHASE_B_TEMPLATE.read_text()
+    assert before_body != new_body
+    # The original five fields remain the historical contract; language-aware
+    # tasks explicitly add only the keyed description translations.
+    assert before_body.split('AUTHORITY AND TIME')[0] == new_body.split('DESCRIPTIVE LANGUAGE')[0]
+    assert 'Without video_prompt_language, retain the original five-field response contract' in new_body
+    assert before_body.split('ANCHORS AND REFERENCES')[1].split('DIRECTOR PROSE')[0] == new_body.split('ANCHORS AND REFERENCES')[1].split('DIRECTOR PROSE')[0]
+    assert before_body.split('Soundscape may describe')[1] == new_body.split('Soundscape may describe')[1]
+    assert pipe.VERSION == 'H3_PHASE_B_LIMITED_V3'
+    _, args, custom = make_case(db_session, NAMES[0])
+    custom_body = custom.template
+    system = db_session.query(PromptTemplate).filter(
+        PromptTemplate.type == pipe.TEMPLATE_TYPE, PromptTemplate.is_system.is_(True)).one()
+    system.template = before_body
+    args['novel'].h3_multi_keyframe_director_phase_b_template_id = system.id
+    db_session.flush()
+    old_task = args['task']
+    intent = json.loads(old_task.metadata_json)
+    llm = FakeDirector(saved(NAMES[0], '_mock_response'))
+    old_prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    history = deepcopy((old_task.prompt_text, old_task.metadata_json, old_task.status))
+    old_plan = json.loads(args['shot'].video_director_plan)
+    old_fingerprint = json.loads(old_task.metadata_json)['h3_phase_b']['input_fingerprint']
+    assert llm.calls[0]['system_prompt'] == before_body
+
+    system.template = new_body
+    new_task = Task(type='shot_video', name='offline handoff template check', status='running',
+                    novel_id=old_task.novel_id, chapter_id=old_task.chapter_id, shot_id=old_task.shot_id,
+                    metadata_json=json.dumps({**intent, 'skip_llm_when_prompt_exists': True}))
+    db_session.add(new_task); db_session.commit()
+    args = {**args, 'task': new_task}
+    with pytest.raises(ValueError, match='REUSABLE_PLAN_MISSING'):
+        asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    assert len(llm.calls) == 1  # No silent fallback or automatic Director retry.
+    assert json.loads(args['shot'].video_director_plan) == old_plan
+    assert (old_task.prompt_text, old_task.metadata_json, old_task.status) == history
+
+    # Explicitly allow a new fake Director attempt for the new template body.
+    new_task.metadata_json = json.dumps({**intent, 'skip_llm_when_prompt_exists': False})
+    new_prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    record = json.loads(new_task.metadata_json)['h3_phase_b']
+    assert len(llm.calls) == 2 and record['llm_call_count'] == 1
+    assert llm.calls[-1]['system_prompt'] == new_body
+    assert llm.calls[-1]['max_tokens'] == 4500
+    assert record['template']['id'] == system.id
+    assert record['input_fingerprint'] != old_fingerprint
+    assert record['preflight']['passed']
+    # FakeDirector returns identical prose: no deterministic handoff injection.
+    assert new_prompt == old_prompt
+    assert (old_task.prompt_text, old_task.metadata_json, old_task.status) == history
+    plan = json.loads(args['shot'].video_director_plan)
+    assert plan['ai_calls'][:-1] == old_plan['ai_calls']
+    assert {k: v for k, v in plan.items() if k != 'ai_calls'} == {
+        k: v for k, v in old_plan.items() if k != 'ai_calls'}
+    assert custom.template == custom_body
+    args['novel'].h3_multi_keyframe_director_phase_b_template_id = custom.id
+    db_session.flush()
+    assert resolve_novel_prompt_template(db_session, args['novel'], pipe.TEMPLATE_TYPE).id == custom.id
+
+
 def test_reuse_rejects_previous_compiler_contract_without_llm(db_session):
     _, args, _ = make_case(db_session, NAMES[0])
     llm = FakeDirector(saved(NAMES[0], '_mock_response'))
@@ -277,7 +342,8 @@ def test_new_route_defaults_phase_b_and_explicit_legacy_remains_available():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('case_name,cancel_during_upload',[(n,False) for n in NAMES]+[(NAMES[0],True)])
-async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypatch,case_name,cancel_during_upload):
+@pytest.mark.parametrize('result_mode',['APPLY','CANDIDATE_ONLY'])
+async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypatch,case_name,cancel_during_upload,result_mode):
     """Real endpoint, queue wrapper, worker and Prompt input; external I/O is fake."""
     from app.api import shots as api
     from app.models.workflow import Workflow
@@ -333,19 +399,25 @@ async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypat
         jobs.append(job)
     monkeypatch.setattr(worker,'worker_manager',SimpleNamespace(worker=lambda _:SimpleNamespace(enqueue=capture_enqueue)))
     llm=FakeDirector(saved(case_name,'_mock_response'))
-    monkeypatch.setattr(LLMService,'chat_completion',lambda self,**kw:llm.chat_completion(**kw))
+    async def reply(self, **kw):
+        from h3_language_fakes import language_response
+        llm.content = language_response(json.loads(kw['user_content']), saved(case_name,'_mock_response'))
+        return await llm.chat_completion(**kw)
+    monkeypatch.setattr(LLMService,'chat_completion',reply)
     service=object.__new__(ComfyUIService);service.builder=WorkflowBuilder();service.client=FakeComfy()
     monkeypatch.setattr(worker,'ComfyUIService',lambda:service)
     saves=[]
     async def save(result,task,*pos,**kw):
         saves.append((task.id,kw));task.status='completed';task.result_url='/offline-result.mp4';db_session.commit()
     monkeypatch.setattr(worker,'_save_generated_video',save)
+    before_candidate=shot.video_director_plan
     result=await api.execute_semantic_clip(novel.id,shot.chapter_id,shot.id,index,
-        api.SemanticClipGenerateRequest(clip_plan_revision=1,optimize_h3_prompt=True),
+        api.SemanticClipGenerateRequest(clip_plan_revision=1,optimize_h3_prompt=True,result_mode=result_mode),
         db_session,NovelRepository(db_session),ChapterRepository(db_session),TaskRepository(db_session),ShotRepository(db_session))
     assert len(jobs)==1
     task=db_session.get(Task,result['data']['taskId'])
     assert json.loads(task.metadata_json)['h3_prompt_pipeline']=='phase_b'
+    assert json.loads(task.metadata_json)['video_prompt_language']=='en'
     if cancel_during_upload:
         upload=service.client.upload_image
         async def cancel_upload(path):
@@ -366,7 +438,10 @@ async def test_semantic_api_queue_worker_compiler_and_save(db_session, monkeypat
     assert meta['h3_phase_b']['version'] == 'H3_PHASE_B_LIMITED_V3'
     assert meta['optimize_h3_prompt'] is False and meta['preflight_auto_repair'] is False
     assert task.workflow_json and task.comfyui_prompt_id
-    assert json.loads(shot.video_director_plan)['ai_calls'][-1]['task_type']==pipe.TEMPLATE_TYPE
+    if result_mode=='CANDIDATE_ONLY':
+        assert shot.video_director_plan==before_candidate
+    else:
+        assert json.loads(shot.video_director_plan)['ai_calls'][-1]['task_type']==pipe.TEMPLATE_TYPE
     from app.services.task_service import TaskService
     # Explicit regeneration of a completed, saved result. A failed Task with an
     # unresolved receipt must instead remain protected from another submission.

@@ -138,3 +138,32 @@ test('log detail keeps raw task type visible even when request_info already exis
  assert.match(html,/<code[^>]*>h3_multi_keyframe_director_phase_b<\/code>/);
  assert.ok(html.includes('视频生成 / #13 单阶段导演'));
 });
+
+test('continuation policy reaches Clip, batch, auto-start and image preparation; resume stays frozen',async()=>{
+ const requests=[];
+ const fetch=async(url,opt={})=>{requests.push({url,body:opt.body&&JSON.parse(opt.body)});return {ok:true,json:async()=>({success:true}),text:async()=>'{"success":true}'};};
+ const ports={post:async(url,body)=>{requests.push({url,body});return {success:true}}};
+ const api=await load('api/shots.ts','shotsApi',{api:ports,fetch,downloadQueuedShotExport:()=>{throw Error('not used')}});
+ await api.generateVideoDirectorClip('n','c','s',1);
+ await api.generateVideosBatch('n','c',{shot_ids:['s']});
+ assert.deepEqual(requests.map(r=>r.body.continuation_mode),['AUTO','AUTO']);
+ requests.length=0;
+ await api.generateVideoDirectorClip('n','c','s',2,{continuation_mode:'EXTEND_ONLY'});
+ await api.generateVideosBatch('n','c',{shot_ids:['s'],continuation_mode:'EXTEND_ONLY'});
+ await api.controlShotAutoGeneration('n','c','s','start','EXTEND_ONLY');
+ await api.prepareRequiredImages('n','c','s',1,[2],undefined,'EXTEND_ONLY');
+ assert.ok(requests.every(r=>r.body.continuation_mode==='EXTEND_ONLY'));
+ await api.controlShotAutoGeneration('n','c','s','resume','AUTO');
+ assert.deepEqual(requests.at(-1).body,{});
+ await api.getShot('n','c','s',undefined,false,'EXTEND_ONLY');
+ assert.match(requests.at(-1).url,/continuation_mode=EXTEND_ONLY/);
+});
+
+test('continuation selector defaults AUTO and all generation controls share it',async()=>{
+ const source=await readFile(new URL('../src/pages/ChapterGenerate/components/VideoGenTab.tsx',import.meta.url),'utf8');
+ assert.match(source,/useState<ContinuationMode>\('AUTO'\)/);
+ for(const text of ['自动选择（AUTO）','仅视频续接（EXTEND_ONLY）','aria-label="续生成模式"','重试沿用任务创建时的策略'])assert.ok(source.includes(text),text);
+ assert.equal((source.match(/continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline/g)||[]).length,3);
+ assert.match(source,/<ShotAutoGeneration continuationMode=\{continuationMode\}/);
+ assert.match(source,/<VideoDirectorPanel\s+continuationMode=\{continuationMode\}/);
+});

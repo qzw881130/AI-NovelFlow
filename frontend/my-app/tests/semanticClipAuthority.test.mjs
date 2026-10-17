@@ -206,6 +206,28 @@ test('L: task fallback rejects stale revisions', () => {
   assert.equal(resolveSemanticClipTask({ ...clips[0], generated_by_task_id: 'stale' }, [staleTask, currentTask], 2), undefined);
 });
 
+test('reset Clip does not reuse historical completed or failed Tasks as current status', () => {
+  const clip = { ...clips[1], execution_status: 'PLANNED', status: 'PENDING' };
+  for (const status of ['completed', 'failed', 'cancelled']) {
+    const task = { id: 'historical', status, resultUrl: '/old.mp4', clipExecution: {
+      execution_scope: 'CLIP', clip_index: 2, clip_plan_revision: 2, approval_status: 'APPROVED',
+    } };
+    assert.equal(resolveSemanticClipTask(clip, [task], 2), undefined);
+    assert.equal(getSemanticClipStatus(clip, [task], 2), 'NOT_STARTED');
+  }
+});
+
+test('reset Clip still shows a new queued Task; current failed Clip retains retry state', () => {
+  const task = { id: 'new', status: 'queued', clipExecution: {
+    execution_scope: 'CLIP', clip_index: 2, clip_plan_revision: 2,
+  } };
+  const clip = { ...clips[1], execution_status: 'PLANNED', status: 'PENDING' };
+  assert.equal(resolveSemanticClipTask(clip, [task], 2)?.id, 'new');
+  assert.equal(getSemanticClipStatus(clip, [task], 2), 'RUNNING');
+  const failed = { ...task, status: 'failed', clipExecution: { ...task.clipExecution, approval_status: 'FAILED' } };
+  assert.equal(getSemanticClipStatus({ ...clip, execution_status: 'FAILED', status: 'FAILED' }, [failed], 2), 'FAILED');
+});
+
 test('M: partial and completed clip artifacts derive assembly readiness', () => {
   const partial = readyPlan();
   partial.clip_plan = [completedClip(clips[0], 't1'), clips[1]];

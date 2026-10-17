@@ -34,6 +34,7 @@ const fetchConfigFromBackend = async () => {
         llmApiUrl: data.data.llmApiUrl || DEFAULT_CONFIG.llmApiUrl,
         llmMaxTokens: data.data.llmMaxTokens,
         llmTemperature: data.data.llmTemperature,
+        videoPromptLanguage: data.data.videoPromptLanguage ?? 'en',
         proxy: data.data.proxyEnabled !== undefined ? {
           enabled: data.data.proxyEnabled,
           httpProxy: data.data.httpProxy || '',
@@ -137,6 +138,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
         llmApiUrl: get().llmApiUrl,
         llmMaxTokens: get().llmMaxTokens,
         llmTemperature: get().llmTemperature,
+        videoPromptLanguage: get().videoPromptLanguage,
         proxy: get().proxy,
         comfyUIHost: get().comfyUIHost,
         comfyUITimeout: get().comfyUITimeout,

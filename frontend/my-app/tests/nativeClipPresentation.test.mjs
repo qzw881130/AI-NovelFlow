@@ -100,3 +100,18 @@ test('native artifact requires materialized dual playback; planned state is not 
   assert.match(page, /selectedPreviewClipKey \? selectedPreviewClipUrl \|\| selectedPreviewClip\?\.video_url \|\| undefined/);
   assert.match(page, /<ClipPlaybackButtons/);
 });
+
+test('frozen execution policy shows planned/effective modes and suppressed anchors without overwriting plan', () => {
+  const {clip,task}=native('TEMPORAL_EXTEND',3);
+  clip.temporal_anchor_ids=['clip-3-KF4'];
+  task.clipExecution={...task.clipExecution,capability:'EXTEND',continuation_mode:'EXTEND_ONLY',
+    execution_projection:{continuation_mode:'EXTEND_ONLY',planned_capability:'TEMPORAL_EXTEND',effective_capability:'EXTEND',suppressed_temporal_anchor_ids:['clip-3-KF4']},
+    execution_contract:{...task.clipExecution.execution_contract,capability:'EXTEND',temporal_anchor_manifest:{anchors:[]}}};
+  const before=JSON.stringify(clip);
+  assert.equal(artifact(clip,task).nativeReady,true);
+  const html=render(clip,task);
+  for (const value of ['规划模式：TEMPORAL_EXTEND','实际模式：EXTEND','执行策略：EXTEND_ONLY','clip-3-KF4','本次未用于物理视频条件，也不作为普通 Picture','Temporal Anchors：0 个']) assert.ok(html.includes(value),value);
+  assert.equal(JSON.stringify(clip),before);
+  const historic={...task,clipExecution:{capability:'TEMPORAL_EXTEND'}};
+  assert.match(render(clip,historic),/执行策略：AUTO/);
+});

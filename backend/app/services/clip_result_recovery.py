@@ -1,5 +1,7 @@
 """Recover submitted canonical Clips from their exact ComfyUI receipt, without generation."""
 import json
+from app.services.video_result_mode import is_candidate, validate_candidate_source
+from app.services.effective_execution import task_execution_projection
 from datetime import datetime
 
 from app.models.task import Task
@@ -71,6 +73,7 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service, *, va
         if not (task.status in {"pending", "running"}
                 or task.status == "failed" and task.error_message == INTERRUPTED_CLIP_ERROR):
             raise CanonicalExecutionConflict(f"CLIP_RECOVERY_EXECUTION_CHANGED:STATUS:{task.status}:{task.error_message}")
+        validate_candidate_source(shot, metadata)
         plan = safe_json_dict(shot.video_director_plan)
         index = int(metadata.get("clip_index") or 0)
         revision = int(metadata.get("clip_plan_revision") or 0)
@@ -78,15 +81,15 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service, *, va
         identity = contract.get("clip") or {}
         if (not clip or int(plan.get("clip_plan_revision") or 0) != revision
                 or identity.get("clip_index") != index or identity.get("clip_plan_revision") != revision
-                or clip.get("capability") != capability
-                or clip.get("generated_by_task_id") not in {None, "", task.id}):
+                or task_execution_projection(plan, clip, metadata)["effective_capability"] != capability
+                or (not is_candidate(metadata) and clip.get("generated_by_task_id") not in {None, "", task.id})):
             raise CanonicalExecutionConflict("CLIP_RECOVERY_PLAN_CHANGED")
         # A newer attempt, including a finished one, supersedes this receipt.
         for other in db.query(Task).filter(
             Task.shot_id == task.shot_id, Task.type == "shot_video", Task.id != task.id,
         ).all():
             other_meta = safe_json_dict(other.metadata_json)
-            if (other_meta.get("execution_scope") == "CLIP"
+            if (not is_candidate(metadata) and not is_candidate(other_meta) and other_meta.get("execution_scope") == "CLIP"
                     and other_meta.get("clip_index") == index
                     and other_meta.get("clip_plan_revision") == revision
                     and other.created_at and task.created_at and other.created_at >= task.created_at):
@@ -129,6 +132,8 @@ async def accept_cancelled_generate_receipt(source_task, expected_prompt_id: str
     from app.services.shot_video_service import _clear_shot_video_error
 
     source_metadata = safe_json_dict(source_task.metadata_json)
+    if is_candidate(source_metadata):
+        raise CanonicalExecutionConflict("CANDIDATE_ADOPTION_NOT_SUPPORTED")
     contract = source_metadata.get("execution_contract") or {}
     identity = contract.get("clip") or {}
     if (source_task.type != "shot_video" or source_task.status != "cancelled"

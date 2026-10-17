@@ -17,6 +17,23 @@ export function clipPlaybackErrorMessage(code?: string) {
   }
 }
 
+export type ClipPlaybackKind = 'independent_url' | 'cumulative_url';
+
+// The preview and its refresh must resolve the same source, including the
+// existing review fallback for old clips without an independent artifact.
+export function resolveClipPlaybackResponse(response: {
+  success: boolean; detail?: string; message?: string;
+  data?: { independent_url?: string | null; cumulative_url?: string | null;
+    review_url?: string | null; independent_error?: string | null };
+}, kind: ClipPlaybackKind) {
+  const review = kind === 'independent_url' && !response.data?.independent_url && !!response.data?.review_url;
+  const url = review ? response.data?.review_url : response.data?.[kind];
+  if (!response.success || !url) throw new Error(kind === 'independent_url' && response.data?.independent_error
+    ? clipPlaybackErrorMessage(response.data.independent_error) : response.detail || response.message || '视频暂不可用');
+  return { url, review, label: review ? '从累计视频截取 · 含已融合公共区，非原始单段'
+    : kind === 'cumulative_url' ? '截至本片段的累计视频' : '原始单段 · 含自身公共区或过渡帧' };
+}
+
 export function ClipPlaybackButtons({ novelId, chapterId, shotId, clip, ready, playback, onPreview }: {
   novelId?: string; chapterId?: string; shotId: string; clip: any; ready: boolean;
   playback?: { independent_url?: string | null; review_url?: string | null } | null;
@@ -26,20 +43,14 @@ export function ClipPlaybackButtons({ novelId, chapterId, shotId, clip, ready, p
   const [error, setError] = useState('');
   const [usedReview, setUsedReview] = useState(false);
   const reviewOnly = playback?.independent_url ? false : usedReview || Boolean(playback?.review_url);
-  const play = async (kind: 'independent_url' | 'cumulative_url') => {
+  const play = async (kind: ClipPlaybackKind) => {
     if (!novelId || !chapterId || busy) return;
     setBusy(true);setError('');
     try {
       const r = await shotsApi.getClipPlayback(novelId, chapterId, shotId, Number(clip.clip_index));
-      if (r.success && kind === 'independent_url' && !r.data?.independent_url && r.data?.review_url) {
-        setUsedReview(true);
-        onPreview({ ...clip, video_url: r.data.review_url, playback_source_label: '从累计视频截取 · 含已融合公共区，非原始单段' });
-        return;
-      }
-      if (!r.success || !r.data?.[kind]) throw new Error(kind === 'independent_url' && r.data?.independent_error
-        ? clipPlaybackErrorMessage(r.data.independent_error) : (r as any).detail || r.message || '视频暂不可用');
-      if (kind === 'independent_url') setUsedReview(false);
-      onPreview({ ...clip, video_url: r.data[kind], playback_source_label: kind === 'cumulative_url' ? '截至本片段的累计视频' : '原始单段 · 含自身公共区或过渡帧' });
+      const source = resolveClipPlaybackResponse(r, kind);
+      if (kind === 'independent_url') setUsedReview(source.review);
+      onPreview({ ...clip, video_url: source.url, playback_kind: kind, playback_source_label: source.label });
     } catch (e) { setError(e instanceof Error ? e.message : '视频读取失败'); }
     finally { setBusy(false); }
   };

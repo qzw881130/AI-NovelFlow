@@ -182,7 +182,7 @@ def _stable_identity_marks(appearance):
     return marks.strip(" ，,。") if marker and boundary and marks.strip(" ，,。") else None
 
 
-def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation):
+def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation, *, prompt_language=None):
     """Serialize validated experiment decisions; never retime or direct actions."""
     if frozen is None:
         return []
@@ -198,11 +198,16 @@ def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation
     dialogues = {event["id"]: event for event in timing["dialogue_events"]}
     owner = "Director-selected" if frozen.get("decision_owner") == "NEW_13_PHASE_B" else "Frozen"
     notes = [f"{owner} Anchor arrivals use GENERATION_LOCAL_SECONDS: generated-fragment time starts at 0s, including any verified Previous AV shared prefix."]
+    if prompt_language == "zh":
+        notes = ["Anchor 到达时间使用 GENERATION_LOCAL_SECONDS：生成片段从 0s 开始，包含经验证的 Previous AV 共享前缀。"]
     if continuation:
         notes.append(
             f"Previous AV shared prefix: 0–{continuation['overlap_seconds']}s in GENERATION_LOCAL_SECONDS, "
             f"already included in the {timing['optimized_duration']}s generation duration. "
             "Do not add overlap again or replay actions completed in Previous AV.")
+        if prompt_language == "zh":
+            notes[-1] = (f"Previous AV 共享前缀：GENERATION_LOCAL_SECONDS 的 0–{continuation['overlap_seconds']}s，"
+                         f"已包含在 {timing['optimized_duration']}s 生成时长内。不得重复叠加共享时长或重演已完成的动作。")
     dropped = []
     for choice in choices:
         anchor = choice["id"]
@@ -219,6 +224,8 @@ def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation
         picture = pictures.get(item.get("linked_anchor_id") or anchor)
         label = anchor + (f" ({picture})" if picture else "")
         line = f"{label}: reach its Canonical visual target at {arrival}s in GENERATION_LOCAL_SECONDS"
+        if prompt_language == "zh":
+            line = f"{label}：在 GENERATION_LOCAL_SECONDS 的 {arrival}s 达到对应 Canonical 视觉目标"
         relation = choice.get("arrival_relation")
         if relation:
             event = dialogues[relation["dialogue_id"]]
@@ -233,18 +240,24 @@ def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation
             else:
                 raise ValueError("H3_PHASE_A_FROZEN_ARRIVAL_RELATION_INVALID: " + anchor)
             line += f"; {position} {event['id']} ({boundary})"
+            if prompt_language == "zh":
+                line = (f"{label}：在 GENERATION_LOCAL_SECONDS 的 {arrival}s 达到对应 Canonical 视觉目标；"
+                        f"{position} {event['id']}（对白窗口 {start}–{end}s）")
         notes.append(line + ".")
     if dropped:
         notes.append(
             f"{', '.join(dropped)}: no reference-image arrival constraint; "
             "their Canonical actions and state outcomes remain required.")
+        if prompt_language == "zh":
+            notes[-1] = f"{', '.join(dropped)}：不设置参考图到达约束，仍须完成对应 Canonical 动作与状态结果。"
     return notes
 
 
 def assemble_authority_owned_candidate(model_text, canonical, timing, subject_names,
                                        picture_mapping, continuation, verified_music,
                                        *, director_only=False, character_appearances=None,
-                                       frozen_execution=None, execution_decisions=None):
+                                       frozen_execution=None, execution_decisions=None,
+                                       prompt_language=None, localized_descriptions=None):
     """Offline-only six-section candidate; the model's director prose is not repaired.
 
     The caller supplies already verified Dialogue timing and the selected physical
@@ -292,7 +305,9 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     if any(len(pictures_by_name.get(name, [])) != 1 for name in subject_names.values()):
         raise ValueError("H3_SINGLE_STAGE_IDENTITY_PICTURE_BINDING_UNRESOLVED")
 
+    from app.services import h3_prompt_rendering as render
     appearances = character_appearances if isinstance(character_appearances, dict) else {}
+    localized = localized_descriptions or {}
     definitions = []
     identity_sources = {}
     for subject, name in subject_names.items():
@@ -300,34 +315,23 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
         marks = _stable_identity_marks(appearances.get(name))
         identity_sources[subject] = (
             "Character.appearance explicit stable-identity clause" if marks else "MISSING_EXPLICIT_STABLE_IDENTITY_CLAUSE")
-        definitions.append(
-            f"{subject} is {name}, the existing character whose stable identity is bound exclusively to <Picture {number}>; "
-            + (f"recorded stable features: {marks}; " if marks else "")
-            + "the identity reference does not determine current costume, pose, or floor position."
-        )
-    retention = [
-        ("The verified Previous AV ending owns the current bodies, clothing, poses, floor positions, and camera context; "
-         "preserve its shared opening context without replaying completed actions. "
-         "Canonical visual states and transitions own subsequent action and staging."
-         if continuation else
-         "The current Canonical visual state owns clothing, poses, floor positions, and action; identity references cannot override it."),
-    ]
+        marks = localized.get("identity:" + subject, marks)
+        definitions.append(render.identity_definition(subject, name, number, marks, prompt_language))
+    retention = [render.retention_intro(continuation, prompt_language)]
     subjects_for_name = {name: subject for subject, name in subject_names.items()}
     for item in picture_mapping:
         picture = f"<Picture {item['picture_index']}>"
         kind, name = item.get("kind"), item.get("source_name")
         if kind == "CHARACTER_IDENTITY":
-            identity = subjects_for_name[name] if phase_b else f"{subjects_for_name[name]} ({name})"
-            retention.append(f"{picture} — CHARACTER_IDENTITY for {identity}: stable identity only; not current clothing, pose, blocking, or action.")
-        elif kind == "SCENE":
-            retention.append(f"{picture} — SCENE / {name or 'current scene'}: environment appearance only; incidental people are not additional Subjects.")
-        elif kind == "PROP":
-            retention.append(f"{picture} — PROP / {name or 'canonical prop'}: prop appearance only; Canonical state owns placement and use.")
+            label = subjects_for_name[name] if phase_b else f"{subjects_for_name[name]} ({name})"
+        elif kind in {"SCENE", "PROP"}:
+            label = localized.get(f"{kind}:{name}", name)
         elif kind == "DIRECTOR_VISUAL_ANCHOR":
-            label = f"KF{item['source_keyframe_index']}" if item.get("source_keyframe_index") is not None else "selected visual state"
-            retention.append(f"{picture} — DIRECTOR_VISUAL_ANCHOR / {label}: selected visual composition guidance; Canonical action and staging remain authoritative.")
+            label = (f"KF{item['source_keyframe_index']}" if item.get("source_keyframe_index") is not None
+                     else "选定视觉状态" if prompt_language == "zh" else "selected visual state")
         else:
             raise ValueError("H3_SINGLE_STAGE_PICTURE_KIND_UNSUPPORTED")
+        retention.append(render.reference_note(picture, kind, label, prompt_language))
 
     if frozen_execution is not None and execution_decisions is not None:
         raise ValueError("H3_EXPERIMENT_EXECUTION_OWNER_AMBIGUOUS")
@@ -335,25 +339,23 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     if silent_phase_b:
         # Absence of Canonical speech is a fact, not a new director action.
         # Retain source audio in a physical shared prefix; never mute/rewrite it.
-        retention.append(
-            "This Clip has no Canonical dialogue. All characters remain silent throughout "
-            "the newly generated action: no speech, narration or additional vocalization. "
-            "Only grounded ambience and action Foley may be generated."
-            + (" Preserve the verified Previous AV shared prefix and its existing audio, "
-               "without adding or replaying speech." if continuation else ""))
+        retention.append(render.silent_note(continuation, prompt_language))
     execution_notes = _frozen_anchor_execution_notes(
         frozen_execution if frozen_execution is not None else execution_decisions,
-        timing, picture_mapping, continuation)
+        timing, picture_mapping, continuation, prompt_language=prompt_language)
     duration = float(timing["optimized_duration"])
     parts = {
         "subject_definitions": "\n".join(definitions),
-        "summary": f"A {duration:g}-second continuation of the current Canonical Clip, beginning with the verified Previous AV shared context." if continuation else f"A {duration:g}-second execution of the current Canonical Clip.",
+        "summary": render.summary(duration, continuation, prompt_language),
         "retention_analysis": "\n".join(retention),
         "detailed_description": detail,
         "overall_soundscape": model_parts["overall_soundscape"],
         "non_diegetic_music": verified_music,
     }
     prompt = "\n\n".join(f"{heading}:\n{parts[heading]}" for heading in SECTIONS)
+    if prompt_language == "en":
+        from app.services.h3_prompt_language import validate_english_prose
+        validate_english_prose(prompt, subject_names.values())
     voices = speaker_bindings(canonical)
     for index, event in enumerate(canonical, 1):
         subject = event["speaker"]
@@ -853,6 +855,27 @@ def _phase_b_not_covered(reason):
             "production_preflight_passed": False}
 
 
+def has_phase_b_canonical_scope(clip, canonical):
+    """Owned targets or the planner's scoped continuation supply action authority."""
+    if canonical.get("owned_visual_states"):
+        return True
+    carry = canonical.get("carry_in_visual_state") or {}
+    transitions = canonical.get("transitions") or []
+    return (clip.get("capability") == "EXTEND"
+            and clip.get("continuity_to_previous") == "CONTINUOUS"
+            and carry.get("index") is not None
+            and carry["index"] == clip.get("carry_in_state_index")
+            and bool(transitions)
+            and all(t.get("from_keyframe_index") == carry["index"]
+                    and t.get("target_state_owned") is False
+                    and t.get("projection_mode") == "CROSS_CLIP_CONTINUATION"
+                    and bool(t.get("execution_scope"))
+                    and _finite(t.get("clip_local_start_time"))
+                    and _finite(t.get("clip_local_end_time"))
+                    and t["clip_local_end_time"] > t["clip_local_start_time"]
+                    for t in transitions))
+
+
 def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
     """Prepare upstream facts and actual previews; never read #14 decisions.
 
@@ -872,18 +895,26 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
     from app.utils.path_utils import url_to_local_path
 
     try:
-        if set(snapshot) != {"source", "canonical_plan", "builder_input", "reference_manifest",
+        if set(snapshot) - {"video_prompt_language"} != {"source", "canonical_plan", "builder_input", "reference_manifest",
                              "workflow", "previous_video_path", "physical_evidence",
                              "music_contract", "user_camera_requirements"}:
             raise ValueError("UPSTREAM_ONLY_SNAPSHOT_REQUIRED")
         data = deepcopy(snapshot)
         source = data["source"]
+        if "video_prompt_language" in data and source["hashes"].get("video_prompt_language") != _snapshot_digest(data["video_prompt_language"]):
+            raise ValueError("SOURCE_CHANGED: video_prompt_language")
         for key in ("canonical_plan", "builder_input", "reference_manifest", "workflow",
                     "physical_evidence", "music_contract", "user_camera_requirements"):
             if source["hashes"].get(key) != _snapshot_digest(data[key]):
                 raise ValueError("SOURCE_CHANGED: " + key)
         plan, old, evidence = data["canonical_plan"], data["builder_input"], data["physical_evidence"]
-        context = _semantic_clip_prompt_context(plan, {"clip_index": old["clip"]["clip_index"]},
+        from app.services.effective_execution import task_execution_projection
+        policy = evidence.get("execution_projection")
+        policy_metadata = ({"continuation_mode": policy["continuation_mode"], "execution_projection": policy,
+                            "capability": old["clip"]["capability"]} if policy else {})
+        original_clip = next(c for c in plan["clip_plan"] if c["clip_index"] == old["clip"]["clip_index"])
+        projection = task_execution_projection(plan, original_clip, policy_metadata)
+        context = _semantic_clip_prompt_context(plan, {"clip_index": old["clip"]["clip_index"], **policy_metadata},
                                                 resolved_dialogue_timeline=plan["dialogue_timeline_source"])
         # Whitelist request data; saved Clip runtime artifacts are not planning input.
         clip = {k: context["clip"].get(k) for k in (
@@ -898,11 +929,22 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         states = {s["index"]: s for s in plan["keyframes"]}
         owned = [states[i] for i in clip["visual_state_indexes"]]
         carry = states[clip["carry_in_state_index"]] if clip["carry_in_state_index"] is not None else None
-        # A semantic Clip may own one target while continuing from a separate
-        # carry-in state. Only owned states belong in its anchor catalog; carry-in
-        # remains context, and an empty owned scope is still unsupported.
-        if not owned:
+        # A Clip wholly inside a Canonical transition can have no owned target.
+        # Keep carry-in as context and use the existing scoped action projection;
+        # it never becomes a target or a physical anchor.
+        if not has_phase_b_canonical_scope(clip, {"owned_visual_states": owned,
+                "carry_in_visual_state": carry, "transitions": context["transitions"]}):
             raise ValueError("OWNED_VISUAL_STATE_REQUIRED")
+        if not owned:
+            # Reuse the planner's ownership rule to reject an omitted target or
+            # a wrong carry-in instead of manufacturing a state for the Clip.
+            from app.services.clip_planner import _project_clip_visual_states
+            expected = deepcopy(clip)
+            _project_clip_visual_states([expected], [
+                {**state, "keyframe_index": state["index"]} for state in states.values()])
+            if (expected["visual_state_indexes"]
+                    or expected["carry_in_state_index"] != clip["carry_in_state_index"]):
+                raise ValueError("CANONICAL_STATE_SCOPE_MISMATCH")
         if len(old["visual_controls"]) != len(owned):
             raise ValueError("SAVED_STATES_MISMATCH")
         for state, saved in zip(owned, old["visual_controls"]):
@@ -947,6 +989,11 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
             raise ValueError("FIXED_SPEECH_EXCEEDS_BUDGET")
         manifest = data["reference_manifest"]
         mapping = build_physical_picture_mapping(manifest)
+        suppressed_states = set(projection["suppressed_state_indexes"])
+        suppressed_urls = set(projection["suppressed_image_urls"])
+        if any(r.get("source_keyframe_index") in suppressed_states
+               or r.get("image_url") in suppressed_urls for r in manifest["references"]):
+            raise ValueError("SUPPRESSED_TEMPORAL_REFERENCE_RETURNED")
         if not 0 <= len(mapping) <= 9:
             raise ValueError("REFERENCE_COUNT_UNSUPPORTED")
         # Saved executed graphs may already have optional image nodes removed.
@@ -1071,6 +1118,13 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
                 "unknown_execution_cost": "NOT_ESTIMATED; camera/action costs require director judgment"},
             "music_policy": {"value": music["value"], "source": music["source_stage"] if runtime_music else "REVIEWED_UPSTREAM_13_RAW_NO_ADDED_MUSIC"},
         }
+        from app.services.effective_execution import projection_record
+        from app.services.h3_prompt_language import validate_language, description_sources, LANGUAGE_CONTRACT
+        language = data.get("video_prompt_language")
+        if language is not None:
+            payload.update(video_prompt_language=validate_language(language), language_contract=LANGUAGE_CONTRACT,
+                           compiler_description_sources=description_sources(names, appearances, mapping, _stable_identity_marks))
+        projection_record_for_prepare = projection_record(projection)
         authority = {"reference_bindings": [{"picture": r["picture"], "type": r["kind"]} for r in mapping],
                      "anchor_policy": {"catalog": catalog}}
         return {"mode": "H3_MULTI_KEYFRAME_PHASE_B", "status": "PREPARED", "llm_input": payload,
@@ -1079,6 +1133,7 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
                 "reference_manifest": manifest, "picture_mapping": mapping, "temporal_anchors": temporal,
                 "authority": authority, "drop_capability": drop_capability,
                 "resource_hashes": hashes, "source": source, "music_contract": music,
+                "execution_projection": projection_record_for_prepare,
                 "submission_authorized": False, "production_preflight_passed": False}
     except (KeyError, ValueError, TypeError, OSError, StopIteration, AttributeError) as exc:
         return _phase_b_not_covered(f"{type(exc).__name__}: {exc}")
@@ -1094,9 +1149,17 @@ def compile_multi_keyframe_phase_b(prepared, response):
         return _phase_b_not_covered("PREPARED_INPUT_REQUIRED")
     try:
         output = json.loads(response) if isinstance(response, str) else deepcopy(response)
-        if (not isinstance(output, dict) or set(output) != {
-                "optimized_duration", "dialogue_events", "anchors", "detailed_description", "overall_soundscape"}):
+        language = prepared["llm_input"].get("video_prompt_language")
+        fields = {"optimized_duration", "dialogue_events", "anchors", "detailed_description", "overall_soundscape"}
+        localized = None
+        if language is not None:
+            fields.add("localized_descriptions")
+        if not isinstance(output, dict) or set(output) != fields:
             raise ValueError("DIRECTOR_RESPONSE_FIELDS_INVALID")
+        if language is not None:
+            from app.services.h3_prompt_language import validate_localized_descriptions
+            localized = validate_localized_descriptions(output["localized_descriptions"],
+                                                       prepared["llm_input"]["compiler_description_sources"])
         duration = output["optimized_duration"]
         if not _finite(duration) or not prepared["limits"]["minimum"] <= duration <= prepared["limits"]["maximum"]:
             raise ValueError("GENERATION_DURATION_INVALID")
@@ -1191,7 +1254,8 @@ def compile_multi_keyframe_phase_b(prepared, response):
         prompt, review, picture = assemble_authority_owned_candidate(
             director, canonical, timing, prepared["subject_names"], mapping, prepared["continuation"],
             prepared["music_contract"]["value"], director_only=True,
-            character_appearances=prepared["character_appearances"], execution_decisions=decisions)
+            character_appearances=prepared["character_appearances"], execution_decisions=decisions,
+            prompt_language=language, localized_descriptions=localized)
         passed = all(review["structure"].values()) and all(review["structured_authority"].values())
         return {"mode": "H3_MULTI_KEYFRAME_PHASE_B", "status": "CANDIDATE_FOR_REVIEW" if passed else "VALIDATION_FAILED",
                 "prompt": prompt, "director_response": output, "director_text": director,
@@ -1213,7 +1277,9 @@ async def preview_multi_keyframe_phase_b(snapshot, *, llm):
         return prepared
     if getattr(llm, "max_retries", None) != 0:
         return _phase_b_not_covered("ZERO_RETRY_CLIENT_REQUIRED")
-    request = {"system_prompt": PHASE_B_TEMPLATE.read_text(encoding="utf-8"),
+    from app.services.h3_prompt_language import director_language_instruction
+    request = {"system_prompt": PHASE_B_TEMPLATE.read_text(encoding="utf-8") +
+               director_language_instruction(prepared["llm_input"].get("video_prompt_language")),
                "user_content": json.dumps(prepared["llm_input"], ensure_ascii=False),
                "images": prepared["images"], "response_format": "json_object", "temperature": 0.3,
                "max_tokens": 4500, "task_type": "h3_multi_keyframe_prompt",

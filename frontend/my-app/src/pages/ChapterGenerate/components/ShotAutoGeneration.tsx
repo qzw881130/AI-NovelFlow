@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { shotsApi } from '../../../api/shots';
+import { shotsApi, type ContinuationMode } from '../../../api/shots';
 
-export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = false, onProgress }: {
-  novelId?: string; chapterId?: string; shotId: string; disabled?: boolean; onProgress?: () => void;
+export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = false, continuationMode = 'AUTO', onProgress }: {
+  novelId?: string; chapterId?: string; shotId: string; disabled?: boolean; continuationMode?: ContinuationMode; onProgress?: () => void;
 }) {
   const [state, setState] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = fals
     if (!novelId || !chapterId || busy) return;
     setBusy(true); setError('');
     try {
-      const r = await shotsApi.controlShotAutoGeneration(novelId, chapterId, shotId, action);
+      const r = await shotsApi.controlShotAutoGeneration(novelId, chapterId, shotId, action, continuationMode);
       if (!r.success) throw new Error((r as any).detail || r.message || '自动生成操作失败');
       const latest = await shotsApi.getShotAutoGeneration(novelId, chapterId, shotId);
       if (latest.success) setState(latest.data);

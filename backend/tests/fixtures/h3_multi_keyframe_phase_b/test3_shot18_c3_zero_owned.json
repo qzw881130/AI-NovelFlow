@@ -1,0 +1,3454 @@
+{
+  "task_id": "1b3e42a9-4f6d-4506-a1a4-ed955bfd5a51",
+  "shot": {
+    "id": "0e3cefd9-378b-49c7-b849-5da3b32d1545",
+    "chapter_id": "59ce27c0-91a1-4d82-9413-7991684d29ee",
+    "index": 18,
+    "description": "Scene: 傍晚的王宫大厅被夕阳染成金红色，高背宝座位于画面后方，宫廷摆钟处于大厅一侧；中远景从大厅内部朝向窗侧，画面共2名可见人物，只有皇帝和宫廷总管。\nCharacters:\n- 皇帝: 严格继承正式参考资产身份，位于画面左侧窗前，身体朝向窗外远处，双手背在身后，保持沉思站姿。\n- 宫廷总管: 严格继承正式参考资产身份，位于画面右后方，身体朝向皇帝，保持安静侍立姿态。\nAction: 皇帝站在窗前凝视远处亮着灯的王宫织造室方向，宫廷总管在他身后等待。",
+    "duration": 60,
+    "characters": "[\"皇帝\", \"宫廷总管\"]",
+    "props": "[\"高背宝座\", \"宫廷摆钟\"]",
+    "scene": "王宫大厅"
+  },
+  "plan": {
+    "canonical_visual_plan": true,
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 7.15,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 傍晚的王宫大厅，夕阳仍将大厅染成金红色，宫廷摆钟位于大厅一侧。\nCharacters:\n- 皇帝: 停在通往大厅出口的方向，一只脚略微在前，身体保持骤停后的僵硬姿态；侧脸朝向窗外远处灯光，原有笑意消失，眉眼显出忧虑。\n- 宫廷总管: 位于皇帝后方，保持恭敬站姿，视线落在皇帝身上。\nAction: 摄影机沿原有轴线靠近至皇帝侧面的中景，皇帝与出口、窗外灯光及身后总管的空间关系清晰可见。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 3,
+        "time_seconds": 12.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅内，高背宝座进入更明确的画面层次，窗外余晖映在皇帝侧后方。\nCharacters:\n- 皇帝: 已回到高背宝座旁，身体转向宫廷总管，肩背挺直而紧绷，眉间收紧，一只手压在身侧。\n- 宫廷总管: 仍站在后侧，身体朝向皇帝，神情谨慎而关切。\nAction: 摄影机沿大厅内侧连续跟随至宝座一侧，以中景维持两人的前后关系。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 15.45,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 高背宝座占据画面一侧，宫廷摆钟仍可见于大厅纵深中。\nCharacters:\n- 皇帝: 坐在高背宝座上，身体略向前倾，视线低垂，食指落在扶手边缘，神情沉重迟疑。\n- 宫廷总管: 站在宝座前方稍远处，双手收于身前，安静注视皇帝。\nAction: 宝座侧面的连续中景同时容纳皇帝低沉的坐姿、扶手与总管的侍立位置。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 5,
+        "time_seconds": 17.65,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅保持安静，金红色夕光覆盖高背宝座和邻近地面。\nCharacters:\n- 皇帝: 仍坐在宝座上，身体重新挺直，手指停在扶手上，头已抬起，目光清晰地投向宫廷总管，紧绷神情转为冷静果断。\n- 宫廷总管: 面向皇帝站定，姿态恭敬，等待皇帝的示意。\nAction: 摄影机保持宝座侧面的连续中景，皇帝抬起的视线成为构图中心。",
+        "timed_visual_target": true,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261017_095330.png",
+        "image_task_id": "f85e5cd5-4d53-462c-bd64-ecfd3ad0b9f5"
+      },
+      {
+        "index": 6,
+        "time_seconds": 42.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫大厅的高背宝座位于皇帝身后，宫廷摆钟与窗侧余晖留在画面纵深。\nCharacters:\n- 皇帝: 已从宝座起身，站在宝座前侧，肩背舒展，目光坚定地朝向宫廷总管，一只手抬至明确示意的位置。\n- 宫廷总管: 面向皇帝肃立，身体微微前倾，双手恭敬收拢。\nAction: 摄影机沿原有侧面轨迹略微拉开，形成皇帝居前、总管居后的完整命令构图。",
+        "timed_visual_target": true,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261017_043240.png",
+        "image_task_id": "95cad2c2-63a5-40f4-9f7b-26a787af6edc"
+      },
+      {
+        "index": 7,
+        "time_seconds": 60.0,
+        "role": "END",
+        "description": "Scene: 傍晚的王宫大厅笼罩在稳定的金红色余晖中，高背宝座位于皇帝身后，宫廷摆钟留在大厅一侧。\nCharacters:\n- 皇帝: 站在高背宝座前，姿态挺拔从容，双手自然收回身侧，神情恢复轻松与权威，视线落向宫廷总管。\n- 宫廷总管: 位于皇帝前方偏后的位置，身体恭敬躬下，双手收于身前。\nAction: 摄影机停在较宽的宝座侧面构图，两人与宝座、宫廷摆钟及大厅纵深共同保持清晰稳定的空间关系。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 7.15,
+        "transition_description": "同一镜头内，皇帝从画面左侧窗前的沉思站姿开始，双手仍背在身后，先沿窗边做短距离、克制的往返踱步，始终没有越过宫廷总管所在的右后方区域；他的神情一度稍显轻快，视线仍不时投向窗外远处的灯光。0至3.2秒，摄影机从原有中远景机位沿既定轴线极缓慢推进，以皇帝为主要视觉落点，同时保留后方高背宝座、侧面的宫廷摆钟和右后方总管。3.2至5.8秒，宫廷总管保持原位和恭敬站姿，仅轻微抬眼并用视线追随皇帝；摄影机继续平稳推进并做极小幅度的横向构图修正，让总管成为这一阶段清晰的视觉锚点，皇帝的往返动作则在同一空间关系中作为背景运动保持可读，不形成追随式特写。接近5.8秒时，皇帝结束踱步，从窗边转向大厅出口方向，朝出口迈出一步；总管不跟随，只将视线稳定落在皇帝身上。5.8至7.15秒，摄影机沿原有轴线继续靠近，并连续地把视觉重心由总管过渡回皇帝及两人的空间关系。皇帝在第一步尚未完全接续时骤然停住，一只脚略微在前，身体僵住，头部缓慢转回窗侧，侧脸重新对准远处灯光；先前稍显轻快的神情逐渐消退，眉眼收紧为忧虑。摄影机最终停在皇帝侧面的中景，清楚保留他朝向出口的身体、望向窗外灯光的侧脸以及身后恭敬站立的宫廷总管，所有人物、道具和光线位置连续不跳变。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 7.15,
+        "end_time": 12.5,
+        "transition_description": "皇帝从出口方向的骤停姿态开始，先保持前脚略微探出、身体僵直的状态，侧脸仍朝向窗外远处灯光，眉眼间的忧虑逐渐加深；宫廷总管留在其后方，以恭敬站姿注视皇帝。随后宫廷总管仅略微抬头并收紧神情，身体仍停在后侧，与皇帝形成短暂清晰的前后关系。皇帝继而收回迈向出口的重心，从出口一侧转身朝大厅内的高背宝座方向折返，步伐克制而紧绷，并在接近宝座时逐渐将上身转向宫廷总管。宫廷总管不越过原有位置，只随皇帝的移动调整视线和身体朝向。摄影机不切镜，沿既有轴线从皇帝侧面中景平稳向大厅内侧横移并后撤补偿，连续跟随皇帝返回宝座，同时让高背宝座逐步进入明确层次，并始终保留总管在后侧及窗外余晖在皇帝侧后方的空间关系。到12.5秒时，皇帝停在高背宝座旁，身体已朝向宫廷总管，肩背挺直而紧绷、眉间收紧，一只手压在身侧；宫廷总管仍在后侧谨慎而关切地面对皇帝，摄影机稳定停在宝座一侧的双人中景。供人工审阅：只读因果叙事将皇帝返回宝座安排在本段终点之后，与12.5秒关键帧要求其已经位于宝座旁的权威状态存在未解决的时序冲突；本过渡按关键帧终态执行，未延伸终点后的动作。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 12.5,
+        "end_time": 15.45,
+        "transition_description": "皇帝从高背宝座旁的挺直站姿开始，先保持身体朝向宫廷总管，眉间紧锁，随后将重心向身后的宝座座面移回，转身贴近座前并屈膝缓慢坐下；落座过程中肩背逐渐松沉，身体略向前倾，视线由总管身上垂落至扶手附近，原本压在身侧的手移到扶手，食指最终落在扶手边缘。宫廷总管不抢占画面中心，只从皇帝后侧谨慎调整少量步幅至宝座前方稍远处，始终面向皇帝，双手收拢于身前后站定，以克制而关切的神情注视他。摄影机保持宝座侧面的同一连续机位与轴线，配合皇帝落座进行轻微平移和稳定构图调整，使高背宝座进入画面一侧，同时保留大厅纵深中的宫廷摆钟与总管的侍立位置；最终停在同时容纳皇帝前倾低垂的坐姿、扶手及总管的连续中景。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 15.45,
+        "end_time": 17.65,
+        "transition_description": "皇帝从宝座上略微前倾、低垂视线的姿态开始，先保持食指停在扶手边缘，随后肩背缓慢展开，身体逐渐向上挺直；短暂迟疑后，他抬起下颌，将视线由扶手方向移向站在宝座前方的宫廷总管，沉重紧绷的神情收束为冷静果断。宫廷总管始终在原位面向皇帝恭敬站定，双手收于身前，仅以克制的目光变化承接皇帝抬起的视线，不改变站位。摄影机沿既有宝座侧面机位保持连续中景，以极轻微的稳定推进和构图校正，使皇帝抬起的面部与视线逐渐成为画面中心，同时保留总管、宝座扶手及大厅纵深中的宫廷摆钟；金红色夕光与环境状态连续不变。过渡最终停在皇帝挺直端坐、手指仍停于扶手、清晰注视总管，总管恭敬等待的状态。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 17.65,
+        "end_time": 42.8,
+        "transition_description": "从宝座侧面的连续中景开始，皇帝保持端坐与挺直姿态，目光稳定落在宫廷总管身上，手指由停驻扶手逐渐放松，冷静果断的神情维持为画面中心；宫廷总管仍在宝座前方肃立。19.35秒前后，摄影机沿原侧向机位极轻微平移，使宫廷总管在不改变双方空间关系的情况下更清楚地进入构图重心；总管谨慎抬眼看向皇帝，身体略向前倾，随后克制地收稳姿态。20.85至21.3秒间，摄影机连续而缓慢地将视觉重心移回皇帝，保持两人同框；皇帝以沉稳目光和轻微抬起的下颌强化决断，总管不移动站位。此后皇帝仍坐在宝座上，通过有限的手部停顿、细微点头和重心调整表现持续权衡，宫廷总管恭敬注视。26.95秒前后，摄影机仅以轻微侧移重新突出总管；总管再度小幅前倾，双手开始向身前收拢，神情谨慎。28.2至29.1秒间，构图重心自然回到皇帝；皇帝目光更坚定，肩背进一步展开，总管保持原位。29.1秒后摄影机沿既有侧面轨迹极缓慢拉开，同时保留高背宝座、两人的前后关系以及纵深中的宫廷摆钟和窗侧余晖。接近段落末尾时，皇帝先将身体重心前移，一手借扶手稳定起身，双脚从宝座前收稳，随后完全站到宝座前侧并舒展肩背，始终朝向宫廷总管；起身完成后，他将一只手抬至清晰而克制的示意位置。宫廷总管不改变相对站位，随皇帝起身略微加深前倾，双手恭敬收拢。摄影机不中断、不跳轴地完成轻微拉开，最终停在皇帝居前、总管居后的完整构图：皇帝站在高背宝座前侧，目光坚定、单手抬起；总管面向皇帝肃立微倾，宫廷摆钟与窗侧余晖留在画面纵深。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 42.8,
+        "end_time": 60.0,
+        "transition_description": "承接皇帝站在高背宝座前抬手示意的状态，皇帝双脚保持原位，挺直肩背，以克制而明确的手势朝宫廷总管方向逐项示意：抬起的手先稳定前指，随后以数次幅度有限的指向和收回动作强调不同事项，视线始终坚定地落在宫廷总管身上。宫廷总管留在皇帝前方偏后的位置，双手恭敬收于身前，身体维持轻微前倾，仅以细微颔首和姿态收紧作出必要反应，不改变两人的前后关系。摄影机沿既有宝座侧面轨迹持续、缓慢地向后拉开，不改变轴线，使皇帝在前景保持主要视觉重心，同时逐渐纳入宫廷总管、高背宝座、宫廷摆钟和大厅纵深。接近56.2秒时，皇帝最后一次手势平稳收束，神情由严肃逐渐放松；摄影机不停止原有拉开趋势，只通过更宽的双人构图自然增加宫廷总管的视觉权重。宫廷总管随即从轻微前倾连续躬下上身，双手仍收于身前，最终稳定在恭敬躬身姿态。皇帝将抬起的手自然放回身侧，另一只手也保持垂落，恢复挺拔从容的站姿与轻松而有权威的神情，视线继续落向宫廷总管。摄影机在较宽的宝座侧面构图中平缓减速并停稳；到60秒时，两人均停止较大动作，高背宝座位于皇帝身后，宫廷摆钟留在大厅一侧，金红色余晖及所有空间关系连续稳定。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "皇帝",
+        "text": "我真想亲自去看看。",
+        "start_time": 1.0,
+        "end_time": 3.0,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "向往急切"
+      },
+      {
+        "id": "D2",
+        "speaker": "宫廷总管",
+        "text": "陛下若想去，现在就可以召他们准备。",
+        "start_time": 3.2,
+        "end_time": 6.95,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬建议"
+      },
+      {
+        "id": "D3",
+        "speaker": "皇帝",
+        "text": "若我看不见……",
+        "start_time": 7.15,
+        "end_time": 8.4,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "低声恐惧"
+      },
+      {
+        "id": "D4",
+        "speaker": "宫廷总管",
+        "text": "陛下？",
+        "start_time": 8.6,
+        "end_time": 9.1,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "困惑关切"
+      },
+      {
+        "id": "D5",
+        "speaker": "皇帝",
+        "text": "若我看不见，岂不是显得愚蠢？",
+        "start_time": 9.3,
+        "end_time": 12.3,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "不安自疑"
+      },
+      {
+        "id": "D6",
+        "speaker": "皇帝",
+        "text": "而且，我是这个国家的皇帝。",
+        "start_time": 12.5,
+        "end_time": 15.25,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "压抑强调"
+      },
+      {
+        "id": "D7",
+        "speaker": "皇帝",
+        "text": "如果连我都看不见……",
+        "start_time": 15.45,
+        "end_time": 17.45,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "恐惧迟疑"
+      },
+      {
+        "id": "D8",
+        "speaker": "皇帝",
+        "text": "我不必亲自去。",
+        "start_time": 17.65,
+        "end_time": 19.15,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "突然释然"
+      },
+      {
+        "id": "D9",
+        "speaker": "宫廷总管",
+        "text": "陛下的意思是？",
+        "start_time": 19.35,
+        "end_time": 20.85,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "谨慎询问"
+      },
+      {
+        "id": "D10",
+        "speaker": "皇帝",
+        "text": "先派一个人去看看。",
+        "start_time": 21.05,
+        "end_time": 23.05,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "冷静决断"
+      },
+      {
+        "id": "D11",
+        "speaker": "皇帝",
+        "text": "一个聪明、可靠，而且绝对称职的人。",
+        "start_time": 23.25,
+        "end_time": 26.75,
+        "duration": 3.5,
+        "estimated_speech_duration": 3.5,
+        "min_required_duration": 3.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "认真权衡"
+      },
+      {
+        "id": "D12",
+        "speaker": "宫廷总管",
+        "text": "老大臣如何？",
+        "start_time": 26.95,
+        "end_time": 28.2,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "试探建议"
+      },
+      {
+        "id": "D13",
+        "speaker": "皇帝",
+        "text": "对。",
+        "start_time": 28.4,
+        "end_time": 28.9,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "立即赞同"
+      },
+      {
+        "id": "D14",
+        "speaker": "皇帝",
+        "text": "他为王国效力几十年，从未出过差错。",
+        "start_time": 29.1,
+        "end_time": 32.85,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "笃定评价"
+      },
+      {
+        "id": "D15",
+        "speaker": "皇帝",
+        "text": "人人都说他聪明、诚实、谨慎。",
+        "start_time": 33.05,
+        "end_time": 35.8,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "满意认可"
+      },
+      {
+        "id": "D16",
+        "speaker": "皇帝",
+        "text": "如果那块布真的具有神奇的力量，他一定能够看见。",
+        "start_time": 36.0,
+        "end_time": 41.25,
+        "duration": 5.25,
+        "estimated_speech_duration": 5.25,
+        "min_required_duration": 5.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "自我安慰"
+      },
+      {
+        "id": "D17",
+        "speaker": "皇帝",
+        "text": "传我的命令。",
+        "start_time": 41.45,
+        "end_time": 42.7,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "威严下令"
+      },
+      {
+        "id": "D18",
+        "speaker": "皇帝",
+        "text": "请老大臣明天一早去织造室。",
+        "start_time": 42.9,
+        "end_time": 45.9,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "明确命令"
+      },
+      {
+        "id": "D19",
+        "speaker": "皇帝",
+        "text": "让他仔细看看布料织得怎么样。",
+        "start_time": 46.1,
+        "end_time": 49.35,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "郑重要求"
+      },
+      {
+        "id": "D20",
+        "speaker": "皇帝",
+        "text": "颜色如何。",
+        "start_time": 49.55,
+        "end_time": 50.55,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项强调"
+      },
+      {
+        "id": "D21",
+        "speaker": "皇帝",
+        "text": "花纹如何。",
+        "start_time": 50.75,
+        "end_time": 51.75,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项强调"
+      },
+      {
+        "id": "D22",
+        "speaker": "皇帝",
+        "text": "进展如何。",
+        "start_time": 51.95,
+        "end_time": 52.95,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "逐项强调"
+      },
+      {
+        "id": "D23",
+        "speaker": "皇帝",
+        "text": "回来以后，一样一样说给我听。",
+        "start_time": 53.15,
+        "end_time": 56.15,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "严肃期待"
+      },
+      {
+        "id": "D24",
+        "speaker": "宫廷总管",
+        "text": "遵命，陛下。",
+        "start_time": 56.35,
+        "end_time": 57.35,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬领命"
+      }
+    ],
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 8.5,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "以D3结束后的8.4至D4开始前的8.6秒间隙作为边界，不拆分任何发言；8.5秒也位于KF2已经到达之后，使首段完整容纳窗前踱步、视觉重心转向总管、皇帝迈步后骤停并显出忧虑的连续动作。8.5秒的故事时长低于15秒软目标，并为这些动作和摄影机推进保留空间。D1和D3均有完整的皇帝主视觉注意支持；D2有完整的总管主视觉支持，并在末段形成由总管向皇帝的合法交接。该交接与同一空间中的背景运动不要求额外切分；实际可见性及面部、口部可读性仍属未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 8.5,
+        "execution_status": "APPROVED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          1,
+          2
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 8.5
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "我真想亲自去看看。",
+            "emotion_prompt": "向往急切",
+            "estimated_duration": 2.0,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 3.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "陛下若想去，现在就可以召他们准备。",
+            "emotion_prompt": "恭敬建议",
+            "estimated_duration": 3.75,
+            "source_order": 2,
+            "start_time": 3.2,
+            "end_time": 6.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "若我看不见……",
+            "emotion_prompt": "低声恐惧",
+            "estimated_duration": 1.25,
+            "source_order": 3,
+            "start_time": 7.15,
+            "end_time": 8.4,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "402c937751c08fae2110befbd09cde919da4051b8ac10638ee30c9c7f6acaba4",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "intended_window": {
+                "start": 1.0,
+                "end": 3.0
+              }
+            },
+            {
+              "dialogue_id": "D2",
+              "intended_window": {
+                "start": 3.2,
+                "end": 6.95
+              }
+            },
+            {
+              "dialogue_id": "D3",
+              "intended_window": {
+                "start": 7.15,
+                "end": 8.4
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 8.5,
+          "fixed_dialogue_duration": 7.0,
+          "overlap_duration": 0.0,
+          "minimum_execution_duration": 7.0,
+          "workflow_budget": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[0]",
+                    "interval": {
+                      "start": 1.0,
+                      "end": 3.0
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [],
+                "after_state_id": "KF2",
+                "nearest_state_ids": [
+                  "KF1"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 3.2,
+                      "end": 5.8
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 5.8,
+                      "end": 6.95
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "from"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [],
+                "after_state_id": "KF2",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D3",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[3]",
+                    "interval": {
+                      "start": 7.15,
+                      "end": 8.4
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [
+                  "KF2"
+                ],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        },
+        "status": "SUCCEEDED"
+      },
+      {
+        "clip_index": 2,
+        "start_time": 8.5,
+        "end_time": 20.95,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 1,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF5"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF2",
+          "transition_to_state_id": "KF3",
+          "premise_preserved": true
+        },
+        "reason": "边界位于D3与D4之间，并在D9结束后的20.85至D10开始前的21.05秒间隙收束，12.45秒故事时长保持在软目标内。相较继续延长到后续皇帝发言段，此处切分可把早期落座与决断动作、以及随后较长的坐姿命令阶段分开，同时不会把压力转移到超过硬上限的相邻段。开端处皇帝正从骤停状态连续折返宝座，身体移动、两人前后位置和摄影机横移后撤的具体阶段依赖上一片段实际结尾，因此必须CONTINUOUS。KF2在边界前已经建立同场双人关系、原有轴线、出口与窗侧方向以及总管后置关系；至8.5秒没有切镜、跳轴、人物进出或空间重置，普通转身和折返仍保留这些开场构图前提，可由上一视频直接继承。KF5被选为定时目标，因为皇帝从低垂迟疑转为挺直、抬眼且果断的坐姿是本段重要的身体与构图到达状态，较纯文字连续运动具有额外定时控制价值。D4的共享双人主构图是有效支持；D5至D8对皇帝、D9对总管均有完整主视觉注意支持。多次发言与D8到D9的说话者变化不会单独要求切分，且实际可见性和可读性仍未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 12.45,
+        "execution_status": "APPROVED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          3,
+          4,
+          5
+        ],
+        "carry_in_state_index": 2,
+        "dialogue_scope": {
+          "start_time": 8.5,
+          "end_time": 20.95
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-2-KF5"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "陛下？",
+            "emotion_prompt": "困惑关切",
+            "estimated_duration": 0.5,
+            "source_order": 4,
+            "start_time": 8.6,
+            "end_time": 9.1,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "若我看不见，岂不是显得愚蠢？",
+            "emotion_prompt": "不安自疑",
+            "estimated_duration": 3.0,
+            "source_order": 5,
+            "start_time": 9.3,
+            "end_time": 12.3,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "而且，我是这个国家的皇帝。",
+            "emotion_prompt": "压抑强调",
+            "estimated_duration": 2.75,
+            "source_order": 6,
+            "start_time": 12.5,
+            "end_time": 15.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D7",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "如果连我都看不见……",
+            "emotion_prompt": "恐惧迟疑",
+            "estimated_duration": 2.0,
+            "source_order": 7,
+            "start_time": 15.45,
+            "end_time": 17.45,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D8",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "我不必亲自去。",
+            "emotion_prompt": "突然释然",
+            "estimated_duration": 1.5,
+            "source_order": 8,
+            "start_time": 17.65,
+            "end_time": 19.15,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D9",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "陛下的意思是？",
+            "emotion_prompt": "谨慎询问",
+            "estimated_duration": 1.5,
+            "source_order": 9,
+            "start_time": 19.35,
+            "end_time": 20.85,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "402c937751c08fae2110befbd09cde919da4051b8ac10638ee30c9c7f6acaba4",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D4",
+              "intended_window": {
+                "start": 0.1,
+                "end": 0.6
+              }
+            },
+            {
+              "dialogue_id": "D5",
+              "intended_window": {
+                "start": 0.8,
+                "end": 3.8
+              }
+            },
+            {
+              "dialogue_id": "D6",
+              "intended_window": {
+                "start": 4.0,
+                "end": 6.75
+              }
+            },
+            {
+              "dialogue_id": "D7",
+              "intended_window": {
+                "start": 6.95,
+                "end": 8.95
+              }
+            },
+            {
+              "dialogue_id": "D8",
+              "intended_window": {
+                "start": 9.15,
+                "end": 10.65
+              }
+            },
+            {
+              "dialogue_id": "D9",
+              "intended_window": {
+                "start": 10.85,
+                "end": 12.35
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 12.45,
+          "fixed_dialogue_duration": 11.25,
+          "overlap_duration": null,
+          "minimum_execution_duration": null,
+          "workflow_budget": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D4",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[4]",
+                    "interval": {
+                      "start": 0.1,
+                      "end": 0.6
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 8.55,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D5",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[4]",
+                    "interval": {
+                      "start": 0.8,
+                      "end": 1.0
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 1.0,
+                      "end": 3.8
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 5.35,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D6",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 4.0,
+                      "end": 6.75
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [
+                  "KF3"
+                ],
+                "after_state_id": "KF4",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 2.4,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D7",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 6.95,
+                      "end": 8.95
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF3",
+                "inside_state_ids": [
+                  "KF4"
+                ],
+                "after_state_id": "KF5",
+                "nearest_state_ids": [
+                  "KF4"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 0.2,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D8",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 9.15,
+                      "end": 10.65
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF4",
+                "inside_state_ids": [
+                  "KF5"
+                ],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "inside",
+                    "distance_seconds": 0.0,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D9",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[6]",
+                    "interval": {
+                      "start": 10.85,
+                      "end": 12.35
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF5",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF5",
+                    "slot": null,
+                    "time_relationship": "before",
+                    "distance_seconds": 1.7,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        },
+        "status": "SUCCEEDED"
+      },
+      {
+        "clip_index": 3,
+        "start_time": 20.95,
+        "end_time": 35.9,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 2,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF5",
+          "transition_to_state_id": "KF6",
+          "premise_preserved": true
+        },
+        "reason": "边界分别使用D9与D10、D15与D16之间的合法短间隙，14.95秒故事时长接近15秒软目标。该安排保留D10至D15的完整发言，并在较长皇帝连续发言组内利用合法间隙分担固定发言负荷；若减少一个片段，后续连续发言、缓慢拉开和起身动作会被集中到接近或超过执行硬上限的单段中。20.95秒位于摄影机从总管连续移回皇帝的过渡内，开场的摄影机运动相位、皇帝端坐姿态及两人既有站位依赖上一片段实际结尾，故为CONTINUOUS。KF5已在边界前建立宝座侧面双人中景、皇帝端坐和总管侍立关系；到边界仅发生同轴轻微侧移与注意重心交接，没有人物换位、场景重置或构图前提破坏，因此可继承该开场构图。此段没有拥有具有增量控制价值的合格定时状态，连续运动文字足以指导轻微构图转移。D10在开端具有从总管转向皇帝的合法交接并随后保持皇帝主视觉支持；D11、D14和D15同样具有完整皇帝主视觉支持，D12具有完整总管主视觉支持，D13是总管到皇帝的合法交接参与。连续的两次交接增加执行注意但已有计划支持，不需要机械增加边界；实际可见性、面部及口部可读性仍未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 14.95,
+        "execution_status": "FAILED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [],
+        "carry_in_state_index": 5,
+        "dialogue_scope": {
+          "start_time": 20.95,
+          "end_time": 35.9
+        },
+        "capability": "EXTEND",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D10",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "先派一个人去看看。",
+            "emotion_prompt": "冷静决断",
+            "estimated_duration": 2.0,
+            "source_order": 10,
+            "start_time": 21.05,
+            "end_time": 23.05,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D11",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "一个聪明、可靠，而且绝对称职的人。",
+            "emotion_prompt": "认真权衡",
+            "estimated_duration": 3.5,
+            "source_order": 11,
+            "start_time": 23.25,
+            "end_time": 26.75,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D12",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "老大臣如何？",
+            "emotion_prompt": "试探建议",
+            "estimated_duration": 1.25,
+            "source_order": 12,
+            "start_time": 26.95,
+            "end_time": 28.2,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D13",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "对。",
+            "emotion_prompt": "立即赞同",
+            "estimated_duration": 0.5,
+            "source_order": 13,
+            "start_time": 28.4,
+            "end_time": 28.9,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D14",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "他为王国效力几十年，从未出过差错。",
+            "emotion_prompt": "笃定评价",
+            "estimated_duration": 3.75,
+            "source_order": 14,
+            "start_time": 29.1,
+            "end_time": 32.85,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D15",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "人人都说他聪明、诚实、谨慎。",
+            "emotion_prompt": "满意认可",
+            "estimated_duration": 2.75,
+            "source_order": 15,
+            "start_time": 33.05,
+            "end_time": 35.8,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "402c937751c08fae2110befbd09cde919da4051b8ac10638ee30c9c7f6acaba4",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D10",
+              "intended_window": {
+                "start": 0.1,
+                "end": 2.1
+              }
+            },
+            {
+              "dialogue_id": "D11",
+              "intended_window": {
+                "start": 2.3,
+                "end": 5.8
+              }
+            },
+            {
+              "dialogue_id": "D12",
+              "intended_window": {
+                "start": 6.0,
+                "end": 7.25
+              }
+            },
+            {
+              "dialogue_id": "D13",
+              "intended_window": {
+                "start": 7.45,
+                "end": 7.95
+              }
+            },
+            {
+              "dialogue_id": "D14",
+              "intended_window": {
+                "start": 8.15,
+                "end": 11.9
+              }
+            },
+            {
+              "dialogue_id": "D15",
+              "intended_window": {
+                "start": 12.1,
+                "end": 14.85
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 14.95,
+          "fixed_dialogue_duration": 13.75,
+          "overlap_duration": 1.625,
+          "minimum_execution_duration": 15.375,
+          "workflow_budget": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          },
+          "exceeds_preferred": true,
+          "reason": "边界分别使用D9与D10、D15与D16之间的合法短间隙，14.95秒故事时长接近15秒软目标。该安排保留D10至D15的完整发言，并在较长皇帝连续发言组内利用合法间隙分担固定发言负荷；若减少一个片段，后续连续发言、缓慢拉开和起身动作会被集中到接近或超过执行硬上限的单段中。20.95秒位于摄影机从总管连续移回皇帝的过渡内，开场的摄影机运动相位、皇帝端坐姿态及两人既有站位依赖上一片段实际结尾，故为CONTINUOUS。KF5已在边界前建立宝座侧面双人中景、皇帝端坐和总管侍立关系；到边界仅发生同轴轻微侧移与注意重心交接，没有人物换位、场景重置或构图前提破坏，因此可继承该开场构图。此段没有拥有具有增量控制价值的合格定时状态，连续运动文字足以指导轻微构图转移。D10在开端具有从总管转向皇帝的合法交接并随后保持皇帝主视觉支持；D11、D14和D15同样具有完整皇帝主视觉支持，D12具有完整总管主视觉支持，D13是总管到皇帝的合法交接参与。连续的两次交接增加执行注意但已有计划支持，不需要机械增加边界；实际可见性、面部及口部可读性仍未知。",
+          "reason_missing": false,
+          "status": "ABOVE_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D10",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[7]",
+                    "interval": {
+                      "start": 0.1,
+                      "end": 0.35
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[8]",
+                    "interval": {
+                      "start": 0.35,
+                      "end": 2.1
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D11",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[8]",
+                    "interval": {
+                      "start": 2.3,
+                      "end": 5.8
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D12",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[9]",
+                    "interval": {
+                      "start": 6.0,
+                      "end": 7.25
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D13",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[10]",
+                    "interval": {
+                      "start": 7.45,
+                      "end": 7.95
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D14",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 8.15,
+                      "end": 11.9
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D15",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 12.1,
+                      "end": 14.85
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        },
+        "error_message": "PHASE_B_INPUT_NOT_COVERED: ValueError: OWNED_VISUAL_STATE_REQUIRED"
+      },
+      {
+        "clip_index": 4,
+        "start_time": 35.9,
+        "end_time": 49.45,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 3,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF6"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF5",
+          "transition_to_state_id": "KF6",
+          "premise_preserved": true
+        },
+        "reason": "35.9秒边界处于D15结束与D16开始之间，49.45秒边界处于D19结束与D20开始之间，不切开发言；13.55秒故事时长为D16至D19的固定发言、持续权衡、起身和抬手示意保留执行余量。将这一段继续并入后续密集发言与收束动作只会提高整体负荷，而当前切分形成清晰的起身命令构图到达点。开端仍在KF5至KF6的连续侧面轨迹中，皇帝保持宝座上的既有身体状态，摄影机已开始缓慢拉开；其精确取景尺度、重心和两人阻挡关系必须继承上一片段结尾，因此为CONTINUOUS。尽管KF5距边界已有一段时间，过渡明确保持皇帝端坐、总管原位、同一轴线、宝座与大厅纵深关系，缓慢拉开没有重置这些构图前提，故可继承开场。选择KF6作为定时目标，因为皇帝完成起身、站到宝座前并抬手形成完整命令构图，是显著的身体、空间和构图变化，需要相对于长段渐进动作获得明确到达控制。D16至D19均有完整的皇帝主视觉注意支持，且属于同一说话者长段；在D17与D18之间到达KF6不会改变其发言权威或要求额外切分。计划支持不证明实际可见性或面部、口部可读性，这些仍未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 13.55,
+        "execution_status": "PLANNED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          6
+        ],
+        "carry_in_state_index": 5,
+        "dialogue_scope": {
+          "start_time": 35.9,
+          "end_time": 49.45
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-4-KF6"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D16",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "如果那块布真的具有神奇的力量，他一定能够看见。",
+            "emotion_prompt": "自我安慰",
+            "estimated_duration": 5.25,
+            "source_order": 16,
+            "start_time": 36.0,
+            "end_time": 41.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D17",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "传我的命令。",
+            "emotion_prompt": "威严下令",
+            "estimated_duration": 1.25,
+            "source_order": 17,
+            "start_time": 41.45,
+            "end_time": 42.7,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D18",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "请老大臣明天一早去织造室。",
+            "emotion_prompt": "明确命令",
+            "estimated_duration": 3.0,
+            "source_order": 18,
+            "start_time": 42.9,
+            "end_time": 45.9,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D19",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "让他仔细看看布料织得怎么样。",
+            "emotion_prompt": "郑重要求",
+            "estimated_duration": 3.25,
+            "source_order": 19,
+            "start_time": 46.1,
+            "end_time": 49.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "402c937751c08fae2110befbd09cde919da4051b8ac10638ee30c9c7f6acaba4",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D16",
+              "intended_window": {
+                "start": 0.1,
+                "end": 5.35
+              }
+            },
+            {
+              "dialogue_id": "D17",
+              "intended_window": {
+                "start": 5.55,
+                "end": 6.8
+              }
+            },
+            {
+              "dialogue_id": "D18",
+              "intended_window": {
+                "start": 7.0,
+                "end": 10.0
+              }
+            },
+            {
+              "dialogue_id": "D19",
+              "intended_window": {
+                "start": 10.2,
+                "end": 13.45
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 13.55,
+          "fixed_dialogue_duration": 12.75,
+          "overlap_duration": null,
+          "minimum_execution_duration": null,
+          "workflow_budget": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D16",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 0.1,
+                      "end": 5.35
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 5.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-4-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 1.55,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D17",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 5.55,
+                      "end": 6.8
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-4-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 0.1,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D18",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 7.0,
+                      "end": 10.0
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-4-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "before",
+                    "distance_seconds": 0.1,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D19",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 10.2,
+                      "end": 13.45
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-4-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "before",
+                    "distance_seconds": 3.3,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        }
+      },
+      {
+        "clip_index": 5,
+        "start_time": 49.45,
+        "end_time": 60.0,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 4,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF6",
+          "transition_to_state_id": "KF7",
+          "premise_preserved": true
+        },
+        "reason": "在D19与D20之间开始后，本段以10.55秒覆盖至 canonical END，完整保留D20至D24以及皇帝逐项示意、手势收束、总管躬身和摄影机停稳的可见结局；结尾并非重复静止填充，而是包含明确的新动作和最终空间状态。开场处皇帝的连续手势与摄影机后拉已经进行，其手臂动作相位、站位、两人前后关系和当前画幅依赖上一片段实际结尾，故必须CONTINUOUS。KF6已在边界前建立皇帝站于宝座前抬手、总管微倾侍立以及同轴侧面构图；直到49.45秒，有限指向动作和缓慢后拉均保持人物、朝向、宝座、摆钟与空间关系，没有进出或重置，因此可继承该开场前提。KF7为END且不自动选择，过渡文字已充分描述手势收回、总管躬身和宽幅构图停稳，无需额外定时目标。D20至D23均有完整皇帝主视觉支持；D24具有总管主视觉支持并参与由皇帝向总管的合法交接，适合在保留双人关系的更宽构图中完成，不要求机械特写或另加片段。实际说话者可见性及面部、口部可读性仍未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 10.55,
+        "execution_status": "PLANNED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          7
+        ],
+        "carry_in_state_index": 6,
+        "dialogue_scope": {
+          "start_time": 49.45,
+          "end_time": 60.0
+        },
+        "capability": "EXTEND",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D20",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "颜色如何。",
+            "emotion_prompt": "逐项强调",
+            "estimated_duration": 1.0,
+            "source_order": 20,
+            "start_time": 49.55,
+            "end_time": 50.55,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D21",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "花纹如何。",
+            "emotion_prompt": "逐项强调",
+            "estimated_duration": 1.0,
+            "source_order": 21,
+            "start_time": 50.75,
+            "end_time": 51.75,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D22",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "进展如何。",
+            "emotion_prompt": "逐项强调",
+            "estimated_duration": 1.0,
+            "source_order": 22,
+            "start_time": 51.95,
+            "end_time": 52.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D23",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "回来以后，一样一样说给我听。",
+            "emotion_prompt": "严肃期待",
+            "estimated_duration": 3.0,
+            "source_order": 23,
+            "start_time": 53.15,
+            "end_time": 56.15,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D24",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "遵命，陛下。",
+            "emotion_prompt": "恭敬领命",
+            "estimated_duration": 1.0,
+            "source_order": 24,
+            "start_time": 56.35,
+            "end_time": 57.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "402c937751c08fae2110befbd09cde919da4051b8ac10638ee30c9c7f6acaba4",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D20",
+              "intended_window": {
+                "start": 0.1,
+                "end": 1.1
+              }
+            },
+            {
+              "dialogue_id": "D21",
+              "intended_window": {
+                "start": 1.3,
+                "end": 2.3
+              }
+            },
+            {
+              "dialogue_id": "D22",
+              "intended_window": {
+                "start": 2.5,
+                "end": 3.5
+              }
+            },
+            {
+              "dialogue_id": "D23",
+              "intended_window": {
+                "start": 3.7,
+                "end": 6.7
+              }
+            },
+            {
+              "dialogue_id": "D24",
+              "intended_window": {
+                "start": 6.9,
+                "end": 7.9
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 10.55,
+          "fixed_dialogue_duration": 7.0,
+          "overlap_duration": 1.625,
+          "minimum_execution_duration": 8.625,
+          "workflow_budget": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D20",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 0.1,
+                      "end": 1.1
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D21",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 1.3,
+                      "end": 2.3
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D22",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 2.5,
+                      "end": 3.5
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF7"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D23",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[11]",
+                    "interval": {
+                      "start": 3.7,
+                      "end": 6.7
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF7"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D24",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[12]",
+                    "interval": {
+                      "start": 6.9,
+                      "end": 7.9
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF6",
+                "inside_state_ids": [],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF7"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        }
+      }
+    ],
+    "clip_plan_revision": 1,
+    "clip_plan_validation": {
+      "passed": true,
+      "findings": [
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 2 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 3 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 4 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 5 has a non-rounded planned duration."
+        }
+      ],
+      "blocking": [],
+      "review_required": [],
+      "warnings": [
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 2 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 3 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 4 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 5 has a non-rounded planned duration."
+        }
+      ],
+      "dialogue_ownership": {
+        "passed": true,
+        "findings": [],
+        "source_dialogue_count": 24,
+        "assigned_segment_count": 24
+      },
+      "duration_planning_policy": {
+        "preferred_max_duration": 15.0,
+        "preferred_max_is_soft": true,
+        "approval_mode": "AUTO_APPROVE",
+        "min_story_clip_duration": 4.0,
+        "max_story_clip_duration": 20.0,
+        "execution_budgets": {
+          "GENERATE": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "EXTEND": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          },
+          "TEMPORAL_EXTEND": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "VIDEO_CONTINUATION": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          }
+        }
+      },
+      "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+      "composition_contract": "EARLY_COMPOSITION_V2"
+    },
+    "temporal_anchors": [
+      {
+        "anchor_id": "clip-2-KF5",
+        "time_seconds": 9.15,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261017_095330.png",
+        "source": {
+          "type": "KEYFRAME",
+          "id": "KF5",
+          "keyframe_index": 5,
+          "image_task_id": "f85e5cd5-4d53-462c-bd64-ecfd3ad0b9f5"
+        },
+        "description": "Scene: 王宫大厅保持安静，金红色夕光覆盖高背宝座和邻近地面。\nCharacters:\n- 皇帝: 仍坐在宝座上，身体重新挺直，手指停在扶手上，头已抬起，目光清晰地投向宫廷总管，紧绷神情转为冷静果断。\n- 宫廷总管: 面向皇帝站定，姿态恭敬，等待皇帝的示意。\nAction: 摄影机保持宝座侧面的连续中景，皇帝抬起的视线成为构图中心。"
+      },
+      {
+        "anchor_id": "clip-4-KF6",
+        "time_seconds": 6.9,
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261017_043240.png",
+        "source": {
+          "type": "KEYFRAME",
+          "id": "KF6",
+          "keyframe_index": 6,
+          "image_task_id": "95cad2c2-63a5-40f4-9f7b-26a787af6edc"
+        },
+        "description": "Scene: 王宫大厅的高背宝座位于皇帝身后，宫廷摆钟与窗侧余晖留在画面纵深。\nCharacters:\n- 皇帝: 已从宝座起身，站在宝座前侧，肩背舒展，目光坚定地朝向宫廷总管，一只手抬至明确示意的位置。\n- 宫廷总管: 面向皇帝肃立，身体微微前倾，双手恭敬收拢。\nAction: 摄影机沿原有侧面轨迹略微拉开，形成皇帝居前、总管居后的完整命令构图。"
+      }
+    ]
+  },
+  "execution_contract": {
+    "version": 1,
+    "capability": "EXTEND",
+    "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+    "clip": {
+      "clip_id": "0e3cefd9-378b-49c7-b849-5da3b32d1545:clip:3",
+      "clip_index": 3,
+      "clip_plan_revision": 1,
+      "start_seconds": 20.95,
+      "end_seconds": 35.9,
+      "duration_seconds": 14.95
+    },
+    "visual_attention_snapshot": {
+      "version": 1,
+      "projection_version": 1,
+      "time_base": "CLIP_SECONDS",
+      "status": "VALID",
+      "findings": [],
+      "character_catalog": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 0.35,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          },
+          "source_window_index": 7,
+          "source_start_time_seconds": 20.85,
+          "source_end_time_seconds": 21.3,
+          "handoff_progress": {
+            "start": 0.2222222222222222,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 0.35,
+          "end_time_seconds": 6.0,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 8,
+          "source_start_time_seconds": 21.3,
+          "source_end_time_seconds": 26.95
+        },
+        {
+          "start_time_seconds": 6.0,
+          "end_time_seconds": 7.25,
+          "primary_subjects": [
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 9,
+          "source_start_time_seconds": 26.95,
+          "source_end_time_seconds": 28.2
+        },
+        {
+          "start_time_seconds": 7.25,
+          "end_time_seconds": 8.15,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          },
+          "source_window_index": 10,
+          "source_start_time_seconds": 28.2,
+          "source_end_time_seconds": 29.1,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 8.15,
+          "end_time_seconds": 14.95,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 11,
+          "source_start_time_seconds": 29.1,
+          "source_end_time_seconds": 56.2
+        }
+      ],
+      "clip_start_seconds": 20.95,
+      "clip_end_seconds": 35.9,
+      "characters": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管",
+          "subject": "<Subject 2>"
+        }
+      ],
+      "fingerprint": "df50413e8ea641114602957ebdc9327014fb638a3e70e62b186165bb56b08d59",
+      "source": "shots.video_director_plan.visual_attention",
+      "stage": "PROJECTED",
+      "program_owned_section_sha256": null
+    },
+    "previous_clip": {
+      "clip_index": 2,
+      "clip_plan_revision": 1,
+      "generated_by_task_id": "05a83985-4633-4cdd-93d9-e47e0d58272f",
+      "result_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_018_clip_2_05a83985_20261017_100307.mp4",
+      "physical_output": {
+        "frame_count": 515,
+        "fps": 24,
+        "timebase": "1/24",
+        "video_duration": 21.458333333333332,
+        "has_audio": true,
+        "audio_duration": 21.44,
+        "audio_start_time": 0.0,
+        "width": 960,
+        "height": 544,
+        "sha256": "5d30cc55e2bb443b5f121bcfa0ec3a4e85a07590ef40a2b7ebfc054dec9e9d04",
+        "physical_output_role": "NATIVE_CONTINUITY_OUTPUT"
+      },
+      "source_frame_start": 0
+    },
+    "execution_projection": {
+      "continuation_mode": "AUTO",
+      "planned_capability": "EXTEND",
+      "effective_capability": "EXTEND",
+      "effective_temporal_anchors": [],
+      "suppressed_temporal_anchor_ids": [],
+      "suppressed_state_indexes": [],
+      "suppressed_image_urls": [],
+      "planned_clip": {
+        "clip_index": 3,
+        "start_time": 20.95,
+        "end_time": 35.9,
+        "visual_state_indexes": [],
+        "carry_in_state_index": 5,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 2,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF5",
+          "transition_to_state_id": "KF6",
+          "premise_preserved": true
+        },
+        "temporal_anchor_ids": []
+      }
+    }
+  },
+  "manifest": {
+    "version": 1,
+    "references": [
+      {
+        "kind": "SCENE",
+        "source_name": "王宫大厅",
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "name": "王宫大厅"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "slot": 1
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "slot": 3
+      }
+    ],
+    "skipped_references": []
+  },
+  "workflow": {
+    "id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+    "name": "NovelFlow H3 AV 视频续生成 Minimal V1",
+    "type": "VIDEO_CONTINUATION",
+    "workflow_json": "{\n  \"1\": {\n    \"inputs\": {\n      \"noise_seed\": 758007644453984\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#1 RandomNoise\"\n    }\n  },\n  \"2\": {\n    \"inputs\": {\n      \"model\": [\n        \"71\",\n        0\n      ],\n      \"conditioning\": [\n        \"55\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#2 Basic Guider\"\n    }\n  },\n  \"3\": {\n    \"inputs\": {\n      \"noise\": [\n        \"1\",\n        0\n      ],\n      \"guider\": [\n        \"2\",\n        0\n      ],\n      \"sampler\": [\n        \"36\",\n        0\n      ],\n      \"sigmas\": [\n        \"70\",\n        0\n      ],\n      \"latent_image\": [\n        \"23\",\n        0\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#3 Extension 1 - SamplerCustomAdvanced\"\n    }\n  },\n  \"23\": {\n    \"inputs\": {\n      \"context_length\": [\n        \"37\",\n        0\n      ],\n      \"audio_feather_ticks\": [\n        \"96\",\n        0\n      ],\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StartMaskedContext\",\n    \"_meta\": {\n      \"title\": \"#23 H3 Start Masked Context\"\n    }\n  },\n  \"29\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#29 Starter Clip - Load VAE\"\n    }\n  },\n  \"30\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#30 Starter Clip - Load VAE\"\n    }\n  },\n  \"31\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#31 Starter Clip - Load CLIP\"\n    }\n  },\n  \"32\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#32 Starter Clip - Load Diffusion Model\"\n    }\n  },\n  \"36\": {\n    \"inputs\": {\n      \"sampler_name\": \"res_multistep\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#36 KSamplerSelect\"\n    }\n  },\n  \"37\": {\n    \"inputs\": {\n      \"value\": 39\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#37 Int\"\n    }\n  },\n  \"39\": {\n    \"inputs\": {\n      \"frame_rate\": 24,\n      \"loop_count\": 0,\n      \"filename_prefix\": \"h3_preview/extension_01\",\n      \"format\": \"video/h264-mp4\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"pingpong\": false,\n      \"save_output\": true,\n      \"images\": [\n        \"62\",\n        0\n      ],\n      \"audio\": [\n        \"61\",\n        0\n      ]\n    },\n    \"class_type\": \"VHS_VideoCombine\",\n    \"_meta\": {\n      \"title\": \"#39 Extension 1 - VHS Video Combine\"\n    }\n  },\n  \"55\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"107\",\n        0\n      ],\n      \"width\": 960,\n      \"height\": 544,\n      \"length\": [\n        \"106\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"31\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"69\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"68\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"109\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"110\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"111\",\n        0\n      ],\n      \"ref_images.ref_image_5\": [\n        \"112\",\n        0\n      ],\n      \"ref_images.ref_image_6\": [\n        \"113\",\n        0\n      ],\n      \"ref_images.ref_image_7\": [\n        \"114\",\n        0\n      ],\n      \"ref_images.ref_image_8\": [\n        \"115\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#55 Extension 1 - MiniMax H3 Reference to Video\"\n    }\n  },\n  \"56\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#56 Int\"\n    }\n  },\n  \"61\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"102\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#61 VAE Decode Audio\"\n    }\n  },\n  \"62\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#62 VAE Decode\"\n    }\n  },\n  \"65\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"context_frames\": 39,\n      \"video_overlap_frames\": 39,\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"filename_prefix\": \"video/masked_av_extension\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"save_output\": true,\n      \"video_vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ],\n      \"preview_gate\": [\n        \"98\",\n        0\n      ],\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"extension_1\": [\n        \"3\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StreamLiveExtensionAVToVHS\",\n    \"_meta\": {\n      \"title\": \"#65 H3 Stream AV Extensions to VHS\"\n    }\n  },\n  \"66\": {\n    \"inputs\": {\n      \"video\": \"shot_004_20260925_151336.mp4\",\n      \"force_rate\": 24,\n      \"custom_width\": 0,\n      \"custom_height\": 0,\n      \"frame_load_cap\": 0,\n      \"start_time\": 0,\n      \"format\": \"AnimateDiff\"\n    },\n    \"class_type\": \"VHS_LoadVideoFFmpeg\",\n    \"_meta\": {\n      \"title\": \"#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢\"\n    }\n  },\n  \"67\": {\n    \"inputs\": {\n      \"images\": [\n        \"101\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CropTo32\",\n    \"_meta\": {\n      \"title\": \"#67 H3 Crop Source To /32\"\n    }\n  },\n  \"68\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#68 Reference Image 2\"\n    }\n  },\n  \"69\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#69 Reference Image 1\"\n    }\n  },\n  \"70\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": [\n        \"56\",\n        0\n      ],\n      \"denoise\": 1,\n      \"model\": [\n        \"71\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#70 BasicScheduler\"\n    }\n  },\n  \"71\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"72\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#71 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"72\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\n      \"strength_model\": 0.95,\n      \"model\": [\n        \"73\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#72 Starter Clip - LoraLoaderModelOnly\"\n    }\n  },\n  \"73\": {\n    \"inputs\": {\n      \"attention\": \"comfy kitchen attention\",\n      \"model\": [\n        \"32\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelAttentionBackend\",\n    \"_meta\": {\n      \"title\": \"#73 Model Attention Backend\"\n    }\n  },\n  \"93\": {\n    \"inputs\": {\n      \"source_fps\": 24,\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"mode\": [\n        \"97\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SourceAudioPolicy\",\n    \"_meta\": {\n      \"title\": \"#93 H3 Source Audio Policy\"\n    }\n  },\n  \"94\": {\n    \"inputs\": {\n      \"start\": \"Existing Video\"\n    },\n    \"class_type\": \"MiniMaxH3AVStartModeParam\",\n    \"_meta\": {\n      \"title\": \"#94 Start Mode — FIXED Existing Video\"\n    }\n  },\n  \"95\": {\n    \"inputs\": {\n      \"value\": 1\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#95 Active Extensions — FIXED 1\"\n    }\n  },\n  \"96\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#96 Audio Feather — FIXED 8\"\n    }\n  },\n  \"97\": {\n    \"inputs\": {\n      \"source_audio\": \"Keep source audio\"\n    },\n    \"class_type\": \"MiniMaxH3AVSourceAudioModeParam\",\n    \"_meta\": {\n      \"title\": \"#97 Source Audio — FIXED Keep source audio\"\n    }\n  },\n  \"98\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"preview_1\": [\n        \"39\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3LastActiveVHSPreviewBarrier\",\n    \"_meta\": {\n      \"title\": \"#98 H3 Last Active VHS Preview Barrier\"\n    }\n  },\n  \"101\": {\n    \"inputs\": {\n      \"images\": [\n        \"66\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3Validate24FPSVideo\",\n    \"_meta\": {\n      \"title\": \"#101 H3 Validate 24 FPS Video\"\n    }\n  },\n  \"102\": {\n    \"inputs\": {\n      \"audio_vae\": [\n        \"29\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3AudioVAECompatibility\",\n    \"_meta\": {\n      \"title\": \"#102 H3 Audio VAE Compatibility\"\n    }\n  },\n  \"104\": {\n    \"inputs\": {\n      \"text\": \"{\\n    \\\"source_fps\\\": 24.0,\\n    \\\"source_frame_count\\\": 345.12,\\n    \\\"source_duration\\\": 14.38,\\n    \\\"source_width\\\": 864,\\n    \\\"source_height\\\": 480,\\n    \\\"loaded_fps\\\": 24.0,\\n    \\\"loaded_frame_count\\\": 345,\\n    \\\"loaded_duration\\\": 14.375,\\n    \\\"loaded_width\\\": 864,\\n    \\\"loaded_height\\\": 480\\n}\",\n      \"anything\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#104 #-1 Show Any\"\n    }\n  },\n  \"105\": {\n    \"inputs\": {\n      \"value\": 14\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#105 Float(时长秒)\"\n    }\n  },\n  \"106\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"105\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#106 Math Expression\"\n    }\n  },\n  \"107\": {\n    \"inputs\": {\n      \"prompt\": \"dialogue_timeline:\\nThis is the only source of exact spoken text in this prompt.\\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\\n- D3: 皇帝 speaks from 15.0s to 20.18s (5.18s).\\n  exact_dialogue: \\\"“我只需要穿上它，站在所有人面前。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D4: 皇帝 speaks from 20.57s to 26.38s (5.8s).\\n  exact_dialogue: \\\"“看得见的人，自然会称赞它。看不见的人……”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D5: 皇帝 speaks from 23.45s to 28.0s (4.55s).\\n  exact_dialogue: \\\"“谁敢第一个承认自己看不见？”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D6: 皇帝 speaks from 26.26s to 28.0s (1.74s).\\n  exact_dialogue: \\\"“没有人。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D7: 皇帝 speaks from 15.32s to 28.0s (12.68s).\\n  exact_dialogue: \\\"“因为只要他说自己看不见，就等于承认自己愚蠢，或者承认自己根本不配坐在现在的位置上。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\nsilent_characters: 官员1\\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\\n\\nsubject_definitions:\\n\\n<Subject 1> is 皇帝, the middle-aged human male emperor in the purple long robe.\\n<Subject 2> is 官员1, the middle-aged human male court official in the dark court official attire.\\n\\nCharacter names are mapped to Subject labels only in this block. Every later block refers to the people only as <Subject 1> and <Subject 2>.\\n\\nofficial_character_identity_lock:\\n\\nThe referenced Picture (<Picture 1>) is the primary visual authority for the currently established visual identity of every character in this clip. The official character descriptions are identity-preservation constraints used to prevent character drift across frames; they supplement the referenced Picture and must not override clearly visible identity features or the current costume established by the Picture.\\n\\n<Subject 1> is the emperor visible on the left side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 1> come primarily from <Picture 1>. The official description of <Subject 1> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole at the outer end of the left eyebrow, the silver-grey short curly hair with a slightly receded hairline, the light blue almond-shaped eyes with slightly drooping outer corners, the long face with a full forehead and slightly high cheekbones, the clear jawline, the thin lips and the habitually lifted corner of the mouth. Current costume is a separate continuity domain from stable character identity and is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 1> wears the purple long robe established by the authoritative start frame. The dark red velvet long coat with gold embroidered trim, the white silk shirt with lace collar, the white tight trousers, the black leather short boots with gold buckles, the golden crown and the ruby ring belong to the historical/default ceremonial costume recorded only for identity reference and are not the current costume; they must not be restored, layered over, blended with, partially revealed under, or mixed into the purple robe at any moment of this clip.\\n\\n<Subject 2> is the court official visible on the right side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 2> come primarily from <Picture 1>. The official description of <Subject 2> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole above the right eyebrow, the brown short straight hair swept to one side with a little grey at the temples, the dark brown almond-shaped eyes with level outer corners, the square face with a broad forehead and flat cheekbones, the hard jawline, the square chin and the medium-thick lips. Current costume is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 2> wears the dark court official attire established by the authoritative start frame. Any garment, cap, belt, trimming or accessory element that is not clearly visible in <Picture 1> must not be added, restored or blended in during the clip.\\n\\nFor both characters: do not redesign, reinterpret, beautify, age, de-age, recolor or replace the subject. Do not reinterpret shadows, dark lighting, color grading, distance, motion blur or environmental illumination as changes to skin color, hair color or the real color of the current costume. Temporary pose, expression, gaze direction, body orientation, spatial position and physically natural motion may change according to the motion described below. Stable identity features and the current costume must remain consistent from the first frame to the last frame of the clip.\\n\\ninitial_state_anchor:\\n\\n<Picture 1> defines the authoritative initial visual state and the initial composition, environment, lighting, camera framing, character positions, poses, costumes, props, and visual style for this clip. At the beginning of the clip, the frame must naturally continue from <Picture 1> without resetting, swapping, or arbitrarily repositioning the subjects. After motion begins, character positions, poses, gaze directions, body orientations, and framing may evolve naturally only as required by the described actions and camera movement. Stable character identity, body proportions, skin and hair colors, permanent markings, and identity-defining accessories must remain consistent throughout the clip. Current costume continuity is governed by the authoritative Picture and the current Shot Appearance/costume binding, not by conflicting historical/default costume descriptions.\\n\\nsummary:\\n\\nContinuing directly from <Picture 1>, <Subject 1> keeps the right hand raised in a halting gesture and holds the gaze on <Subject 2>, while <Subject 2> opens the mouth as if about to speak, is stopped by the gesture, slowly closes the mouth, freezes for a moment and then stays silent. <Subject 1> speaks the authorized lines in order while slowly pacing two steps from the left of the frame toward the center, then stops on the final line, turns the head toward <Subject 2> and smiles more deeply, while the camera follows and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects. No event outside this clip is introduced.\\n\\ndetailed_description:\\n\\n[Shot 1] The clip begins exactly from <Picture 1> at t=0. <Subject 1> stands on the left side of the frame in the purple long robe, body facing <Subject 2>, right hand already raised in the halting gesture, gaze fixed on <Subject 2>. <Subject 2> stands on the right side in the dark court official attire, body leaning slightly forward, mouth slightly open, watching <Subject 1>. There is no reset of positions, no identity swap, no added character, no change of costume, and no new prop. The scene is the dressing area of the palace hall, with soft mixed overhead and side light creating a light-and-shadow contrast between the two subjects, rendered in stylized 3D animation with clean modeled forms, readable volumes, smooth surface shading, soft bounced light, coherent contact shadows, controlled material roughness, restrained specular highlights, and consistent three-dimensional rendering across characters, environment and props.\\n\\n<Subject 2> begins to open the mouth as if about to speak, but <Subject 1> keeps the raised right hand steady in the stopping gesture and looks directly at <Subject 2>. <Subject 2> is halted by that gesture, slowly closes the mouth, freezes for a moment, and then remains silent for the rest of the clip. <Subject 2> remains completely non-vocal throughout the entire clip, with the mouth naturally closed and only subtle non-vocal breathing and micro-expressions.\\n\\n<Subject 1> speaks while slowly pacing two steps from the left side of the frame toward the center of the frame, the raised right hand gradually lowering into a relaxed, still position, and the gaze of <Subject 1> stays fixed on <Subject 2> throughout. On the final authorized line, <Subject 1> stops walking, turns the head of <Subject 1> toward <Subject 2>, and the smile of <Subject 1> deepens into a cold, satisfied expression held in silence. The camera follows the movement of <Subject 1> and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects as a stable, clearly visible final state. No cut, no hidden edit, no sudden camera repositioning, and no jump in framing, lighting or spatial direction occurs.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D3 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Before the first spoken character, there must be no human vocal sound. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text. Between authorized utterances, <Subject 1> remains non-vocal with no voiced breath, gasp, grunt, hesitation, filler, invented syllable or pseudo-speech.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D4 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D5 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D6 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D7 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Immediately afterward, the speaking <Subject 1> enters a silent post-utterance state, with the mouth naturally settled into a non-speaking state while the cold, satisfied expression is held silently. Natural Chinese lip synchronization applies only during the exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\n<Subject 2> never speaks and never produces any human vocal sound at any moment of the clip. No character name, Subject label, role label or metadata token is ever vocalized.\\n\\noverall_soundscape:\\n\\nInterior palace hall room tone with a soft, slightly reverberant pre-modern court ambience; synchronized Foley of cloth rustle from the purple long robe of <Subject 1>, soft footsteps on the stone floor while <Subject 1> paces two steps, subtle shifting of the dark official attire of <Subject 2>, and faint air movement in the large hall. The only human voice in the entire clip is the exact authorized Chinese dialogue of <Subject 1> listed above, delivered with confident, drawn-out, cold and satisfied delivery as marked, and ending immediately after the final authorized character with no trailing vocalization. No dialogue, no speech, no human vocalization from <Subject 2>, no background voices, no crowd murmur or chatter, no whispering, no laughter, no grunts, no sighs, no babble, no pseudo-speech and no invented syllables from any other source. No narration and no non-diegetic music. The audio track must NOT be silent: environmental ambience and synchronized natural action sounds remain audible throughout the clip, and character silence must NOT suppress ambience or Foley.\"\n    },\n    \"class_type\": \"CR Prompt Text\",\n    \"_meta\": {\n      \"title\": \"#107 #-1 ⚙️ CR Prompt Text(提示词)\"\n    }\n  },\n  \"108\": {\n    \"inputs\": {\n      \"text\": \"345\",\n      \"anything\": [\n        \"106\",\n        1\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#108 #-1 Show Any\"\n    }\n  },\n  \"109\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#109 Reference Image 3\"\n    }\n  },\n  \"110\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#110 Reference Image 4\"\n    }\n  },\n  \"111\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#111 Reference Image 5\"\n    }\n  },\n  \"112\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#112 Reference Image 6\"\n    }\n  },\n  \"113\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#113 Reference Image 7\"\n    }\n  },\n  \"114\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#114 Reference Image 8\"\n    }\n  },\n  \"115\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#115 Reference Image 9\"\n    }\n  },\n  \"99\": {\n    \"inputs\": {\n      \"filenames\": [\n        \"65\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3FinalizeVHSOutput\",\n    \"_meta\": {\n      \"title\": \"#99 H3 Final Stream Output Sink\"\n    }\n  }\n}\n",
+    "node_mapping": "{\"load_video_node_id\": \"66\", \"duration_seconds_node_id\": \"105\", \"prompt_node_id\": \"107\", \"video_save_node_id\": \"65\", \"load_image_node_1\": \"69\", \"load_image_node_2\": \"68\", \"load_image_node_3\": \"109\", \"load_image_node_4\": \"110\", \"load_image_node_5\": \"111\", \"load_image_node_6\": \"112\", \"load_image_node_7\": \"113\", \"load_image_node_8\": \"114\", \"load_image_node_9\": \"115\", \"reference_to_video_node_id\": \"55\"}",
+    "extension": "{\"workflow_capability\": \"TEMPORAL_EXTEND\"}"
+  },
+  "character_appearances": {
+    "皇帝": "单一主体全身照，一名约五十五岁的人类男性君主，气质讲究、威严中带着明显的虚荣感，身高约一百七十五厘米，体态略丰腴，腰腹圆润而肩背尚挺，四肢完整并从头到脚清晰可见；脸型偏宽的椭圆形，中庭适中，额头高而饱满，颧骨柔和，下颌圆厚，下巴短，左眼下方有一颗细小褐痣；眼睛为浅蓝灰色中等大小的双眼皮眼，外眼角微垂，眼型与眼睛颜色不得改变；鼻梁高而略带弧度，鼻尖圆润，鼻翼较窄，鼻孔细小向下；嘴唇偏薄，天然嘴角略向下，中性展示时牙齿不可见；皮肤为偏冷的浅肤色，眼周与额头有细密年龄纹；银灰色微卷头发长度及耳并向后梳，发际线后移，留有修整精致的银灰色短络腮胡与小尖须；稳定身份标记包括浅蓝灰色微垂眼、左眼下褐痣、后移发际线、银灰短须和略丰腴体态；基础造型采用欧洲童话式前现代宫廷礼服，头戴固定于头顶中央的金色小型王冠，上身穿宝蓝色天鹅绒长礼服与金线滚边象牙白衬衫，肩披深红色短斗篷，下身穿深蓝色及膝裤、白色长袜和带金色搭扣的黑色低跟宫廷鞋，试穿紫袍等情境服装不作为永久造型；以自然中性站姿展示，双手、双腿和鞋袜完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓、胡须形状与全部独特标记一致，禁止改变物种、年龄段与男性君主气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故增加配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+    "宫廷总管": "单一主体全身照，一名约四十八岁的人类男性宫廷总管，气质谨慎、干练而克制，身高约一百七十三厘米，体型清瘦，肩线端正，四肢完整并从头到脚清晰可见；脸型瘦削偏长，额头高，中庭较长，颧骨清楚，下颌线锐利，下巴略向前，右侧太阳穴有一块指尖大小的浅褐色斑；眼睛为深蓝灰色狭长内双眼，外眼角略下垂，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄而稍向下，鼻翼薄，鼻孔细小；嘴唇薄，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，眼下有轻微阴影和细纹；深灰色直发整齐向后梳并束成短低发束，发际线略后移，留有修整整齐的深灰色短山羊胡；稳定身份标记包括清瘦长脸、深蓝灰色狭长眼、右太阳穴浅褐斑和短山羊胡；基础服装为欧洲童话式前现代高级宫廷官员服饰，上身穿黑紫色长外套、银灰刺绣背心与白色高领衬衫，下身穿黑色及膝裤、深灰长袜和黑色银扣宫廷鞋，胸前左侧固定佩戴一枚小型银质王室职务徽章；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型和胡须轮廓以及全部标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机伤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切或肢体残缺。"
+  },
+  "props": [
+    {
+      "name": "宫廷摆钟",
+      "description": "宫殿安静时能够听见钟摆轻轻走动声的计时器具，其规律声响衬托出皇帝担心自己看不见神奇布料时的紧张。"
+    },
+    {
+      "name": "高背宝座",
+      "description": "皇帝在宫廷大厅接见两名骗子时所坐的宝座，后来他也曾坐在宝座旁敲击扶手思考如何检验神奇布料。"
+    }
+  ]
+}

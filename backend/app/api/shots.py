@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 """
 
 import json
+from app.services.video_result_mode import ResultMode, result_mode, is_candidate, freeze_candidate_source, applied_task_filter
 import gzip
 import math
 import asyncio
@@ -29,6 +30,8 @@ from pydantic import BaseModel
 from app.services.director_context import effective_visual_states, transition_input_contract
 from app.constants.prompt_template import TRANSITION_INPUT_V1, TRANSITION_INPUT_V2
 from app.constants.h3_prompt_pipeline import DEFAULT_H3_PROMPT_PIPELINE, persisted_h3_prompt_pipeline
+from app.services.effective_execution import ContinuationMode, continuation_mode, project_effective_execution, projection_record
+from app.services.h3_prompt_language import UNSET_LANGUAGE, new_task_language, task_language
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
@@ -391,6 +394,8 @@ class BatchShotImageRequest(BaseModel):
 
 
 class BatchShotVideoRequest(BaseModel):
+    video_prompt_language: Optional[Literal["en", "zh"]] = None
+    continuation_mode: ContinuationMode = "AUTO"
     h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     shot_ids: list[str]
     auto_complete_details: bool = True
@@ -404,6 +409,9 @@ class BatchShotVideoRequest(BaseModel):
 
 
 class SemanticClipGenerateRequest(BaseModel):
+    video_prompt_language: Optional[Literal["en", "zh"]] = None
+    result_mode: ResultMode = "APPLY"
+    continuation_mode: ContinuationMode = "AUTO"
     h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     preflight_auto_repair: Optional[bool] = None
     use_reference_audio: bool = True
@@ -3026,6 +3034,9 @@ async def generate_video_director_clip(
         return await execute_semantic_clip(
             novel_id, chapter_id, shot_id, window_index,
             SemanticClipGenerateRequest(
+                result_mode=request.result_mode,
+                video_prompt_language=request.video_prompt_language,
+                continuation_mode=request.continuation_mode,
                 h3_prompt_pipeline=request.h3_prompt_pipeline,
                 use_reference_audio=request.use_reference_audio,
                 auto_merge=request.auto_merge,
@@ -3110,8 +3121,8 @@ async def generate_video_director_clip(
     return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
 
-def _ensure_required_physical_images(shot, plan, clip_indexes=None):
-    missing = [item for item in project_required_execution_images(shot, plan, clip_indexes=clip_indexes)
+def _ensure_required_physical_images(shot, plan, clip_indexes=None, *, continuation_mode="AUTO"):
+    missing = [item for item in project_required_execution_images(shot, plan, clip_indexes=clip_indexes, continuation_mode=continuation_mode)
                if not item["ready"]]
     if missing:
         raise HTTPException(status_code=409, detail={
@@ -3135,8 +3146,13 @@ async def _execute_phase_b_semantic_clip(
     chapter_repo: ChapterRepository,
     task_repo: TaskRepository,
     shot_repo: ShotRepository,
+    *,
+    _frozen_prompt_language=UNSET_LANGUAGE,
 ):
-    """Execute one explicit semantic Clip through the Phase B GENERATE path."""
+    """Execute one explicit semantic Clip through the formal physical route."""
+    candidate = request.result_mode == "CANDIDATE_ONLY"
+    if candidate and request.h3_prompt_pipeline != "phase_b":
+        raise HTTPException(status_code=400, detail="CANDIDATE_ONLY_REQUIRES_PHASE_B: 候选保存当前支持正式 Phase B Clip 链路")
     novel = novel_repo.get_by_id(novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     shot = shot_repo.get_by_id(shot_id)
@@ -3154,12 +3170,17 @@ async def _execute_phase_b_semantic_clip(
         raise HTTPException(status_code=409, detail="Clip 计划 revision 已变化，请重新加载并重试")
 
     _require_attention_execution_freshness(plan, clip)
+    try:
+        projection = project_effective_execution(plan, clip, request.continuation_mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if plan.get("canonical_visual_plan") is True:
-        readiness = get_canonical_execution_readiness(shot, plan, [clip])
+        readiness = get_canonical_execution_readiness(shot, plan, [clip], continuation_mode=request.continuation_mode)
         if not readiness["ready"]:
             raise HTTPException(status_code=409, detail=readiness["blocking_clips"][0])
-        _ensure_required_physical_images(shot, plan, [window_index])
+        _ensure_required_physical_images(shot, plan, [window_index], continuation_mode=request.continuation_mode)
 
+    clip = projection["effective_clip"]
     raw_capability = str(clip.get("capability") or "")
     capability = raw_capability
     if capability == "VIDEO_CONTINUATION":
@@ -3230,6 +3251,7 @@ async def _execute_phase_b_semantic_clip(
             raise HTTPException(status_code=400, detail="PREVIOUS_AV_UNAVAILABLE")
         raise HTTPException(status_code=400, detail=str(exc))
 
+    compiled["execution_contract"]["execution_projection"] = projection_record(projection)
     if capability == "EXTEND":
         workflow = WorkflowRepository(db).get_by_id(EXTEND_WORKFLOW_ID)
         if not workflow or not workflow.is_active or workflow.type != EXTEND_PHYSICAL_WORKFLOW_TYPE:
@@ -3258,6 +3280,8 @@ async def _execute_phase_b_semantic_clip(
             and int(active_metadata.get("clip_index") or 0) == window_index
             and int(active_metadata.get("clip_plan_revision") or 0) == int(request.clip_plan_revision)
         ):
+            if result_mode(active_metadata) != request.result_mode:
+                raise HTTPException(status_code=409, detail="该 Clip 正在执行不同的结果保存策略，请等待当前任务结束")
             return {"success": True, "message": "该 Clip 已有进行中的生成任务", "data": {"taskId": active.id, "status": active.status}}
 
     try:
@@ -3279,6 +3303,11 @@ async def _execute_phase_b_semantic_clip(
     if request.skip_llm_when_prompt_exists and request.h3_prompt_pipeline == "legacy" and not reusable_prompt.strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
 
+    prompt_language = None
+    if request.h3_prompt_pipeline == "phase_b":
+        prompt_language = (new_task_language(db, request.video_prompt_language)
+                          if _frozen_prompt_language is UNSET_LANGUAGE else _frozen_prompt_language)
+
     task = task_repo.create_shot_video_task(
         novel_id=novel_id,
         chapter_id=chapter_id,
@@ -3289,11 +3318,18 @@ async def _execute_phase_b_semantic_clip(
         workflow_name=workflow.name,
         shot_id=shot.id,
     )
-    task.name = f"生成视频 Clip: 镜{shot.index} · C{window_index}"
+    task.name = f"{'实验候选' if candidate else '生成视频 Clip'}: 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成 Clip {window_index}"
     metadata = {
         "execution_scope": "CLIP",
+        "video_prompt_language": prompt_language,
         "h3_prompt_pipeline": request.h3_prompt_pipeline,
+        "result_mode": request.result_mode,
+        "continuation_mode": request.continuation_mode,
+        "execution_projection": projection_record(projection),
+        "planned_capability": projection["planned_capability"],
+        "effective_capability": projection["effective_capability"],
+        "suppressed_temporal_anchor_ids": projection["suppressed_temporal_anchor_ids"],
         "phase_b_generate": capability == "GENERATE",
         "clip_id": f"{shot.id}:clip:{window_index}",
         "clip_index": window_index,
@@ -3324,8 +3360,10 @@ async def _execute_phase_b_semantic_clip(
     metadata["prompt_text"] = reusable_prompt
     if request.h3_prompt_pipeline == "phase_b":
         metadata.update(optimize_h3_prompt=False, preflight_auto_repair=False)
+    if candidate:
+        metadata.update(freeze_candidate_source(shot, plan, compiled))
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-    if not plan.get("dialogue_timeline_source"):
+    if not candidate and not plan.get("dialogue_timeline_source"):
         plan["dialogue_timeline_source"] = resolved_timeline
         plan["dialogue_timeline_status"] = resolved_status
         shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
@@ -3374,6 +3412,7 @@ async def _regenerate_semantic_video_director_clip(
         previous = task_repo.db.query(Task).filter(
             Task.type == "shot_video",
             Task.shot_id == shot.id,
+            applied_task_filter(),
             Task.metadata_json.like(f'%"clip_index": {window_index - 1}%'),
             Task.metadata_json.like(f'%"clip_plan_revision": {int(plan.get("clip_plan_revision") or 0)}%'),
             Task.status == "completed",
@@ -3729,6 +3768,7 @@ async def _wait_for_semantic_shot_final(db, batch_child: Task, shot: Shot, initi
         semantic_tasks = db.query(Task).filter(
             Task.shot_id == shot.id,
             Task.type == "shot_video",
+            applied_task_filter(),
             Task.metadata_json.like(f'%"execution_scope": "CLIP"%'),
             Task.metadata_json.like(f'%"clip_plan_revision": {revision}%'),
         ).all()
@@ -3784,6 +3824,7 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
         semantic_tasks = db.query(Task).filter(
             Task.shot_id == shot.id,
             Task.type == "shot_video",
+            applied_task_filter(),
             Task.metadata_json.like('%%"execution_scope": "CLIP"%%'),
         ).all()
         for task in semantic_tasks:
@@ -3832,6 +3873,7 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
     tasks = db.query(Task).filter(
         Task.shot_id == shot.id,
         Task.type == "shot_video",
+        applied_task_filter(),
         Task.metadata_json.like('%"execution_scope": "CLIP"%'),
         Task.metadata_json.like(f'%"clip_plan_revision": {revision}%'),
     ).order_by(Task.created_at.asc()).all()
@@ -4010,7 +4052,7 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
     return await _wait_for_semantic_shot_final(db, batch_child, shot, plan)
 
 
-def _semantic_batch_clips(shot: Shot, revision: int) -> list[dict]:
+def _semantic_batch_clips(shot: Shot, revision: int, *, continuation_mode="AUTO") -> list[dict]:
     plan = _safe_json_dict(shot.video_director_plan)
     if int(plan.get("clip_plan_revision") or 0) != int(revision):
         raise RuntimeError("BATCH_CLIP_PLAN_REVISION_STALE")
@@ -4018,7 +4060,7 @@ def _semantic_batch_clips(shot: Shot, revision: int) -> list[dict]:
     if not clips or not (plan.get("clip_plan_validation") or {}).get("passed"):
         raise RuntimeError("Semantic Clip Plan 缺失或未通过校验")
     if plan.get("canonical_visual_plan") is True:
-        readiness = get_canonical_execution_readiness(shot, plan)
+        readiness = get_canonical_execution_readiness(shot, plan, continuation_mode=continuation_mode)
         if not readiness["ready"]:
             raise RuntimeError(readiness["code"])
     ordered = sorted(clips, key=lambda item: int(item.get("clip_index") or 0))
@@ -4036,7 +4078,7 @@ def _semantic_clip_tasks(db: Session, shot: Shot, revision: int) -> list[Task]:
     tasks = []
     for task in db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_video").all():
         metadata = _safe_json_dict(task.metadata_json)
-        if metadata.get("execution_scope") == "CLIP" and int(metadata.get("clip_plan_revision") or 0) == int(revision):
+        if not is_candidate(metadata) and metadata.get("execution_scope") == "CLIP" and int(metadata.get("clip_plan_revision") or 0) == int(revision):
             tasks.append(task)
     return tasks
 
@@ -4159,7 +4201,8 @@ async def _prepare_automatic_shot(db: Session, parent: Task, child: Task, shot: 
     if not stage("准备必要视觉状态图片"):
         return False
     result = await prepare_shot_required_images(novel_id, chapter_id, shot.id,
-        PrepareRequiredImagesRequest(clip_plan_revision=revision), db,
+        PrepareRequiredImagesRequest(clip_plan_revision=revision,
+            continuation_mode=continuation_mode(_safe_json_dict(child.metadata_json))), db,
         NovelRepository(db), ChapterRepository(db), TaskRepository(db), WorkflowRepository(db),
         ShotRepository(db), PromptTemplateRepository(db), LLMService())
     items = result.get("data", {}).get("items", [])
@@ -4175,7 +4218,7 @@ async def _prepare_automatic_shot(db: Session, parent: Task, child: Task, shot: 
             if not task or task.status != "completed":
                 raise RuntimeError(f"REQUIRED_IMAGE_FAILED: {task.error_message if task else item}")
     db.refresh(shot)
-    _semantic_batch_clips(shot, revision)
+    _semantic_batch_clips(shot, revision, continuation_mode=continuation_mode(_safe_json_dict(child.metadata_json)))
     return stage("按依赖生成 Clip")
 
 
@@ -4191,7 +4234,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
     batch_metadata = _safe_json_dict(batch_child.metadata_json)
     revision = int(batch_metadata.get("clip_plan_revision") or 0)
     auto_assemble = bool(batch_metadata.get("auto_assemble", True))
-    clips = _semantic_batch_clips(shot, revision)
+    clips = _semantic_batch_clips(shot, revision, continuation_mode=continuation_mode(batch_metadata))
     tasks = _semantic_clip_tasks(db, shot, revision)
 
     def stopped():
@@ -4271,6 +4314,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                     index,
                     SemanticClipGenerateRequest(
                         h3_prompt_pipeline=route,
+                        continuation_mode=continuation_mode(batch_metadata),
                         use_reference_audio=bool(batch_metadata.get("use_reference_audio", True)),
                         auto_merge=False,
                         skip_llm_when_prompt_exists=bool(batch_metadata.get("skip_llm_when_prompt_exists", False)
@@ -4286,6 +4330,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                     ChapterRepository(db),
                     TaskRepository(db),
                     ShotRepository(db),
+                    _frozen_prompt_language=task_language(batch_metadata),
                 )
                 execution_task_id = ((execution_result or {}).get("data") or {}).get("taskId")
                 execution_task = db.query(Task).filter(Task.id == execution_task_id).first() if execution_task_id else None
@@ -4310,7 +4355,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
             return "cancelled" if batch_task.status == "cancelled" else "paused"
         db.expire_all()
         shot = db.query(Shot).filter(Shot.id == batch_child.shot_id).first()
-        clips = _semantic_batch_clips(shot, revision)
+        clips = _semantic_batch_clips(shot, revision, continuation_mode=continuation_mode(batch_metadata))
         current = next(item for item in clips if int(item.get("clip_index") or 0) == index)
         try:
             validate_artifact(db, shot, current, revision, batch_child.novel_id, batch_child.chapter_id)
@@ -4598,12 +4643,12 @@ async def generate_shot_videos_batch(
                             for clip in plan["clip_plan"] if isinstance(clip, dict)):
             _reject_retired_h3_entry()
         if semantic and plan.get("canonical_visual_plan") is True and not (data.automatic_shot or data.auto_complete_details):
-            readiness = get_canonical_execution_readiness(shot, plan)
+            readiness = get_canonical_execution_readiness(shot, plan, continuation_mode=data.continuation_mode)
             if not readiness["ready"]:
                 detail = dict(readiness["blocking_clips"][0])
                 detail.update({"shot_id": shot.id, "shot_index": shot.index})
                 raise HTTPException(status_code=409, detail=detail)
-            _ensure_required_physical_images(shot, plan)
+            _ensure_required_physical_images(shot, plan, continuation_mode=data.continuation_mode)
         if not shot.image_url and not data.automatic_shot:
             raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
         selected_shots.append({
@@ -4622,6 +4667,8 @@ async def generate_shot_videos_batch(
 
     modes = {item["batch_mode"] for item in selected_shots}
     batch_mode = next(iter(modes)) if len(modes) == 1 else "MIXED"
+    prompt_language = (new_task_language(db, data.video_prompt_language)
+                       if data.h3_prompt_pipeline == "phase_b" else None)
 
     batch_task = Task(
         **({"id": automatic_id} if automatic_id else {}),
@@ -4643,6 +4690,8 @@ async def generate_shot_videos_batch(
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
             "h3_prompt_pipeline": data.h3_prompt_pipeline,
+            "video_prompt_language": prompt_language,
+            "continuation_mode": data.continuation_mode,
             "preflight_auto_repair": preflight_auto_repair,
             "force_rerun": data.force_rerun,
             "auto_assemble": data.auto_assemble,
@@ -4682,6 +4731,8 @@ async def generate_shot_videos_batch(
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
             "h3_prompt_pipeline": data.h3_prompt_pipeline,
+            "video_prompt_language": prompt_language,
+            "continuation_mode": data.continuation_mode,
             "preflight_auto_repair": preflight_auto_repair,
             "batch_force_rerun": data.force_rerun,
             "batch_mode": "SEMANTIC_CLIP" if any(item["shot_id"] == shot.id and item["batch_mode"] == "SEMANTIC_CLIP" for item in selected_shots) else "LEGACY_SHOT",
@@ -6636,7 +6687,7 @@ def write_shot_video_materials_package(db, novel, chapter, shot, selected, zip_b
             for task in clip_tasks:
                 metadata = safe_json(task.metadata_json, {})
                 if (
-                    metadata.get("execution_scope") != "CLIP"
+                    is_candidate(metadata) or metadata.get("execution_scope") != "CLIP"
                     or int(metadata.get("clip_plan_revision") or 0) != revision
                 ):
                     continue
@@ -6748,6 +6799,7 @@ async def get_shot(
     shot_repo: ShotRepository = Depends(get_shot_repo),
     db: Session = Depends(get_db),
     include_ai_history: bool = True,
+    continuation_mode: ContinuationMode = "AUTO",
 ):
     """
     获取单个分镜详情
@@ -6786,7 +6838,7 @@ async def get_shot(
 
     db_ms = (perf_counter() - db_started) * 1000
     projection_started = perf_counter()
-    data = shot_repo.to_response(shot, include_ai_history=include_ai_history)
+    data = shot_repo.to_response(shot, include_ai_history=include_ai_history, continuation_mode=continuation_mode)
     return _shot_read_response({
         "success": True,
         "data": data,
@@ -7726,6 +7778,7 @@ async def set_reference_audio(
 
 
 class PrepareRequiredImagesRequest(BaseModel):
+    continuation_mode: ContinuationMode = "AUTO"
     clip_plan_revision: int
     clip_indexes: list[int] | None = None
     state_indexes: list[int] | None = None
@@ -7767,12 +7820,13 @@ async def prepare_shot_required_images(
 
     try:
         items = await prepare_required_images(db, shot, request.clip_plan_revision,
-            submit_keyframe, submit_start, clip_indexes=request.clip_indexes, state_indexes=request.state_indexes)
+            submit_keyframe, submit_start, clip_indexes=request.clip_indexes, state_indexes=request.state_indexes,
+            continuation_mode=request.continuation_mode)
     except CanonicalExecutionConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {'success': True, 'data': {'items': items, 'shot': shot_repo.to_response(shot)}}
+    return {'success': True, 'data': {'items': items, 'shot': shot_repo.to_response(shot, continuation_mode=request.continuation_mode)}}
 
 
 @router.get('/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/auto-generation', response_model=dict)
@@ -7792,13 +7846,20 @@ def get_shot_auto_generation(novel_id: str, chapter_id: str, shot_id: str, db: S
     }}
 
 
+class AutoGenerationRequest(BaseModel):
+    continuation_mode: ContinuationMode = "AUTO"
+    video_prompt_language: Optional[Literal["en", "zh"]] = None
+
+
 @router.post('/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/auto-generation/{action}', response_model=dict)
 async def control_shot_auto_generation(novel_id: str, chapter_id: str, shot_id: str, action: str,
-                                       db: Session = Depends(get_db)):
+                                       db: Session = Depends(get_db), request: AutoGenerationRequest = AutoGenerationRequest()):
     state = get_shot_auto_generation(novel_id, chapter_id, shot_id, db)['data']
     if action == 'start':
         return await generate_shot_videos_batch(novel_id, chapter_id,
-            BatchShotVideoRequest(shot_ids=[shot_id], automatic_shot=True, use_reference_audio=False),
+            BatchShotVideoRequest(shot_ids=[shot_id], automatic_shot=True, use_reference_audio=False,
+                                  continuation_mode=request.continuation_mode,
+                                  video_prompt_language=request.video_prompt_language),
             db, NovelRepository(db), ChapterRepository(db), ShotRepository(db))
     if action not in {'pause', 'resume'} or not state:
         raise HTTPException(status_code=400, detail='自动生成任务或操作不存在')

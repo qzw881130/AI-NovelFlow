@@ -1,7 +1,7 @@
 """应用配置 - 支持从环境变量和数据库加载"""
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: Optional[int] = 393216  # 最大token数
     LLM_TEMPERATURE: Optional[str] = None  # 温度参数
     LLM_TIMEOUT: Optional[int] = 1800  # 请求超时（秒），默认 30 分钟
+    VIDEO_PROMPT_LANGUAGE: Literal["en", "zh"] = "en"
     
     # Proxy Configuration (代理配置)
     PROXY_ENABLED: bool = False
@@ -79,6 +80,8 @@ def reload_settings_from_db(db_config: dict) -> None:
         _settings_instance = Settings()
     
     # 更新配置
+    if "video_prompt_language" in db_config:
+        _settings_instance.VIDEO_PROMPT_LANGUAGE = db_config["video_prompt_language"]
     if db_config.get("llm_provider"):
         _settings_instance.LLM_PROVIDER = db_config["llm_provider"]
     if db_config.get("llm_model"):

@@ -62,18 +62,23 @@ def _task_summary_query(db: Session, *, status_only: bool):
         Task.comfyui_prompt_id, Task.created_at, Task.started_at,
         Task.completed_at, Task.updated_at,
     ]
+    safe_metadata = case(
+        (func.json_valid(Task.metadata_json) == 1, Task.metadata_json), else_="{}"
+    )
+    # Even lightweight polling must distinguish candidates from official output.
+    columns.append(func.coalesce(func.json_extract(safe_metadata, "$.result_mode"), "APPLY").label("result_mode"))
     if not status_only:
-        safe_metadata = case(
-            (func.json_valid(Task.metadata_json) == 1, Task.metadata_json), else_="{}"
-        )
         for key in (
-            "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline",
+            "candidate_result", "source_revision", "source_clip_plan_fingerprint",
+            "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline", "video_prompt_language",
             "approval_status", "approval_mode", "artifact_kind", "capability",
             "planned_duration", "actual_duration", "assembled_media_duration",
             "assembled_result", "physical_output", "clip_playback",
             "dialogue_assignment", "previous_approved_task_id",
             "previous_approved_video_url", "previous_approved_video_source",
             "comfyui_error",
+            "continuation_mode", "planned_capability", "effective_capability",
+            "execution_projection", "suppressed_temporal_anchor_ids",
             "execution_contract.capability", "execution_contract.artifact_kind",
             "execution_contract.previous_clip", "execution_contract.temporal_anchor_manifest.anchors",
         ):
@@ -89,7 +94,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
     for row in rows:
         value = row._mapping
         task = {
-            "id": value["id"], "type": value["type"], "status": value["status"],
+            "id": value["id"], "type": value["type"], "status": value["status"], "resultMode": value["result_mode"],
             "name": value["name"], "progress": value["progress"],
             "currentStep": value["current_step"], "resultUrl": value["result_url"],
             "errorMessage": value["error_message"], "shotId": value["shot_id"],
@@ -102,13 +107,16 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
         }
         if not status_only:
             execution = {key: value[key] for key in (
-                "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline",
+                "result_mode", "source_revision", "source_clip_plan_fingerprint",
+                "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline", "video_prompt_language",
                 "approval_status", "approval_mode", "artifact_kind", "capability",
                 "planned_duration", "actual_duration", "assembled_media_duration",
                 "previous_approved_task_id", "previous_approved_video_url",
                 "previous_approved_video_source",
+                "continuation_mode", "planned_capability", "effective_capability",
             ) if value[key] is not None}
-            for key in ("assembled_result", "physical_output", "clip_playback", "dialogue_assignment"):
+            for key in ("candidate_result", "assembled_result", "physical_output", "clip_playback", "dialogue_assignment",
+                        "execution_projection", "suppressed_temporal_anchor_ids"):
                 if value[key] is not None:
                     execution[key] = _json_value(value[key])
             previous_clip = _json_value(value["execution_contract__previous_clip"])

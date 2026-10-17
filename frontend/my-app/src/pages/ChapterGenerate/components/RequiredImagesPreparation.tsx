@@ -2,37 +2,38 @@ import { useEffect, useState } from 'react';
 import { shotsApi, type Shot, type PrepareRequiredImageItem } from '../../../api/shots';
 import { canPrepareMaterials, prepareCurrentRequiredImages, requiredImagesForClip, requiredImageStatus } from '../requiredImagePreparation';
 
-export function RequiredImagesPreparation({ shot, novelId, chapterId, clipIndex, onShot, hidePrepare = false }: {
-  shot: Shot; novelId?: string; chapterId?: string; clipIndex?: number; onShot: (shot: Shot) => void; hidePrepare?: boolean;
+export function RequiredImagesPreparation({ shot, novelId, chapterId, clipIndex, onShot, continuationMode: selectedMode, hidePrepare = false }: {
+  shot: Shot; novelId?: string; chapterId?: string; clipIndex?: number; onShot: (shot: Shot) => void; hidePrepare?: boolean; continuationMode?: import('../../../api/shots').ContinuationMode;
 }) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<PrepareRequiredImageItem[]>([]);
   const [error, setError] = useState('');
+  const continuationMode = selectedMode || shot.videoDirectorPlan?.execution_policy?.continuation_mode || 'AUTO';
   const items = requiredImagesForClip(shot, clipIndex);
   const active = items.some(i => i.active_task);
   const revision = shot.videoDirectorPlan?.clip_plan_revision;
-  useEffect(() => { setResults([]); setError(''); }, [shot.id, revision]);
+  useEffect(() => { setResults([]); setError(''); }, [shot.id, revision, continuationMode]);
   useEffect(() => {
     if (!active || !novelId || !chapterId) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const response = await shotsApi.getShot(novelId, chapterId, shot.id);
+        const response = await shotsApi.getShot(novelId, chapterId, shot.id, undefined, false, continuationMode);
         if (!stopped && response.success && response.data) onShot(response.data);
       } catch { /* Keep polling; a failed GET is not an image failure. */ }
       if (!stopped) timer = setTimeout(poll, 2000);
     };
     timer = setTimeout(poll, 2000);
     return () => { stopped = true; clearTimeout(timer); };
-  }, [active, novelId, chapterId, shot.id, revision, onShot]);
+  }, [active, novelId, chapterId, shot.id, revision, continuationMode, onShot]);
   const prepare = async (stateIndex?: number) => {
     if (!novelId || !chapterId) return;
     setBusy(true); setError('');
     try {
       const result = await prepareCurrentRequiredImages(shot, clipIndex == null ? undefined : [clipIndex], stateIndex == null ? undefined : [stateIndex], {
-        getShot: async () => { const r = await shotsApi.getShot(novelId, chapterId, shot.id); if (!r.success || !r.data) throw new Error('读取分镜失败'); return r.data; },
-        prepare: async (revision, clips, states) => { const r = await shotsApi.prepareRequiredImages(novelId, chapterId, shot.id, revision, clips, states); if (!r.success || !r.data) throw new Error('图片准备失败'); return r.data; },
+        getShot: async () => { const r = await shotsApi.getShot(novelId, chapterId, shot.id, undefined, false, continuationMode); if (!r.success || !r.data) throw new Error('读取分镜失败'); return r.data; },
+        prepare: async (revision, clips, states) => { const r = await shotsApi.prepareRequiredImages(novelId, chapterId, shot.id, revision, clips, states, continuationMode); if (!r.success || !r.data) throw new Error('图片准备失败'); return r.data; },
         onShot,
       });
       setResults(result);

@@ -33,6 +33,7 @@ export interface SystemConfig {
   llmTemperature?: string;  // 温度参数
   llmTimeout?: number;  // 请求超时（秒）
   autoImageReviewEnabled?: boolean;
+  videoPromptLanguage?: 'en' | 'zh';
   
   // 代理配置
   proxy: ProxyConfig;
@@ -292,6 +293,13 @@ export interface VideoDirectorTaskClip {
 }
 
 export interface ClipExecutionMetadata {
+  video_prompt_language?: 'en' | 'zh' | null;
+  result_mode?: NonNullable<ApiTask['clipExecution']>['result_mode'];
+  candidate_result?: NonNullable<ApiTask['clipExecution']>['candidate_result'];
+  planned_capability?: string;
+  effective_capability?: string;
+  continuation_mode?: 'AUTO' | 'EXTEND_ONLY';
+
   h3_prompt_pipeline?: 'legacy' | 'phase_b';
   h3_phase_b?: any;
   clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;

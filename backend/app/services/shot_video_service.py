@@ -4,10 +4,12 @@
 封装分镜视频生成的后台任务逻辑
 """
 import json
+from app.services.video_result_mode import result_mode, is_candidate, validate_candidate_source, applied_task_filter
 from app.constants.h3_prompt_pipeline import persisted_h3_prompt_pipeline
 import os
 import random
 import hashlib
+from uuid import uuid4
 import re
 import subprocess
 from datetime import datetime
@@ -38,6 +40,7 @@ from app.services.visual_attention import (
 )
 from app.services.video_reference_resources import resolve_video_reference_resources
 from app.services.dialogue_ownership import assign_dialogues_to_clips
+from app.services.effective_execution import continuation_mode, project_effective_execution, projection_record, task_execution_projection
 from app.services.clip_execution_compiler import (
     ClipExecutionCompileError,
     compile_extend_clip,
@@ -89,6 +92,8 @@ def resolve_extend_previous_av(db, novel_id: str, chapter_id: str, shot, clip: d
     if source_task.novel_id != novel_id or source_task.chapter_id != chapter_id or source_task.shot_id != shot.id:
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
     metadata = safe_json_dict(source_task.metadata_json)
+    if is_candidate(metadata):
+        raise ValueError("PREVIOUS_AV_UNAVAILABLE")
     source_contract = metadata.get("execution_contract") or {}
     if (
         metadata.get("execution_scope") != "CLIP"
@@ -428,7 +433,7 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
     ), None)
     if not semantic_clip:
         raise ValueError("semantic Clip 不存在")
-    clip = dict(semantic_clip)
+    clip = project_effective_execution(video_director_plan, semantic_clip, continuation_mode(clip_metadata))["effective_clip"]
     compiled_intent = (clip_metadata.get("execution_contract") or {}).get("dialogue_visual_intent")
     if compiled_intent is not None:
         clip["dialogue_visual_intent"] = compiled_intent
@@ -543,6 +548,8 @@ def _sync_task_video_director_clips(task, window_plans: list) -> None:
 
 
 def _update_window_plan(shot, window_index: int, fields: dict, db, task=None) -> None:
+    if task is not None and is_candidate(safe_json_dict(task.metadata_json)):
+        return
     plan = safe_json_dict(shot.video_director_plan)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     for window_plan in window_plans:
@@ -576,6 +583,9 @@ def _dialogue_visual_guidance_for_clip(plan: dict, clip: dict) -> str:
 def clip_prompt_projection_metadata(plan: dict, clip: dict, attention: dict, prompt: str) -> dict:
     """Cache the effective image selection and dialogue visual guidance."""
     metadata = prompt_projection_metadata(attention, prompt)
+    policy = continuation_mode(clip.get("execution_projection"))
+    if policy != "AUTO":
+        metadata["continuation_mode"] = policy
     disabled = disabled_visual_state_ids(clip)
     if disabled:
         metadata["disabled_visual_state_ids"] = disabled
@@ -589,6 +599,9 @@ def reusable_clip_prompt(plan: dict, clip: dict, prompt: str, attention: dict, m
     section = _dialogue_visual_guidance_for_clip(plan, clip)
     count = len(re.findall(r"(?m)^dialogue_visual_guidance:", prompt or ""))
     cached = dict(metadata or {})
+    if continuation_mode(cached) != continuation_mode(clip.get("execution_projection")):
+        return False
+    cached.pop("continuation_mode", None)
     if cached.pop("disabled_visual_state_ids", []) != disabled_visual_state_ids(clip):
         return False
     fingerprint = cached.pop("dialogue_visual_intent_sha256", None)
@@ -723,6 +736,8 @@ def _project_semantic_clip_failure(db, task, shot, clip_metadata, message: str):
     metadata = safe_json_dict(task.metadata_json)
     metadata["approval_status"] = "FAILED"
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    if is_candidate(metadata):
+        return
     plan = safe_json_dict(shot.video_director_plan)
     for clip in plan.get("clip_plan", []):
         if int(clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
@@ -759,6 +774,8 @@ def _is_task_cancelled(db, task) -> bool:
 
 
 def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
+    if is_candidate(safe_json_dict(task.metadata_json)):
+        return
     plan = safe_json_dict(shot.video_director_plan)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     changed = False
@@ -1169,6 +1186,7 @@ async def generate_shot_video_task(
     db = SessionLocal()
     phase_b_generate = False
     clip_only_execution = False
+    candidate = False
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
@@ -1177,9 +1195,22 @@ async def generate_shot_video_task(
             return
 
         metadata = safe_json_dict(task.metadata_json)
+        candidate = is_candidate(metadata)
+        if clip_metadata is not None and (result_mode(clip_metadata) != result_mode(metadata)
+                or clip_metadata.get("candidate_source_fingerprint") != metadata.get("candidate_source_fingerprint")
+                or clip_metadata.get("candidate_execution_inputs") != metadata.get("candidate_execution_inputs")):
+            raise ValueError("RESULT_MODE_PAYLOAD_MISMATCH")
         route = persisted_h3_prompt_pipeline(metadata)
+        from app.services.h3_prompt_language import task_language
+        if clip_metadata is not None and task_language(clip_metadata) != task_language(metadata):
+            raise ValueError("H3_PROMPT_LANGUAGE_PAYLOAD_MISMATCH")
+        if candidate and (route != "phase_b" or metadata.get("execution_scope") != "CLIP"):
+            raise ValueError("CANDIDATE_ONLY_REQUIRES_PHASE_B")
         if clip_metadata is not None and persisted_h3_prompt_pipeline(clip_metadata) != route:
             raise ValueError("H3_PROMPT_PIPELINE_MISMATCH: Task and persisted Clip payload disagree")
+        if clip_metadata is not None and (continuation_mode(clip_metadata) != continuation_mode(metadata)
+                or clip_metadata.get("execution_projection") != metadata.get("execution_projection")):
+            raise ValueError("EXECUTION_PROJECTION_PAYLOAD_MISMATCH")
         metadata["skip_llm_when_prompt_exists"] = skip_llm_when_prompt_exists
         if optimize_h3_prompt is not None:
             metadata["optimize_h3_prompt"] = optimize_h3_prompt
@@ -1252,6 +1283,7 @@ async def generate_shot_video_task(
 
         # 视频生成优先由 11/12/13 Prompt Builder 产出最终 H3 prompt。
         shot_prompt = (clip_metadata or {}).get("prompt_text") or (shot.video_description or "").strip() or (shot.description or "")
+        validate_candidate_source(shot, metadata)
         video_director_plan = safe_json_dict(shot.video_director_plan)
         freshness_clip = next((item for item in video_director_plan.get("clip_plan") or []
                                if item.get("clip_index") == (clip_metadata or {}).get("clip_index")), None)
@@ -1373,7 +1405,8 @@ async def generate_shot_video_task(
         # 获取关键帧图片路径。FIRST_LAST/MULTI 使用 Video Director Plan，不再使用旧的 shot.keyframes 间隔模型。
         keyframe_paths = []
         plan_keyframes = video_director_plan.get("keyframes") if isinstance(video_director_plan.get("keyframes"), list) else []
-        plan_keyframes = _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes)
+        if not candidate:
+            plan_keyframes = _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes)
         if plan_keyframes is not video_director_plan.get("keyframes"):
             video_director_plan["keyframes"] = plan_keyframes
             db.commit()
@@ -1407,10 +1440,13 @@ async def generate_shot_video_task(
                 ), None)
                 if not semantic_clip or plan_revision != int(video_director_plan.get("clip_plan_revision") or 0):
                     raise ClipExecutionCompileError("Clip 执行失败：Shot 中已不存在相同 revision/Clip identity")
+                projection = task_execution_projection(video_director_plan, semantic_clip, clip_metadata)
                 if video_director_plan.get("canonical_visual_plan") is True:
-                    readiness = get_canonical_execution_readiness(shot, video_director_plan, [semantic_clip])
+                    readiness = get_canonical_execution_readiness(shot, video_director_plan, [semantic_clip],
+                        continuation_mode=continuation_mode(clip_metadata))
                     if not readiness["ready"]:
                         raise ClipExecutionCompileError(readiness["code"], detail=readiness["blocking_clips"][0])
+                semantic_clip = projection["effective_clip"]
                 resource_references = resolve_clip_reference_resources(db, novel_id, shot, video_director_plan, semantic_clip)
                 if clip_metadata.get("capability") == "EXTEND":
                     previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
@@ -1453,7 +1489,9 @@ async def generate_shot_video_task(
                         shot, video_director_plan, semantic_clip, plan_revision,
                         resource_references=resource_references,
                     )
+                compiled["execution_contract"]["execution_projection"] = projection_record(projection)
                 task_metadata = safe_json_dict(task.metadata_json)
+                validate_candidate_source(shot, task_metadata, compiled)
                 task_metadata.update(compiled)
                 clip_metadata["execution_contract"] = compiled["execution_contract"]
                 task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
@@ -1621,10 +1659,11 @@ async def generate_shot_video_task(
                 return
         resolved_dialogue_timeline, timeline_status = resolve_canonical_dialogue_timeline(shot, video_director_plan)
         if not video_director_plan.get("dialogue_timeline_source"):
-            # A first candidate becomes official only during this authorized execution.
+            # Persist a newly resolved timeline only for production adoption.
             video_director_plan["dialogue_timeline_source"] = resolved_dialogue_timeline
             video_director_plan["dialogue_timeline_status"] = timeline_status
-            shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
+            if not candidate:
+                shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
         prompt_context = _select_video_prompt_context(
             video_director_plan,
             clip_metadata,
@@ -1651,11 +1690,12 @@ async def generate_shot_video_task(
                 subject_bindings=(contract.get("visual_attention_snapshot") or {}).get("characters", []),
             )
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-            for planned_clip in video_director_plan.get("clip_plan", []):
-                if int(planned_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
-                    planned_clip["dialogue_assignment"] = canonical_assignment
-                    break
-            shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
+            if not candidate:
+                for planned_clip in video_director_plan.get("clip_plan", []):
+                    if int(planned_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+                        planned_clip["dialogue_assignment"] = canonical_assignment
+                        break
+                shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
             db.commit()
         else:
             clip_dialogues = _clip_dialogues_for_prompt(
@@ -1748,7 +1788,8 @@ async def generate_shot_video_task(
                 shot_prompt = built_prompt
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
+            if not candidate:
+                _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         task.prompt_text = shot_prompt
@@ -1759,7 +1800,7 @@ async def generate_shot_video_task(
                 attention, shot_prompt, temporal_manifest,
             )
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-        if single_stage_phase_b or selected_mode != "MULTI_KEYFRAME" or "dialogue_visual_intent" in clip:
+        if not candidate and (single_stage_phase_b or selected_mode != "MULTI_KEYFRAME" or "dialogue_visual_intent" in clip):
             _update_clip_prompt(shot, clip, shot_prompt, db, attention)
         db.commit()
 
@@ -1781,7 +1822,7 @@ async def generate_shot_video_task(
                 if actual_seed is not None:
                     if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                         _update_window_plan(shot, int(clip.get("clip_index") or 1), {"seed": actual_seed}, db, task=task)
-                    else:
+                    elif not candidate:
                         _update_clip_result(shot, clip, {"seed": actual_seed}, db)
                 if clip_only_execution and temporal_manifest is not None:
                     node_mapping = json.loads(workflow.node_mapping or "{}")
@@ -1852,6 +1893,7 @@ async def generate_shot_video_task(
             if _is_task_cancelled(db, task):
                 raise ValueError("任务已取消，未提交 ComfyUI")
             db.refresh(shot)
+            validate_candidate_source(shot, safe_json_dict(task.metadata_json))
             if int(safe_json_dict(shot.video_director_plan).get("clip_plan_revision") or 0) != int(clip_metadata["clip_plan_revision"]):
                 raise ValueError("Clip 计划已变化，未提交 ComfyUI")
             try:
@@ -1925,7 +1967,8 @@ async def generate_shot_video_task(
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
+            if not candidate:
+                _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
 
@@ -1970,7 +2013,7 @@ async def generate_shot_video_task(
                 _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
             if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
                 _project_semantic_clip_failure(db, task, shot, clip_metadata, task.error_message)
-            elif not clip_only_execution:
+            elif not candidate and not clip_only_execution:
                 _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
@@ -2012,7 +2055,7 @@ async def generate_shot_video_task(
             if 'shot' in locals() and shot:
                 if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
                     _project_semantic_clip_failure(db, task, shot, clip_metadata, task.error_message)
-                elif not clip_only_execution:
+                elif not candidate and not clip_only_execution:
                     _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
         except Exception:
@@ -2440,9 +2483,11 @@ def validate_semantic_clip_artifact(
     metadata = safe_json_dict(task.metadata_json) if task else {}
     contract = metadata.get("execution_contract") or {}
     contract_clip = contract.get("clip") or {}
+    projection = task_execution_projection(safe_json_dict(shot.video_director_plan), semantic_clip, metadata)
     valid = (
         task
         and task.type == "shot_video"
+        and not is_candidate(metadata)
         and task.status == "completed"
         and task.novel_id == novel_id
         and task.chapter_id == chapter_id
@@ -2450,7 +2495,7 @@ def validate_semantic_clip_artifact(
         and task.result_url == result_url
         and metadata.get("execution_scope") == "CLIP"
         and is_clip_execution_contract(contract)
-        and contract.get("capability") == semantic_clip.get("capability")
+        and contract.get("capability") == projection["effective_capability"]
         and metadata.get("approval_status") == "APPROVED"
         # Older approved runs stored this ID only inside the execution contract.
         # An explicit conflicting top-level ID still fails; no history is rewritten.
@@ -2521,6 +2566,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
                 task = db.query(Task).filter(
                     Task.type == "shot_video",
                     Task.shot_id == shot.id,
+                    applied_task_filter(),
                     Task.metadata_json.like(f'%%"clip_index": {clip_index}%%'),
                     Task.metadata_json.like(f'%%"clip_plan_revision": {revision}%%'),
                     Task.status == "completed",
@@ -2709,6 +2755,8 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
 
 
 async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_metadata: dict) -> None:
+    if is_candidate(safe_json_dict(completed_task.metadata_json)):
+        return
     clips = safe_json_dict(shot.video_director_plan).get("clip_plan") or []
     current_index = int(clip_metadata.get("clip_index") or 0)
     next_clip = next((clip for clip in clips if int(clip.get("clip_index") or 0) == current_index + 1), None)
@@ -2740,6 +2788,7 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
     existing = db.query(Task).filter(
         Task.type == "shot_video",
         Task.shot_id == shot.id,
+        applied_task_filter(),
         Task.metadata_json.like(f'%"clip_id": "{shot.id}:clip:{next_clip.get("clip_index")}"%'),
         Task.metadata_json.like(f'%"clip_plan_revision": {safe_json_dict(shot.video_director_plan).get("clip_plan_revision", 1)}%'),
         Task.status.in_(["pending", "running", "completed"]),
@@ -2819,7 +2868,16 @@ async def _save_generated_video(
     validate_media=None,
     download_video_func=None,
 ):
-    """下载并保存生成的视频"""
+    """下载并保存生成的视频；候选仅写 Task，正式采用仍走原有分支。"""
+    candidate = is_candidate(safe_json_dict(task.metadata_json))
+    if candidate:
+        update_shot_result = False
+        artifact_suffix = f"candidate_clip_{safe_json_dict(task.metadata_json).get('clip_index')}_{task.id}_{uuid4().hex}"
+        source = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        if source is None:
+            raise ValueError("CANDIDATE_SOURCE_MISSING")
+        db.refresh(source)
+        validate_candidate_source(source, safe_json_dict(task.metadata_json))
     task.current_step = "正在下载生成的视频..."
     task.progress = 80
     db.commit()
@@ -2929,7 +2987,10 @@ async def _save_generated_video(
                 Path(local_path).unlink(missing_ok=True)
                 raise
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-        if shot:
+        if candidate:
+            db.refresh(shot)
+            validate_candidate_source(shot, safe_json_dict(task.metadata_json))
+        if shot and not candidate:
             result_fields = {
                 "status": "SUCCEEDED",
                 "video_url": local_url,
@@ -3046,7 +3107,7 @@ async def _save_generated_video(
                 metadata["physical_output"] = {**verified_media, "physical_output_role": "CLIP_ONLY"}
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-            if shot:
+            if shot and not candidate:
                 plan = safe_json_dict(shot.video_director_plan)
                 for semantic_clip in plan.get("clip_plan", []):
                     if int(semantic_clip.get("clip_index") or 0) == int(metadata.get("clip_index") or 0):
@@ -3059,9 +3120,24 @@ async def _save_generated_video(
                             semantic_clip["assembled_media_duration"] = metadata["assembled_media_duration"]
                         break
                 shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+
+        if candidate:
+            metadata = safe_json_dict(task.metadata_json)
+            with Path(local_path).open("rb") as stream:
+                media_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+            metadata["candidate_result"] = {
+                "url": local_url, "local_path": local_path,
+                "sha256": media_sha256,
+                "actual_duration": metadata.get("actual_duration"),
+                "task_id": task.id, "clip_index": metadata.get("clip_index"),
+                "adopted": False,
+            }
+            metadata["approval_status"] = "CANDIDATE"
+            task.current_step = "实验候选已保存（未采用）"
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         db.commit()
 
-        if native_clip and receipt:
+        if native_clip and receipt and not candidate:
             # Preserve the original Clip AV while its temporary ComfyUI files
             # are available. Preview failure must not invalidate a saved video.
             try:

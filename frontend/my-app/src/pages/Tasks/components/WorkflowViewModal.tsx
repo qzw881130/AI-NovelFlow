@@ -1,3 +1,4 @@
+import { CandidateResultSummary } from './CandidateResultSummary';
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Download, Loader2, Play, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -164,6 +165,7 @@ export function WorkflowViewModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          <CandidateResultSummary task={viewingWorkflow} onPreviewVideo={onPreviewVideo} />
           {loadingWorkflow ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
