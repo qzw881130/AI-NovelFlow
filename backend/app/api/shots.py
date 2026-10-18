@@ -56,6 +56,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.first_appearance_nameplates import (
     RENDER_VERSION as NAMEPLATE_RENDER_VERSION,
+    _probe_video as _probe_nameplate_video,
     build_nameplate_events,
     render_first_appearance_nameplates,
 )
@@ -325,31 +326,44 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
 
         raw_output_path = output_path
         show_names = bool(db.query(SystemConfig.show_first_appearance_names).filter(SystemConfig.id == "default").scalar())
-        nameplate_events = build_nameplate_events(db, novel_id, chapter_id, segments) if show_names else []
+        nameplate_events, nameplate_warnings = [], []
         nameplate_cache_hit = False
-        if nameplate_events:
-            nameplate_signature = sha256(json.dumps(
-                {"version": NAMEPLATE_RENDER_VERSION, "events": nameplate_events},
-                ensure_ascii=False, sort_keys=True,
-            ).encode("utf-8")).hexdigest()[:16]
-            output_path = output_dir / f"{mode}-{signature}-names-{nameplate_signature}.mp4"
-            nameplate_lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
-            async with nameplate_lock:
-                if output_path.is_file() and output_path.stat().st_size > 0:
-                    nameplate_cache_hit = True
-                else:
-                    temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.nameplates.tmp.mp4"
-                    try:
-                        task.progress = 85
-                        task.current_step = "正在叠加首次出场角色姓名..."
-                        db.commit()
-                        await render_first_appearance_nameplates(raw_output_path, temp_path, nameplate_events)
-                        os.replace(temp_path, output_path)
-                    finally:
-                        temp_path.unlink(missing_ok=True)
+        preview_url = None
+        if show_names:
+            try:
+                task.progress = 76
+                task.current_step = "正在定位主角首次出镜位置..."
+                db.commit()
+                merged_width, merged_height, _ = await asyncio.to_thread(_probe_nameplate_video, raw_output_path)
+                nameplate_events, nameplate_warnings = await build_nameplate_events(
+                    db, novel_id, chapter_id, segments, output_size=(merged_width, merged_height))
+                if nameplate_events:
+                    nameplate_signature = sha256(json.dumps(
+                        {"version": NAMEPLATE_RENDER_VERSION, "events": nameplate_events},
+                        ensure_ascii=False, sort_keys=True,
+                    ).encode("utf-8")).hexdigest()[:16]
+                    preview_path = output_dir / f"{mode}-{signature}-names-{nameplate_signature}.mp4"
+                    nameplate_lock = merge_video_locks.setdefault(str(preview_path), asyncio.Lock())
+                    async with nameplate_lock:
+                        if preview_path.is_file() and preview_path.stat().st_size > 0:
+                            nameplate_cache_hit = True
+                        else:
+                            temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.nameplates.tmp.mp4"
+                            try:
+                                task.progress = 85
+                                task.current_step = "正在生成主角姓名牌预览..."
+                                db.commit()
+                                await render_first_appearance_nameplates(raw_output_path, temp_path, nameplate_events)
+                                os.replace(temp_path, preview_path)
+                            finally:
+                                temp_path.unlink(missing_ok=True)
+                    preview_relative = preview_path.relative_to(file_storage.base_dir).as_posix()
+                    preview_url = f"/api/files/{preview_relative}"
+            except Exception as exc:
+                nameplate_warnings.append(f"主角姓名牌预览失败：{exc}")
+                nameplate_events = []
 
-        relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
-        video_url = f"/api/files/{relative_path.lstrip('/')}"
+        video_url = f"/api/files/{raw_output_path.relative_to(file_storage.base_dir).as_posix()}"
         all_shot_ids = {shot.id for shot in shots}
         valid_shot_ids = ({item.get("shot_id") for item in frozen_inputs} if frozen_inputs else {
             shot.id for shot in shots
@@ -361,6 +375,10 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             "cache_hit": cache_hit,
             "nameplate_cache_hit": nameplate_cache_hit,
             "nameplate_events": nameplate_events,
+            "nameplate_warnings": nameplate_warnings,
+            "nameplate_preview_url": preview_url,
+            "nameplate_status": "pending_confirmation" if preview_url else "none",
+            "nameplate_raw_url": video_url,
             "mode": mode,
             "video_variant": video_variant,
             "target_megapixels": target_megapixels,
@@ -369,8 +387,8 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             "shots_count": len(valid_shots),
             "total_shots_count": len(all_shot_ids),
             "is_final_video": is_final_video,
-            "file_size": output_path.stat().st_size if output_path.exists() else None,
-            "duration": _probe_video_duration(output_path),
+            "file_size": raw_output_path.stat().st_size if raw_output_path.exists() else None,
+            "duration": _probe_video_duration(raw_output_path),
         })
         if is_final_video:
             if video_variant == "hd":
@@ -5413,6 +5431,47 @@ async def download_shot_image_data_package(
     chapter_short = chapter_id[:8] if chapter_id else "unknown"
     filename = f"chapter_{chapter_short}_shot_image_data.zip"
     return _build_shot_image_data_response(db, novel_id, chapter_id, chapter, shots, filename)
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/nameplate-preview/{task_id}/approve", response_model=dict)
+async def approve_chapter_nameplate_preview(
+    novel_id: str, chapter_id: str, task_id: str, db: Session = Depends(get_db),
+):
+    """Adopt the reviewed presentation variant; preserve the raw merged video."""
+    task = db.query(Task).filter(
+        Task.id == task_id, Task.type == "chapter_video",
+        Task.novel_id == novel_id, Task.chapter_id == chapter_id,
+        Task.status == "completed",
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="章节合并任务不存在")
+    metadata = json.loads(task.metadata_json or "{}")
+    preview_url = metadata.get("nameplate_preview_url")
+    if metadata.get("nameplate_status") == "approved" and preview_url:
+        return {"success": True, "video_url": preview_url}
+    if metadata.get("nameplate_status") != "pending_confirmation" or not preview_url:
+        raise HTTPException(status_code=409, detail="该任务没有待确认的姓名牌预览")
+    preview_path = url_to_local_path(preview_url)
+    if not preview_path or not Path(preview_path).is_file():
+        raise HTTPException(status_code=409, detail="姓名牌预览文件不存在")
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first()
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    if metadata.get("is_final_video"):
+        variant = metadata.get("video_variant")
+        current = chapter.hd_final_video if variant == "hd" else chapter.final_video
+        if current != metadata.get("nameplate_raw_url"):
+            raise HTTPException(status_code=409, detail="章节视频已经更新，请重新合并并预览姓名牌")
+        if variant == "hd":
+            chapter.hd_final_video = preview_url
+        else:
+            chapter.final_video = preview_url
+    task.result_url = preview_url
+    metadata["nameplate_status"] = "approved"
+    metadata["video_url"] = preview_url
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    db.commit()
+    return {"success": True, "video_url": preview_url}
 
 
 @router.post("/{novel_id}/chapters/{chapter_id}/merge-videos", response_model=dict)

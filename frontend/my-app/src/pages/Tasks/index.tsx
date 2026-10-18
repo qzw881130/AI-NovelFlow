@@ -303,6 +303,7 @@ export default function Tasks() {
                   onPreviewImage={openImagePreview}
                   onPreviewImages={openImageGallery}
                   onPreviewVideo={setPreviewVideo}
+                  onNameplateApproved={handleRefresh}
                   fetchImageInfo={fetchImageInfo}
                   getTaskDisplayName={getTaskDisplayName}
                   getTaskDisplayDescription={getTaskDisplayDescription}

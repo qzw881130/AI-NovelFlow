@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
+import { useState } from 'react';
+import { toast } from '../../../stores/toastStore';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 
@@ -21,6 +23,7 @@ interface TaskCardProps {
   onPreviewImage: (url: string) => void;
   onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
   onPreviewVideo: (url: string) => void;
+  onNameplateApproved: () => void;
   fetchImageInfo: (url: string, taskId: string) => void;
   getTaskDisplayName: (task: Task) => string;
   getTaskDisplayDescription: (task: Task) => string;
@@ -45,6 +48,7 @@ export function TaskCard({
   onPreviewImage,
   onPreviewImages,
   onPreviewVideo,
+  onNameplateApproved,
   fetchImageInfo,
   getTaskDisplayName,
   getTaskDisplayDescription,
@@ -56,6 +60,27 @@ export function TaskCard({
   formatDate,
 }: TaskCardProps) {
   const { t } = useTranslation();
+  const [approvingNameplate, setApprovingNameplate] = useState(false);
+  const [nameplatePreviewOpened, setNameplatePreviewOpened] = useState(false);
+
+  const approveNameplate = async () => {
+    if (!task.novelId || !task.chapterId) return;
+    setApprovingNameplate(true);
+    try {
+      const response = await fetch(
+        `/api/novels/${task.novelId}/chapters/${task.chapterId}/nameplate-preview/${task.id}/approve`,
+        { method: 'POST' },
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.detail || '确认姓名牌失败');
+      toast.success('已将主角姓名牌预览用于章回成片');
+      onNameplateApproved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '确认姓名牌失败');
+    } finally {
+      setApprovingNameplate(false);
+    }
+  };
 
   const getTaskIcon = (type: Task['type']) => {
     switch (type) {
@@ -490,6 +515,36 @@ export function TaskCard({
                   {t('tasks.viewResult')}
                 </a>
               )}
+            </div>
+          )}
+          {task.type === 'chapter_video' && task.nameplatePreview?.url && (
+            <div className="mt-3 rounded-lg border border-red-100 bg-red-50/40 p-3 text-sm">
+              <div className="font-medium text-gray-800">主角首次出镜姓名牌</div>
+              <div className="mt-1 text-xs text-gray-500">
+                {task.nameplatePreview.status === 'approved'
+                  ? '已确认并用于章回成片'
+                  : '自动确定出场时间和人物附近的位置，请预览效果后确认。'}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" onClick={() => {
+                  setNameplatePreviewOpened(true);
+                  onPreviewVideo(task.nameplatePreview!.url!);
+                }}
+                  className="rounded border border-red-200 bg-white px-3 py-1.5 text-red-700 hover:bg-red-50">
+                  预览红色竖牌
+                </button>
+                {task.nameplatePreview.status === 'pending_confirmation' && (
+                  <button type="button" onClick={approveNameplate} disabled={approvingNameplate || !nameplatePreviewOpened}
+                    className="rounded bg-red-600 px-3 py-1.5 text-white hover:bg-red-700 disabled:opacity-50">
+                    {approvingNameplate ? '确认中…' : nameplatePreviewOpened ? '确认用于成片' : '请先预览'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {task.type === 'chapter_video' && (task.nameplatePreview?.warnings?.length ?? 0) > 0 && (
+            <div className="mt-2 text-xs text-amber-700">
+              {task.nameplatePreview?.warnings?.join('；')}
             </div>
           )}
           <div className="mt-2 text-xs opacity-60">

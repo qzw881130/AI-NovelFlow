@@ -93,7 +93,7 @@ class CharacterRepository:
     
     def update_from_schema(self, character: Character, name: str = None,
                           description: str = None, appearance: str = None,
-                          voice_prompt: str = None) -> Character:
+                          voice_prompt: str = None, is_protagonist: bool = None) -> Character:
         """从 Schema 数据更新角色"""
         update_data = {}
         if name is not None:
@@ -104,6 +104,8 @@ class CharacterRepository:
             update_data["appearance"] = appearance
         if voice_prompt is not None:
             update_data["voice_prompt"] = voice_prompt
+        if is_protagonist is not None:
+            update_data["is_protagonist"] = is_protagonist
         return self.update(character, **update_data)
     
     def update_appearance(self, character: Character, appearance: str) -> Character:

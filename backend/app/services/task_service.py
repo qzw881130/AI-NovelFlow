@@ -1492,6 +1492,21 @@ class TaskService:
             except Exception:
                 return []
 
+        def nameplate_preview(task: Task):
+            if task.type != "chapter_video":
+                return None
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            return {
+                "url": metadata.get("nameplate_preview_url"),
+                "status": metadata.get("nameplate_status"),
+                "warnings": metadata.get("nameplate_warnings") or [],
+            }
+
         def clip_execution_metadata(task: Task):
             try:
                 metadata = json.loads(task.metadata_json or "{}")
@@ -1589,6 +1604,7 @@ class TaskService:
                 "progress": t.progress,
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
+                "nameplatePreview": nameplate_preview(t),
                 "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
                 "comfyuiError": task_comfyui_error(t),
@@ -1642,7 +1658,8 @@ class TaskService:
             reference_images = []
         try:
             metadata = json.loads(task.metadata_json or "{}")
-            clip_metadata = metadata if isinstance(metadata, dict) and metadata.get("execution_scope") == "CLIP" else None
+            metadata = metadata if isinstance(metadata, dict) else {}
+            clip_metadata = metadata if metadata.get("execution_scope") == "CLIP" else None
         except (ValueError, TypeError):
             metadata = {}
             clip_metadata = None
@@ -1657,6 +1674,9 @@ class TaskService:
             "progress": task.progress,
             "currentStep": task.current_step,
             "resultUrl": task.result_url,
+            "nameplatePreview": ({"url": metadata.get("nameplate_preview_url"),
+                                  "status": metadata.get("nameplate_status"),
+                                  "warnings": metadata.get("nameplate_warnings")} if task.type == "chapter_video" else None),
             "metadata": clip_metadata,
             "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
             "clipExecution": clip_execution,

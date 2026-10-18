@@ -74,6 +74,7 @@ async def list_characters(
             "endChapter": c.end_chapter,
             "isIncremental": c.is_incremental,
             "isNarrator": c.is_narrator or False,
+            "isProtagonist": bool(c.is_protagonist),
             "sourceRange": c.source_range,
             "lastParsedAt": format_datetime(c.last_parsed_at),
             "createdAt": format_datetime(c.created_at),
@@ -123,6 +124,7 @@ async def export_characters(
                 "endChapter": character.end_chapter,
                 "isIncremental": character.is_incremental,
                 "isNarrator": character.is_narrator or False,
+                "isProtagonist": bool(character.is_protagonist),
                 "sourceRange": character.source_range,
                 "lastParsedAt": format_datetime(character.last_parsed_at),
                 "createdAt": format_datetime(character.created_at),
@@ -177,6 +179,7 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "endChapter": character.end_chapter,
             "isIncremental": character.is_incremental,
             "isNarrator": character.is_narrator or False,
+            "isProtagonist": bool(character.is_protagonist),
             "sourceRange": character.source_range,
             "lastParsedAt": format_datetime(character.last_parsed_at),
             "createdAt": format_datetime(character.created_at),
@@ -203,6 +206,8 @@ async def create_character(
         description=data.description or "",
         appearance=data.appearance or ""
     )
+    if data.is_protagonist and not character.is_narrator:
+        character = character_repo.update_from_schema(character, is_protagonist=True)
     
     return {
         "success": True,
@@ -213,6 +218,7 @@ async def create_character(
             "description": character.description,
             "appearance": character.appearance,
             "imageUrl": character.image_url,
+            "isProtagonist": bool(character.is_protagonist),
             "novelName": novel.title,
             "createdAt": format_datetime(character.created_at),
         }
@@ -236,7 +242,8 @@ async def update_character(
         name=data.name,
         description=data.description,
         appearance=data.appearance,
-        voice_prompt=data.voice_prompt
+        voice_prompt=data.voice_prompt,
+        is_protagonist=False if character.is_narrator else data.is_protagonist,
     )
     
     novel = novel_repo.get_by_id(character.novel_id)
@@ -251,6 +258,7 @@ async def update_character(
             "appearance": character.appearance,
             "voicePrompt": character.voice_prompt,
             "imageUrl": character.image_url,
+            "isProtagonist": bool(character.is_protagonist),
             "novelName": novel.title if novel else None,
             "updatedAt": format_datetime(character.updated_at),
         }

@@ -49,6 +49,10 @@ def ensure_schema_updates():
             if "current_video_variant" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN current_video_variant VARCHAR DEFAULT 'draft'"))
 
+            character_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(characters)"))]
+            if "is_protagonist" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN is_protagonist BOOLEAN NOT NULL DEFAULT 0"))
+
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]
             if "existence" not in prop_columns:

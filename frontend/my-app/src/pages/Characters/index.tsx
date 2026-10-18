@@ -158,6 +158,7 @@ export default function Characters() {
         description: editingCharacter.description,
         appearance: editingCharacter.appearance,
         voice_prompt: editingCharacter.voicePrompt,
+        isProtagonist: Boolean(editingCharacter.isProtagonist),
       } as Partial<Character>);
       if (data.success) {
         setCharacters(characters.map(c => c.id === data.data!.id ? { ...c, ...data.data } : c));
@@ -1179,6 +1180,13 @@ export default function Characters() {
                   placeholder={t('characters.voicePromptPlaceholder')}
                 />
               </div>
+              {!editingCharacter.isNarrator && (
+                <label className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50/50 p-3 text-sm text-gray-700">
+                  <input type="checkbox" className="mt-0.5" checked={Boolean(editingCharacter.isProtagonist)}
+                    onChange={(event) => setEditingCharacter({ ...editingCharacter, isProtagonist: event.target.checked })} />
+                  <span><strong>指定为主角</strong><span className="block text-gray-500">主角首次出镜时可生成红色竖牌预览；整部小说只显示一次。</span></span>
+                </label>
+              )}
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setEditingCharacter(null)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.save')}</button>

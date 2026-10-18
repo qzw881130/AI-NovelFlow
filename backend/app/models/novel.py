@@ -107,6 +107,7 @@ class Character(Base):
 
     # 旁白角色标识
     is_narrator = Column(Boolean, default=False, index=True)  # 是否为旁白角色
+    is_protagonist = Column(Boolean, default=False, nullable=False)  # 用户手动指定的主角
 
     # 章节范围信息
     start_chapter = Column(Integer, nullable=True)

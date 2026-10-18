@@ -112,6 +112,9 @@ export function CharacterCard({
             {t('characters.narrator')}
           </div>
         )}
+        {character.isProtagonist && !character.isNarrator && (
+          <div className="absolute top-2 right-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">主角</div>
+        )}
 
         {/* Status Badge */}
         {character.generatingStatus === 'running' && !character.isNarrator && (
@@ -136,7 +139,7 @@ export function CharacterCard({
         {!character.isNarrator && (
           <button
             onClick={() => onDelete(character.id)}
-            className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            className={`absolute ${character.isProtagonist ? 'top-10' : 'top-2'} right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100`}
             title={t('common.delete')}
           >
             <Trash2 className="h-4 w-4" />

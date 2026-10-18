@@ -223,6 +223,7 @@ export interface Character {
   novelId: string;
   novelName?: string;
   isNarrator?: boolean;
+  isProtagonist?: boolean;
   updatedAt?: string;
 }
 
@@ -342,6 +343,7 @@ export interface Task {
   progress: number;
   currentStep?: string;
   resultUrl?: string;
+  nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[] } | null;
   errorMessage?: string;
   workflowId?: string;
   comfyuiError?: ApiTask['comfyuiError'];
