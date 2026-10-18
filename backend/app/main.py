@@ -53,6 +53,10 @@ def ensure_schema_updates():
             if "is_protagonist" not in character_columns:
                 conn.execute(text("ALTER TABLE characters ADD COLUMN is_protagonist BOOLEAN NOT NULL DEFAULT 0"))
 
+            config_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(system_configs)"))]
+            if "auto_approve_first_appearance_names" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
+
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]
             if "existence" not in prop_columns:

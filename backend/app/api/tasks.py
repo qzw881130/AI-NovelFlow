@@ -81,7 +81,7 @@ def _task_summary_query(db: Session, *, status_only: bool):
             "execution_projection", "suppressed_temporal_anchor_ids",
             "execution_contract.capability", "execution_contract.artifact_kind",
             "execution_contract.previous_clip", "execution_contract.temporal_anchor_manifest.anchors",
-            "nameplate_preview_url", "nameplate_status", "nameplate_warnings",
+            "nameplate_preview_url", "nameplate_status", "nameplate_warnings", "nameplate_auto_approved",
         ):
             columns.append(func.json_extract(safe_metadata, f"$.{key}").label(key.replace(".", "__")))
         columns.append(func.json_array_length(safe_metadata, "$.video_reference_manifest.references").label("ordinary_reference_count"))
@@ -112,6 +112,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
                     "url": value["nameplate_preview_url"],
                     "status": value["nameplate_status"],
                     "warnings": _json_value(value["nameplate_warnings"]) or [],
+                    "autoApproved": bool(value["nameplate_auto_approved"]),
                 }
             execution = {key: value[key] for key in (
                 "result_mode", "source_revision", "source_clip_plan_fingerprint",

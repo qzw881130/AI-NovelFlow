@@ -325,10 +325,13 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             raise RuntimeError(result.get("message", "合并失败"))
 
         raw_output_path = output_path
-        show_names = bool(db.query(SystemConfig.show_first_appearance_names).filter(SystemConfig.id == "default").scalar())
+        nameplate_config = db.query(SystemConfig).filter(SystemConfig.id == "default").first()
+        show_names = bool(nameplate_config and nameplate_config.show_first_appearance_names)
+        auto_approve_names = bool(nameplate_config and nameplate_config.auto_approve_first_appearance_names)
         nameplate_events, nameplate_warnings = [], []
         nameplate_cache_hit = False
         preview_url = None
+        preview_path = None
         if show_names:
             try:
                 task.progress = 76
@@ -371,33 +374,37 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             and (not selected_shot_ids or shot.id in selected_shot_ids)
         })
         is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
+        auto_approved = bool(preview_url and auto_approve_names)
+        approved_output_path = preview_path if auto_approved else raw_output_path
+        approved_video_url = preview_url if auto_approved else video_url
         metadata.update({
             "cache_hit": cache_hit,
             "nameplate_cache_hit": nameplate_cache_hit,
             "nameplate_events": nameplate_events,
             "nameplate_warnings": nameplate_warnings,
             "nameplate_preview_url": preview_url,
-            "nameplate_status": "pending_confirmation" if preview_url else "none",
+            "nameplate_status": "approved" if auto_approved else "pending_confirmation" if preview_url else "none",
+            "nameplate_auto_approved": auto_approved,
             "nameplate_raw_url": video_url,
             "mode": mode,
             "video_variant": video_variant,
             "target_megapixels": target_megapixels,
-            "video_url": video_url,
+            "video_url": approved_video_url,
             "segments_count": len(segments),
             "shots_count": len(valid_shots),
             "total_shots_count": len(all_shot_ids),
             "is_final_video": is_final_video,
-            "file_size": raw_output_path.stat().st_size if raw_output_path.exists() else None,
-            "duration": _probe_video_duration(raw_output_path),
+            "file_size": approved_output_path.stat().st_size if approved_output_path.exists() else None,
+            "duration": _probe_video_duration(approved_output_path),
         })
         if is_final_video:
             if video_variant == "hd":
-                chapter.hd_final_video = video_url
+                chapter.hd_final_video = approved_video_url
             else:
-                chapter.final_video = video_url
+                chapter.final_video = approved_video_url
         task.status = "completed"
         task.progress = 100
-        task.result_url = video_url
+        task.result_url = approved_video_url
         task.error_message = None
         task.current_step = "合并完成（使用缓存）" if cache_hit else "合并完成"
         task.completed_at = datetime.utcnow()
@@ -5469,6 +5476,7 @@ async def approve_chapter_nameplate_preview(
     task.result_url = preview_url
     metadata["nameplate_status"] = "approved"
     metadata["video_url"] = preview_url
+    metadata["file_size"] = Path(preview_path).stat().st_size
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     db.commit()
     return {"success": True, "video_url": preview_url}

@@ -522,7 +522,7 @@ export function TaskCard({
               <div className="font-medium text-gray-800">主角首次出镜姓名牌</div>
               <div className="mt-1 text-xs text-gray-500">
                 {task.nameplatePreview.status === 'approved'
-                  ? '已确认并用于章回成片'
+                  ? task.nameplatePreview.autoApproved ? '已自动通过并用于章回成片' : '已确认并用于章回成片'
                   : '自动确定出场时间和人物附近的位置，请预览效果后确认。'}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">

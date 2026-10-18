@@ -35,6 +35,7 @@ export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
   showFirstAppearanceNames?: boolean;
+  autoApproveFirstAppearanceNames?: boolean;
   
   // 代理配置
   proxy: ProxyConfig;
@@ -343,7 +344,7 @@ export interface Task {
   progress: number;
   currentStep?: string;
   resultUrl?: string;
-  nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[] } | null;
+  nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;
   errorMessage?: string;
   workflowId?: string;
   comfyuiError?: ApiTask['comfyuiError'];

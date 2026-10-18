@@ -23,6 +23,7 @@ class SystemConfig(Base):
     auto_image_review_enabled_at = Column(DateTime(timezone=True), nullable=True)
     video_prompt_language = Column(String, default="en", nullable=False)
     show_first_appearance_names = Column(Boolean, default=False, nullable=False)
+    auto_approve_first_appearance_names = Column(Boolean, default=False, nullable=False)
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

@@ -1505,6 +1505,7 @@ class TaskService:
                 "url": metadata.get("nameplate_preview_url"),
                 "status": metadata.get("nameplate_status"),
                 "warnings": metadata.get("nameplate_warnings") or [],
+                "autoApproved": bool(metadata.get("nameplate_auto_approved")),
             }
 
         def clip_execution_metadata(task: Task):
@@ -1676,7 +1677,8 @@ class TaskService:
             "resultUrl": task.result_url,
             "nameplatePreview": ({"url": metadata.get("nameplate_preview_url"),
                                   "status": metadata.get("nameplate_status"),
-                                  "warnings": metadata.get("nameplate_warnings")} if task.type == "chapter_video" else None),
+                                  "warnings": metadata.get("nameplate_warnings"),
+                                  "autoApproved": bool(metadata.get("nameplate_auto_approved"))} if task.type == "chapter_video" else None),
             "metadata": clip_metadata,
             "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
             "clipExecution": clip_execution,

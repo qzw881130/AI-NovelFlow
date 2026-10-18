@@ -45,6 +45,7 @@ export default function Settings() {
   
   const [saving, setSaving] = useState(false);
   const [nameplateAvailable, setNameplateAvailable] = useState(false);
+  const [autoApproveNameplateAvailable, setAutoApproveNameplateAvailable] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => getTabFromHash(window.location.hash));
   const isUserModifiedRef = useRef(false);
@@ -71,6 +72,7 @@ export default function Settings() {
         if (result.success && result.data) {
           const config = result.data as any;
           setNameplateAvailable(typeof config.showFirstAppearanceNames === 'boolean');
+          setAutoApproveNameplateAvailable(typeof config.autoApproveFirstAppearanceNames === 'boolean');
           setFormData({
             llmProvider: config.llmProvider || 'deepseek',
             llmModel: config.llmModel || 'deepseek-v4-flash',
@@ -82,6 +84,7 @@ export default function Settings() {
             autoImageReviewEnabled: config.autoImageReviewEnabled ?? false,
             videoPromptLanguage: config.videoPromptLanguage ?? 'en',
             showFirstAppearanceNames: config.showFirstAppearanceNames ?? false,
+            autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? false,
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -123,6 +126,9 @@ export default function Settings() {
           autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false,
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
           showFirstAppearanceNames: formData.showFirstAppearanceNames ?? false,
+          ...(autoApproveNameplateAvailable ? {
+            autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? false,
+          } : {}),
         };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
@@ -279,6 +285,7 @@ export default function Settings() {
             {activeTab === 'generationQuality' && (
               <GenerationQualityConfig
                 nameplateAvailable={nameplateAvailable}
+                autoApproveNameplateAvailable={autoApproveNameplateAvailable}
                 language={formData.videoPromptLanguage ?? 'en'}
                 onLanguageChange={videoPromptLanguage => {
                   handleUserModified();
@@ -293,6 +300,11 @@ export default function Settings() {
                 onShowFirstAppearanceNamesChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, showFirstAppearanceNames: enabled }));
+                }}
+                autoApproveFirstAppearanceNames={formData.autoApproveFirstAppearanceNames ?? false}
+                onAutoApproveFirstAppearanceNamesChange={(enabled) => {
+                  handleUserModified();
+                  setFormData(previous => ({ ...previous, autoApproveFirstAppearanceNames: enabled }));
                 }}
               />
             )}

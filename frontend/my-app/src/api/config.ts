@@ -7,6 +7,7 @@ export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
   showFirstAppearanceNames?: boolean;
+  autoApproveFirstAppearanceNames?: boolean;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
   comfyUITimeout?: number;

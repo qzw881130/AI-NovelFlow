@@ -69,11 +69,18 @@ def test_location_hint_does_not_confuse_gaze_direction():
 
 
 def test_config_defaults_and_can_toggle(client):
-    assert client.get("/api/config/").json()["data"]["showFirstAppearanceNames"] is False
-    assert client.post("/api/config/", json={"showFirstAppearanceNames": True}).status_code == 200
-    assert client.get("/api/config/").json()["data"]["showFirstAppearanceNames"] is True
-    assert client.post("/api/config/", json={"showFirstAppearanceNames": False}).status_code == 200
-    assert client.get("/api/config/").json()["data"]["showFirstAppearanceNames"] is False
+    initial = client.get("/api/config/").json()["data"]
+    assert initial["showFirstAppearanceNames"] is False
+    assert initial["autoApproveFirstAppearanceNames"] is False
+    assert client.post("/api/config/", json={
+        "showFirstAppearanceNames": True,
+        "autoApproveFirstAppearanceNames": True,
+    }).status_code == 200
+    updated = client.get("/api/config/").json()["data"]
+    assert updated["showFirstAppearanceNames"] is True
+    assert updated["autoApproveFirstAppearanceNames"] is True
+    assert client.post("/api/config/", json={"autoApproveFirstAppearanceNames": False}).status_code == 200
+    assert client.get("/api/config/").json()["data"]["autoApproveFirstAppearanceNames"] is False
 
 
 def test_protagonist_can_be_selected_and_cleared(client, db_session):
@@ -122,7 +129,9 @@ def test_nameplates_are_visible_only_during_first_seconds(tmp_path):
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="ffmpeg unavailable")
-def test_chapter_merge_keeps_raw_shot_video_untouched(db_session, monkeypatch, tmp_path):
+@pytest.mark.parametrize("auto_approve,has_preview", [(False, True), (True, True), (True, False)])
+def test_chapter_merge_keeps_raw_shot_video_untouched(client, db_session, monkeypatch, tmp_path,
+                                                      auto_approve, has_preview):
     from app.api import shots as shots_api
 
     source = tmp_path / "source.mp4"
@@ -145,7 +154,10 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(db_session, monkeypatch, t
                 metadata_json=json.dumps({"mode": "shots_only", "video_variant": "draft", "inputs": [
                     {"shot_id": shot.id, "shot_index": 1, "video_url": shot.video_url},
                 ]}))
-    db_session.add_all([task, SystemConfig(id="default", show_first_appearance_names=True)])
+    db_session.add(task)
+    config = db_session.query(SystemConfig).filter_by(id="default").one()
+    config.show_first_appearance_names = True
+    config.auto_approve_first_appearance_names = auto_approve
     db_session.commit()
     task_id, source_url = task.id, shot.video_url
 
@@ -163,7 +175,7 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(db_session, monkeypatch, t
     async def fake_events(db, novel_id, chapter_id, segments, output_size=None):
         assert nameplates.first_appearance_names_by_shot(db, novel_id) == {shot.id: ["甲"]}
         return ([{"start": 0.0, "end": 0.8, "name": "甲",
-                  "track": [{"time": 0.0, "xy": [300, 50]}]}], [])
+                  "track": [{"time": 0.0, "xy": [300, 50]}]}] if has_preview else [], [])
     monkeypatch.setattr(shots_api, "build_nameplate_events", fake_events)
     asyncio.run(shots_api.run_chapter_video_merge_task(task_id))
 
@@ -171,18 +183,30 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(db_session, monkeypatch, t
     merged_task = db_session.query(Task).filter_by(id=task_id).one()
     assert merged_task.status == "completed", merged_task.error_message
     metadata = json.loads(merged_task.metadata_json)
-    assert "-names-" not in merged_task.result_url
-    assert metadata["nameplate_status"] == "pending_confirmation"
-    assert "-names-" in metadata["nameplate_preview_url"]
+    assert metadata["nameplate_status"] == (
+        "approved" if auto_approve and has_preview else "pending_confirmation" if has_preview else "none"
+    )
+    assert metadata["nameplate_auto_approved"] is (auto_approve and has_preview)
+    assert ("-names-" in merged_task.result_url) is (auto_approve and has_preview)
+    if has_preview:
+        assert "-names-" in metadata["nameplate_preview_url"]
+        assert metadata["nameplate_raw_url"] != metadata["nameplate_preview_url"]
+    else:
+        assert metadata["nameplate_preview_url"] is None
     assert db_session.query(Chapter).filter_by(id=chapter.id).one().final_video == merged_task.result_url
+    listed = client.get("/api/tasks/?summary=true").json()["data"]
+    projected = next(item for item in listed if item["id"] == task_id)
+    assert projected["nameplatePreview"]["autoApproved"] is (auto_approve and has_preview)
+    assert projected["nameplatePreview"]["status"] == metadata["nameplate_status"]
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
     assert (tmp_path / merged_task.result_url.removeprefix("/api/files/")).is_file()
-    approved = asyncio.run(shots_api.approve_chapter_nameplate_preview(
-        novel.id, chapter.id, task_id, db_session))
-    assert approved["video_url"] == metadata["nameplate_preview_url"]
-    db_session.expire_all()
-    assert db_session.query(Chapter).filter_by(id=chapter.id).one().final_video == approved["video_url"]
-    assert db_session.query(Task).filter_by(id=task_id).one().result_url == approved["video_url"]
+    if has_preview and not auto_approve:
+        approved = asyncio.run(shots_api.approve_chapter_nameplate_preview(
+            novel.id, chapter.id, task_id, db_session))
+        assert approved["video_url"] == metadata["nameplate_preview_url"]
+        db_session.expire_all()
+        assert db_session.query(Chapter).filter_by(id=chapter.id).one().final_video == approved["video_url"]
+        assert db_session.query(Task).filter_by(id=task_id).one().result_url == approved["video_url"]
 
 
 def test_nameplate_position_accounts_for_chapter_merge_scaling():
