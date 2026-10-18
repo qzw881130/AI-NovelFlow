@@ -6,6 +6,7 @@
 import json
 import os
 import subprocess
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -238,6 +239,78 @@ class ChapterRepository:
             f"{prefix}CompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
             "targetMegapixels": final_metadata.get("target_megapixels"),
         }
+
+    def get_chapter_video_merge_status(self, chapter: Chapter) -> dict:
+        """Whether current draft Shot videos need a new full-chapter merge."""
+        shots = self.db.query(Shot).filter(
+            Shot.chapter_id == chapter.id,
+            Shot.video_url.isnot(None),
+        ).all()
+        result = {
+            "needsMerge": False,
+            "reason": None,
+            "shotCount": len(shots),
+            "newerShotCount": 0,
+        }
+        if not shots:
+            return result
+
+        merge_task = None
+        if chapter.final_video:
+            merge_task = self.db.query(Task).filter(
+                Task.chapter_id == chapter.id,
+                Task.type == "chapter_video",
+                Task.status == "completed",
+                Task.result_url == chapter.final_video,
+            ).order_by(Task.completed_at.desc()).first()
+        if not chapter.final_video:
+            result.update(needsMerge=True, reason="not_merged")
+            return result
+
+        # Legacy chapter videos may not have a Task row. Their file time is the
+        # only reliable timestamp available, if the local file still exists.
+        merge_time = merge_task.completed_at if merge_task else None
+        if merge_time is None:
+            merge_path = url_to_local_path(chapter.final_video) if chapter.final_video.startswith("/api/files/") else None
+            if merge_path and os.path.isfile(merge_path):
+                merge_time = datetime.fromtimestamp(os.path.getmtime(merge_path), timezone.utc)
+        if merge_time is None:
+            result.update(needsMerge=True, reason="not_merged")
+            return result
+
+        def utc(value):
+            return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+        task_ids = {shot.video_task_id for shot in shots if shot.video_task_id}
+        video_tasks = {
+            task.id: task for task in self.db.query(Task).filter(Task.id.in_(task_ids)).all()
+        } if task_ids else {}
+        newer_count = 0
+        for shot in shots:
+            shot_time = None
+            try:
+                plan = json.loads(shot.video_director_plan or "{}")
+            except (TypeError, ValueError):
+                plan = {}
+            if plan.get("merged_video_url") == shot.video_url and plan.get("merged_at"):
+                try:
+                    shot_time = datetime.fromisoformat(plan["merged_at"].replace("Z", "+00:00"))
+                except (TypeError, ValueError):
+                    pass
+            if shot_time is None:
+                video_task = video_tasks.get(shot.video_task_id)
+                if video_task and video_task.status == "completed" and video_task.result_url == shot.video_url:
+                    shot_time = video_task.completed_at
+            if shot_time is None and shot.video_url.startswith("/api/files/"):
+                path = url_to_local_path(shot.video_url)
+                if path and os.path.isfile(path):
+                    shot_time = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc)
+            if shot_time is not None and utc(shot_time) > utc(merge_time):
+                newer_count += 1
+        result["newerShotCount"] = newer_count
+        if newer_count:
+            result.update(needsMerge=True, reason="shot_video_newer")
+        return result
 
     @staticmethod
     def _probe_video_duration(video_path: str) -> Optional[float]:

@@ -16,6 +16,7 @@ import { shotsApi } from '../../../../api/shots';
 export interface DataSlice extends DataSliceState {
   fetchNovel: (novelId: string) => Promise<void>;
   fetchChapter: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
+  fetchChapterMergeStatus: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
   fetchCharacters: (novelId: string) => Promise<void>;
   fetchScenes: (novelId: string) => Promise<void>;
   fetchProps: (novelId: string) => Promise<void>;
@@ -44,6 +45,7 @@ export const createDataSlice: StateCreator<
 > = (set, get) => ({
   // ========== 初始状态 ==========
   chapter: null,
+  chapterMergeStatus: null,
   novel: null,
   parsedData: null,
   editableJson: '',
@@ -72,7 +74,7 @@ export const createDataSlice: StateCreator<
   },
 
   fetchChapter: async (novelId: string, chapterId: string, signal?: AbortSignal) => {
-    set({ loading: true });
+    set({ loading: true, chapterMergeStatus: null });
     try {
       const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}?include_shots=false`, { signal });
       const data = await res.json();
@@ -149,6 +151,22 @@ export const createDataSlice: StateCreator<
       if (!signal?.aborted) console.error('获取章节数据失败:', error);
     } finally {
       if (!signal?.aborted) set({ loading: false });
+    }
+  },
+
+  fetchChapterMergeStatus: async (novelId: string, chapterId: string, signal?: AbortSignal) => {
+    try {
+      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/merge-video-status`, {
+        signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const payload = await res.json();
+      if (!signal?.aborted && payload.success && get().chapter?.id === chapterId) {
+        set({ chapterMergeStatus: payload.data });
+      }
+    } catch (error) {
+      if (!signal?.aborted) console.error('获取章节视频合并状态失败:', error);
     }
   },
 

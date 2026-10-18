@@ -34,7 +34,7 @@ export default function ChapterGenerate() {
 
   // 数据获取方法
   const {
-    fetchNovel, fetchChapter, fetchCharacters, fetchScenes, fetchProps,
+    fetchNovel, fetchChapter, fetchChapterMergeStatus, fetchCharacters, fetchScenes, fetchProps,
     setParsedData, getCharacterImage, getSceneImage, getPropImage,
   } = store;
 
@@ -148,6 +148,24 @@ export default function ChapterGenerate() {
       };
     }
   }, [cid, id, fetchProps]);
+
+  // A chapter merge may finish in the background or another tab. Keep the
+  // chapter-wide reminder current without reloading the editor's Shot state.
+  useEffect(() => {
+    if (!id || !cid || chapter?.id !== cid) return;
+    const controller = new AbortController();
+    const refresh = () => {
+      if (!document.hidden) void fetchChapterMergeStatus(id, cid, controller.signal);
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 10000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [id, cid, chapter?.id, fetchChapterMergeStatus]);
 
   // The chapter list is a navigation projection. Only hydrate the selected
   // Shot; selecting another one cancels the previous detail read.

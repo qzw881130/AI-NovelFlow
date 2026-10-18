@@ -90,6 +90,7 @@ export function useDataSlice(): DataSlice {
   return useChapterGenerateStore((state) => ({
     // State
     chapter: state.chapter,
+    chapterMergeStatus: state.chapterMergeStatus,
     novel: state.novel,
     parsedData: state.parsedData,
     editableJson: state.editableJson,
@@ -104,6 +105,7 @@ export function useDataSlice(): DataSlice {
     // Actions
     fetchNovel: state.fetchNovel,
     fetchChapter: state.fetchChapter,
+    fetchChapterMergeStatus: state.fetchChapterMergeStatus,
     fetchCharacters: state.fetchCharacters,
     fetchScenes: state.fetchScenes,
     fetchProps: state.fetchProps,

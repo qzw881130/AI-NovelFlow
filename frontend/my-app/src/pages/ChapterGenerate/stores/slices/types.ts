@@ -109,6 +109,12 @@ export interface TransitionWorkflow {
 export interface DataSliceState {
   // 章节数据
   chapter: Chapter | null;
+  chapterMergeStatus: {
+    needsMerge: boolean;
+    reason: 'not_merged' | 'shot_video_newer' | null;
+    shotCount: number;
+    newerShotCount: number;
+  } | null;
   novel: Novel | null;
   parsedData: ParsedData | null;
   editableJson: string;
@@ -297,6 +303,7 @@ export interface ChapterGenerateStore
   // ========== Data Actions ==========
   fetchNovel: (novelId: string) => Promise<void>;
   fetchChapter: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
+  fetchChapterMergeStatus: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
   fetchCharacters: (novelId: string) => Promise<void>;
   fetchScenes: (novelId: string) => Promise<void>;
   fetchProps: (novelId: string) => Promise<void>;

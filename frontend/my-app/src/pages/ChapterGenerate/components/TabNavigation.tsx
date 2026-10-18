@@ -63,6 +63,10 @@ export function TabNavigation() {
 
   const { currentTab, tabProgress, setCurrentTab, markTabComplete } = store;
   const outdatedVideoCount = store.shots.filter((shot) => shot.mainImageNewerThanVideo).length;
+  const mergeStatus = store.chapterMergeStatus;
+  const mergeReminder = mergeStatus?.reason === 'shot_video_newer'
+    ? `${mergeStatus.newerShotCount} 个 Shot 视频晚于章节合并视频，请重新合并`
+    : '本章已有 Shot 视频，尚未合并章节视频';
 
   // 键盘导航
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -135,6 +139,9 @@ export function TabNavigation() {
 
               {tab.key === 'video_gen' && outdatedVideoCount > 0 && (
                 <AlertCircle aria-label={`${outdatedVideoCount} 个 Shot 的主分镜图晚于此前生成的视频`} className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-white text-amber-600" />
+              )}
+              {tab.key === 'video_gen' && mergeStatus?.needsMerge && (
+                <span title={mergeReminder} className="absolute -left-1 -top-1 rounded-full bg-white"><AlertCircle aria-label={mergeReminder} className="h-3.5 w-3.5 text-amber-600" /></span>
               )}
 
               {/* 激活指示器 */}

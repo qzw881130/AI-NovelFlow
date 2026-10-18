@@ -135,6 +135,18 @@ async def get_chapter(
     }
 
 
+@router.get("/{novel_id}/chapters/{chapter_id}/merge-video-status", response_model=dict)
+async def get_chapter_merge_video_status(
+    novel_id: str,
+    chapter_id: str,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    return {"success": True, "data": chapter_repo.get_chapter_video_merge_status(chapter)}
+
+
 @router.put("/{novel_id}/chapters/{chapter_id}", response_model=dict)
 async def update_chapter(
     novel_id: str, 

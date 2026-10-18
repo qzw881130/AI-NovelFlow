@@ -2554,6 +2554,7 @@ export function VideoGenTab({
   // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
+  const chapterMergeStatus = useChapterGenerateStore((state) => state.chapterMergeStatus);
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
   const storeTransitionVideos = useChapterGenerateStore((state) => state.transitionVideos);
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
@@ -2657,6 +2658,9 @@ export function VideoGenTab({
 
   // 统一使用 store.shots 作为分镜数据源
   const shotsList = storeShots.length > 0 ? storeShots : propShots;
+  const mergeReminder = chapterMergeStatus?.reason === 'shot_video_newer'
+    ? `${chapterMergeStatus.newerShotCount} 个 Shot 视频晚于章节合并视频，请重新合并`
+    : '本章已有 Shot 视频，尚未合并章节视频';
   const [continuationMode, setContinuationMode] = useState<ContinuationMode>('AUTO');
   const [resultMode, setResultMode] = useState<VideoResultMode>('APPLY');
   const sourceShot = shotsList[selectedVideo - 1];
@@ -4552,11 +4556,13 @@ export function VideoGenTab({
                   event.stopPropagation();
                   setShowWorkspaceActionsMenu((open) => !open);
                 }}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                className="relative inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 aria-expanded={showWorkspaceActionsMenu}
+                title={chapterMergeStatus?.needsMerge ? mergeReminder : undefined}
               >
                 更多
                 <ChevronDown className="h-4 w-4" />
+                {chapterMergeStatus?.needsMerge && <AlertCircle aria-label={mergeReminder} className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full bg-white text-amber-600" />}
               </button>
               {showWorkspaceActionsMenu && (
                 <div className="absolute right-0 top-full z-[90] mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
@@ -4564,6 +4570,7 @@ export function VideoGenTab({
                   <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleOpenMergeSelect(); }} disabled={mergingMode !== null || !effectiveChapterId || shotsList.length === 0} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {mergingMode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Combine className="h-4 w-4" />}
                     {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+                    {chapterMergeStatus?.needsMerge && <span title={mergeReminder} className="ml-auto"><AlertCircle aria-label={mergeReminder} className="h-3.5 w-3.5 text-amber-600" /></span>}
                   </button>
                   <button type="button" onClick={() => void handleDownloadMaterials()} disabled={isDownloading || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
