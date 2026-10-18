@@ -308,7 +308,11 @@ def list_tasks_page(
     if status:
         query = query.filter(Task.status.in_(["pending", "queued"]) if status == "pending" else Task.status == status)
     total = query.count() if status else stats["all"]
-    tasks = query.order_by(Task.created_at.desc(), Task.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    # Retried tasks keep their original id and created_at. Order the task page by
+    # recent activity so a Clip completed by a new batch remains visible.
+    tasks = query.order_by(
+        func.coalesce(Task.updated_at, Task.created_at).desc(), Task.id.desc()
+    ).offset((page - 1) * page_size).limit(page_size).all()
 
     return {
         "success": True,

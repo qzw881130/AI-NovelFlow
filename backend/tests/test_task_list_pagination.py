@@ -68,6 +68,18 @@ def test_filters_apply_to_sql_page_and_type_scoped_stats(db_session):
     assert data["stats"]["completed"] == 14
 
 
+def test_retried_task_is_sorted_by_recent_activity(db_session):
+    seed_tasks(db_session)
+    retried = db_session.get(Task, "task-000")
+    retried.updated_at = datetime(2026, 10, 9)
+    db_session.commit()
+
+    with make_client(db_session) as client:
+        data = client.get("/tasks/page?page_size=2").json()["data"]
+
+    assert [item["id"] for item in data["items"]] == ["task-000", "task-074"]
+
+
 def test_page_validation_and_empty_results(db_session):
     with make_client(db_session) as client:
         for query in ("page=0", "page_size=0", "page_size=101"):
