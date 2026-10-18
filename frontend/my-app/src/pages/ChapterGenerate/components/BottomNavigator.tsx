@@ -100,6 +100,7 @@ export function BottomNavigator({
       if (hdVariant?.status === 'failed') return 'failed';
       return 'pending';
     }
+    if (currentTab === 1 && shot.imageStatus === 'failed' && !hasImageResult) return 'failed';
     if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
     if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) return 'queued';

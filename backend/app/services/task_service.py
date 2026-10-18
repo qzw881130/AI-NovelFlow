@@ -885,6 +885,18 @@ class TaskService:
                 BackgroundJob.status.in_(["queued", "running"]),
             ).all()
             has_persisted_job = any(worker_manager.is_live(job_id) for (job_id,) in persisted_jobs)
+            if task.type == "shot_image" and task.parent_task_id and not task.comfyui_prompt_id and not has_persisted_job:
+                parent = db.query(Task).filter(Task.id == task.parent_task_id).first()
+                if parent and parent.type == "shot_image_batch" and parent.status in {"completed", "failed", "cancelled"}:
+                    task.status = "failed"
+                    task.error_message = "批量任务已结束，但该分镜图任务没有完成；请重新提交"
+                    task.current_step = "批量任务结束，生成未完成"
+                    task.completed_at = now
+                    shot = ShotRepository(db).get_by_id(task.shot_id) if task.shot_id else None
+                    if shot and shot.image_task_id == task.id and not shot.image_url:
+                        shot.image_status = "failed"
+                    updated_count += 1
+                    continue
             if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child and not has_persisted_job:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"

@@ -982,6 +982,7 @@ export function ShotImageGenTab({
                   const hasShotImage = !!shotImageUrl;
                   const isGenerating = generatingShots.has(shotId);
                   const isQueued = pendingShots.has(shotId);
+                  const isFailed = shot.imageStatus === 'failed' && !hasShotImage && !isGenerating && !isQueued;
                   const isReferenceBlocked = getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked;
                   const isDisabled = isGenerating || isQueued || isReferenceBlocked;
 
@@ -1030,8 +1031,10 @@ export function ShotImageGenTab({
                             alt={`${t('chapterGenerate.shot')}${shotIndex}`}
                             className="w-full h-full object-cover rounded-lg"
                           />
-                        ) : isDisabled ? (
+                        ) : isGenerating || isQueued ? (
                           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                        ) : isFailed ? (
+                          <AlertTriangle className="w-8 h-8 text-red-500" />
                         ) : (
                           <Image className="w-8 h-8 text-gray-300" />
                         )}
@@ -1040,7 +1043,7 @@ export function ShotImageGenTab({
                       {/* 状态标签 */}
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg">
                         <span>
-                          {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : isReferenceBlocked ? '缺少参考' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
+                          {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : isFailed ? '失败' : isReferenceBlocked ? '缺少参考' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
                         </span>
                         <span className="absolute right-1 font-medium">
                           {shot.duration}s
