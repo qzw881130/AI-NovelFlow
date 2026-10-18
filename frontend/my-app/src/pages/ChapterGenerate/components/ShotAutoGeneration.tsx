@@ -72,6 +72,8 @@ export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = fals
       {state?.pause_requested ? '正在停止后续生成…' : '停止后续生成'}
     </button>}
     {state && <span>{state.current_step} {state.progress ?? 0}%</span>}
+    {state?.status === 'completed' && state.children?.some((child: any) => child.reused_assembly) &&
+      <span>已复用现有 Clip 和最终视频，无需重新生成。</span>}
     {state?.status === 'paused' && <span>已提交片段继续保存，点击继续后复用。</span>}
     {(error || state?.error) && <span role="alert" className="text-red-700">{error || state.error}</span>}
   </div>;

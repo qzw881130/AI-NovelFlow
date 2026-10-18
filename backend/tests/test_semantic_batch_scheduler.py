@@ -269,6 +269,9 @@ async def test_existing_current_revision_assembly_is_reused(db_session, monkeypa
     monkeypatch.setattr(shots_api, "url_to_local_path", lambda url: str(tmp_path / Path(url).name))
     monkeypatch.setattr(shots_api, "merge_video_director_clip_videos", lambda *args: (_ for _ in ()).throw(AssertionError("reassembled")))
     assert await shots_api._run_semantic_shot_for_batch(db_session, parent, child, shot) == "completed"
+    assert shot.video_status == "completed"
+    assert shot.video_task_id is None
+    assert json.loads(child.metadata_json)["reused_assembly"] is True
 
 
 def test_old_shot_url_does_not_count_as_current_assembly(db_session, monkeypatch, tmp_path):

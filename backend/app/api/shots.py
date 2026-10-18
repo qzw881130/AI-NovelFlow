@@ -4430,7 +4430,11 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
             batch_child.error_message = result.get("message") or "Semantic Shot Final Assembly 失败"
             db.commit()
             return "failed"
-    _batch_child_state(batch_child, "COMPLETED")
+    # Batch creation marks the Shot pending. Reusing an already assembled video
+    # skips the merge path that normally restores its completed status.
+    shot.video_status = "completed"
+    shot.video_task_id = None
+    _batch_child_state(batch_child, "COMPLETED", reused_assembly=bool(reusable_assembly))
     db.commit()
     return "completed"
 
