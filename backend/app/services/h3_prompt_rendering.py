@@ -1,6 +1,12 @@
 """Bilingual compiler-owned prose. Protocol tokens and authority stay untouched."""
 
 
+def no_bound_subjects(language):
+    if language == "zh":
+        return "此片段没有绑定的具名视觉主体。"
+    return "No named visual subjects are bound in this Clip."
+
+
 def identity_definition(subject, name, number, marks, language):
     if number is None:
         if language == "zh":

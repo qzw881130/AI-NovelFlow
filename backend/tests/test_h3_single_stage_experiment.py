@@ -327,6 +327,28 @@ def test_authority_owned_saved_shot12_response_offline():
     assert "REVIEW_REQUIRED" in review["speaker_visual_handoff"]
 
 
+@pytest.mark.parametrize("language, expected", [
+    ("en", "No named visual subjects are bound in this Clip."),
+    ("zh", "此片段没有绑定的具名视觉主体。"),
+])
+def test_narration_only_clip_without_visible_subjects_keeps_six_sections(language, expected):
+    canonical = [{"id": "D1", "speaker": "<Narrator>", "exact_dialogue": "天下安宁。", "duration": 3.0}]
+    timing = {"optimized_duration": 8.0, "dialogue_events": [
+        {"id": "D1", "speaker": "<Narrator>", "optimized_start": 1.0, "optimized_end": 4.0},
+    ]}
+    director = ("detailed_description:\nA parchment fills the frame. [[SPEECH_1]] "
+                "The camera remains still.\n\noverall_soundscape:\nQuiet hall ambience.")
+
+    prompt, review, picture = stage.assemble_authority_owned_candidate(
+        director, canonical, timing, {}, [], None, "N/A", director_only=True,
+        prompt_language=language)
+
+    assert sections(prompt)["subject_definitions"] == expected
+    assert all(review["structure"].values())
+    assert all(review["structured_authority"].values())
+    assert picture["passed"]
+
+
 def test_authority_owned_preview_flag_is_isolated_and_never_ready(monkeypatch):
     if not (SAVED_SINGLE_STAGE / "single_stage_raw_output.txt").exists():
         pytest.skip("Saved one-call Shot 12 C2 response unavailable")

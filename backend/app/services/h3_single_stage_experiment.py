@@ -332,6 +332,8 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
             if marks else "MISSING_EXPLICIT_STABLE_IDENTITY_CLAUSE")
         marks = localized.get("identity:" + subject, marks)
         definitions.append(render.identity_definition(subject, name, number, marks, prompt_language))
+    if not definitions:
+        definitions.append(render.no_bound_subjects(prompt_language))
     retention = [render.retention_intro(continuation, prompt_language)]
     subjects_for_name = {name: subject for subject, name in subject_names.items()}
     for item in picture_mapping:
