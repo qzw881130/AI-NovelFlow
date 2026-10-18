@@ -2,10 +2,14 @@ export const formatUserFacingError = (message?: unknown): string => {
   const rawMessage = String(message || '').trim();
   if (!rawMessage) return '';
 
+  if (rawMessage.includes('PHASE_B_PREFLIGHT_FAILED')) {
+    return '视频导演提示词未通过结构校验，视频尚未提交生成。请重试当前 Shot；如果持续失败，请检查 Phase B 提示词格式。';
+  }
+
   const lowerMessage = rawMessage.toLowerCase();
   const isAuthError = lowerMessage.includes('authentication fails')
     || lowerMessage.includes('unauthorized')
-    || lowerMessage.includes('401')
+    || /(?:status(?:\s+code)?|http)\s*[:=]?\s*401\b/i.test(rawMessage)
     || rawMessage.includes('认证失败');
 
   if (isAuthError) {

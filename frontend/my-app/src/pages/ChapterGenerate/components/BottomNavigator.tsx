@@ -14,6 +14,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useSidebar } from '../../../contexts/SidebarContext';
 import { ShotThumbnail, ShotStatus as ShotThumbnailStatus } from './ShotThumbnail';
+import { useImageQuality } from './ImageQualityStatus';
 import type { Shot } from '../stores/slices/types';
 import { useTranslation } from '../../../stores/i18nStore';
 
@@ -69,6 +70,13 @@ export function BottomNavigator({
   const toggleShotSelection = useChapterGenerateStore((state) => state.toggleShotSelection);
   const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
   const showImagePreview = useChapterGenerateStore((state) => state.showImagePreview);
+
+  // 评审结果属于具体图片；重生后必须用新的任务 ID 和图片 URL 查询。
+  const reviewImages = currentTab === 1 ? shots.flatMap((shot) => {
+    const imageUrl = shot.imageUrl || shotImages[String(shot.id)];
+    return imageUrl ? [{ taskId: shot.imageTaskId || null, imageUrl }] : [];
+  }) : [];
+  const { current: imageQuality } = useImageQuality(reviewImages, currentTab);
 
   const goToShot = (index: number) => {
     if (index < 1 || index > shots.length) return;
@@ -276,6 +284,9 @@ export function BottomNavigator({
                 const shotNum = index + 1;
                 const shotIdStr = String(shot.id || shotNum);
                 const thumbnailUrl = shot.imageUrl || shotImages[shotIdStr];
+                const quality = currentTab === 1 && thumbnailUrl
+                  ? imageQuality.find((row) => row.taskId === (shot.imageTaskId || null) && row.imageUrl === thumbnailUrl)
+                  : undefined;
                 const isCurrentShot = shot.id ? shot.id === currentShotId : shotNum === currentShotIndex;
                 const isSelected = bulkMode ? selectedShotIds.includes(shotIdStr) : isCurrentShot;
                 return (
@@ -286,7 +297,9 @@ export function BottomNavigator({
                     thumbnailUrl={thumbnailUrl}
                     status={getShotStatus(shot, shotIdStr, shotNum)}
                     isSelected={isSelected}
-                    hasProps={Array.isArray(shot.props) && shot.props.length > 0}
+                    imageQualityStatus={quality?.qualityStatus}
+                    imageQualitySummary={quality?.summary}
+                    mainImageNewerThanVideo={currentTab === 3 && shot.mainImageNewerThanVideo}
                     duration={shot.duration}
                     onClick={() => handleShotClick(shotIdStr, shotNum)}
                     onDoubleClick={() => handleShotDoubleClick(shot)}

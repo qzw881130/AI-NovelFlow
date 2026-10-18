@@ -331,6 +331,7 @@ class ShotRepository:
         from app.models.task import Task
         from app.services.clip_execution_compiler import get_canonical_execution_readiness
         from app.services.hd_repaint_service import get_hd_repaint_variants
+        from app.services.shot_video_freshness import main_image_newer_than_video
 
         hd_variants = get_hd_repaint_variants(self.db, shot.id)
         latest_completed_variants = [variant for variant in hd_variants if variant.get("videoUrl")]
@@ -386,6 +387,7 @@ class ShotRepository:
             "videoUrl": shot.video_url,
             "videoStatus": shot.video_status,
             "videoTaskId": shot.video_task_id,
+            "mainImageNewerThanVideo": main_image_newer_than_video(self.db, shot),
             "hdVideoVariants": hd_variants,
             "hdVideoUrl": latest_hd.get("videoUrl") if latest_hd else shot.hd_video_url,
             "hdVideoStatus": latest_hd.get("status") if latest_hd else (shot.hd_video_status or "pending"),
@@ -406,6 +408,7 @@ class ShotRepository:
         """Chapter navigation projection. Never expose historical prompts or manifests."""
         from app.services.required_visual_state_images import project_required_execution_images
         from app.services.clip_execution_compiler import get_canonical_execution_readiness
+        from app.services.shot_video_freshness import main_image_newer_than_video
 
         plan = json.loads(shot.video_director_plan or "{}") or {}
         clip_fields = {
@@ -467,6 +470,7 @@ class ShotRepository:
             "imageStatus": shot.image_status, "imageTaskId": shot.image_task_id,
             "videoUrl": shot.video_url, "videoStatus": shot.video_status,
             "videoTaskId": shot.video_task_id,
+            "mainImageNewerThanVideo": main_image_newer_than_video(self.db, shot),
             "hdVideoVariants": list(hd_variants),
             "hdVideoUrl": latest_hd.get("videoUrl") if latest_hd else shot.hd_video_url,
             "hdVideoStatus": latest_hd.get("status") if latest_hd else (shot.hd_video_status or "pending"),

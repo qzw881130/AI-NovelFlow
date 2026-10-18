@@ -26,7 +26,7 @@ import { inspectorEntry } from '../../ClipExecutionInspector/presentation';
 import { useInspectorLabels } from '../../ClipExecutionInspector/labels';
 import { useChapterGenerateStore } from '../stores';
 import { useShotReferenceImages } from '../useShotReferenceImages';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi, DEFAULT_H3_PROMPT_PIPELINE } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
@@ -4603,7 +4603,7 @@ export function VideoGenTab({
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
         <div className="video-main-column flex-none lg:flex-1 min-w-0 flex flex-col gap-4 overflow-visible lg:overflow-y-auto pr-1">
-          <ShotAutoGeneration continuationMode={continuationMode} novelId={effectiveNovelId} chapterId={effectiveChapterId} shotId={currentShotId || ''} onProgress={refreshCurrentShotData} />
+          <ShotAutoGeneration continuationMode={continuationMode} novelId={effectiveNovelId} chapterId={effectiveChapterId} shotId={currentShotId || ''} onProgress={refreshCurrentShotData} mainImageNewerThanVideo={currentShotData?.mainImageNewerThanVideo} />
           <VideoDirectorPanel
             continuationMode={continuationMode}
             shot={currentShotData}
@@ -4934,6 +4934,16 @@ export function VideoGenTab({
                             <div className="flex h-full min-h-[116px] items-center justify-center"><Film className="h-8 w-8 text-gray-300" /></div>
                           )}
                           <span className="absolute left-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-xs font-medium text-white">Shot #{shot.index || shotIndex}</span>
+                          {shot.mainImageNewerThanVideo && (
+                            <span
+                              role="img"
+                              aria-label="主分镜图晚于此前生成的 Shot 视频"
+                              title="主分镜图晚于此前生成的 Shot 视频，旧成片可能已失效"
+                              className="absolute bottom-2 left-2 rounded bg-amber-50 p-1 text-amber-700 shadow-sm"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                            </span>
+                          )}
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col p-3">
                           <div className="flex items-start justify-between gap-3">
@@ -4943,6 +4953,9 @@ export function VideoGenTab({
                                 <span className="text-xs tabular-nums text-gray-500">{Number(shot.duration || 0)}s</span>
                               </div>
                               <p className={`mt-2 line-clamp-2 text-sm ${item.category === 'failed' ? 'text-red-700' : 'text-gray-600'}`}>{item.reason}</p>
+                              {shot.mainImageNewerThanVideo && (
+                                <p className="mt-1 text-xs text-amber-800">主图已更新，旧视频可能失效</p>
+                              )}
                             </div>
                             {item.selectable && (
                               <span className={`flex h-6 w-6 flex-none items-center justify-center rounded-full ${isSelected ? 'bg-blue-600' : 'bg-gray-200'}`} aria-label={isSelected ? '已选择' : '未选择'}>

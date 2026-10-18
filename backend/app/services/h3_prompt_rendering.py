@@ -2,6 +2,14 @@
 
 
 def identity_definition(subject, name, number, marks, language):
+    if number is None:
+        if language == "zh":
+            return (f"{subject} is {name}, 无独立身份参考图；"
+                    + (f"以角色库已记录的稳定外貌特征为准：{marks}；" if marks else "")
+                    + "不得从其他人物参考图借用面容；当前服装、姿势或站位以 Canonical 视觉状态为准。")
+        return (f"{subject} is {name}, with no individual identity Picture in this Clip; "
+                + (f"use the recorded stable features: {marks}; " if marks else "")
+                + "do not borrow another Subject's face; Canonical visual states determine current costume, pose, and floor position.")
     if language == "zh":
         return (f"{subject} is {name}, 稳定身份仅绑定到 <Picture {number}>；"
                 + (f"已记录的稳定外貌特征：{marks}；" if marks else "")

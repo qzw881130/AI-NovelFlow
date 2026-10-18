@@ -297,7 +297,7 @@ def format_notification(row, context=None):
             clip = _positive_index(row.clip_id[len(prefix):])
     chapter = _positive_index(context.get("chapter_number")) or _positive_index(details.get("chapter_number"))
     novel = _safe_text(context.get("novel_name") or details.get("novel_name"), 60)
-    if code == "task.review.required":
+    if code in {"task.review.required", "image.review.warning"}:
         icon = "⚠️"
     elif code.endswith((".failed", ".error")):
         icon = "❌"
@@ -407,7 +407,7 @@ def format_notification(row, context=None):
             facts.append(f"分镜：第 {shot} 个")
         if state:
             facts.append(f"视觉状态：第 {state} 个")
-        facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "提醒" if code.endswith(".warning") else "异常" if code.endswith(".error") else "未通过"))
+        facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "需复核（REVIEW）" if code.endswith(".warning") else "异常" if code.endswith(".error") else "未通过"))
     if code.startswith("image.generation"):
         facts.append("生成结果：" + ("完成" if code.endswith(".completed") else "失败"))
     if code.startswith(("story_world_context.parse", "character.parse", "scene.parse", "prop.parse")):

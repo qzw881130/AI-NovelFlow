@@ -116,6 +116,44 @@ def test_phase_b_accepts_current_character_identity_clause(db_session):
     assert json.loads(args['task'].metadata_json)['h3_phase_b']['status'] == 'COMPILED'
 
 
+@pytest.mark.parametrize('narration_only', [False, True], ids=['mixed-speech', 'narration-only'])
+def test_phase_b_narration_is_audio_only_and_keeps_visible_subjects(db_session, narration_only):
+    snap, args, _ = make_case(db_session, NAMES[0])
+    for key in ('canonical_plan', 'builder_input'):
+        dialogue = snap[key]['dialogue_timeline_source']
+        for event in dialogue if narration_only else dialogue[:1]:
+            event['speaker'] = '旁白'
+    args['shot'].video_director_plan = json.dumps(snap['canonical_plan'], ensure_ascii=False)
+    db_session.commit()
+
+    prompt = asyncio.run(pipe.build_phase_b_prompt(
+        **args, llm=FakeDirector(saved(NAMES[0], '_mock_response'))))
+    record = json.loads(args['task'].metadata_json)['h3_phase_b']
+    assert record['status'] == 'COMPILED'
+    assert record['director_input']['speech_slots'][0]['speaker'] == '<Narrator>'
+    if narration_only:
+        assert all(slot['speaker'] == '<Narrator>' for slot in record['director_input']['speech_slots'])
+    assert '<Narrator> (S1)' in prompt
+    assert 'narrates in voice-over' in prompt
+    assert '<Narrator> is ' not in prompt
+    assert '<Narrator>' not in record['director_input']['subject_bindings']
+
+
+def test_phase_b_visible_character_without_picture_uses_recorded_identity(db_session):
+    snap, args, _ = make_case(db_session, NAMES[0])
+    builder = snap['builder_input']
+    builder['clip_visible_characters'].append('礼官')
+    builder['shot']['characters'].append('礼官')
+    builder['shot']['official_character_appearances']['礼官'] = '稳定身份标记为圆脸、灰发、右眉浅痣。'
+    prompt = asyncio.run(pipe.build_phase_b_prompt(
+        **args, llm=FakeDirector(saved(NAMES[0], '_mock_response'))))
+    record = json.loads(args['task'].metadata_json)['h3_phase_b']
+    assert record['status'] == 'COMPILED'
+    assert record['director_input']['subject_bindings']['<Subject 5>'] == '礼官'
+    assert '<Subject 5> is 礼官, with no individual identity Picture in this Clip' in prompt
+    assert '圆脸、灰发、右眉浅痣' in prompt
+
+
 @pytest.mark.parametrize('name', NAMES)
 @pytest.mark.parametrize('silent', [False, True], ids=['dialogue', 'silent'])
 @pytest.mark.parametrize('subject_tags', [False, True], ids=['name-prose-compatible', 'bound-subject-prose'])

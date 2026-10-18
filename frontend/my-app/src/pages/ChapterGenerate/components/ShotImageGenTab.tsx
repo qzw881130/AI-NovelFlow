@@ -16,6 +16,7 @@ import { taskApi, type Task } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
+import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
 import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
@@ -119,6 +120,7 @@ export function ShotImageGenTab({
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [isReplacingImage, setIsReplacingImage] = useState(false);
   const [currentImageTask, setCurrentImageTask] = useState<Task | null>(null);
+  const [imageReviewTarget, setImageReviewTarget] = useState<{ task: { id: string; name: string }; imageUrl: string } | null>(null);
   const [batchTaskId, setBatchTaskId] = useState<string | null>(null);
   const [batchProgressText, setBatchProgressText] = useState('');
 
@@ -815,7 +817,24 @@ export function ShotImageGenTab({
             />
           </div>
           <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentShotObj?.imageTaskId || !currentImageUrl) return;
+                  setImageReviewTarget({
+                    task: { id: currentShotObj.imageTaskId, name: `主分镜图 · Shot ${currentShotIndex}` },
+                    imageUrl: currentImageUrl,
+                  });
+                }}
+                disabled={!currentShotObj?.imageTaskId || !hasImage}
+                title={!hasImage ? '当前分镜暂无图片' : !currentShotObj?.imageTaskId ? '当前图片没有关联的生成任务' : '查看当前分镜图的 AI 评审记录'}
+                className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Eye className="h-3 w-3" />查看 AI 评审
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={openImageEdit}
@@ -1095,6 +1114,17 @@ export function ShotImageGenTab({
           </div>
         </div>
       ), document.body)}
+
+      {imageReviewTarget && createPortal(
+        <ImageReviewModal
+          key={`${imageReviewTarget.task.id}:${imageReviewTarget.imageUrl}`}
+          task={imageReviewTarget.task}
+          imageUrl={imageReviewTarget.imageUrl}
+          readOnly
+          onClose={() => setImageReviewTarget(null)}
+        />,
+        document.body,
+      )}
 
       {currentImageUrl && (
         <ImageEditModal

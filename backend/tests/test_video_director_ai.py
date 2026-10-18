@@ -28,6 +28,21 @@ def test_clip_visible_characters_come_from_selected_keyframes():
     assert video_director_ai._clip_visible_characters(keyframes, ["老大臣", "骗子1", "骗子2"]) == ["老大臣"]
 
 
+def test_clip_visible_characters_expand_only_known_composite_names():
+    keyframes = [{"description": (
+        "Scene: court\nCharacters:\n"
+        "- 燕国使者、赵国使者: stand in line\n"
+        "- 群臣: remain seated\n"
+        "- 未知甲、未知乙: stand outside\nAction: hold position") }]
+    assert video_director_ai._clip_visible_characters(
+        keyframes, ["燕国使者", "赵国使者", "群臣"]
+    ) == ["燕国使者", "赵国使者", "群臣", "未知甲、未知乙"]
+    assert video_director_ai._clip_visible_characters(
+        [{"description": "Characters:\n- 燕国使者、赵国使者: collective role"}],
+        ["燕国使者、赵国使者", "燕国使者", "赵国使者"],
+    ) == ["燕国使者、赵国使者"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("selected_mode", "expected_task_type"),

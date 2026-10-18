@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { shotsApi, type ContinuationMode } from '../../../api/shots';
 
-export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = false, continuationMode = 'AUTO', onProgress }: {
-  novelId?: string; chapterId?: string; shotId: string; disabled?: boolean; continuationMode?: ContinuationMode; onProgress?: () => void;
+export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = false, continuationMode = 'AUTO', onProgress, mainImageNewerThanVideo = false }: {
+  novelId?: string; chapterId?: string; shotId: string; disabled?: boolean; continuationMode?: ContinuationMode; onProgress?: () => void; mainImageNewerThanVideo?: boolean;
 }) {
   const [state, setState] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -71,6 +71,7 @@ export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = fals
       className="rounded bg-blue-600 px-3 py-1.5 font-medium text-white disabled:opacity-40">
       {busy ? '提交中…' : completed ? '当前 Shot 自动生成已完成' : resumable ? '继续自动生成整个 Shot' : '自动生成整个 Shot'}
     </button>
+    {mainImageNewerThanVideo && <span role="status" className="text-amber-800">主分镜图晚于此前生成的 Shot 视频，旧成片可能已失效。请检查并按需重新生成 Clip 和最终视频。</span>}
     {running && <button disabled={busy || state?.pause_requested} onClick={() => control('pause')} className="rounded border px-2 py-1">
       {state?.pause_requested ? '正在停止后续生成…' : '停止后续生成'}
     </button>}

@@ -24,6 +24,10 @@ from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
 from app.services.prop_policy import PROP_EXISTENCE_NONEXISTENT, invalidate_nonexistent_prop_references, normalize_prop_existence
 from app.services.parse_events import observed_parse
+from app.services.narration_timeline import (
+    minimum_shot_duration_for_dialogues,
+    split_oversized_narration_records,
+)
 
 
 class NovelService:
@@ -779,6 +783,12 @@ class NovelService:
         # 创建 Shot 记录
         created_shots = []
         for idx, shot_data in enumerate(shots_data, 1):
+            dialogues = shot_data.get("dialogues", [])
+            segmented = split_oversized_narration_records(dialogues)
+            if segmented is not None:
+                dialogues = segmented
+                required_duration = minimum_shot_duration_for_dialogues(dialogues)
+                shot_data["duration"] = max(int(shot_data.get("duration") or 4), required_duration)
             shot = shot_repo.create(
                 chapter_id=chapter.id,
                 index=idx,
@@ -789,7 +799,7 @@ class NovelService:
                 props=shot_data.get("props", []),
                 duration=shot_data.get("duration", 4),
                 continuity_mode=shot_data.get("continuity_mode") or "NORMAL",
-                dialogues=shot_data.get("dialogues", []),
+                dialogues=dialogues,
             )
             created_shots.append(shot)
 

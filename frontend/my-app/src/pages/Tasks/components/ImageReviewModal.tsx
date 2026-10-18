@@ -12,7 +12,22 @@ const STATUS_STYLE: Record<string, string> = {
 };
 const verdictLabel = (value: string) => value === 'WARNING' ? 'REVIEW' : value;
 
-export function ImageReviewModal({ task, onClose, autoStart = false, initialReviewId }: { task: Pick<Task, 'id' | 'name'>; onClose: () => void; autoStart?: boolean; initialReviewId?: string }) {
+const imageResultKey = (url: string | undefined) => {
+  if (!url) return '';
+  try {
+    const path = new URL(url, window.location.origin).pathname;
+    return path.startsWith('/api/files/') ? path : url;
+  } catch { return url; }
+};
+
+export function ImageReviewModal({ task, onClose, autoStart = false, initialReviewId, imageUrl, readOnly = false }: {
+  task: Pick<Task, 'id' | 'name'>;
+  onClose: () => void;
+  autoStart?: boolean;
+  initialReviewId?: string;
+  imageUrl?: string;
+  readOnly?: boolean;
+}) {
   const [reviews, setReviews] = useState<ImageReview[]>([]);
   const [selected, setSelected] = useState<string | null>(initialReviewId || null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +35,10 @@ export function ImageReviewModal({ task, onClose, autoStart = false, initialRevi
   const [error, setError] = useState('');
   const autoStarted = useRef(false);
   const historyRequest = useRef<{ taskId: string; promise: ReturnType<typeof imageReviewApi.list> } | null>(null);
-  const review = reviews.find(item => item.id === selected) || reviews[0];
+  const visibleReviews = imageUrl
+    ? reviews.filter(item => imageResultKey(item.input?.generated_image) === imageResultKey(imageUrl))
+    : reviews;
+  const review = visibleReviews.find(item => item.id === selected) || visibleReviews[0];
 
   const runReview = useCallback(async () => {
     setReviewing(true); setError('');
@@ -54,7 +72,7 @@ export function ImageReviewModal({ task, onClose, autoStart = false, initialRevi
     }
   }, [autoStart, runReview]);
 
-  const pending = reviews.some(item => item.status === 'pending' || item.status === 'running');
+  const pending = visibleReviews.some(item => item.status === 'pending' || item.status === 'running');
   useEffect(() => {
     if (!pending) return;
     let active = true;
@@ -71,18 +89,18 @@ export function ImageReviewModal({ task, onClose, autoStart = false, initialRevi
       <div className="flex items-center justify-between border-b px-5 py-4">
         <div><h2 className="text-lg font-semibold">AI 图片质量评审</h2><p className="text-xs text-gray-500">{task.name || task.id}</p></div>
         <div className="flex items-center gap-2">
-          <button disabled={reviewing} onClick={runReview} className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">
+          {!readOnly && <button disabled={reviewing} onClick={runReview} className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">
             {reviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{review ? '重新评审' : '开始 AI 评审'}
-          </button>
+          </button>}
           <button onClick={onClose} aria-label="关闭"><X className="h-5 w-5" /></button>
         </div>
       </div>
       <div className="overflow-y-auto p-5 space-y-5">
         {loading && <p className="text-sm text-gray-500">加载评审记录…</p>}
         {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        {!loading && reviews.length === 0 && <p className="text-sm text-gray-500">尚无评审记录。点击开始 AI 评审。</p>}
-        {reviews.length > 1 && <select value={review?.id || ''} onChange={event => setSelected(event.target.value)} className="rounded border p-2 text-sm">
-          {reviews.map(item => <option key={item.id} value={item.id}>{item.createdAt || item.id} · {verdictLabel(item.overall || item.status)}</option>)}
+        {!loading && visibleReviews.length === 0 && <p className="text-sm text-gray-500">{readOnly ? '当前图片暂无 AI 评审记录。' : '尚无评审记录。点击开始 AI 评审。'}</p>}
+        {visibleReviews.length > 1 && <select value={review?.id || ''} onChange={event => setSelected(event.target.value)} className="rounded border p-2 text-sm">
+          {visibleReviews.map(item => <option key={item.id} value={item.id}>{item.createdAt || item.id} · {verdictLabel(item.overall || item.status)}</option>)}
         </select>}
         {review && <>
           <div className="flex flex-wrap items-center gap-3">

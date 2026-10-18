@@ -10,10 +10,12 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
 from app.models.workflow import Workflow
+from app.models.task import Task
 from app.repositories import WorkflowRepository
 from app.constants.workflow import (
     WORKFLOW_TYPES,
     RETIRED_H3_WORKFLOW_TYPES,
+    RETIRED_IMAGE_WORKFLOW_FILES,
     DEFAULT_WORKFLOWS,
     DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
@@ -53,6 +55,8 @@ class WorkflowService:
         """加载默认工作流到数据库"""
         workflows_dir = self.get_workflows_dir()
 
+        self._remove_retired_image_workflows()
+
         # 1. 加载默认工作流
         self._load_default_workflow_files(workflows_dir)
 
@@ -61,8 +65,57 @@ class WorkflowService:
 
         self.db.commit()
 
-        # 3. 确保每种类型只有一个默认激活的工作流
+        # 3. 清理从其他部署目录加载的同一系统预设
+        self._deduplicate_system_workflows(workflows_dir)
+
+        # 4. 确保每种类型只有一个默认激活的工作流
         self._ensure_single_active_workflow()
+
+    def _remove_retired_image_workflows(self) -> None:
+        """Remove obsolete system image presets from existing databases."""
+        retired = [
+            workflow for workflow in self.db.query(Workflow).filter(Workflow.is_system.is_(True)).all()
+            if workflow.file_path
+            and os.path.basename(workflow.file_path) in RETIRED_IMAGE_WORKFLOW_FILES
+        ]
+        for workflow in retired:
+            self.db.delete(workflow)
+        if retired:
+            self.db.commit()
+
+    def _deduplicate_system_workflows(self, workflows_dir: str) -> None:
+        """Keep the current checkout's preset when another deployment seeded it."""
+        registered_files = set(DEFAULT_WORKFLOWS.values()) | {
+            config["filename"] for config in EXTRA_SYSTEM_WORKFLOWS
+        }
+        by_type_and_file: Dict[tuple[str, str], List[Workflow]] = {}
+        for workflow in self.db.query(Workflow).filter(Workflow.is_system.is_(True)).all():
+            if not workflow.file_path:
+                continue
+            filename = os.path.basename(workflow.file_path)
+            if filename in registered_files:
+                by_type_and_file.setdefault((workflow.type, filename), []).append(workflow)
+
+        changed = False
+        for (_, filename), candidates in by_type_and_file.items():
+            if len(candidates) < 2:
+                continue
+            current_path = os.path.join(workflows_dir, filename)
+            current = next((item for item in candidates if item.file_path == current_path), None)
+            if current is None:
+                continue
+            for duplicate in candidates:
+                if duplicate is current or duplicate.workflow_json != current.workflow_json:
+                    continue
+                if duplicate.is_active:
+                    current.is_active = True
+                self.db.query(Task).filter(Task.workflow_id == duplicate.id).update(
+                    {Task.workflow_id: current.id}, synchronize_session=False
+                )
+                self.db.delete(duplicate)
+                changed = True
+        if changed:
+            self.db.commit()
 
     def _load_default_workflow_files(self, workflows_dir: str) -> None:
         """加载默认工作流文件"""

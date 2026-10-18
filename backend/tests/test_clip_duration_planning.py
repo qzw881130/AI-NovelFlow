@@ -32,8 +32,8 @@ def response_clips(*ends):
 
 def setup_planner(monkeypatch, clips, budgets=None):
     prompt = (Path(__file__).parents[1] / 'prompt_templates/10A_NovelFlow_ClipExecutionPlanner_V1.txt').read_text()
-    monkeypatch.setattr(planner, 'PromptTemplateService', lambda db: NS(
-        get_default_system_template=lambda name: NS(name='planner', template=prompt)))
+    monkeypatch.setattr(planner, 'resolve_novel_prompt_template', lambda db, novel, name: NS(
+        name='planner', template=prompt))
     chat = AsyncMock(return_value={'success': True, 'content': json.dumps({'clips': clips})})
     monkeypatch.setattr(planner, 'LLMService', lambda: NS(chat_completion=chat))
     monkeypatch.setattr(planner, 'load_planning_budgets', lambda db: budgets or {})

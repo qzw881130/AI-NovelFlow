@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AlertCircle, AlertTriangle, CheckCircle, Clock3, HelpCircle, Loader2, XCircle } from 'lucide-react';
 import { imageReviewApi, type CurrentImageQuality, type CurrentReviewImage, type ImageQualityStatus } from '../../../api/imageReviews';
 
 export const QUALITY_STATES: ImageQualityStatus[] = ['NOT_REVIEWED', 'PENDING', 'RUNNING', 'PASS', 'WARNING', 'REVIEW', 'FAIL', 'ERROR'];
@@ -12,6 +13,26 @@ const styles: Record<ImageQualityStatus, string> = {
 
 export function ImageQualityBadge({ status, summary }: { status: ImageQualityStatus; summary?: string | null }) {
   return <span data-quality-status={status} title={summary || `图片质量：${labels[status]}`} className={`inline-flex rounded px-1.5 py-0.5 text-[11px] ${styles[status]}`}>质量 · {labels[status]}</span>;
+}
+
+const qualityIcons = {
+  NOT_REVIEWED: HelpCircle, PENDING: Clock3, RUNNING: Loader2, PASS: CheckCircle,
+  WARNING: AlertTriangle, REVIEW: AlertCircle, FAIL: XCircle, ERROR: AlertCircle,
+};
+
+export function ImageQualityIcon({ status, summary }: { status: ImageQualityStatus; summary?: string | null }) {
+  const Icon = qualityIcons[status];
+  const label = `AI 图片评审：${labels[status]}`;
+  return (
+    <span
+      data-quality-status={status}
+      title={summary ? `${label}。${summary}` : label}
+      aria-label={label}
+      className={`inline-flex rounded border border-current/20 p-0.5 shadow-sm ${styles[status]}`}
+    >
+      <Icon className={`h-3 w-3 ${status === 'RUNNING' ? 'animate-spin' : ''}`} />
+    </span>
+  );
 }
 
 export function useImageQuality(images: CurrentReviewImage[], refreshKey: unknown) {

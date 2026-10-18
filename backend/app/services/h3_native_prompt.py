@@ -14,7 +14,7 @@ SECTIONS = (
 # Product compactness guard, not a claimed MiniMax model/context limit.
 MAX_PROMPT_CHARACTERS = 12000
 _DIALOGUE_PATTERN = re.compile(
-    r"(<Subject \d+>)\s+\((S\d+)\)\s+([^<>]+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>", re.S)
+    r"(<Subject \d+>|<Narrator>)\s+\((S\d+)\)\s+([^<>]+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>", re.S)
 
 
 def dialogue_time_cue(event):
@@ -276,7 +276,7 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline, *, r
         "stable_speaker_ids": len(actual) == len(canonical) and all(
             e["speaker_id"] == mapping.get(e["speaker"]) for e in actual),
         "no_silent_speaker_ids": all(mapping.get(subject) == voice for subject, voice in
-            re.findall(r"(<Subject \d+>)\s+\((S\d+)\)", prompt)),
+            re.findall(r"(<Subject \d+>|<Narrator>)\s+\((S\d+)\)", prompt)),
         "chinese_dialogue_language_marker": all(
             e["language"] == "Chinese" for e in actual if re.search(r"[\u3400-\u9fff]", e["exact_dialogue"])),
         "timing_internal_only": not re.search(r"\b\d+(?:\.\d+)?\s*(?:s\b|seconds?\b)",

@@ -29,6 +29,14 @@ STRUCTURAL_CHECKS = (
     "chinese_dialogue_language_marker", "dialogue_time_cues",
     "chinese_marker_count", "exact_dialogue_occurrence_count",
 )
+NARRATOR_TOKEN = "<Narrator>"
+
+
+def _speaker_subject(name, subject_for_name):
+    """Narration is audio-only and must never acquire a visual Subject binding."""
+    if name == "旁白":
+        return NARRATOR_TOKEN
+    return subject_for_name.get(name)
 
 
 def _finite(value):
@@ -48,7 +56,7 @@ def _verified_timing(assigned, subject_for_name, supplied, continuation, capabil
     canonical, events = [], []
     previous_end = 0.0
     for source, event in zip(assigned, provided):
-        subject = subject_for_name.get(source["speaker"])
+        subject = _speaker_subject(source["speaker"], subject_for_name)
         if not subject or not isinstance(event, dict):
             raise ValueError("H3_SINGLE_STAGE_DIALOGUE_BINDING_MISMATCH")
         start, end = event.get("optimized_start"), event.get("optimized_end")
@@ -125,7 +133,8 @@ def _assemble(model_text, canonical, timing, subject_names, picture_mapping, con
     for event in canonical:
         subject = event["speaker"]
         language = "[Chinese] " if re.search(r"[\u3400-\u9fff]", event["exact_dialogue"]) else ""
-        utterance = f"{subject} ({voices[subject]}) says, <d>{language}{event['exact_dialogue']}</d>"
+        verb = "narrates in voice-over" if subject == NARRATOR_TOKEN else "says"
+        utterance = f"{subject} ({voices[subject]}) {verb}, <d>{language}{event['exact_dialogue']}</d>"
         prompt = prompt.replace(f"[[{event['id']}]]", utterance, 1)
     prompt = compile_dialogue_time_cues(prompt, canonical, timing)
     native, _ = check_native_prompt(
@@ -304,7 +313,9 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     for item in picture_mapping:
         if item.get("kind") == "CHARACTER_IDENTITY":
             pictures_by_name.setdefault(item.get("source_name"), []).append(item["picture_index"])
-    if any(len(pictures_by_name.get(name, [])) != 1 for name in subject_names.values()):
+    if any((len(pictures_by_name.get(name, [])) > 1 if phase_b
+            else len(pictures_by_name.get(name, [])) != 1)
+           for name in subject_names.values()):
         raise ValueError("H3_SINGLE_STAGE_IDENTITY_PICTURE_BINDING_UNRESOLVED")
 
     from app.services import h3_prompt_rendering as render
@@ -313,10 +324,12 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     definitions = []
     identity_sources = {}
     for subject, name in subject_names.items():
-        number = pictures_by_name[name][0]
+        number = (pictures_by_name.get(name) or [None])[0]
         marks = _stable_identity_marks(appearances.get(name))
         identity_sources[subject] = (
-            "Character.appearance explicit stable-identity clause" if marks else "MISSING_EXPLICIT_STABLE_IDENTITY_CLAUSE")
+            ("Character.appearance explicit stable-identity clause" if number is not None
+             else "Character.appearance text-only stable-identity clause")
+            if marks else "MISSING_EXPLICIT_STABLE_IDENTITY_CLAUSE")
         marks = localized.get("identity:" + subject, marks)
         definitions.append(render.identity_definition(subject, name, number, marks, prompt_language))
     retention = [render.retention_intro(continuation, prompt_language)]
@@ -362,7 +375,8 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     for index, event in enumerate(canonical, 1):
         subject = event["speaker"]
         language = "[Chinese] " if re.search(r"[\u3400-\u9fff]", event["exact_dialogue"]) else ""
-        utterance = f"{subject} ({voices[subject]}) says, <d>{language}{event['exact_dialogue']}</d>"
+        verb = "narrates in voice-over" if subject == NARRATOR_TOKEN else "says"
+        utterance = f"{subject} ({voices[subject]}) {verb}, <d>{language}{event['exact_dialogue']}</d>"
         slot = f"[[SPEECH_{index}]]" if director_only else f"[[{event['id']}]]"
         prompt = prompt.replace(slot, utterance, 1)
     prompt = compile_dialogue_time_cues(prompt, canonical, timing)
@@ -409,7 +423,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
             f"<Picture {item['picture_index']}>" in prompt for item in picture_mapping),
         "identity_picture_binding": all(_identity_picture_subjects(
             prompt, f"<Picture {pictures_by_name[name][0]}>") == {subject}
-            for subject, name in subject_names.items()),
+            for subject, name in subject_names.items() if pictures_by_name.get(name)),
         "continuation_timing": not continuation or all(check_continuation_timing(
             continuation,
             [{"start_time": e["optimized_start"], "end_time": e["optimized_end"]}
@@ -957,14 +971,16 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
             raise ValueError("STORY_BOUNDARY_INVALID")
 
         bindings = old["reference_binding_contract"]["characters"]
-        names = {b["subject"]: b["name"] for b in bindings}
+        pictured = {b["subject"]: b["name"] for b in bindings}
         # Binding records follow Picture order, which need not be Subject order.
         # Validate the builder's explicit numbering, never renumber by image slot.
         subject_order = {f"<Subject {i}>": name for i, name in enumerate(old["clip_visible_characters"], 1)}
-        if (len(names) != len(bindings) or len(set(names.values())) != len(names)
-                or names != subject_order):
+        if (len(subject_order) != len(old["clip_visible_characters"])
+                or len(set(subject_order.values())) != len(subject_order)
+                or len(pictured) != len(bindings) or len(set(pictured.values())) != len(pictured)
+                or any(subject_order.get(subject) != name for subject, name in pictured.items())):
             raise ValueError("UPSTREAM_SUBJECT_BINDING_AMBIGUOUS")
-        names = {subject: names[subject] for subject in subject_order}
+        names = subject_order
         subject_for_name = {name: subject for subject, name in names.items()}
         appearances = old["shot"].get("official_character_appearances") or {}
         if any(not _stable_identity_marks(appearances.get(name)) for name in names.values()):
@@ -972,9 +988,11 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         assigned = context["clip_dialogues"]
         if any(a["end_time"] > b["start_time"] + 1e-6 for a, b in zip(assigned, assigned[1:])):
             raise ValueError("OVERLAPPING_DIALOGUE_NOT_COVERED")
-        canonical = [{"id": e["id"], "speaker": subject_for_name[e["speaker"]],
+        canonical = [{"id": e["id"], "speaker": _speaker_subject(e["speaker"], subject_for_name),
                       "exact_dialogue": e["text"], "duration": round(e["end_time"] - e["start_time"], 9)}
                      for e in assigned]
+        if any(e["speaker"] is None for e in canonical):
+            raise ValueError("DIALOGUE_SPEAKER_BINDING_MISSING")
         if len({e["id"] for e in canonical}) != len(canonical):
             raise ValueError("DUPLICATE_DIALOGUE")
 
@@ -1021,7 +1039,9 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
             raise ValueError("ORIGINAL_PICTURE_ORDER_INVALID")
         if (anchor_refs or capability == "TEMPORAL_EXTEND") and not drop_capability["supported"]:
             raise ValueError("REFERENCE_SELECTION_BINDER_NOT_COVERED")
-        for subject, name in names.items():
+        if sum(r["kind"] == "CHARACTER_IDENTITY" for r in mapping) != len(bindings):
+            raise ValueError("IDENTITY_PICTURE_BINDING_MISMATCH")
+        for subject, name in pictured.items():
             identity = [r for r in mapping if r["kind"] == "CHARACTER_IDENTITY" and r["source_name"] == name]
             bound = next(b for b in bindings if b["subject"] == subject)
             if len(identity) != 1 or identity[0]["picture"] != bound["picture"]:

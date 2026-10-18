@@ -989,6 +989,7 @@ def _float_or_none(value: Any) -> Optional[float]:
 
 def _clip_visible_characters(keyframes: list, shot_characters: list) -> list:
     visible = []
+    known = set(shot_characters)
     for keyframe in keyframes or []:
         description = str(keyframe.get("description") or "") if isinstance(keyframe, dict) else ""
         match = re.search(r"(?:^|\n)Characters:\s*\n((?:[ \t]*-[^\n]+\n?)*)", description)
@@ -996,8 +997,14 @@ def _clip_visible_characters(keyframes: list, shot_characters: list) -> list:
             continue
         for character in re.findall(r"(?m)^\s*-\s*([^:\n]+):", match.group(1)):
             name = character.strip()
-            if name and name not in visible:
-                visible.append(name)
+            # A Canonical Characters line may list several existing characters
+            # together. Split only when every member is an exact known name;
+            # a real group character with punctuation keeps its own identity.
+            members = [part.strip() for part in re.split(r"[、，,]", name)]
+            names = members if name not in known and len(members) > 1 and all(part in known for part in members) else [name]
+            for member in names:
+                if member and member not in visible:
+                    visible.append(member)
     return visible or shot_characters
 
 

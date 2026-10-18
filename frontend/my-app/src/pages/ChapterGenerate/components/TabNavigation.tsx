@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { Check, Image, Film, Mic, FileText, Sparkles } from 'lucide-react';
+import { Check, Image, Film, Mic, FileText, Sparkles, AlertCircle } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useTranslation } from '../../../stores/i18nStore';
 
@@ -62,6 +62,7 @@ export function TabNavigation() {
   const store = useChapterGenerateStore();
 
   const { currentTab, tabProgress, setCurrentTab, markTabComplete } = store;
+  const outdatedVideoCount = store.shots.filter((shot) => shot.mainImageNewerThanVideo).length;
 
   // 键盘导航
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -106,6 +107,7 @@ export function TabNavigation() {
               key={tab.key}
               disabled={tab.disabled}
               onClick={() => setCurrentTab(tab.index)}
+              title={tab.key === 'video_gen' && outdatedVideoCount > 0 ? `${outdatedVideoCount} 个 Shot 的主分镜图晚于此前生成的视频` : undefined}
               className={`
                 flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all relative
                 ${
@@ -129,6 +131,10 @@ export function TabNavigation() {
               {/* 完成状态标记 */}
               {isCompleted && (
                 <Check className="w-3.5 h-3.5 text-green-500 ml-0.5" />
+              )}
+
+              {tab.key === 'video_gen' && outdatedVideoCount > 0 && (
+                <AlertCircle aria-label={`${outdatedVideoCount} 个 Shot 的主分镜图晚于此前生成的视频`} className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-white text-amber-600" />
               )}
 
               {/* 激活指示器 */}

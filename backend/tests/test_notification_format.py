@@ -95,6 +95,18 @@ def test_image_review_notification_identifies_asset(db, task_type, entity_model,
     assert "无关任务标题" not in message
 
 
+def test_image_review_notification_distinguishes_pass_and_review(db):
+    _, _, shot = _business_rows(db)
+    passed = record_event(db, "image.review.passed", {"shot_id": shot.id})
+    review = record_event(db, "image.review.warning", {"shot_id": shot.id})
+    passed_message = format_notification(passed, resolve_business_context(db, passed))
+    review_message = format_notification(review, resolve_business_context(db, review))
+    assert passed_message.startswith("✅ NovelFlow｜Shot 7 图片评审通过")
+    assert "评审结果：通过" in passed_message
+    assert review_message.startswith("⚠️ NovelFlow｜Shot 7 图片评审提醒")
+    assert "评审结果：需复核（REVIEW）" in review_message
+
+
 def test_image_review_notification_identifies_shot_and_canonical_visual_state(db):
     novel, chapter, shot = _business_rows(db)
     task = Task(type="keyframe_image", name=f"生成关键帧图片: {shot.id}-3", status="completed",

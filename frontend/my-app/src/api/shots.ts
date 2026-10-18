@@ -41,6 +41,7 @@ export interface Shot {
   videoUrl: string | null;
   videoStatus: 'pending' | 'generating' | 'completed' | 'failed';
   videoTaskId: string | null;
+  mainImageNewerThanVideo?: boolean;
   hdVideoUrl: string | null;
   hdVideoStatus: 'pending' | 'generating' | 'completed' | 'failed';
   hdVideoTaskId: string | null;

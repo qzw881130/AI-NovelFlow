@@ -8,7 +8,9 @@
  */
 
 import { useState } from 'react';
-import { Film, Loader2, AlertCircle, CheckCircle, Eye, Box } from 'lucide-react';
+import { Film, Loader2, AlertCircle, CheckCircle, Eye } from 'lucide-react';
+import type { ImageQualityStatus } from '../../../api/imageReviews';
+import { ImageQualityIcon } from './ImageQualityStatus';
 
 export type ShotStatus = 'pending' | 'queued' | 'generating' | 'completed' | 'failed' | 'current';
 
@@ -23,8 +25,12 @@ export interface ShotThumbnailProps {
   status: ShotStatus;
   /** 是否被选中（批量模式） */
   isSelected?: boolean;
-  /** 是否关联道具 */
-  hasProps?: boolean;
+  /** 当前分镜图的 AI 评审状态 */
+  imageQualityStatus?: ImageQualityStatus;
+  /** 当前分镜图的 AI 评审摘要 */
+  imageQualitySummary?: string | null;
+  /** 当前主分镜图晚于已有 Shot 视频 */
+  mainImageNewerThanVideo?: boolean;
   /** 分镜时长（秒） */
   duration?: number | null;
   /** 点击回调 */
@@ -43,7 +49,9 @@ export function ShotThumbnail({
   thumbnailUrl,
   status,
   isSelected = false,
-  hasProps = false,
+  imageQualityStatus,
+  imageQualitySummary,
+  mainImageNewerThanVideo = false,
   duration,
   onClick,
   onDoubleClick,
@@ -161,13 +169,16 @@ export function ShotThumbnail({
         {isSelected && <CheckCircle className="w-3 h-3" />}
       </div>
 
-      {hasProps && (
-        <div
-          className="absolute bottom-2 left-1 p-1 rounded-md bg-white/90 shadow-sm border border-purple-200"
-          title="包含道具"
-        >
-          <Box className="w-4 h-4 text-purple-500" />
+      {thumbnailUrl && imageQualityStatus && (
+        <div className="absolute bottom-2 left-1 z-10">
+          <ImageQualityIcon status={imageQualityStatus} summary={imageQualitySummary} />
         </div>
+      )}
+
+      {mainImageNewerThanVideo && (
+        <span title="主分镜图晚于此前生成的 Shot 视频" aria-label="主分镜图晚于此前生成的 Shot 视频" className="absolute bottom-2 left-1 z-10 rounded bg-amber-50 p-0.5 text-amber-700 shadow-sm">
+          <AlertCircle className="h-3 w-3" />
+        </span>
       )}
 
       {typeof duration === 'number' && duration > 0 && (

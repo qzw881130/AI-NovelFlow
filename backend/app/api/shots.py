@@ -142,6 +142,7 @@ from app.services.video_director_ai import (
     build_dialogue_visual_support_evidence,
 )
 from app.services.clip_planner import plan_clips, merge_dialogue_ownership_validation
+from app.services.narration_timeline import segment_oversized_narration
 from app.services.clip_execution_compiler import (
     ClipExecutionCompileError,
     compile_extend_clip,
@@ -2477,10 +2478,23 @@ async def plan_shot_clips(
         # Reading an existing plan must not migrate metadata or rewrite its JSON.
         return {"success": True, "data": {"clips": clips, "validation": validation}}
     try:
+        narration_repair = segment_oversized_narration(shot, dialogue_timeline_source)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    planning_shot = shot
+    if narration_repair is not None:
+        repaired_dialogues, dialogue_timeline_source, timeline_status = narration_repair
+        # Plan against a detached candidate. Do not persist a changed L1 unless
+        # the replacement Clip plan and its dialogue ownership both validate.
+        planning_shot = SimpleNamespace(**{
+            column.name: getattr(shot, column.name) for column in Shot.__table__.columns
+        })
+        planning_shot.dialogues = json.dumps(repaired_dialogues, ensure_ascii=False)
+    try:
         clips, validation = await plan_clips(
             db,
             novel,
-            shot,
+            planning_shot,
             request.temporal_anchors,
             {"min_story_clip_duration": 2.0, "approval_mode": request.approval_mode},
             resolved_dialogue_timeline=dialogue_timeline_source,
@@ -2491,6 +2505,8 @@ async def plan_shot_clips(
         # Return the failed candidate for review without replacing the current
         # canonical plan or advancing its revision.
         return {"success": True, "data": {"clips": clips, "validation": validation}}
+    if narration_repair is not None:
+        shot.dialogues = planning_shot.dialogues
     current_plan.update({
         "dialogue_timeline_source": dialogue_timeline_source,
         "dialogue_timeline_status": timeline_status,

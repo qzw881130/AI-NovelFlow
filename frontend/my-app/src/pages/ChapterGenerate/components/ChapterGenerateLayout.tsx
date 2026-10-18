@@ -79,6 +79,25 @@ interface ChapterGenerateLayoutProps {
   onImageClick?: (url: string) => void;
 }
 
+const TAB_HASH_KEYS = ['shot_split', 'shot_image', 'audio_gen', 'video_gen', 'hd_repaint'] as const;
+
+const parseTabHash = (): number | null => {
+  const value = new URLSearchParams(window.location.hash.slice(1)).get('tab');
+  const index = TAB_HASH_KEYS.findIndex((key) => key === value);
+  return index >= 0 ? index : null;
+};
+
+const parseShotHash = (): number | null => {
+  const hash = window.location.hash.slice(1).trim();
+  const value = new URLSearchParams(hash).get('shot') || hash.match(/^(?:shot-?|s)?(\d+)$/i)?.[1];
+  if (!value || !/^\d+$/.test(value)) return null;
+  const index = Number(value);
+  return Number.isSafeInteger(index) && index > 0 ? index : null;
+};
+
+const chapterGenerateHash = (tab: number, shotIndex: number) =>
+  `#tab=${TAB_HASH_KEYS[tab] || TAB_HASH_KEYS[0]}&shot=${shotIndex}`;
+
 export function ChapterGenerateLayout({
   chapter: propChapter,
   novel: propNovel,
@@ -110,6 +129,7 @@ export function ChapterGenerateLayout({
   const [openVideoStatsKey, setOpenVideoStatsKey] = useState<string | null>(null);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
+  const pendingTabHashIndexRef = useRef<number | null>(null);
 
   // 使用选择器正确订阅 store 状态
   const storeParsedData = useChapterGenerateStore((state) => state.parsedData);
@@ -366,22 +386,14 @@ export function ChapterGenerateLayout({
 
   const goToChapter = (chapterId?: string) => {
     if (!id || !chapterId) return;
-    navigate(`/novels/${id}/chapters/${chapterId}/generate`);
+    navigate(`/novels/${id}/chapters/${chapterId}/generate${chapterGenerateHash(currentTab, 1)}`);
   };
 
-  const parseShotHash = () => {
-    const hash = window.location.hash.replace(/^#/, '').trim();
-    const match = hash.match(/^(?:shot-?|s)?(\d+)$/i);
-    if (!match) return null;
-    const index = Number(match[1]);
-    return Number.isFinite(index) && index > 0 ? index : null;
-  };
-
-  const updateShotHash = (index: number) => {
+  const updateChapterHash = (tab: number, index: number) => {
     if (!index) return;
-    const nextHash = `#shot-${index}`;
+    const nextHash = chapterGenerateHash(tab, index);
     if (window.location.hash === nextHash) return;
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${nextHash}`);
   };
 
   const renderChapterContent = () => {
@@ -423,9 +435,11 @@ export function ChapterGenerateLayout({
     if (id && cid) {
       loadWorkflowState(id, cid);
       const eventQuery = new URLSearchParams(window.location.search);
-      if (eventQuery.get('eventShot') && eventQuery.get('tab') === 'video') setCurrentTab(3);
+      const requestedTab = parseTabHash() ?? (eventQuery.get('tab') === 'video' ? 3 : null);
+      pendingTabHashIndexRef.current = requestedTab;
+      if (requestedTab !== null) setCurrentTab(requestedTab);
     }
-  }, [id, cid, loadWorkflowState]);
+  }, [id, cid, loadWorkflowState, setCurrentTab]);
 
   useEffect(() => {
     if (!id) return;
@@ -448,7 +462,7 @@ export function ChapterGenerateLayout({
   }, [cid]);
 
   useEffect(() => {
-    if (shots.length === 0) return;
+    if (shots.length === 0 || shots.some((shot) => shot.chapterId !== cid)) return;
     if (!initialShotHashAppliedRef.current) {
       initialShotHashAppliedRef.current = true;
       const hashShotIndex = parseShotHash();
@@ -472,15 +486,23 @@ export function ChapterGenerateLayout({
   }, [shots, currentShotId, currentShotIndex, setCurrentShot]);
 
   useEffect(() => {
-    if (!currentShotIndex || shots.length === 0) return;
+    if (!currentShotIndex || shots.length === 0 || shots.some((shot) => shot.chapterId !== cid)) return;
     const pendingShotHashIndex = pendingShotHashIndexRef.current;
     if (pendingShotHashIndex && currentShotIndex !== pendingShotHashIndex) return;
     if (pendingShotHashIndex === currentShotIndex) pendingShotHashIndexRef.current = null;
-    updateShotHash(currentShotIndex);
-  }, [currentShotIndex, shots.length]);
+    const pendingTabHashIndex = pendingTabHashIndexRef.current;
+    if (pendingTabHashIndex !== null && currentTab !== pendingTabHashIndex) return;
+    pendingTabHashIndexRef.current = null;
+    updateChapterHash(currentTab, currentShotIndex);
+  }, [cid, currentTab, currentShotIndex, shots]);
 
   useEffect(() => {
     const handleHashChange = () => {
+      const hashTabIndex = parseTabHash();
+      if (hashTabIndex !== null) {
+        pendingTabHashIndexRef.current = hashTabIndex;
+        setCurrentTab(hashTabIndex);
+      }
       const hashShotIndex = parseShotHash();
       if (!hashShotIndex || hashShotIndex > shots.length) return;
       const shot = shots[hashShotIndex - 1];
@@ -491,7 +513,7 @@ export function ChapterGenerateLayout({
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [shots, setCurrentShot]);
+  }, [shots, setCurrentShot, setCurrentTab]);
 
   const renderChapterSwitch = () => (
     <div className="flex items-center gap-2 flex-shrink-0">
