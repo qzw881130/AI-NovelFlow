@@ -136,6 +136,22 @@ const isTaskForClipRevision = (task: Task, clip: SemanticClipPlan, revision: num
   && Number(task.clipExecution.clip_index || 0) === Number(clip.clip_index)
 );
 
+export function hasInvalidatedSemanticClipArtifact(clip: SemanticClipPlan, tasks: Task[], revision: number): boolean {
+  return ['PLANNED', 'PENDING'].includes(String(clip.execution_status || '').toUpperCase())
+    && !clip.generated_by_task_id && !clip.video_url && !clip.local_path
+    && tasks.some((task) => isTaskForClipRevision(task, clip, revision)
+      && task.status === 'completed' && task.clipExecution?.approval_status === 'APPROVED');
+}
+
+export function resolveLatestSemanticClipAttempt(clip: SemanticClipPlan, tasks: Task[], revision: number): Task | undefined {
+  const reset = ['PLANNED', 'PENDING'].includes(String(clip.execution_status || '').toUpperCase())
+    && !clip.video_url && !clip.local_path;
+  return tasks
+    .filter((task) => isTaskForClipRevision(task, clip, revision))
+    .filter((task) => !reset || ['pending', 'queued', 'processing', 'running'].includes(String(task.status).toLowerCase()))
+    .sort((a, b) => String(b.createdAt || b.created_at || '').localeCompare(String(a.createdAt || a.created_at || '')))[0];
+}
+
 export function resolveSemanticClipTask(clip: SemanticClipPlan, tasks: Task[], revision: number): Task | undefined {
   if (clip.generated_by_task_id) {
     const exact = tasks.find((task) => String(task.id) === String(clip.generated_by_task_id));

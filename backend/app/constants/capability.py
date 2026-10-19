@@ -88,8 +88,8 @@ VIDEO_CAPABILITY_CONTRACTS = {
     },
 }
 
-# EXTEND is a semantic capability.  This is the one deliberate physical
-# adapter to the frozen historical continuation workflow.
+# Historical system workflow IDs. New Clip executions use the active workflow
+# of the matching physical type; existing tasks retain their saved workflow ID.
 EXTEND_WORKFLOW_ID = "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71"
 EXTEND_PHYSICAL_WORKFLOW_TYPE = "VIDEO_CONTINUATION"
 TEMPORAL_EXTEND_WORKFLOW_ID = "cb0804a7-157e-4c12-9174-5fa43838ecf4"

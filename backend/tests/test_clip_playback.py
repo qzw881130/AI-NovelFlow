@@ -104,6 +104,53 @@ def test_review_does_not_use_unverified_boundary(db_session, tmp_path, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_clip_playback_saves_from_task_mapped_output_node(db_session, tmp_path, monkeypatch):
+    novel, chapter, shot, tasks, _ = _assembly_fixture(db_session, tmp_path, monkeypatch)
+    task = tasks[2]
+    graph = {'124': {'class_type': 'VHS_VideoCombine', 'inputs': {}}}
+    task.workflow_json = json.dumps(graph)
+    task.comfyui_prompt_id = 'mapped-prompt'
+    metadata = json.loads(task.metadata_json)
+    metadata['clip_video_output_node_id'] = '124'
+    metadata['video_save_node_id'] = '65'
+    metadata['comfyui_history'] = {
+        'prompt': [0, 'mapped-prompt', graph],
+        'outputs': {'124': {'gifs': [{'filename': 'fragment-audio.mp4'}]}},
+    }
+    task.metadata_json = json.dumps(metadata)
+    db_session.commit()
+
+    selected = []
+    class Client:
+        base_url = 'http://comfy'
+        def _parse_outputs(self, outputs, _graph, node_id, strict_output_node=False):
+            selected.append((node_id, strict_output_node, list(outputs)))
+            return {'video_url': 'http://comfy/view?filename=fragment-audio.mp4&type=output'}
+    monkeypatch.setattr(playback.ComfyUIClient, 'for_product_runtime', lambda db: Client())
+    class HTTP:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def get(self, url):
+            class Reply:
+                content = b'fragment'
+                def raise_for_status(self): pass
+            return Reply()
+    monkeypatch.setattr(playback.httpx, 'AsyncClient', lambda **kw: HTTP())
+    monkeypatch.setattr(playback, 'remux_native_av', lambda *args: {})
+    physical = metadata['physical_output']['assembly_span']
+    monkeypatch.setattr(playback, 'probe_clip_av', lambda path: {'frame_count': physical['end_frame']-physical['start_frame']})
+    monkeypatch.setattr(playback, 'local_path_to_url', lambda path: str(path))
+    monkeypatch.setattr(playback, 'url_to_local_path', lambda url: str(tmp_path / Path(url).name) if url.startswith('/api/files/') else url)
+
+    result = await playback.clip_playback(db_session, shot, 2, novel.id, chapter.id)
+
+    assert selected == [('124', True, ['124'])]
+    assert result['source_output_node'] == '124'
+    assert Path(result['independent_url']).read_bytes() == b'fragment'
+    assert result['cumulative_url'] == task.result_url
+
+
+@pytest.mark.asyncio
 async def test_review_extracts_shared_context_with_synchronized_audio(tmp_path):
     import subprocess
     from app.services.continuous_clip_av import probe_clip_av

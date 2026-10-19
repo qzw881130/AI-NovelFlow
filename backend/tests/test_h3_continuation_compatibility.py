@@ -153,6 +153,41 @@ def test_configuration_not_a_global_39_frame_rule(physical):
     assert cont.continuation_contract(None,'MULTI_KEYFRAME',None,{}) is None
 
 
+def two_pass_graph(workflow):
+    graph=json.loads(workflow.workflow_json)
+    graph['116']={'class_type':'MiniMaxH3LatentUpscaleCombined',
+                  'inputs':{'samples':['3',1]}}
+    graph['117']={'class_type':'BasicGuider',
+                  'inputs':{'conditioning':['116',1]}}
+    graph['119']={'class_type':'SamplerCustomAdvanced',
+                  'inputs':{'latent_image':['116',0],'guider':['117',0]}}
+    graph['65']['inputs']['extension_1']=['119',0]
+    return graph
+
+
+def test_two_pass_continuation_uses_first_pass_masked_context(physical):
+    w,path,ctx=physical
+    w.workflow_json=json.dumps(two_pass_graph(w))
+    assert cont.continuation_contract(w,'EXTEND',path,ctx)['binding_verified'] is True
+
+
+@pytest.mark.parametrize('broken_link', ['first_pass','upscale','guider','output','mapped_output','finalizer'])
+def test_two_pass_continuation_rejects_disconnected_source(physical,broken_link):
+    w,path,ctx=physical
+    graph=two_pass_graph(w)
+    if broken_link=='first_pass':graph['3']['inputs']['latent_image']=['55',1]
+    elif broken_link=='upscale':graph['116']['inputs']['samples']=['55',1]
+    elif broken_link=='guider':graph['117']['inputs']['conditioning']=['55',0]
+    elif broken_link=='output':graph['65']['inputs']['extension_1']=['3',0]
+    elif broken_link=='mapped_output':
+        mapping=json.loads(w.node_mapping);mapping['video_save_node_id']='39'
+        w.node_mapping=json.dumps(mapping)
+    elif broken_link=='finalizer':graph['99']['inputs']['filenames']=['39',0]
+    w.workflow_json=json.dumps(graph)
+    with pytest.raises(ValueError,match='PREVIOUS_AV_BINDING_UNVERIFIED'):
+        cont.continuation_contract(w,'EXTEND',path,ctx)
+
+
 @pytest.mark.parametrize('kind',['missing_source','wrong_source','wrong_hash','wrong_sampler','wrong_mode','wrong_context','missing_contract'])
 def test_illegal_continuation_binding_fails(physical,kind):
     w,path,ctx=physical;graph=json.loads(w.workflow_json);cap='EXTEND'

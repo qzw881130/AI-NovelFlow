@@ -139,12 +139,73 @@ interface VideoPreviewModalProps {
   onClose: () => void;
 }
 
+interface VideoMetadata {
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
+}
+
+const emptyVideoMetadata = (): VideoMetadata => ({ duration: null, width: null, height: null, sizeBytes: null });
+
+const formatVideoDuration = (seconds: number | null) => {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return '-';
+  const totalSeconds = Math.round(seconds);
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+};
+
+const formatVideoSize = (bytes: number | null) => {
+  if (bytes === null || !Number.isFinite(bytes) || bytes <= 0) return '-';
+  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const formatVideoBitrate = (bytes: number | null, duration: number | null) => {
+  if (bytes === null || duration === null || !Number.isFinite(bytes) || !Number.isFinite(duration) || bytes <= 0 || duration <= 0) return '-';
+  const kbps = (bytes * 8) / duration / 1000;
+  return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} Mbps` : `${Math.round(kbps)} kbps`;
+};
+
 export function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
   const { t } = useTranslation();
+  const [metadata, setMetadata] = useState<VideoMetadata>(emptyVideoMetadata);
+
+  useEffect(() => {
+    setMetadata(emptyVideoMetadata());
+    const controller = new AbortController();
+    fetch(videoUrl, { method: 'HEAD', signal: controller.signal })
+      .then(response => {
+        if (controller.signal.aborted || !response.ok) return;
+        const contentLength = Number(response.headers.get('content-length'));
+        if (Number.isFinite(contentLength) && contentLength > 0) {
+          setMetadata(current => ({ ...current, sizeBytes: contentLength }));
+        }
+      })
+      .catch(() => {
+        // Remote videos may not expose Content-Length or permit HEAD requests.
+      });
+    return () => controller.abort();
+  }, [videoUrl]);
+
+  const handleLoadedMetadata = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget;
+    setMetadata(current => ({
+      ...current,
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      width: video.videoWidth || null,
+      height: video.videoHeight || null,
+    }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center w-full">
-        <video src={videoUrl} controls autoPlay className="max-w-full max-h-[80vh] rounded-lg" onClick={(e) => e.stopPropagation()} />
+      <div className="relative flex w-fit max-w-[90vw] max-h-[90vh] flex-col overflow-visible">
+        <video key={videoUrl} src={videoUrl} controls autoPlay className="max-w-full max-h-[calc(90vh-4rem)] rounded-t-lg" onLoadedMetadata={handleLoadedMetadata} onDurationChange={handleLoadedMetadata} onClick={(e) => e.stopPropagation()} />
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 rounded-b-lg bg-white px-4 py-2 text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
+          <span>{t('tasks.videoDuration')}：{formatVideoDuration(metadata.duration)}</span>
+          <span>{t('tasks.videoResolution')}：{metadata.width && metadata.height ? `${metadata.width} x ${metadata.height}` : '-'}</span>
+          <span>{t('tasks.size')}：{formatVideoSize(metadata.sizeBytes)}</span>
+          <span>{t('tasks.videoBitrate')}：{formatVideoBitrate(metadata.sizeBytes, metadata.duration)}</span>
+        </div>
         <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>

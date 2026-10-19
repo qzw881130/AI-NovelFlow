@@ -3327,12 +3327,12 @@ async def _execute_phase_b_semantic_clip(
 
     compiled["execution_contract"]["execution_projection"] = projection_record(projection)
     if capability == "EXTEND":
-        workflow = WorkflowRepository(db).get_by_id(EXTEND_WORKFLOW_ID)
-        if not workflow or not workflow.is_active or workflow.type != EXTEND_PHYSICAL_WORKFLOW_TYPE:
+        workflow = WorkflowRepository(db).get_active_by_type(EXTEND_PHYSICAL_WORKFLOW_TYPE)
+        if not workflow:
             raise HTTPException(status_code=400, detail="EXTEND physical workflow unavailable")
     elif capability == "TEMPORAL_EXTEND":
-        workflow = WorkflowRepository(db).get_by_id(TEMPORAL_EXTEND_WORKFLOW_ID)
-        if not workflow or not workflow.is_active or workflow.type != "TEMPORAL_EXTEND":
+        workflow = WorkflowRepository(db).get_active_by_type("TEMPORAL_EXTEND")
+        if not workflow:
             raise HTTPException(status_code=400, detail="TEMPORAL_EXTEND workflow unavailable")
     else:
         workflow = WorkflowRepository(db).get_active_by_type("multi_reference_video")
@@ -3342,6 +3342,12 @@ async def _execute_phase_b_semantic_clip(
     is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, physical_workflow_type)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
+
+    if request.h3_prompt_pipeline == "phase_b" and request.skip_llm_when_prompt_exists and not candidate:
+        from app.services.h3_phase_b_pipeline import reuse_plan_workflow_blocker
+        blocker = reuse_plan_workflow_blocker(plan, window_index, workflow.id)
+        if blocker:
+            raise HTTPException(status_code=409, detail=blocker)
 
     for active in db.query(Task).filter(
         Task.type == "shot_video",
@@ -3373,9 +3379,17 @@ async def _execute_phase_b_semantic_clip(
         subject_bindings=(compiled["execution_contract"].get("visual_attention_snapshot") or {}).get("characters", []),
     )
 
-    reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"]) if request.skip_llm_when_prompt_exists else ""
+    reusable_prompt = ""
+    if request.skip_llm_when_prompt_exists:
+        if request.h3_prompt_pipeline == "phase_b":
+            from app.services.h3_phase_b_pipeline import reusable_phase_b_clip_prompt
+            reusable_prompt = reusable_phase_b_clip_prompt(plan, clip, workflow.id)
+        else:
+            reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"])
     if request.skip_llm_when_prompt_exists and request.h3_prompt_pipeline == "legacy" and not reusable_prompt.strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
+    if request.skip_llm_when_prompt_exists and request.h3_prompt_pipeline == "phase_b" and not reusable_prompt.strip():
+        raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的 Phase B 最终 Prompt，请先重新生成片段")
 
     prompt_language = None
     if request.h3_prompt_pipeline == "phase_b":
@@ -3434,6 +3448,8 @@ async def _execute_phase_b_semantic_clip(
     metadata["prompt_text"] = reusable_prompt
     if request.h3_prompt_pipeline == "phase_b":
         metadata.update(optimize_h3_prompt=False, preflight_auto_repair=False)
+        if request.skip_llm_when_prompt_exists:
+            metadata["phase_b_requested_prompt"] = reusable_prompt
     if candidate:
         metadata.update(freeze_candidate_source(shot, plan, compiled))
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)

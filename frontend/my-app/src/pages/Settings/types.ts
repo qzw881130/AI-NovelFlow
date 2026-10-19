@@ -19,6 +19,7 @@ export interface Workflow {
     width_node_id?: string;
     height_node_id?: string;
     video_save_node_id?: string;
+    clip_video_output_node_id?: string;
     max_side_node_id?: string;
     megapixels_node_id?: string;
     megapixels_value?: string;
@@ -53,6 +54,8 @@ export interface Workflow {
     scale_node_id?: string;
     scale_value?: string;
     custom_keyframes_node_id?: string;
+    second_pass_upscale_step_node_id?: string;
+    second_pass_upscale_step?: string;
   };
   extension?: {
     [key: string]: any;
@@ -98,6 +101,7 @@ export interface MappingForm {
   widthNodeId: string;
   heightNodeId: string;
   videoSaveNodeId: string;
+  clipVideoOutputNodeId?: string;
   maxSideNodeId: string;
   megapixelsNodeId: string;
   megapixelsValue: string;
@@ -120,12 +124,15 @@ export interface MappingForm {
   scaleNodeId?: string;
   scaleValue?: string;
   customKeyframesNodeId?: string;
+  secondPassUpscaleStepNodeId?: string;
+  secondPassUpscaleStep?: string;
 }
 
 export interface AvailableNodes {
   clipTextEncode: string[];
   saveImage: string[];
   easyInt: string[];
+  secondPassStepNodes: string[];
   easyFloat: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];

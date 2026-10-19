@@ -110,6 +110,7 @@ class WorkflowBuilder:
             )
             if node_mapping.get("load_image_node_1"):
                 self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
+        self._set_second_pass_upscale_step(workflow, node_mapping)
         return workflow
 
     def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix, reference_image_filenames=None):
@@ -129,7 +130,51 @@ class WorkflowBuilder:
         workflow[save_id]["inputs"]["save_output"] = True
         if node_mapping.get("load_image_node_1"):
             self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
+        self._set_second_pass_upscale_step(workflow, node_mapping)
         return workflow
+
+    @staticmethod
+    def _set_second_pass_upscale_step(workflow: Dict[str, Any], node_mapping: Dict[str, Any]) -> None:
+        node_id = str(node_mapping.get("second_pass_upscale_step_node_id") or "")
+        if not node_id:
+            return
+        raw_step = node_mapping.get("second_pass_upscale_step") or 2
+        try:
+            step = int(raw_step)
+        except (TypeError, ValueError):
+            raise ValueError("二采放大Step 只能是 2、3 或 4") from None
+        if str(raw_step) != str(step) or step not in {2, 3, 4}:
+            raise ValueError("二采放大Step 只能是 2、3 或 4")
+
+        if isinstance(workflow.get("nodes"), list):
+            node = next((item for item in workflow["nodes"] if isinstance(item, dict) and str(item.get("id")) == node_id), None)
+            class_type = node.get("type") if node else None
+            if class_type not in {"INTConstant", "easy int", "Int"}:
+                raise ValueError(f"二采放大Step 节点 {node_id} 不存在或类型不支持")
+            key = "Number" if class_type == "Int" else "value"
+            named = node.get("widgets_values_named")
+            if not isinstance(named, dict):
+                named = {}
+                node["widgets_values_named"] = named
+            previous = named.get(key)
+            named[key] = str(step) if isinstance(previous, str) or class_type == "Int" else step
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = named[key]
+            elif isinstance(values, list) and values:
+                values[0] = named[key]
+            return
+
+        node = workflow.get(node_id)
+        class_type = node.get("class_type") if isinstance(node, dict) else None
+        if class_type not in {"INTConstant", "easy int", "Int"}:
+            raise ValueError(f"二采放大Step 节点 {node_id} 不存在或类型不支持")
+        key = "Number" if class_type == "Int" else "value"
+        inputs = node.get("inputs") or {}
+        if key not in inputs:
+            raise ValueError(f"二采放大Step 节点 {node_id} 缺少 {key} 输入")
+        previous = inputs[key]
+        node["inputs"][key] = str(step) if isinstance(previous, str) else step
 
     @staticmethod
     def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
@@ -386,6 +431,8 @@ class WorkflowBuilder:
         if seed is None:
             seed = random.randint(1, 2**32)
         self._set_random_seed(workflow, seed)
+
+        self._set_second_pass_upscale_step(workflow, node_mapping)
 
         return workflow
 

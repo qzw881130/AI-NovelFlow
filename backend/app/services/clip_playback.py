@@ -44,13 +44,25 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
     task,metadata,path=cache_export_av_probes(validate_semantic_clip_artifact)(db,shot,current,revision,novel_id,chapter_id)
     async with _locks.setdefault(task.id,asyncio.Lock()):
         db.refresh(task);metadata=safe_json_dict(task.metadata_json)
+        native=(metadata.get('execution_contract') or {}).get('capability') in CONTINUOUS_CAPABILITIES
+        if native:
+            # Use the mapping captured when this task was submitted. Older tasks
+            # predate that snapshot and used node 39 for independent playback.
+            clip_output_node_id=(str(metadata.get('clip_video_output_node_id') or '')
+                                 if 'clip_video_output_node_id' in metadata else '39')
+        else:
+            clip_output_node_id='formal_clip_output'
         cached=metadata.get('clip_playback') or {}
-        if cached.get('source_task_id')==task.id and all(Path(url_to_local_path(cached.get(k) or '') or '/missing').is_file() for k in ['independent_url','cumulative_url']):
+        if (cached.get('source_task_id')==task.id and cached.get('source_prompt_id')==task.comfyui_prompt_id
+                and cached.get('source_output_node')==clip_output_node_id
+                and all(Path(url_to_local_path(cached.get(k) or '') or '/missing').is_file() for k in ['independent_url','cumulative_url'])):
             return cached
         # A review derivative is never stored in independent_url or used as a
         # generation/assembly source. Validate its source and file before reuse.
         review_path = url_to_local_path(cached.get('review_url') or '')
-        if (cached.get('source_task_id') == task.id and not cached.get('independent_url')
+        if (cached.get('source_task_id') == task.id and cached.get('source_prompt_id')==task.comfyui_prompt_id
+                and cached.get('source_output_node')==clip_output_node_id
+                and not cached.get('independent_url')
                 and cached.get('independent_error') in _REVIEWABLE_ERRORS and not metadata.get('comfyui_history')
                 and review_path and Path(review_path).is_file()
                 and (cached.get('review_provenance') or {}).get('source_sha256') == (metadata.get('physical_output') or {}).get('sha256')):
@@ -69,12 +81,16 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
         units,projection=project_prefix()
         outdir=Path(path).parent/'clip_previews'/task.id;outdir.mkdir(parents=True,exist_ok=True)
         independent_url=task.result_url;independent_media=None
-        native=(metadata.get('execution_contract') or {}).get('capability') in CONTINUOUS_CAPABILITIES
         independent_error = None
         if native:
             try:
+                if not clip_output_node_id or clip_output_node_id==str(metadata.get('video_save_node_id') or '65'):
+                    raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                 client=ComfyUIClient.for_product_runtime(db)
                 graph=json.loads(task.workflow_json)
+                node=graph.get(clip_output_node_id) or {}
+                if node.get('class_type') not in {'VHS_VideoCombine','MiniMaxH3StreamLiveExtensionAVToVHS'}:
+                    raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                 async with httpx.AsyncClient(timeout=180) as http:
                     history=metadata.get('comfyui_history') or {}
                     if not history:
@@ -85,8 +101,8 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
                     receipt = history.get('prompt') or []
                     if len(receipt) < 3 or receipt[1] != task.comfyui_prompt_id or receipt[2] != graph:
                         raise ValueError('CLIP_PLAYBACK_RECEIPT_MISMATCH')
-                    if '39' not in history.get('outputs',{}):raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
-                    raw=client._parse_outputs({'39':history['outputs']['39']},graph,'39',strict_output_node=True)
+                    if clip_output_node_id not in history.get('outputs',{}):raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
+                    raw=client._parse_outputs({clip_output_node_id:history['outputs'][clip_output_node_id]},graph,clip_output_node_id,strict_output_node=True)
                     url=raw.get('video_url') if raw else None
                     if not url:raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                     parsed=urlsplit(url);query=parse_qsl(parsed.query,keep_blank_values=True)
@@ -141,7 +157,7 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
         result={'source_task_id':task.id,'clip_index':clip_index,'independent_url':independent_url,
                 'cumulative_url':cumulative_url,'includes_shared_context':native,
                 'independent_media':independent_media,'independent_error':independent_error,'cumulative_frames':projection['frame_count'],
-                'source_prompt_id':task.comfyui_prompt_id,'source_output_node':'39' if native else 'formal_clip_output',
+                'source_prompt_id':task.comfyui_prompt_id,'source_output_node':clip_output_node_id,
                 'review_url':review_url,'review_media':review_media,'review_provenance':review_provenance,'review_error':review_error}
         db.refresh(task);metadata=safe_json_dict(task.metadata_json);metadata['clip_playback']=result
         task.metadata_json=json.dumps(metadata,ensure_ascii=False);db.commit()

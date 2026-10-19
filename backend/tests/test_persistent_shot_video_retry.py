@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker
 
-from app.constants.capability import EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
 from app.models.background_job import BackgroundJob
 from app.models.task import Task
 from app.models.workflow import Workflow
@@ -38,7 +37,7 @@ def setup_retry(db_session, db_engine, tmp_path, monkeypatch):
         novel, chapter, shot, previous, artifact = _state(tmp_path)
         wf_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",
                    "TEMPORAL_EXTEND": "TEMPORAL_EXTEND"}[mode]
-        wf_id = {"EXTEND": EXTEND_WORKFLOW_ID, "TEMPORAL_EXTEND": TEMPORAL_EXTEND_WORKFLOW_ID}.get(mode, "generate-workflow")
+        wf_id = {"EXTEND": "selected-continuation", "TEMPORAL_EXTEND": "selected-temporal"}.get(mode, "generate-workflow")
         meta = {
             "execution_scope": "CLIP", "clip_id": f"{shot.id}:clip:2", "clip_index": 2,
             "clip_plan_revision": 4, "capability": mode, "h3_prompt_pipeline": route,

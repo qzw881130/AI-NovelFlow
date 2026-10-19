@@ -44,6 +44,7 @@ export interface Task {
   shot_id: string;
   error_message: string;
   created_at: string;
+  createdAt?: string | null;
   updated_at: string;
   workflow_id?: string;
   name?: string;

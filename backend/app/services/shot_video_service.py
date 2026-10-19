@@ -1856,6 +1856,8 @@ async def generate_shot_video_task(
             "megapixels_node_id": effective_node_mapping.get("megapixels_node_id"),
             "video_save_node_id": effective_node_mapping.get("video_save_node_id"),
         })
+        if "clip_video_output_node_id" in effective_node_mapping:
+            task_metadata["clip_video_output_node_id"] = effective_node_mapping["clip_video_output_node_id"]
         task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
         db.commit()
 
@@ -2959,7 +2961,14 @@ async def _save_generated_video(
                 if task.status == "cancelled":
                     Path(local_path).unlink(missing_ok=True)
                     return
+                clip_mapping = safe_json_dict(task.metadata_json)
+                clip_output_node_id = (clip_mapping.get("clip_video_output_node_id")
+                                       if "clip_video_output_node_id" in clip_mapping else "39")
                 physical_output = continuity_output_metadata(result, contract, local_path, local_url)
+                if "raw_context_output" in physical_output:
+                    physical_output["raw_context_output"]["output_node_id"] = (
+                        str(clip_output_node_id) if clip_output_node_id else ""
+                    )
             except ValueError as exc:
                 Path(local_path).unlink(missing_ok=True)
                 db.refresh(task)

@@ -12,6 +12,7 @@ interface MappingForm {
   widthNodeId: string;
   heightNodeId: string;
   videoSaveNodeId: string;
+  clipVideoOutputNodeId?: string;
   maxSideNodeId: string;
   megapixelsNodeId: string;
   megapixelsValue: string;
@@ -41,6 +42,8 @@ interface MappingForm {
   scaleNodeId?: string;
   scaleValue?: string;
   customKeyframesNodeId?: string;
+  secondPassUpscaleStepNodeId?: string;
+  secondPassUpscaleStep?: string;
 }
 
 interface MappingModalProps {
@@ -87,6 +90,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     widthNodeId: '',
     heightNodeId: '',
     videoSaveNodeId: '',
+    clipVideoOutputNodeId: '',
     maxSideNodeId: '',
     megapixelsNodeId: '',
     megapixelsValue: '0.4',
@@ -111,12 +115,15 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     loadVideoNodeId: '',
     scaleNodeId: '',
     scaleValue: '2x',
-    customKeyframesNodeId: ''
+    customKeyframesNodeId: '',
+    secondPassUpscaleStepNodeId: '',
+    secondPassUpscaleStep: '2',
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
     saveImage: [],
     easyInt: [],
+    secondPassStepNodes: [],
     easyFloat: [],
     crPromptText: [],
     vhsVideoCombine: [],
@@ -167,6 +174,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const clipTextEncode: string[] = [];
             const saveImage: string[] = [];
             const easyInt: string[] = [];
+            const secondPassStepNodes: string[] = [];
             const easyFloat: string[] = [];
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
@@ -186,6 +194,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               if (typeof node === 'object' && node !== null) {
                 const classType = (node as any).class_type || '';
                 const metaTitle = (node as any)._meta?.title || '';
+
+                if (['INTConstant', 'easy int', 'Int'].includes(classType)) {
+                  secondPassStepNodes.push(`${nodeId} (${metaTitle || classType})`);
+                }
 
                 if (classType === 'CLIPTextEncode' || classType === 'CR Text' || isStringValueNode(classType, metaTitle, (node as any).inputs)) {
                   clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
@@ -225,7 +237,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -256,6 +268,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
                 multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
                 videoSaveNodeId: mapping.video_save_node_id || '',
+                clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
+                secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
+                secondPassUpscaleStep: ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
               });
             } else if (wf.type === 'VIDEO_CONTINUATION') {
               setMappingForm({
@@ -264,8 +279,11 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 durationSecondsNodeId: mapping.duration_seconds_node_id || '',
                 promptNodeId: mapping.prompt_node_id || '',
                 videoSaveNodeId: mapping.video_save_node_id || '',
+                clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
                 multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
+                secondPassUpscaleStep: ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
               });
             } else if (wf.type === 'video_upscale') {
               setMappingForm({
@@ -304,6 +322,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   : keyframeNodes,
                 durationSecondsNodeId: mapping.duration_seconds_node_id || '',
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                secondPassUpscaleStepNodeId: wf.type === 'multi_reference_video' ? mapping.second_pass_upscale_step_node_id || '' : '',
+                secondPassUpscaleStep: wf.type === 'multi_reference_video' && ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
               });
             } else if (isFirstLastVideoType(wf.type)) {
               setMappingForm({
@@ -528,6 +548,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     setSavingMapping(true);
     try {
       let nodeMapping: Record<string, string | null> = {};
+      if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION'].includes(workflow.type)
+          && mappingForm.clipVideoOutputNodeId
+          && mappingForm.clipVideoOutputNodeId === mappingForm.videoSaveNodeId) {
+        toast.error('片断视频输出节点和合并视频输出节点不能选择同一个节点');
+        setSavingMapping(false);
+        return;
+      }
       if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION', 'multi_reference_video'].includes(workflow.type)) {
         const referenceNodes = workflow.type === 'multi_reference_video'
           ? [mappingForm.referenceImageNodeId, ...mappingForm.keyframeNodes.slice(0, 8)]
@@ -548,6 +575,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           custom_keyframes_node_id: mappingForm.customKeyframesNodeId || null,
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
+          clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
+          second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+          second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
         };
         Array.from({ length: 8 }).forEach((_, index) => {
           nodeMapping[`keyframe_node_${index + 1}`] = mappingForm.keyframeNodes[index] || null;
@@ -561,7 +591,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
+          clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
+          second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+          second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
         };
         Array.from({ length: 9 }).forEach((_, index) => {
           nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
@@ -603,6 +636,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
           ...(workflow.type === 'multi_reference_video' ? { reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null } : {}),
+          ...(workflow.type === 'multi_reference_video' ? {
+            second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+            second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+          } : {}),
           max_side_node_id: mappingForm.maxSideNodeId || null,
           megapixels_node_id: mappingForm.megapixelsNodeId || null,
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
@@ -834,6 +871,30 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     });
     if (value) setSelectedNodeId(value);
   };
+
+  const secondPassStepFields = (
+    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+      <NodeSelectField
+        label="二采放大Step配置（可选）"
+        nodeTypeHint="INTConstant, easy int, Int"
+        value={mappingForm.secondPassUpscaleStepNodeId || ''}
+        options={availableNodes.secondPassStepNodes}
+        onChange={(v) => handleNodeSelect(v, 'secondPassUpscaleStepNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">二采放大Step（可选）</label>
+        <select
+          value={mappingForm.secondPassUpscaleStep || '2'}
+          onChange={(event) => setMappingForm({ ...mappingForm, secondPassUpscaleStep: event.target.value })}
+          className="input-field"
+        >
+          {[2, 3, 4].map(step => <option key={step} value={step}>{step}</option>)}
+        </select>
+      </div>
+    </div>
+  );
 
   if (!workflow) return null;
 
@@ -1162,7 +1223,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />
                   <NodeSelectField
-                    label={t('systemSettings.workflow.videoSaveNode')}
+                    label={t('systemSettings.workflow.clipVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    value={mappingForm.clipVideoOutputNodeId || ''}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
+                    onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.mergedVideoOutputNode')}
                     nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
                     value={mappingForm.videoSaveNodeId}
                     options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
@@ -1170,6 +1240,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  {secondPassStepFields}
                 </>
               )}
 
@@ -1227,7 +1298,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />
                   <NodeSelectField
-                    label={t('systemSettings.workflow.videoSaveNode')}
+                    label={t('systemSettings.workflow.clipVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    value={mappingForm.clipVideoOutputNodeId || ''}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
+                    onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.mergedVideoOutputNode')}
                     nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
                     value={mappingForm.videoSaveNodeId}
                     options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
@@ -1235,6 +1315,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  {secondPassStepFields}
                 </>
               )}
 
@@ -1409,6 +1490,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />}
+                  {workflow.type === 'multi_reference_video' && secondPassStepFields}
 
                   {/* 额外关键帧节点配置 */}
                   {workflow.type === 'video' && <div className="mt-4">

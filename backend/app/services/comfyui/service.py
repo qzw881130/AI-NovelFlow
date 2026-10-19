@@ -608,8 +608,8 @@ class ComfyUIService:
                 return {**queued, "message": queued.get("error") or "续生成任务提交失败"}
             prompt_id = queued.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
-            # Native H3 continuity contains the AV overlap replacement. #39
-            # includes borrowed context and is only a raw/debug preview.
+            # The native output is the cumulative AV used for the next Clip.
+            # The configured Clip output is saved separately for playback.
             result_node_id = "65" if native_output else node_mapping.get("video_save_node_id")
             result = await self.client.wait_for_result(
                 prompt_id,

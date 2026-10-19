@@ -3,8 +3,10 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.orm import Session
 
 from app.models.novel import Chapter, Novel
+from app.models.background_job import BackgroundJob
 from app.models.shot import Shot
 from app.models.task import Task
 from app.services.task_service import TaskService
@@ -97,3 +99,87 @@ async def test_legacy_reconciliation_still_marks_shot_failed(db_session):
     db_session.refresh(shot)
     assert task.status == "failed"
     assert shot.video_status == "failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("live", [True, False])
+async def test_missing_prompt_does_not_fail_clip_while_worker_can_finish(db_session, monkeypatch, live):
+    task = Task(
+        id=f"clip-missing-{live}", type="shot_video", status="running", name="Clip C1",
+        comfyui_prompt_id="submitted-prompt",
+        created_at=datetime.utcnow() - timedelta(minutes=5),
+        started_at=datetime.utcnow() - timedelta(minutes=5),
+        updated_at=datetime.utcnow() - timedelta(minutes=2),
+        metadata_json=json.dumps({
+            "execution_scope": "CLIP",
+            "execution_contract": {"artifact_kind": "CLIP_ONLY"},
+        }),
+    )
+    job = BackgroundJob(
+        id=f"clip-job-{live}", task_id=task.id, queue_name="shot_video",
+        handler="app.services.shot_video_service:generate_shot_video_task",
+        status="running", payload_json="{}",
+    )
+    db_session.add_all([task, job])
+    db_session.commit()
+    monkeypatch.setattr("app.services.background_workers.worker_manager.is_live", lambda _: live)
+    service = TaskService(db_session)
+    service.comfyui_service.get_queue_info = AsyncMock(return_value={"queue_running": [], "queue_pending": []})
+    service.comfyui_service.client.get_prompt_state = AsyncMock(return_value={"state": "missing"})
+
+    assert await service.reconcile_active_tasks([task], db=db_session) == 0
+    db_session.refresh(task)
+    assert task.status == "running" and task.error_message is None
+
+
+@pytest.mark.asyncio
+async def test_missing_prompt_fails_after_worker_timeout(db_session, monkeypatch):
+    task = Task(
+        id="clip-stale-missing", type="shot_video", status="running", name="Clip C1",
+        comfyui_prompt_id="lost-prompt",
+        created_at=datetime.utcnow() - timedelta(hours=1),
+        started_at=datetime.utcnow() - timedelta(hours=1),
+        updated_at=datetime.utcnow() - timedelta(hours=1),
+    )
+    job = BackgroundJob(
+        id="clip-stale-job", task_id=task.id, queue_name="shot_video",
+        handler="app.services.shot_video_service:generate_shot_video_task",
+        status="running", payload_json="{}",
+    )
+    db_session.add_all([task, job])
+    db_session.commit()
+    monkeypatch.setattr("app.services.background_workers.worker_manager.is_live", lambda _: False)
+    service = TaskService(db_session)
+    service.comfyui_service.get_queue_info = AsyncMock(return_value={"queue_running": [], "queue_pending": []})
+    service.comfyui_service.client.get_prompt_state = AsyncMock(return_value={"state": "missing"})
+
+    assert await service.reconcile_active_tasks([task], db=db_session) == 1
+    db_session.refresh(task)
+    assert task.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_missing_prompt_does_not_overwrite_worker_completion(db_session):
+    task = Task(
+        id="clip-completes-during-lookup", type="shot_video", status="running", name="Clip C1",
+        comfyui_prompt_id="finished-prompt",
+        created_at=datetime.utcnow() - timedelta(hours=1),
+        started_at=datetime.utcnow() - timedelta(hours=1),
+    )
+    db_session.add(task)
+    db_session.commit()
+    service = TaskService(db_session)
+    service.comfyui_service.get_queue_info = AsyncMock(return_value={"queue_running": [], "queue_pending": []})
+
+    async def complete_during_lookup(*args, **kwargs):
+        with Session(db_session.bind) as worker_db:
+            worker_task = worker_db.get(Task, task.id)
+            worker_task.status = "completed"
+            worker_task.result_url = "/api/files/clip.mp4"
+            worker_db.commit()
+        return {"state": "missing"}
+
+    service.comfyui_service.client.get_prompt_state = AsyncMock(side_effect=complete_during_lookup)
+    assert await service.reconcile_active_tasks([task], db=db_session) == 0
+    db_session.refresh(task)
+    assert task.status == "completed" and task.result_url == "/api/files/clip.mp4"

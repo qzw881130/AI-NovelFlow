@@ -2,8 +2,7 @@
 import json
 
 from app.constants.capability import (
-    CLIP_MAX_DURATION, CLIP_PREFERRED_MAX_DURATION, EXTEND_WORKFLOW_ID,
-    TEMPORAL_EXTEND_WORKFLOW_ID, clip_duration_maximum,
+    CLIP_MAX_DURATION, CLIP_PREFERRED_MAX_DURATION, clip_duration_maximum,
 )
 from app.repositories.workflow_repository import WorkflowRepository
 
@@ -49,8 +48,8 @@ def load_planning_budgets(db):
     repo = WorkflowRepository(db)
     workflows = {
         "GENERATE": repo.get_active_by_type("multi_reference_video"),
-        "EXTEND": repo.get_by_id(EXTEND_WORKFLOW_ID),
-        "TEMPORAL_EXTEND": repo.get_by_id(TEMPORAL_EXTEND_WORKFLOW_ID),
+        "EXTEND": repo.get_active_by_type("VIDEO_CONTINUATION"),
+        "TEMPORAL_EXTEND": repo.get_active_by_type("TEMPORAL_EXTEND"),
     }
     for capability in ("SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME", "VIDEO_CONTINUATION"):
         workflows[capability] = repo.get_active_by_type(capability)

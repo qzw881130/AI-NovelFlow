@@ -133,7 +133,7 @@ def validate_temporal_anchor_output_bound(contract: dict, final_frames: int) -> 
 
 
 def continuity_output_metadata(result: dict, contract: dict, path: str, result_url: str) -> dict:
-    """Accept only the strict finalized native output; never relabel raw39."""
+    """Accept only the finalized cumulative output; keep Clip output provenance separate."""
     if contract.get("artifact_kind") != NATIVE_CONTINUITY_OUTPUT or result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT or result.get("output_node_id") != "65":
         raise ValueError("NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE")
     previous = contract.get("previous_clip") or {}

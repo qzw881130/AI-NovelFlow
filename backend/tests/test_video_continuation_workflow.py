@@ -25,6 +25,7 @@ def test_video_continuation_system_workflow_is_registered(db_session):
         "load_video_node_id": "66",
         "duration_seconds_node_id": "105",
         "prompt_node_id": "107",
+        "clip_video_output_node_id": "39",
         "video_save_node_id": "65",
         "reference_to_video_node_id": "55",
         **{f"load_image_node_{index}": node for index, node in enumerate(
@@ -62,6 +63,7 @@ def test_existing_video_continuation_is_upgraded_without_replacing_its_record(db
         "69", "68", "109", "110", "111", "112", "113", "114", "115",
     ]
     assert json.loads(workflow.node_mapping)["reference_to_video_node_id"] == "55"
+    assert json.loads(workflow.node_mapping)["clip_video_output_node_id"] == "39"
 
 
 @pytest.mark.parametrize("count", [0, 1, 4, 9])

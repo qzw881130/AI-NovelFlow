@@ -65,6 +65,7 @@ import {
   getCanonicalSemanticReadiness,
   getCurrentSemanticExecutionState,
   getCarryInLabel,
+  hasInvalidatedSemanticClipArtifact,
   hasLegacyBatchPlanningState,
   getSelectableBatchShotIndexes,
   getSemanticCapabilityLabel,
@@ -74,6 +75,7 @@ import {
   hasValidCurrentClipPlan,
   reconcileBatchSelection,
   resolveSemanticClipTask,
+  resolveLatestSemanticClipAttempt,
   shouldShowLegacyBatchCompatibility,
   type BatchShotCategory,
   type BatchShotFilter,
@@ -317,6 +319,9 @@ function SemanticClipExecutionPanel({ shot, continuationMode, chapterId, novelId
         className="flex min-w-0 max-w-full flex-nowrap items-start gap-3 overflow-x-auto overscroll-x-contain pb-3 [scrollbar-width:thin]">
         {clips.map((clip: any) => {
           const task = resolveSemanticClipTask(clip, tasks, revision);
+          const latestAttempt = resolveLatestSemanticClipAttempt(clip, tasks, revision);
+          const replacementAttempt = latestAttempt?.id !== task?.id ? latestAttempt : undefined;
+          const promptReuseBlocked = hasInvalidatedSemanticClipArtifact(clip, tasks, revision);
           const inspectorHref = inspectorEntry(task, clip, `/novels/${novelId}/chapters/${chapterId}/generate?shot=${shot.id}&tab=video`);
           const metadata = task?.clipExecution;
           const approvalStatus = metadata?.approval_status || clip.execution_status || 'PLANNED';
@@ -360,6 +365,12 @@ function SemanticClipExecutionPanel({ shot, continuationMode, chapterId, novelId
                 <div>Dialogue：{Array.isArray(dialogueAssignment) ? dialogueAssignment.length : '未提供'} · 普通参考图：{ordinaryCount ?? '未提供'} · Temporal：{anchors.length}</div>
                 {artifact.continuous && <div>Previous AV：{getPreviousAvPresentation(clip, task, previousClip, previousTask).label}</div>}
                 {clipStatus === 'FAILED' && <div className="font-medium text-red-700">生成失败 · 原因见详情</div>}
+                {replacementAttempt && (
+                  <div role="status" className={['failed', 'cancelled'].includes(String(replacementAttempt.status).toLowerCase()) ? 'font-medium text-red-700' : 'font-medium text-blue-700'}>
+                    最近一次重新生成任务 {replacementAttempt.id.slice(0, 8)}：{replacementAttempt.status === 'failed' ? `失败 · ${replacementAttempt.errorMessage || replacementAttempt.error_message || '请查看任务详情'}` : replacementAttempt.status === 'cancelled' ? '已取消' : replacementAttempt.status === 'completed' ? '已完成，正在刷新片段' : '生成中'}
+                  </div>
+                )}
+                {promptReuseBlocked && <div className="font-medium text-amber-700">片段执行依据已变更，请选择“生成片段”更新导演规划。</div>}
                 {!preparation.executionReady && <div className="text-amber-700">{preparation.label}</div>}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -380,8 +391,8 @@ function SemanticClipExecutionPanel({ shot, continuationMode, chapterId, novelId
                     <button
                       type="button"
                       onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'video_only')}
-                      disabled={clipGenerationDisabled || !clip.prompt_text || !visualStatePromptIsCurrent(clip)}
-                      title={!visualStatePromptIsCurrent(clip) ? '视觉状态选择已改变，请使用生成片段更新提示词' : !clip.prompt_text ? '缺少可复用的片段提示词，请先生成片段' : undefined}
+                      disabled={clipGenerationDisabled || promptReuseBlocked || !clip.prompt_text || !visualStatePromptIsCurrent(clip)}
+                      title={promptReuseBlocked ? '片段执行依据已变更，请使用生成片段更新导演规划' : !visualStatePromptIsCurrent(clip) ? '视觉状态选择已改变，请使用生成片段更新提示词' : !clip.prompt_text ? '缺少可复用的片段提示词，请先生成片段' : undefined}
                       className="rounded-r-md border border-l-0 border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {currentPromptGenerateLabel}

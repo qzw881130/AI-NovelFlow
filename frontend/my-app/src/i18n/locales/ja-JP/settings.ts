@@ -185,6 +185,8 @@ export default {
       heightNode: '高さノード（Height）',
       heightNodeTip: '画像高さ設定用のeasy intノードを選択（Height）',
       videoSaveNode: '動画保存ノード（VHS_VideoCombine）',
+      clipVideoOutputNode: 'クリップ動画出力ノード',
+      mergedVideoOutputNode: '結合動画出力ノード',
       videoSaveNodeTip: '生成動画保存用のVHS_VideoCombineノードを選択',
       maxSideNode: '最大辺ノード（easy int - Max Side）',
       maxSideNodeTip: '動画最大辺設定用のeasy intノードを選択',

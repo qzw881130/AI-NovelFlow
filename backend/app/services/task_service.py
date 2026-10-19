@@ -620,9 +620,7 @@ class TaskService:
             if not workflow or workflow.type != expected_type:
                 return {"success": False, "message": "Clip 重试失败：原 Workflow 不存在或与 Clip capability 不匹配", "status_code": 400}
             if phase_b:
-                from app.constants.capability import EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
-                required_id = {"EXTEND": EXTEND_WORKFLOW_ID, "TEMPORAL_EXTEND": TEMPORAL_EXTEND_WORKFLOW_ID}.get(capability)
-                if not workflow.is_active or (required_id and workflow.id != required_id):
+                if not workflow.is_active:
                     return {"success": False, "message": "Phase B 原物理工作流已不可用", "status_code": 400}
             if capability in {"EXTEND", "TEMPORAL_EXTEND"} and (phase_b or clip_metadata.get("execution_contract")):
                 from app.services.shot_video_service import resolve_extend_previous_av
@@ -905,8 +903,9 @@ class TaskService:
                 continue
 
             if task.comfyui_prompt_id:
+                checked_prompt_id = task.comfyui_prompt_id
                 prompt_state = await self.comfyui_service.client.get_prompt_state(
-                    task.comfyui_prompt_id,
+                    checked_prompt_id,
                     queue_info=queue_info,
                 )
                 state = prompt_state.get("state")
@@ -1006,6 +1005,16 @@ class TaskService:
                     continue
 
                 if state == "missing" and age_seconds > 60:
+                    # The active worker still owns the submitted prompt and may
+                    # receive its result even when ComfyUI briefly omits it from
+                    # both queue and history. Let that worker decide the outcome.
+                    # A descriptor may be running in another process, so allow
+                    # its normal timeout before treating a missing read as final.
+                    if has_persisted_job or (persisted_jobs and inactive_seconds(task) <= comfyui_timeout):
+                        continue
+                    db.refresh(task)
+                    if task.status not in {"pending", "running"} or task.comfyui_prompt_id != checked_prompt_id:
+                        continue
                     task.status = "failed"
                     task.error_message = "ComfyUI 队列和 history 中均找不到该任务，可能已被清理、取消或 ComfyUI 异常退出"
                     task.current_step = "任务异常"

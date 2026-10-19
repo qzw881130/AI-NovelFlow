@@ -246,6 +246,69 @@ def test_reuse_requires_same_input_and_selected_template(db_session):
     assert len(llm.calls)==1
 
 
+@pytest.mark.parametrize('name', NAMES[:2], ids=['generate', 'extend'])
+def test_reuse_current_prompt_after_output_mapping_change(db_session, name):
+    _, args, _ = make_case(db_session, name)
+    llm = FakeDirector(saved(name, '_mock_response'))
+    prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    original_record = json.loads(args['task'].metadata_json)['h3_phase_b']
+    mapping = json.loads(args['workflow'].node_mapping)
+    mapping['clip_video_output_node_id'] = mapping['video_save_node_id']
+    args['workflow'].node_mapping = json.dumps(mapping)
+    metadata = json.loads(args['task'].metadata_json)
+    metadata.update(skip_llm_when_prompt_exists=True, phase_b_requested_prompt=prompt)
+    args['task'].metadata_json = json.dumps(metadata)
+
+    assert asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm)) == prompt
+    record = json.loads(args['task'].metadata_json)['h3_phase_b']
+    assert record['input_fingerprint'] != original_record['input_fingerprint']
+    assert record['reuse_scope'] == 'SAME_SEMANTIC_INPUT'
+    assert record['reuse'] is True
+    assert len(llm.calls) == 1
+
+
+def test_reuse_changed_mapping_rejects_different_current_prompt(db_session):
+    _, args, _ = make_case(db_session, NAMES[1])
+    llm = FakeDirector(saved(NAMES[1], '_mock_response'))
+    asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    mapping = json.loads(args['workflow'].node_mapping)
+    mapping['clip_video_output_node_id'] = mapping['video_save_node_id']
+    args['workflow'].node_mapping = json.dumps(mapping)
+    metadata = json.loads(args['task'].metadata_json)
+    metadata.update(skip_llm_when_prompt_exists=True, phase_b_requested_prompt='different current prompt')
+    args['task'].metadata_json = json.dumps(metadata)
+
+    with pytest.raises(ValueError, match='REUSABLE_PLAN_MISSING'):
+        asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    assert len(llm.calls) == 1
+
+
+def test_reuse_changed_mapping_rejects_changed_director_input(db_session):
+    _, args, _ = make_case(db_session, NAMES[1])
+    llm = FakeDirector(saved(NAMES[1], '_mock_response'))
+    prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    mapping = json.loads(args['workflow'].node_mapping)
+    mapping['clip_video_output_node_id'] = mapping['video_save_node_id']
+    args['workflow'].node_mapping = json.dumps(mapping)
+    metadata = json.loads(args['task'].metadata_json)
+    metadata.update(skip_llm_when_prompt_exists=True, phase_b_requested_prompt=prompt,
+                    video_prompt_language='en')
+    args['task'].metadata_json = json.dumps(metadata)
+
+    with pytest.raises(ValueError, match='REUSABLE_PLAN_MISSING'):
+        asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
+    assert len(llm.calls) == 1
+
+
+def test_reuse_workflow_preflight_rejects_changed_workflow():
+    plan = {"ai_calls": [{"task_type": pipe.TEMPLATE_TYPE, "clip_index": 1,
+                          "parsed_result": {"version": pipe.VERSION, "status": "COMPILED",
+                                            "workflow_id": "original"}}]}
+    assert pipe.reuse_plan_workflow_blocker(plan, 1, "original") is None
+    assert "工作流已更换" in pipe.reuse_plan_workflow_blocker(plan, 1, "replacement")
+    assert "没有可复用" in pipe.reuse_plan_workflow_blocker(plan, 2, "original")
+
+
 def test_speaker_handoff_template_change_preserves_history_and_custom_selection(db_session):
     """In-memory template update only; never synchronize a production template."""
     from app.services.novel_prompt_templates import resolve_novel_prompt_template

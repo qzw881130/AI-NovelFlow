@@ -184,7 +184,8 @@ def test_semantic_clip_persists_resolved_repair_setting(db_session, assets, monk
     response = asyncio.run(api._execute_phase_b_semantic_clip(
         "n", "ch", "s", clip["clip_index"],
         api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False,
-                                        optimize_h3_prompt=optimize, preflight_auto_repair=requested),
+                                        optimize_h3_prompt=optimize, preflight_auto_repair=requested,
+                                        h3_prompt_pipeline="legacy"),
         db_session, NovelRepository(db_session), ChapterRepository(db_session),
         TaskRepository(db_session), ShotRepository(db_session)))
     task = db_session.get(Task, response["data"]["taskId"])
@@ -207,7 +208,7 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
         clip["temporal_anchor_ids"] = ["clip-2-KF2"]
         clip["selected_temporal_target_ids"] = ["KF2"]
     shot.video_director_plan = json.dumps(plan)
-    workflow_id = {"GENERATE": "g", "EXTEND": api.EXTEND_WORKFLOW_ID, "TEMPORAL_EXTEND": api.TEMPORAL_EXTEND_WORKFLOW_ID}[capability]
+    workflow_id = {"GENERATE": "g", "EXTEND": "selected-continuation", "TEMPORAL_EXTEND": "selected-temporal"}[capability]
     workflow_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION", "TEMPORAL_EXTEND": "TEMPORAL_EXTEND"}[capability]
     workflow = Workflow(id=workflow_id, name="Mock workflow", type=workflow_type, workflow_json="{}", node_mapping="{}", is_active=True)
     db_session.add_all([shot, workflow]); db_session.commit()
@@ -218,11 +219,13 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
     monkeypatch.setattr(api, "resolve_extend_previous_av", lambda *_: previous)
     monkeypatch.setattr(service, "resolve_extend_previous_av", lambda *_: previous)
     response = asyncio.run(api._execute_phase_b_semantic_clip(
-        "n", "ch", "s", clip["clip_index"], api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False),
+        "n", "ch", "s", clip["clip_index"], api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False,
+                                                                         h3_prompt_pipeline="legacy"),
         db_session, NovelRepository(db_session), ChapterRepository(db_session), TaskRepository(db_session), ShotRepository(db_session)))
     assert response["success"]
     args, kwargs = captured["enqueue"]
     task = db_session.query(Task).filter_by(id=args[0]).one()
+    assert task.workflow_id == workflow_id
     initial = json.loads(task.metadata_json)["video_reference_manifest"]
 
     async def fake_h3(**kwargs):
@@ -255,7 +258,8 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
         assert [a["image_path"] for a in captured["physical"]["anchors"]] == [anchors[0]["image_url"]]
 
 
-def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monkeypatch):
+@pytest.mark.parametrize("pipeline", ["legacy", "phase_b"])
+def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monkeypatch, pipeline):
     from app.api import shots as api
     from app.repositories import NovelRepository, ChapterRepository, TaskRepository, ShotRepository
     shot, plan, clip = fixture(assets)
@@ -263,11 +267,24 @@ def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monk
     db_session.add_all([shot, Workflow(id="g", name="mock", type="multi_reference_video", workflow_json="{}", node_mapping="{}", is_active=True)])
     db_session.commit()
     service._update_clip_prompt(shot, clip, "exact saved prompt", db_session)
+    if pipeline == "phase_b":
+        from app.services import h3_phase_b_pipeline as phase_b
+        plan = json.loads(shot.video_director_plan)
+        plan.setdefault("ai_calls", []).append({
+            "task_type": phase_b.TEMPLATE_TYPE, "clip_index": 1,
+            "parsed_result": {"version": phase_b.VERSION, "status": "COMPILED", "workflow_id": "g",
+                              "final_prompt_sha256": phase_b.digest("exact saved prompt")},
+        })
+        shot.video_director_plan = json.dumps(plan)
+        db_session.commit()
     captured = {}
     monkeypatch.setattr(api.TaskService, "validate_workflow_node_mapping", lambda *_: (True, ""))
     monkeypatch.setattr(api, "enqueue_shot_video_task", lambda *args, **kwargs: captured.update(kwargs))
     asyncio.run(api._execute_phase_b_semantic_clip(
-        "n", "ch", "s", 1, api.SemanticClipGenerateRequest(clip_plan_revision=1, skip_llm_when_prompt_exists=True),
+        "n", "ch", "s", 1, api.SemanticClipGenerateRequest(clip_plan_revision=1, skip_llm_when_prompt_exists=True,
+                                                       h3_prompt_pipeline=pipeline),
         db_session, NovelRepository(db_session), ChapterRepository(db_session), TaskRepository(db_session), ShotRepository(db_session)))
     assert captured["clip_metadata"]["prompt_text"] == "exact saved prompt"
     assert captured["skip_llm_when_prompt_exists"] is True
+    if pipeline == "phase_b":
+        assert captured["clip_metadata"]["phase_b_requested_prompt"] == "exact saved prompt"

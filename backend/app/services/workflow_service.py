@@ -163,8 +163,9 @@ class WorkflowService:
                         current_mapping = self._parse_json_field(existing.node_mapping)
                         missing_slots = {
                             key: value for key, value in node_mapping.items()
-                            if (key.startswith("load_image_node_") or key == "reference_to_video_node_id")
-                            and not current_mapping.get(key)
+                            if ((key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                                and not current_mapping.get(key))
+                            or (key == "clip_video_output_node_id" and key not in current_mapping)
                         }
                         if missing_slots:
                             existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)
@@ -244,8 +245,9 @@ class WorkflowService:
                 # video/prompt/output mappings and default status.
                 missing_slots = {
                     key: value for key, value in wf_config["node_mapping"].items()
-                    if (key.startswith("load_image_node_") or key == "reference_to_video_node_id")
-                    and not current_mapping.get(key)
+                    if ((key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                        and not current_mapping.get(key))
+                    or (key == "clip_video_output_node_id" and key not in current_mapping)
                 }
                 if missing_slots:
                     existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)

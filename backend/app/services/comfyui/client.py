@@ -693,10 +693,10 @@ class ComfyUIClient:
                     return response.json()
                 else:
                     print(f"[ComfyUI] Get queue failed: {response.status_code}")
-                    return {"queue_running": [], "queue_pending": []}
+                    return {"queue_running": [], "queue_pending": [], "_lookup_error": f"queue HTTP {response.status_code}"}
         except Exception as e:
             print(f"[ComfyUI] Get queue error: {e}")
-            return {"queue_running": [], "queue_pending": []}
+            return {"queue_running": [], "queue_pending": [], "_lookup_error": str(e)}
 
     async def get_prompt_state(self, prompt_id: str, queue_info: Dict[str, Any] = None) -> Dict[str, Any]:
         """查询 prompt 当前在 ComfyUI 的状态。"""
@@ -716,6 +716,15 @@ class ComfyUIClient:
             history = response.json()
             prompt_history = history.get(prompt_id)
             if not prompt_history:
+                # A prompt can move from queue to history between the two reads.
+                # Also, a failed queue request is not evidence that it is absent.
+                if queue_info.get("_lookup_error"):
+                    return {"state": "unknown", "message": queue_info["_lookup_error"]}
+                latest_queue = await self.get_queue_info()
+                if self._queue_contains_prompt(latest_queue, prompt_id):
+                    return {"state": "queued"}
+                if latest_queue.get("_lookup_error"):
+                    return {"state": "unknown", "message": latest_queue["_lookup_error"]}
                 return {"state": "missing"}
 
             status = prompt_history.get("status", {})

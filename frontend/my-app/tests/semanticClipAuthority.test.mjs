@@ -20,7 +20,9 @@ const {
   getSemanticClipStatus,
   getSemanticContinuityLabel,
   getSemanticShotStatusFromPlan,
+  hasInvalidatedSemanticClipArtifact,
   resolveSemanticClipTask,
+  resolveLatestSemanticClipAttempt,
 } = await import(moduleUrl);
 
 const keyframes = [
@@ -197,6 +199,35 @@ test('K: task resolution prefers exact generated_by_task_id provenance', () => {
     { id: 'exact', status: 'completed', created_at: '2026-10-01', clipExecution: { execution_scope: 'CLIP', clip_index: 1, clip_plan_revision: 2 } },
   ];
   assert.equal(resolveSemanticClipTask(clip, tasks, 2)?.id, 'exact');
+});
+
+test('newer regeneration attempt remains visible beside the approved Clip', () => {
+  const clip = { ...clips[0], generated_by_task_id: 'approved' };
+  const tasks = [
+    { id: 'approved', status: 'completed', createdAt: '2026-10-19T06:42:58', clipExecution: { execution_scope: 'CLIP', clip_index: 1, clip_plan_revision: 2 } },
+    { id: 'failed-retry', status: 'failed', createdAt: '2026-10-19T15:44:16', clipExecution: { execution_scope: 'CLIP', clip_index: 1, clip_plan_revision: 2 } },
+  ];
+  assert.equal(resolveSemanticClipTask(clip, tasks, 2)?.id, 'approved');
+  assert.equal(resolveLatestSemanticClipAttempt(clip, tasks, 2)?.id, 'failed-retry');
+});
+
+test('reset Clip does not present an old completed attempt as still refreshing', () => {
+  const clip = { ...clips[1], execution_status: 'PLANNED', status: 'PENDING' };
+  const oldTask = { id: 'old-completed', status: 'completed', createdAt: '2026-10-19T07:14:38', clipExecution: {
+    execution_scope: 'CLIP', clip_index: 2, clip_plan_revision: 2,
+  } };
+  assert.equal(resolveLatestSemanticClipAttempt(clip, [oldTask], 2), undefined);
+  const queued = { ...oldTask, id: 'new-queued', status: 'queued', createdAt: '2026-10-20T00:10:00' };
+  assert.equal(resolveLatestSemanticClipAttempt(clip, [oldTask, queued], 2)?.id, 'new-queued');
+});
+
+test('old approved Clip cannot reuse its prompt after current authority is reset', () => {
+  const clip = { ...clips[1], execution_status: 'PLANNED', status: 'PENDING', prompt_text: 'old prompt' };
+  const oldTask = { id: 'old-completed', status: 'completed', clipExecution: {
+    execution_scope: 'CLIP', clip_index: 2, clip_plan_revision: 2, approval_status: 'APPROVED',
+  } };
+  assert.equal(hasInvalidatedSemanticClipArtifact(clip, [oldTask], 2), true);
+  assert.equal(hasInvalidatedSemanticClipArtifact(clip, [oldTask], 3), false);
 });
 
 test('L: task fallback rejects stale revisions', () => {

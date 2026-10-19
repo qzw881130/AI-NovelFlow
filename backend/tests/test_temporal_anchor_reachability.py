@@ -333,7 +333,7 @@ def test_formal_api_worker_recompile_and_final_binding_parity(db_session, refere
     monkeypatch.setattr(api, "resolve_extend_previous_av", lambda *_: previous)
     monkeypatch.setattr(worker, "resolve_extend_previous_av", lambda *_: previous)
     response = asyncio.run(api.generate_video_director_clip("n", "ch", "shot", 2,
-        api.GenerateVideoDirectorClipRequest(clip_plan_revision=1, auto_merge=False),
+        api.GenerateVideoDirectorClipRequest(clip_plan_revision=1, auto_merge=False, h3_prompt_pipeline="legacy"),
         NovelRepository(db_session), ChapterRepository(db_session), TaskRepository(db_session), WorkflowRepository(db_session), ShotRepository(db_session)))
     assert response["success"]
     args, kwargs = captured["enqueued"]

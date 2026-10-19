@@ -262,6 +262,7 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "keyframe_node_7": "133",
         "keyframe_node_8": "134",
         "custom_keyframes_node_id": "116",
+        "clip_video_output_node_id": "39",
         "video_save_node_id": "65",
     },
 }
@@ -328,6 +329,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
             "load_video_node_id": "66",
             "duration_seconds_node_id": "105",
             "prompt_node_id": "107",
+            "clip_video_output_node_id": "39",
             "video_save_node_id": "65",
             "reference_to_video_node_id": "55",
             "load_image_node_1": "69",

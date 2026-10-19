@@ -140,6 +140,15 @@ def test_unrecognized_or_mismatched_continuation_never_assumes_39(monkeypatch):
     assert load_planning_budgets(object()) == {}
 
 
+def test_planning_uses_selected_continuation_workflow(monkeypatch):
+    selected = workflow()
+    selected.id = 'selected-continuation'
+    monkeypatch.setattr('app.services.clip_duration_planning.WorkflowRepository', lambda db: NS(
+        get_active_by_type=lambda family: selected if family == 'VIDEO_CONTINUATION' else None))
+    budgets = load_planning_budgets(object())
+    assert budgets['EXTEND']['workflow_id'] == selected.id
+
+
 def test_real_lower_limit_and_missing_reason_are_observable_without_soft_gate():
     budget = workflow_planning_budget(workflow())
     clip = {'capability': 'EXTEND', 'start_time': 0, 'end_time': 19}

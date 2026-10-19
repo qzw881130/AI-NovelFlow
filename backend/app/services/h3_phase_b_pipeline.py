@@ -79,21 +79,65 @@ def runtime_snapshot(*, plan, builder_input, manifest, workflow, previous_path, 
     return data
 
 
+def _director_input_without_preview_urls(llm_input):
+    """Ignore derived preview URLs while comparing Director inputs."""
+    payload = deepcopy(llm_input)
+    for item in payload.get("visual_previews") or []:
+        if isinstance(item, dict):
+            item.pop("proxy_url", None)
+    for item in (payload.get("previous_av") or {}).get("preview_frames") or []:
+        if isinstance(item, dict):
+            item.pop("proxy_url", None)
+    return payload
+
+
 def input_fingerprint(prepared, template):
     # Preview filenames are derived caches, not authority; resource byte hashes,
     # source times, Canonical, route and the selected template are authority.
     # Frozen video_prompt_language stays in the input and separates language caches.
-    payload = deepcopy(prepared["llm_input"])
-    for item in payload["visual_previews"]:
-        item.pop("proxy_url", None)
-    for item in payload["previous_av"]["preview_frames"]:
-        item.pop("proxy_url", None)
+    payload = _director_input_without_preview_urls(prepared["llm_input"])
     policy = prepared.get("execution_projection") or {}
     if policy.get("continuation_mode", "AUTO") != "AUTO":
         payload["execution_policy"] = policy
     return digest({"version": VERSION, "input": payload, "resources": prepared["resource_hashes"],
                    "workflow": prepared["source"]["hashes"]["workflow"],
                    "template_id": template.id, "template": template.template})
+
+
+def reuse_plan_workflow_blocker(plan, clip_index, workflow_id):
+    """Catch an impossible Phase B reuse before creating a Clip task.
+
+    The full fingerprint is still checked by the worker; this only handles the
+    common case where the selected physical workflow changed after planning.
+    """
+    compiled = [record for call in plan.get("ai_calls") or []
+                if call.get("task_type") == TEMPLATE_TYPE
+                and int(call.get("clip_index") or 0) == int(clip_index)
+                for record in [call.get("parsed_result") or {}]
+                if record.get("version") == VERSION and record.get("status") == "COMPILED"]
+    if not compiled:
+        return "当前 Clip 没有可复用的 Phase B 导演计划，请选择“重新生成片段”重新规划。"
+    if not any(str(record.get("workflow_id")) == str(workflow_id) for record in compiled):
+        return "视频工作流已更换，旧提示词的 Phase B 导演计划不能用于当前工作流。请选择“重新生成片段”重新规划。"
+    return None
+
+
+def reusable_phase_b_clip_prompt(plan, clip, workflow_id):
+    """Read the compiled Phase B prompt without applying legacy prompt projection rules."""
+    prompt = clip.get("prompt_text") or ""
+    if not isinstance(prompt, str) or not prompt.strip():
+        return ""
+    clip_index = int(clip.get("clip_index") or 0)
+    for call in reversed(plan.get("ai_calls") or []):
+        record = call.get("parsed_result") or {}
+        if (call.get("task_type") == TEMPLATE_TYPE
+                and int(call.get("clip_index") or 0) == clip_index
+                and record.get("version") == VERSION
+                and record.get("status") == "COMPILED"
+                and str(record.get("workflow_id")) == str(workflow_id)
+                and record.get("final_prompt_sha256") == digest(prompt)):
+            return prompt
+    return ""
 
 
 def preflight(prepared, result):
@@ -156,6 +200,33 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                            if (c.get("parsed_result") or {}).get("version") == VERSION
                            and (c.get("parsed_result") or {}).get("input_fingerprint") == fingerprint
                            and (c.get("parsed_result") or {}).get("status") == "COMPILED"), None)
+            if cached:
+                record["reuse_scope"] = "EXACT_FINGERPRINT"
+            else:
+                # Output/step node mappings can change after a Clip was planned.
+                # Reuse its Director response only when the semantic input,
+                # physical resources, continuation contract, selected template,
+                # workflow identity, and requested current prompt still match.
+                clip = next((item for item in plan.get("clip_plan") or []
+                             if int(item.get("clip_index") or 0) == int(record["clip_index"])), {})
+                requested_prompt = metadata.get("phase_b_requested_prompt") or clip.get("prompt_text") or ""
+                current_input = _director_input_without_preview_urls(prepared["llm_input"])
+                cached = next((candidate for call in reversed(calls)
+                               for candidate in [call.get("parsed_result") or {}]
+                               if requested_prompt.strip()
+                               and candidate.get("version") == VERSION
+                               and candidate.get("status") == "COMPILED"
+                               and candidate.get("clip_index") == record["clip_index"]
+                               and candidate.get("workflow_id") == workflow.id
+                               and candidate.get("workflow_type") == workflow.type
+                               and candidate.get("template") == record["template"]
+                               and candidate.get("final_prompt_sha256") == digest(requested_prompt)
+                               and _director_input_without_preview_urls(candidate.get("director_input") or {}) == current_input
+                               and candidate.get("resource_hashes") == prepared["resource_hashes"]
+                               and candidate.get("continuation") == prepared["continuation"]
+                               and candidate.get("raw_response")), None)
+                if cached:
+                    record["reuse_scope"] = "SAME_SEMANTIC_INPUT"
             if not cached:
                 raise ValueError("PHASE_B_REUSABLE_PLAN_MISSING: re-run Director for this input/template")
         if cached:
@@ -177,6 +248,9 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
             raw = response.get("content") or ""
         record["raw_response"] = raw
         result = compiler.compile_multi_keyframe_phase_b(prepared, raw)
+        requested_prompt = metadata.get("phase_b_requested_prompt") or ""
+        if metadata.get("skip_llm_when_prompt_exists") and requested_prompt.strip() and result.get("prompt") != requested_prompt:
+            raise ValueError("PHASE_B_CURRENT_PROMPT_CHANGED: re-run Director for this input/template")
         record["compiler_result"] = result
         record["preflight"] = preflight(prepared, result)
         if not record["preflight"]["passed"]:

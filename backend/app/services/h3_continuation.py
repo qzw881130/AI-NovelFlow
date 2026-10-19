@@ -47,8 +47,8 @@ def continuation_contract(workflow, capability, previous_path, context):
         return node["inputs"][key]
 
     masked_id, masked = unique("MiniMaxH3StartMaskedContext")
-    _, native = unique("MiniMaxH3StreamLiveExtensionAVToVHS")
-    _, sampler = unique("SamplerCustomAdvanced")
+    native_id, native = unique("MiniMaxH3StreamLiveExtensionAVToVHS")
+    _, finalizer = unique("MiniMaxH3FinalizeVHSOutput")
     _, crop = unique("MiniMaxH3CropTo32")
     validate_id, validate = unique("MiniMaxH3Validate24FPSVideo")
     load_id = str(mapping["load_video_node_id"])
@@ -59,11 +59,39 @@ def continuation_contract(workflow, capability, previous_path, context):
     frames = literal(masked["context_length"], "PrimitiveInt", "value")
     feather = literal(masked["audio_feather_ticks"], "PrimitiveInt", "value")
     fps = masked["source_fps"]
+    samplers = [(node_id, node.get("inputs", {})) for node_id, node in graph.items()
+                if node.get("class_type") == "SamplerCustomAdvanced"]
+    starters = [(node_id, inputs) for node_id, inputs in samplers
+                if inputs.get("latent_image") == [masked_id, 0]]
+    sampler_path_verified = False
+    if len(starters) == 1 and len(samplers) == 1:
+        sampler_path_verified = native.get("extension_1") == [starters[0][0], 0]
+    elif len(starters) == 1 and len(samplers) == 2:
+        first_id = starters[0][0]
+        second_id, second = next((node_id, inputs) for node_id, inputs in samplers
+                                 if node_id != first_id)
+        upscale_link = second.get("latent_image")
+        upscale_id = str(upscale_link[0]) if isinstance(upscale_link, list) and len(upscale_link) == 2 else None
+        upscale = graph.get(upscale_id, {})
+        guider_link = second.get("guider")
+        guider = graph.get(str(guider_link[0]), {}) if isinstance(guider_link, list) and len(guider_link) == 2 else {}
+        sampler_path_verified = (
+            upscale_link == [upscale_id, 0]
+            and upscale.get("class_type") == "MiniMaxH3LatentUpscaleCombined"
+            and upscale.get("inputs", {}).get("samples") == [first_id, 1]
+            and isinstance(guider_link, list) and len(guider_link) == 2
+            and guider_link == [str(guider_link[0]), 0]
+            and guider.get("class_type") == "BasicGuider"
+            and guider.get("inputs", {}).get("conditioning") == [upscale_id, 1]
+            and native.get("extension_1") == [second_id, 0]
+        )
     # Recognize the existing physical path. Do not guess unverified alternatives.
     valid = (
         literal(masked["start_mode"], "MiniMaxH3AVStartModeParam", "start") == "Existing Video"
         and literal(audio["mode"], "MiniMaxH3AVSourceAudioModeParam", "source_audio") == "Keep source audio"
-        and sampler["latent_image"] == [masked_id, 0]
+        and sampler_path_verified
+        and str(mapping["video_save_node_id"]) == native_id
+        and finalizer.get("filenames") == [native_id, 0]
         and masked["latent"] == [reference_id, 1]
         and graph[reference_id]["class_type"] == "MiniMaxH3ReferenceToVideo"
         and masked["source_frames"] == native["source_frames"] == audio["source_frames"]
