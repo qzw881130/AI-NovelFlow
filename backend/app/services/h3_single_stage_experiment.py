@@ -268,7 +268,8 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
                                        picture_mapping, continuation, verified_music,
                                        *, director_only=False, character_appearances=None,
                                        frozen_execution=None, execution_decisions=None,
-                                       prompt_language=None, localized_descriptions=None):
+                                       prompt_language=None, localized_descriptions=None,
+                                       canonical_source_names=()):
     """Offline-only six-section candidate; the model's director prose is not repaired.
 
     The caller supplies already verified Dialogue timing and the selected physical
@@ -372,7 +373,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
     prompt = "\n\n".join(f"{heading}:\n{parts[heading]}" for heading in SECTIONS)
     if prompt_language == "en":
         from app.services.h3_prompt_language import validate_english_prose
-        validate_english_prose(prompt, subject_names.values())
+        validate_english_prose(prompt, (*subject_names.values(), *canonical_source_names))
     voices = speaker_bindings(canonical)
     for index, event in enumerate(canonical, 1):
         subject = event["speaker"]
@@ -1275,11 +1276,16 @@ def compile_multi_keyframe_phase_b(prepared, response):
         if any(not isinstance(output[k], str) or not output[k].strip() for k in ("detailed_description", "overall_soundscape")):
             raise ValueError("DIRECTOR_PROSE_REQUIRED")
         director = f"detailed_description:\n{output['detailed_description']}\n\noverall_soundscape:\n{output['overall_soundscape']}"
+        shot_sources = prepared["llm_input"]["shot"]
+        prop_names = shot_sources.get("props")
+        if not isinstance(prop_names, (list, tuple)):
+            prop_names = []
         prompt, review, picture = assemble_authority_owned_candidate(
             director, canonical, timing, prepared["subject_names"], mapping, prepared["continuation"],
             prepared["music_contract"]["value"], director_only=True,
             character_appearances=prepared["character_appearances"], execution_decisions=decisions,
-            prompt_language=language, localized_descriptions=localized)
+            prompt_language=language, localized_descriptions=localized,
+            canonical_source_names=(shot_sources.get("scene"), *prop_names))
         passed = all(review["structure"].values()) and all(review["structured_authority"].values())
         return {"mode": "H3_MULTI_KEYFRAME_PHASE_B", "status": "CANDIDATE_FOR_REVIEW" if passed else "VALIDATION_FAILED",
                 "prompt": prompt, "director_response": output, "director_text": director,

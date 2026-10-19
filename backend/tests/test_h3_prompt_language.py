@@ -120,6 +120,22 @@ def test_invalid_localization_rejected(language_cases, damage):
     assert result['status'] == 'VALIDATION_FAILED', result
 
 
+def test_english_director_preserves_canonical_prop_name(language_cases):
+    prepared = deepcopy(language_cases[NAMES[0], 'en'])
+    prepared['llm_input']['shot']['props'] = ['邹忌铜镜']
+    response = language_response(prepared['llm_input'], saved(NAMES[0], '_mock_response'))
+    response['detailed_description'] += ' The left edge of the 邹忌铜镜 stays visible.'
+
+    result = compiler.compile_multi_keyframe_phase_b(prepared, response)
+    assert result['status'] == 'CANDIDATE_FOR_REVIEW', result
+    assert pipe.preflight(prepared, result)['passed']
+
+    response['detailed_description'] += ' 镜面不呈现人物映像。'
+    rejected = compiler.compile_multi_keyframe_phase_b(prepared, response)
+    assert rejected['status'] == 'VALIDATION_FAILED'
+    assert 'H3_PROMPT_LANGUAGE_MISMATCH' in str(rejected['reasons'])
+
+
 def test_language_cache_isolation(language_cases):
     template = SimpleNamespace(id='template', template=compiler.PHASE_B_TEMPLATE.read_text())
     fingerprints = {pipe.input_fingerprint(language_cases[NAMES[0], lang], template) for lang in ['en', 'zh']}

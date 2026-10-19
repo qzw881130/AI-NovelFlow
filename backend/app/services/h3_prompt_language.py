@@ -50,13 +50,14 @@ def validate_localized_descriptions(value, sources):
     return value
 
 
-def validate_english_prose(text, character_names):
-    """Protect the requested English boundary, allowing only exact character names.
+def validate_english_prose(text, canonical_names):
+    """Protect the requested English boundary, allowing exact Canonical names.
 
     Call before speech injection (never scan or translate Canonical dialogue).
     This script check does not certify translation meaning or audiovisual quality.
     """
-    for name in sorted(character_names, key=len, reverse=True):
+    for name in sorted((name for name in canonical_names if isinstance(name, str) and name),
+                       key=len, reverse=True):
         text = text.replace(name, "")
     if re.search(r"[\u3400-\u9fff]", text):
         raise ValueError("H3_PROMPT_LANGUAGE_MISMATCH: Chinese description in English output")
