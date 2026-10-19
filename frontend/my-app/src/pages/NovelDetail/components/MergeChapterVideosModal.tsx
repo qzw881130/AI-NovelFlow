@@ -181,7 +181,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { 
                   {item.status === 'completed' && item.videoUrl && (
                     <div className="mt-3 flex justify-end gap-2 border-t pt-3">
                       <button type="button" onClick={() => setPlayingItem(item)} className="btn-secondary px-3 py-1.5 text-sm"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
-                      <a href={item.videoUrl} download className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-3.5 w-3.5" />下载</a>
+                      <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-3.5 w-3.5" />下载</a>
                     </div>
                   )}
                 </div>

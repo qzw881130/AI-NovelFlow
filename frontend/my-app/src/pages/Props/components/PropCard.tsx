@@ -4,17 +4,17 @@
 import { Loader2, Package, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Prop } from '../../../types';
-import type { PropPrompt } from '../types';
+import type { CurrentImageQuality } from '../../../api/imageReviews';
+import { LibraryImageReview } from '../../../components/LibraryImageReview';
 
 interface PropCardProps {
   prop: Prop;
+  imageQuality?: CurrentImageQuality;
   aspectRatio: string;
   highlightedId: string | null;
   generatingId: string | null;
   generatingAppearanceId: string | null;
   uploadingId: string | null;
-  propPrompt?: PropPrompt;
-  templateDisplayName: string;
   onDelete: (id: string) => void;
   onEdit: (prop: Prop) => void;
   onGenerateImage: (prop: Prop) => void;
@@ -26,12 +26,11 @@ interface PropCardProps {
 
 export function PropCard({
   prop,
+  imageQuality,
   highlightedId,
   generatingId,
   generatingAppearanceId,
   uploadingId,
-  propPrompt,
-  templateDisplayName,
   onDelete,
   onEdit,
   onGenerateImage,
@@ -161,6 +160,7 @@ export function PropCard({
         <h3 className="text-lg font-semibold text-gray-900 truncate">
           {prop.name}
         </h3>
+        {prop.imageUrl && !isNonexistent && <LibraryImageReview quality={imageQuality} name={`道具图：${prop.name}`} />}
 
         {/* 道具描述 */}
         {prop.description && (
@@ -202,18 +202,6 @@ export function PropCard({
           </div>
         )}
 
-        {/* 生成提示词 */}
-        {propPrompt && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-gray-400">{t('props.promptLabel')}</p>
-              <span className="text-xs text-gray-400">{templateDisplayName}</span>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
-              {propPrompt.prompt}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

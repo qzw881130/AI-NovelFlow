@@ -5,9 +5,12 @@ import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Squar
 import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
+import type { CurrentImageQuality } from '../../../api/imageReviews';
+import { LibraryImageReview } from '../../../components/LibraryImageReview';
 
 interface CharacterCardProps {
   character: Character;
+  imageQuality?: CurrentImageQuality;
   aspectRatio: string;
   highlightedId: string | null;
   generatingId: string | null;
@@ -28,6 +31,7 @@ interface CharacterCardProps {
 
 export function CharacterCard({
   character,
+  imageQuality,
   aspectRatio,
   highlightedId,
   generatingId,
@@ -221,6 +225,7 @@ export function CharacterCard({
             {aspectRatio}
           </span>
         </div>
+        {character.imageUrl && <LibraryImageReview quality={imageQuality} name={`角色图：${character.name}`} />}
 
         {/* 角色描述 */}
         {character.description && (

@@ -117,6 +117,10 @@ export const novelApi = {
   fetchVideoMergeHistory: (novelId: string) =>
     api.get<NovelVideoMergeHistory[]>(`/novels/${novelId}/video-merges`),
 
+  /** 下载合并视频，文件名由服务端根据小说标题和视频版本生成 */
+  videoMergeDownloadUrl: (novelId: string, taskId: string) =>
+    `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/download`,
+
   /** 导入小说 */
   import: async (file: File) => {
     const formData = new FormData();

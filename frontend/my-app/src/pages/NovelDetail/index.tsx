@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine, BookOpen } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
 import { chapterApi } from '../../api/chapters';
@@ -9,6 +9,7 @@ import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
 import { BatchImportModal } from './components/BatchImportModal';
 import { MergeChapterVideosModal } from './components/MergeChapterVideosModal';
+import { ChapterReaderModal } from './components/ChapterReaderModal';
 
 function StatusIcon({ status, iconInfo }: { status: Chapter['status']; iconInfo: { icon: string; color: string; spin?: boolean } }) {
   if (iconInfo.icon === 'check') return <CheckCircle className={`h-5 w-5 ${iconInfo.color}`} />;
@@ -108,6 +109,7 @@ export default function NovelDetail() {
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
   const [isDownloadingOriginals, setIsDownloadingOriginals] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [showReaderModal, setShowReaderModal] = useState(false);
   const [mergeProfile, setMergeProfile] = useState<{ kind: 'draft' | 'hd'; targetMegapixels?: number }>({ kind: 'draft' });
   const hdMergeTargets = Array.from(new Set(state.chapters.flatMap(chapter => getChapterVideoAssets(chapter).filter(asset => asset.kind === 'hd' && asset.targetMegapixels != null).map(asset => Number(asset.targetMegapixels))))).sort((a, b) => a - b);
 
@@ -193,6 +195,15 @@ export default function NovelDetail() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              onClick={() => setShowReaderModal(true)}
+              disabled={state.chapters.length === 0}
+              className="btn-secondary text-sm py-1.5 px-3 disabled:cursor-not-allowed disabled:opacity-50"
+              title="阅读小说正文"
+            >
+              <BookOpen className="h-3 w-3 mr-1" />阅读
+            </button>
+            <button
               onClick={handleDownloadOriginals}
               disabled={selectedChapterIds.length === 0 || isDownloadingOriginals}
               className="btn-secondary text-sm py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -248,6 +259,9 @@ export default function NovelDetail() {
         onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
       {showMergeModal && (
         <MergeChapterVideosModal novelId={state.id!} chapters={state.chapters} initialProfile={mergeProfile} onClose={() => setShowMergeModal(false)} />
+      )}
+      {showReaderModal && state.chapters.length > 0 && (
+        <ChapterReaderModal novelId={state.id!} novelTitle={state.novel.title} chapters={state.chapters} onClose={() => setShowReaderModal(false)} />
       )}
       {playingChapter?.asset.videoUrl && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">

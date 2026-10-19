@@ -4,17 +4,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Loader2, Package, Image, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import type { Prop, Novel, PromptTemplate } from '../../types';
+import type { Prop, Novel } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { propApi } from '../../api/props';
-import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, PropCard } from './components';
 import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
-import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
+import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import { useLibraryImageQuality } from '../../hooks/useLibraryImageQuality';
 
 export default function Props() {
   const { t } = useTranslation();
@@ -44,9 +44,7 @@ export default function Props() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadPropId, setCurrentUploadPropId] = useState<string | null>(null);
-  const [propPrompts, setPropPrompts] = useState<Record<string, PropPrompt>>({});
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -68,7 +66,6 @@ export default function Props() {
   useEffect(() => {
     fetchProps();
     fetchNovels();
-    fetchPromptTemplates();
   }, [selectedNovel]);
 
   useEffect(() => {
@@ -80,25 +77,6 @@ export default function Props() {
       }
     }
   }, [highlightedId, props]);
-
-  const fetchPromptTemplates = async () => {
-    try {
-      const data = await promptTemplateApi.fetchList('prop');
-      if (data.success && data.data) {
-        setPromptTemplates(data.data);
-      }
-    } catch (error) {
-      console.error('加载提示词模板失败:', error);
-    }
-  };
-
-  const getTemplateDisplayName = (template: PromptTemplate | undefined): string => {
-    if (!template) return t('novels.default');
-    if (template.isSystem) {
-      return t(`promptConfig.templateNames.${template.name}`, { defaultValue: template.name });
-    }
-    return template.name;
-  };
 
   const fetchProps = async () => {
     if (!selectedNovel) {
@@ -112,34 +90,11 @@ export default function Props() {
       const data = await propApi.fetchList(selectedNovel);
       if (data.success) {
         setProps(data.data || []);
-        const propList = data.data || [];
-        for (const prop of propList) {
-          fetchPropPrompt(prop.id);
-        }
       }
     } catch (error) {
       console.error('获取道具失败:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchPropPrompt = async (propId: string) => {
-    try {
-      const data = await propApi.fetchPrompt(propId);
-      if (data.success) {
-        setPropPrompts(prev => ({
-          ...prev,
-          [propId]: {
-            prompt: data.data!.prompt,
-            templateName: data.data!.templateName,
-            templateId: data.data!.templateId,
-            isSystem: data.data!.isSystem
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('获取道具提示词失败:', error);
     }
   };
 
@@ -602,6 +557,9 @@ export default function Props() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) && matchesStatusFilter(p));
+  const { getQuality } = useLibraryImageQuality(filteredProps
+    .filter(prop => Boolean(prop.imageUrl) && prop.existence !== 'FICTIONAL_OR_NONEXISTENT')
+    .map(prop => ({ taskId: prop.propTaskId || null, imageUrl: prop.imageUrl! })));
 
   const propStats = props.reduce((stats, prop) => {
     stats.total += 1;
@@ -723,31 +681,25 @@ export default function Props() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProps.map((prop) => {
-            const currentNovel = novels.find(n => n.id === selectedNovel);
-            const template = promptTemplates.find(pt => pt.id === currentNovel?.propPromptTemplateId);
-
-            return (
-              <PropCard
-                key={prop.id}
-                prop={prop}
-                aspectRatio={getNovelAspectRatio(prop.novelId)}
-                highlightedId={highlightedId}
-                generatingId={generatingId}
-                generatingAppearanceId={generatingAppearanceId}
-                uploadingId={uploadingId}
-                propPrompt={propPrompts[prop.id]}
-                templateDisplayName={getTemplateDisplayName(template)}
-                onDelete={handleDelete}
-                onEdit={setEditingProp}
-                onGenerateImage={generatePropImage}
-                onGenerateAppearance={generateAppearance}
-                onUploadImage={triggerFileUpload}
-                onEditImage={openImageEdit}
-                onImageClick={openImagePreview}
-              />
-            );
-          })}
+          {filteredProps.map((prop) => (
+            <PropCard
+              key={prop.id}
+              prop={prop}
+              imageQuality={getQuality(prop.imageUrl, prop.propTaskId)}
+              aspectRatio={getNovelAspectRatio(prop.novelId)}
+              highlightedId={highlightedId}
+              generatingId={generatingId}
+              generatingAppearanceId={generatingAppearanceId}
+              uploadingId={uploadingId}
+              onDelete={handleDelete}
+              onEdit={setEditingProp}
+              onGenerateImage={generatePropImage}
+              onGenerateAppearance={generateAppearance}
+              onUploadImage={triggerFileUpload}
+              onEditImage={openImageEdit}
+              onImageClick={openImagePreview}
+            />
+          ))}
         </div>
       )}
 

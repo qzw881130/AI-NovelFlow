@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from urllib.parse import unquote
 from unittest.mock import MagicMock
 
 import pytest
@@ -60,6 +61,36 @@ def test_create_and_list_novel_video_merge(client, db_session, monkeypatch, tmp_
     assert history.status_code == 200
     assert len(history.json()["data"]) == 1
     assert history.json()["data"][0]["id"] == data["id"]
+
+
+def test_download_novel_video_merge_uses_novel_title(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="卸忌诚养王纳谏")
+    other_novel = Novel(title="其他小说")
+    db_session.add_all([novel, other_novel])
+    db_session.flush()
+    video_path = tmp_path / "novel-random-id.mp4"
+    video_path.write_bytes(b"merged-video")
+    draft = Task(type="novel_video", status="completed", novel_id=novel.id,
+                 name="初稿合并", result_url="/api/files/novel-random-id.mp4",
+                 metadata_json='{"video_variant":"draft"}')
+    hd = Task(type="novel_video", status="completed", novel_id=novel.id,
+              name="高清合并", result_url="/api/files/novel-random-id.mp4",
+              metadata_json='{"video_variant":"hd","target_megapixels":1.2}')
+    pending = Task(type="novel_video", status="pending", novel_id=novel.id,
+                   name="等待合并", result_url="/api/files/novel-random-id.mp4")
+    db_session.add_all([draft, hd, pending])
+    db_session.commit()
+    monkeypatch.setattr("app.api.novel_videos.url_to_local_path", lambda _: str(video_path))
+    monkeypatch.setattr("app.api.novel_videos.file_storage.base_dir", tmp_path)
+
+    for task, expected_filename in [(draft, "卸忌诚养王纳谏-初稿.mp4"), (hd, "卸忌诚养王纳谏-高清1.2MP.mp4")]:
+        response = client.get(f"/api/novels/{novel.id}/video-merges/{task.id}/download")
+        assert response.status_code == 200
+        assert response.content == b"merged-video"
+        assert unquote(response.headers["content-disposition"]).endswith(expected_filename)
+
+    assert client.get(f"/api/novels/{other_novel.id}/video-merges/{draft.id}/download").status_code == 404
+    assert client.get(f"/api/novels/{novel.id}/video-merges/{pending.id}/download").status_code == 404
 
 
 def test_novel_video_merge_rejects_chapters_without_final_video(client, db_session):

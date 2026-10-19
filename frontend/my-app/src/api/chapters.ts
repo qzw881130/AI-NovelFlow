@@ -50,6 +50,10 @@ export const chapterApi = {
   fetch: (novelId: string, chapterId: string) =>
     api.get<Chapter>(`/novels/${novelId}/chapters/${chapterId}/`),
 
+  /** 阅读正文时无需加载分镜数据 */
+  fetchForReading: (novelId: string, chapterId: string) =>
+    api.get<Chapter>(`/novels/${novelId}/chapters/${chapterId}/?include_shots=false`),
+
   /** 更新章节 */
   update: (novelId: string, chapterId: string, data: { title: string; content: string }) =>
     api.put<Chapter>(`/novels/${novelId}/chapters/${chapterId}/`, data),

@@ -1915,7 +1915,7 @@ function VideoDirectorPanel({
                   const marker = keyframeClipCount > 1 ? '⇄' : kf.role === 'START' || kf.role === 'END' ? '★' : '◇';
                   const canonicalImageStatus = isCanonicalPlan ? getVisualStateExecutionImageStatus(kf, plan, keyframeImageUrl) : null;
                   return (
-                    <div id={`event-state-${shot.id}-${kf.index}`} key={`${kf.index}-${kf.time_seconds}`} className={isCanonicalPlan ? 'w-44 min-w-44' : 'min-w-24'}>
+                    <div id={`event-state-${shot.id}-${kf.index}`} key={`${kf.index}-${kf.time_seconds}`} className={`relative ${isCanonicalPlan ? 'w-44 min-w-44' : 'min-w-24'}`}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1968,6 +1968,17 @@ function VideoDirectorPanel({
                       )}
                       {isCurrentKeyframe && <div className="absolute -bottom-1 left-2 right-2 h-1 rounded-full bg-blue-500" />}
                     </button>
+                    {isCanonicalPlan && !isGenerating && keyframeImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => onPreviewImage(keyframeImageUrl)}
+                        aria-label={`预览视觉状态 ${kf.index} 图片`}
+                        title={t('chapterGenerate.viewLargeImage')}
+                        className="absolute right-4 top-4 z-10 rounded-full bg-black/60 p-1.5 text-white transition-all hover:bg-black/80 hover:text-blue-400"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
                     {renderImageReviewActions(kf, keyframeImageUrl, true)}
                     </div>
                   );

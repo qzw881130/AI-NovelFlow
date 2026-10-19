@@ -43,11 +43,17 @@ export function useImageQuality(images: CurrentReviewImage[], refreshKey: unknow
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const input = JSON.parse(key) as CurrentReviewImage[];
+    if (input.length === 0) {
+      setRows([]);
+      setError('');
+      return () => { active = false; };
+    }
     const poll = async () => {
       try {
-        const result = input.length ? await imageReviewApi.statuses(input) : { success: true, data: [] };
-        if (!result.success || !result.data) throw new Error('质量状态暂不可用');
-        if (active) { setRows(result.data); setError(''); }
+        const batches = await Promise.all(Array.from({ length: Math.ceil(input.length / 200) }, (_, index) =>
+          imageReviewApi.statuses(input.slice(index * 200, (index + 1) * 200))));
+        if (batches.some(result => !result.success || !result.data)) throw new Error('质量状态暂不可用');
+        if (active) { setRows(batches.flatMap(result => result.data || [])); setError(''); }
       } catch { if (active) setError('质量状态暂不可用，图片和视频生成不受影响'); }
       finally { if (active) timer = setTimeout(poll, 5000); }
     };

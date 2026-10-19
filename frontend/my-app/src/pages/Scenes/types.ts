@@ -7,13 +7,6 @@ export interface SceneWithNovel extends Scene {
   novelName?: string;
 }
 
-export interface ScenePrompt {
-  prompt: string;
-  templateName: string;
-  templateId?: string;
-  isSystem?: boolean;
-}
-
 export interface PreviewImageState {
   isOpen: boolean;
   url: string | null;

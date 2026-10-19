@@ -13,6 +13,7 @@ import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
 import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import { useLibraryImageQuality } from '../../hooks/useLibraryImageQuality';
 
 export default function Characters() {
   const { t } = useTranslation();
@@ -703,6 +704,9 @@ export default function Characters() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) && matchesStatusFilter(c));
+  const { getQuality } = useLibraryImageQuality(filteredCharacters
+    .filter(character => Boolean(character.imageUrl))
+    .map(character => ({ taskId: character.portraitTaskId || null, imageUrl: character.imageUrl! })));
 
   const characterStats = characters.reduce(
     (stats, character) => {
@@ -905,6 +909,7 @@ export default function Characters() {
             <CharacterCard
               key={character.id}
               character={character}
+              imageQuality={getQuality(character.imageUrl, character.portraitTaskId)}
               aspectRatio={getNovelAspectRatio(character.novelId)}
               highlightedId={highlightedId}
               generatingId={generatingId}
