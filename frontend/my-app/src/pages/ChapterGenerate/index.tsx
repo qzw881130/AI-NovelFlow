@@ -9,7 +9,6 @@ import { shotsApi } from '../../api/shots';
 // 导入组件
 import { FullTextModal, MergedImageModal, ImagePreviewModal, SplitConfirmDialog } from './components/Modals';
 import { ChapterGenerateLayout } from './components/ChapterGenerateLayout';
-import { ChapterResourcesModal } from './components/ChapterResourcesModal';
 
 export default function ChapterGenerate() {
   const { t } = useTranslation();
@@ -61,7 +60,6 @@ export default function ChapterGenerate() {
   // 本地状态
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
-  const [showResourcesModal, setShowResourcesModal] = useState(false);
 
   const hasImageTasks = generatingShots.size > 0 || pendingShots.size > 0;
   const hasVideoTasks = generatingVideos.size > 0 || pendingVideos.size > 0;
@@ -343,7 +341,6 @@ export default function ChapterGenerate() {
         getCharacterImage={getCharacterImage}
         getSceneImage={getSceneImage}
         getPropImage={getPropImage}
-        onResourcesManageClick={() => setShowResourcesModal(true)}
         onImageClick={onImageClick}
       />
 
@@ -379,14 +376,6 @@ export default function ChapterGenerate() {
         isOpen={splitConfirmDialog.isOpen}
         onClose={() => setSplitConfirmDialog({ isOpen: false, hasResources: false })}
         onConfirm={doSplitChapter}
-      />
-
-      {/* 章节资源管理弹窗 */}
-      <ChapterResourcesModal
-        isOpen={showResourcesModal}
-        onClose={() => setShowResourcesModal(false)}
-        novelId={id}
-        chapterId={cid}
       />
 
       <canvas ref={canvasRef} className="hidden" />

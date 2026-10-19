@@ -73,8 +73,6 @@ interface ChapterGenerateLayoutProps {
   getSceneImage?: (name: string) => string | null;
   /** 获取道具图片方法 */
   getPropImage?: (name: string) => string | null;
-  /** 章节资源管理弹窗打开回调 */
-  onResourcesManageClick?: () => void;
   /** 图片点击查看大图回调 */
   onImageClick?: (url: string) => void;
 }
@@ -117,7 +115,6 @@ export function ChapterGenerateLayout({
   getCharacterImage,
   getSceneImage,
   getPropImage,
-  onResourcesManageClick,
   onImageClick,
 }: ChapterGenerateLayoutProps) {
   const { t } = useTranslation();
@@ -709,15 +706,6 @@ export function ChapterGenerateLayout({
               {renderQueueStats()}
               <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
               {renderChapterSwitch()}
-              {/* 章节资源管理按钮 */}
-              <button
-                onClick={onResourcesManageClick}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                title="管理本章节使用的角色、场景、道具"
-              >
-                <span>📦</span>
-                章节资源
-              </button>
               </div>
             </div>
           </div>
@@ -781,15 +769,6 @@ export function ChapterGenerateLayout({
             {renderVideoGenerationStats()}
             <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {renderChapterSwitch()}
-            {/* 章节资源管理按钮 */}
-            <button
-              onClick={onResourcesManageClick}
-              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-              title="管理本章节使用的角色、场景、道具"
-            >
-              <span>📦</span>
-              章节资源
-            </button>
             </div>
           </div>
         </div>
