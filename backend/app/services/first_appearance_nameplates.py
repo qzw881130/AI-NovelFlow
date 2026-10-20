@@ -207,7 +207,7 @@ def _locate_protagonist_local(video: Path, shot: Shot, character: Character,
     return positions
 
 
-async def _locate_protagonist(video: Path, character: Character, duration: float) -> list[dict]:
+async def _locate_protagonist(video: Path, character: Character, duration: float, shot: Shot | None = None) -> list[dict]:
     """Compare character reference with sampled frames; skip uncertain identity."""
     reference_path = url_to_local_path(character.image_url or "")
     if not reference_path or not Path(reference_path).is_file():
@@ -254,6 +254,9 @@ async def _locate_protagonist(video: Path, character: Character, duration: float
                 ),
                 user_content=f"定位角色《{character.name}》；参考图与每帧逐一比对。",
                 response_format="json_object", task_type="first_appearance_nameplate", images=images,
+                novel_id=character.novel_id,
+                chapter_id=shot.chapter_id if shot else None,
+                shot_id=shot.id if shot else None,
             )
             if not response.get("success"):
                 raise RuntimeError(response.get("error") or "角色定位模型调用失败")
@@ -320,7 +323,7 @@ async def build_nameplate_events(db, novel_id: str, chapter_id: str,
                     positions = await asyncio.to_thread(
                         _locate_protagonist_local, Path(segment["path"]), shot, character, duration)
                     if not positions:
-                        positions = await _locate_protagonist(Path(segment["path"]), character, duration)
+                        positions = await _locate_protagonist(Path(segment["path"]), character, duration, shot)
                 except Exception as exc:
                     warnings.append(f"{name}：{exc}")
                     continue

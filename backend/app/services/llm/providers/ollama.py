@@ -88,6 +88,7 @@ class OllamaProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
+        shot_id: str = None,
         character_id: str = None,
         images: list | None = None,
     ) -> LLMResponse:
@@ -150,6 +151,7 @@ class OllamaProvider(BaseLLMProvider):
                     task_type=task_type,
                     novel_id=novel_id,
                     chapter_id=chapter_id,
+                    shot_id=shot_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
                     request_info=request_info,

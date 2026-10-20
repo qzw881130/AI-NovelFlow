@@ -93,6 +93,7 @@ class LLMLogRepository:
             LLMLog.task_type,
             LLMLog.novel_id,
             LLMLog.chapter_id,
+            LLMLog.shot_id,
             LLMLog.character_id,
             LLMLog.used_proxy,
             LLMLog.duration,

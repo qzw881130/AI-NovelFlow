@@ -463,7 +463,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
 
 async def preview_single_stage_h3(*, payload, route, template_type, novel_id, chapter_id,
                                   assigned_dialogues, visible_characters, picture_mapping,
-                                  reference_manifest, temporal_anchors, experiment, llm):
+                                  reference_manifest, temporal_anchors, experiment, llm, shot_id=None):
     """One #11/#12/#13 call and deterministic assembly; returns an isolated preview."""
     if route not in {"single", "endpoint", "multi"}:
         raise ValueError("H3_SINGLE_STAGE_ROUTE_INVALID")
@@ -514,7 +514,7 @@ async def preview_single_stage_h3(*, payload, route, template_type, novel_id, ch
         temperature=0.3, max_tokens=4500,
         task_type=template_type,
         prompt_template_name="H3 Director Only Experiment V1" if director_only else "H3 Single Stage Experiment V1",
-        novel_id=novel_id, chapter_id=chapter_id,
+        novel_id=novel_id, chapter_id=chapter_id, shot_id=shot_id,
     )
     if not result.get("success"):
         raise RuntimeError(result.get("error") or "H3_SINGLE_STAGE_LLM_FAILED")

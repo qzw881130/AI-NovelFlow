@@ -69,6 +69,7 @@ class LLMClient:
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
+        shot_id: str = None,
         character_id: str = None,
         images: list | None = None,
     ) -> Dict[str, Any]:
@@ -104,6 +105,7 @@ class LLMClient:
             prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             character_id=character_id,
             **({"images": images} if images else {}),
         )

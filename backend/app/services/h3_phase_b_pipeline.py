@@ -241,7 +241,7 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                     system_prompt=system_prompt, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
                     images=prepared["images"], response_format="json_object", temperature=0.3, max_tokens=4500,
                     task_type=TEMPLATE_TYPE, prompt_template_name=template.name,
-                    novel_id=novel.id, chapter_id=shot.chapter_id)
+                    novel_id=novel.id, chapter_id=shot.chapter_id, shot_id=shot.id)
             record["llm_response"] = response
             if not response.get("success"):
                 raise ValueError("PHASE_B_DIRECTOR_FAILED: " + str(response.get("error") or response.get("message") or "LLM failed"))

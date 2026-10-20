@@ -105,6 +105,7 @@ class LLMService:
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
+        shot_id: str = None,
         character_id: str = None,
         images: list | None = None,
     ) -> Dict[str, Any]:
@@ -142,6 +143,7 @@ class LLMService:
             prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             character_id=character_id,
             **({"images": images} if images else {}),
         )
@@ -168,6 +170,7 @@ class LLMService:
         source_range: str = None,
         prompt_template: str = None,
         prompt_template_name: str = None,
+        chapter_id: str = None,
     ) -> Dict[str, Any]:
         """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
         # 获取当前配置
@@ -189,7 +192,8 @@ class LLMService:
             response_format="json_object",
             task_type="parse_characters",
             prompt_template_name=prompt_template_name or ("小说配置角色解析提示词" if prompt_template else "系统配置角色解析提示词"),
-            novel_id=novel_id
+            novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:
@@ -355,7 +359,8 @@ class LLMService:
         chapter_content: str,
         chapter_title: str = "",
         prompt_template: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        chapter_id: str = None,
     ) -> Dict[str, Any]:
         """解析场景信息
 
@@ -385,7 +390,8 @@ class LLMService:
             response_format="json_object",
             task_type="parse_scenes",
             prompt_template_name=prompt_template_name or ("自定义场景解析提示词" if prompt_template else "默认场景解析提示词"),
-            novel_id=novel_id
+            novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:
@@ -407,7 +413,8 @@ class LLMService:
         text: str,
         novel_id: str = None,
         prompt_template: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        chapter_id: str = None,
     ) -> Dict[str, Any]:
         """
         解析小说文本中的道具信息
@@ -436,6 +443,7 @@ class LLMService:
             task_type="parse_props",
             prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词"),
             novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:

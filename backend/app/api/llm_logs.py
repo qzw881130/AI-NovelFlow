@@ -20,6 +20,8 @@ from datetime import datetime, timezone, timedelta
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.llm_log import LLMLog
+from app.models.novel import Novel, Chapter
+from app.models.shot import Shot
 from app.repositories import LLMLogRepository
 from app.constants.prompt_template import PROMPT_TEMPLATE_FILE_NUMBERS
 from app.services.llm.cancellation import LLM_CANCELLED_MESSAGE
@@ -199,6 +201,7 @@ def _log_request_text(log: LLMLog) -> str:
         "promptTemplateName": log.prompt_template_name,
         "novelId": log.novel_id,
         "chapterId": log.chapter_id,
+        "shotId": log.shot_id,
         "characterId": log.character_id,
         "payload": {
             "model": log.model,
@@ -275,6 +278,15 @@ def get_llm_logs(
         status=status,
         novel_id=novel_id
     )
+    novel_titles = dict(db.query(Novel.id, Novel.title).filter(Novel.id.in_(
+        {log.novel_id for log in logs if log.novel_id}
+    )).all())
+    chapters = {chapter.id: chapter for chapter in db.query(Chapter.id, Chapter.number, Chapter.title).filter(
+        Chapter.id.in_({log.chapter_id for log in logs if log.chapter_id})
+    ).all()}
+    shot_indexes = dict(db.query(Shot.id, Shot.index).filter(Shot.id.in_(
+        {log.shot_id for log in logs if log.shot_id}
+    )).all())
     
     return {
         "success": True,
@@ -294,7 +306,12 @@ def get_llm_logs(
                     "error_message": log.error_message,
                     "task_type": log.task_type,
                     "novel_id": log.novel_id,
+                    "novel_title": novel_titles.get(log.novel_id),
                     "chapter_id": log.chapter_id,
+                    "chapter_number": chapters[log.chapter_id].number if log.chapter_id in chapters else None,
+                    "chapter_title": chapters[log.chapter_id].title if log.chapter_id in chapters else None,
+                    "shot_id": log.shot_id,
+                    "shot_index": shot_indexes.get(log.shot_id),
                     "character_id": log.character_id,
                     "used_proxy": log.used_proxy,
                     "duration": log.duration,
@@ -310,6 +327,87 @@ def get_llm_logs(
             }
         }
     }
+
+
+def _usage_number(value):
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _new_usage_node(id_, label):
+    return {"id": id_, "label": label, "input_tokens": 0, "output_tokens": 0,
+            "total_tokens": 0, "call_count": 0, "missing_usage_count": 0,
+            "partial_usage_count": 0}
+
+
+def _chapter_usage_label(chapter):
+    title = (chapter.title or "").strip()
+    return title if re.match(r"^第.{1,10}章", title) else f"第{chapter.number}章 · {title}"
+
+
+def _add_usage(node, metrics):
+    node["call_count"] += 1
+    values = metrics if isinstance(metrics, dict) else {}
+    input_tokens = _usage_number(values.get("input_tokens"))
+    output_tokens = _usage_number(values.get("output_tokens"))
+    total_tokens = _usage_number(values.get("total_tokens"))
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+    if input_tokens is not None:
+        node["input_tokens"] += input_tokens
+    if output_tokens is not None:
+        node["output_tokens"] += output_tokens
+    if total_tokens is not None:
+        node["total_tokens"] += total_tokens
+        if input_tokens is None or output_tokens is None:
+            node["partial_usage_count"] += 1
+    else:
+        node["missing_usage_count"] += 1
+
+
+@router.get("/token-usage/hierarchy")
+def get_llm_token_usage_hierarchy(db: Session = Depends(get_db)):
+    """Aggregate provider-reported tokens across all saved LLM logs by novel/chapter/Shot."""
+    novels = dict(db.query(Novel.id, Novel.title).all())
+    chapters = {row.id: row for row in db.query(Chapter.id, Chapter.novel_id, Chapter.number, Chapter.title).all()}
+    shots = {row.id: row for row in db.query(Shot.id, Shot.chapter_id, Shot.index).all()}
+    root = _new_usage_node(None, "全部调用")
+    novel_nodes = {}
+    for novel_id, chapter_id, shot_id, metrics in db.query(
+        LLMLog.novel_id, LLMLog.chapter_id, LLMLog.shot_id, LLMLog.usage_metrics
+    ).yield_per(500):
+        if shot_id in shots:
+            chapter_id = shots[shot_id].chapter_id
+        if chapter_id in chapters:
+            novel_id = chapters[chapter_id].novel_id
+        novel_node = novel_nodes.setdefault(novel_id, {**_new_usage_node(
+            novel_id, novels.get(novel_id, f"已删除小说 · {novel_id}") if novel_id else "未归属小说"
+        ), "chapters": {}})
+        chapter_node = novel_node["chapters"].setdefault(chapter_id, {**_new_usage_node(
+            chapter_id,
+            _chapter_usage_label(chapters[chapter_id]) if chapter_id in chapters else
+            (f"已删除章回 · {chapter_id}" if chapter_id else "未归属章回")
+        ), "shots": {}})
+        shot_node = chapter_node["shots"].setdefault(shot_id, _new_usage_node(
+            shot_id, f"Shot {shots[shot_id].index}" if shot_id in shots else
+            (f"已删除 Shot · {shot_id}" if shot_id else "未归属 Shot")
+        ))
+        for node in (root, novel_node, chapter_node, shot_node):
+            _add_usage(node, metrics)
+    result = []
+    for novel_id, novel_node in sorted(novel_nodes.items(), key=lambda item: (item[0] is None, item[1]["label"])):
+        chapter_items = list(novel_node.pop("chapters").items())
+        novel_node["chapters"] = []
+        for chapter_id, chapter_node in sorted(chapter_items, key=lambda item: (
+            item[0] is None, chapters[item[0]].number if item[0] in chapters else 10**9
+        )):
+            shot_items = list(chapter_node.pop("shots").items())
+            chapter_node["shots"] = [node for _, node in sorted(shot_items, key=lambda item: (
+                item[0] is None, shots[item[0]].index if item[0] in shots else 10**9
+            ))]
+            novel_node["chapters"].append(chapter_node)
+        result.append(novel_node)
+    root["novels"] = result
+    return {"success": True, "data": root}
 
 
 @router.get("/filters")
@@ -540,7 +638,8 @@ def export_selected_llm_logs(
 @router.get("/{log_id}")
 def get_llm_log_detail(
     log_id: str, 
-    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
+    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo),
+    db: Session = Depends(get_db),
 ):
     """获取单个日志详情"""
     log = llmlog_repo.get_by_id(log_id)
@@ -565,7 +664,12 @@ def get_llm_log_detail(
             "error_message": log.error_message,
             "task_type": log.task_type,
             "novel_id": log.novel_id,
+            "novel_title": db.query(Novel.title).filter(Novel.id == log.novel_id).scalar() if log.novel_id else None,
             "chapter_id": log.chapter_id,
+            "chapter_number": db.query(Chapter.number).filter(Chapter.id == log.chapter_id).scalar() if log.chapter_id else None,
+            "chapter_title": db.query(Chapter.title).filter(Chapter.id == log.chapter_id).scalar() if log.chapter_id else None,
+            "shot_id": log.shot_id,
+            "shot_index": db.query(Shot.index).filter(Shot.id == log.shot_id).scalar() if log.shot_id else None,
             "character_id": log.character_id,
             "used_proxy": log.used_proxy,
             "duration": log.duration,

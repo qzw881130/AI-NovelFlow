@@ -805,6 +805,7 @@ async def _resolve_shot_image_prompt_text(
         prompt_template_name=template.name,
         novel_id=novel.id,
         chapter_id=shot.chapter_id,
+        shot_id=shot.id,
     )
     if not result.get("success"):
         print(f"[GenerateShot] Prompt builder failed, fallback to shot description: {result.get('error') or result.get('message')}")
@@ -1928,7 +1929,7 @@ async def _replan_visual_attention(db, novel, chapter, shot, template_repo, llm_
             user_content="请基于以下只读 canonical authority 重新规划 visual_attention。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2),
             temperature=0.3, max_tokens=2500, response_format="json_object",
             task_type="keyframe_planner", prompt_template_name=template.name,
-            novel_id=novel.id, chapter_id=chapter.id,
+            novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
         )
     except Exception as exc:
         _record_attention_failure(db, shot, {**call, "response": str(exc), "error_message": str(exc)})
@@ -2284,6 +2285,7 @@ async def _plan_keyframe_transitions(
             prompt_template_name=template.name,
             novel_id=novel.id,
             chapter_id=chapter.id,
+            shot_id=shot.id,
         )
         if not result.get("success"):
             record_call({
@@ -2395,6 +2397,7 @@ async def _recommend_legacy_video_mode(
         prompt_template_name=template.name,
         novel_id=novel.id,
         chapter_id=chapter.id,
+        shot_id=shot.id,
     )
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("error") or "视频生成模式推荐失败")
@@ -2668,6 +2671,7 @@ async def plan_video_keyframes(
             prompt_template_name=template.name,
             novel_id=novel.id,
             chapter_id=chapter.id,
+            shot_id=shot.id,
         )
         input_summary = f"Shot {shot.index} · canonical Director visual planning · attempt {attempt}/{max_attempts}"
         if not result.get("success"):

@@ -6,6 +6,7 @@ import { toast } from '../../../stores/toastStore';
 import type { LLMLog } from '../../../api/llmLogs';
 import type { PromptTab } from '../hooks/useLLMLogsState';
 import { ProviderLogo } from '../../../components/ProviderLogo';
+import { chapterLabel } from '../columns';
 
 interface LogDetailModalProps {
   log: LLMLog;
@@ -33,6 +34,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
       promptTemplateName: log.prompt_template_name,
       novelId: log.novel_id,
       chapterId: log.chapter_id,
+      shotId: log.shot_id,
       characterId: log.character_id,
       payload: {
         model: log.model,
@@ -138,6 +140,11 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>
                 <span className="font-medium text-gray-900">{log.prompt_template_name ? t(`promptConfig.templateNames.${log.prompt_template_name}`, { defaultValue: log.prompt_template_name }) : '-'}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <span><span className="text-gray-500">小说：</span>{log.novel_title || log.novel_id || '—'}</span>
+                <span><span className="text-gray-500">章回：</span>{chapterLabel(log.chapter_number, log.chapter_title, log.chapter_id)}</span>
+                <span><span className="text-gray-500">Shot：</span>{log.shot_index != null ? `Shot ${log.shot_index}` : log.shot_id || '—'}</span>
               </div>
               {log.error_message && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">

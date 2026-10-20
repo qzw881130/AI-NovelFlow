@@ -2017,6 +2017,7 @@ async def build_h3_video_prompt(
             template_type=template_type,
             novel_id=novel.id,
             chapter_id=shot.chapter_id,
+            shot_id=shot.id,
             assigned_dialogues=assigned_dialogues,
             visible_characters=clip_visible_characters,
             picture_mapping=physical_picture_mapping,
@@ -2068,6 +2069,7 @@ async def build_h3_video_prompt(
         prompt_template_name=template.name,
         novel_id=novel.id,
         chapter_id=shot.chapter_id,
+        shot_id=shot.id,
     )
     if not result.get("success"):
         append_video_ai_call(shot, {

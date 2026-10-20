@@ -15,6 +15,9 @@ def test_llm_log_is_created_pending_then_updated_in_place(db_engine, monkeypatch
         model="gpt-test",
         system_prompt="system",
         user_prompt="user",
+        novel_id="novel-1",
+        chapter_id="chapter-1",
+        shot_id="shot-1",
         request_info={"payload": {"max_tokens": 93216}},
     )
 
@@ -22,6 +25,7 @@ def test_llm_log_is_created_pending_then_updated_in_place(db_engine, monkeypatch
         pending = db.query(LLMLog).filter(LLMLog.id == log_id).one()
         assert pending.status == "pending"
         assert pending.duration is None
+        assert (pending.novel_id, pending.chapter_id, pending.shot_id) == ("novel-1", "chapter-1", "shot-1")
 
     metrics = {"output_tokens": 25, "output_tokens_per_second": 20.0}
     update_llm_log(log_id, status="success", response="done", duration=1.25, metrics=metrics)
@@ -54,9 +58,10 @@ async def test_configured_max_tokens_override_business_default(monkeypatch):
     service.temperature = None
     monkeypatch.setattr(service, "_get_client", lambda: FakeClient())
 
-    await service.chat_completion("system", "user", max_tokens=15000)
+    await service.chat_completion("system", "user", max_tokens=15000, shot_id="shot-1")
 
     assert captured["max_tokens"] == 93216
+    assert captured["shot_id"] == "shot-1"
 
 
 def test_openai_without_api_key_does_not_fallback_to_deepseek(monkeypatch):

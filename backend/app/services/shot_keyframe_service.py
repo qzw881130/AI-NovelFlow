@@ -332,7 +332,7 @@ class ShotKeyframeService:
         template = resolve_novel_prompt_template(db, novel, "temporal_reference_selector")
         if not template:
             raise RuntimeError("未配置 Temporal Anchor Reference Selector 提示词模板")
-        result = await self.llm_service.chat_completion(system_prompt=template.template, user_content=json.dumps(payload, ensure_ascii=False, indent=2), temperature=0.2, max_tokens=1200, response_format="json_object", task_type="temporal_reference_selector", prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id)
+        result = await self.llm_service.chat_completion(system_prompt=template.template, user_content=json.dumps(payload, ensure_ascii=False, indent=2), temperature=0.2, max_tokens=1200, response_format="json_object", task_type="temporal_reference_selector", prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id, shot_id=shot.id)
         if not result.get("success"):
             raise RuntimeError(result.get("error") or "Temporal Anchor Reference Selector 调用失败")
         raw = result.get("content") or ""
@@ -586,6 +586,7 @@ class ShotKeyframeService:
             prompt_template_name=template.name,
             novel_id=novel.id,
             chapter_id=shot.chapter_id,
+            shot_id=shot.id,
         )
         if task_provenance(task):
             db.refresh(shot)
@@ -671,7 +672,8 @@ class ShotKeyframeService:
                 task_type="keyframe_description",
                 prompt_template_name=template.name if template else "默认关键帧描述提示词",
                 novel_id=novel_id,
-                chapter_id=shot.chapter_id
+                chapter_id=shot.chapter_id,
+                shot_id=shot.id,
             )
 
             content = response.get("content", "")

@@ -729,6 +729,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
             prompt_template_name=template.name,
             novel_id=novel.id,
             chapter_id=shot.chapter_id,
+            shot_id=shot.id,
         )
         if not result.get("success"):
             raise RuntimeError(result.get("error") or "Clip Planner 调用失败")

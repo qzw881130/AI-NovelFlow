@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2, Download, Square } from 'lucide-react';
+import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2, Download, Square, Columns } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { LLMLog } from '../../api/llmLogs';
 import { useLLMLogsState } from './hooks/useLLMLogsState';
@@ -9,6 +9,9 @@ import { ProviderLogo } from '../../components/ProviderLogo';
 import { llmLogsApi } from '../../api/llmLogs';
 import { toast } from '../../stores/toastStore';
 import { getTerminableLogIds } from './selection';
+import { LOG_COLUMNS_STORAGE_KEY, chapterLabel, defaultLogColumns, logColumns, normalizeLogColumns, requiredLogColumns } from './columns';
+import type { LogColumnKey } from './columns';
+import { TokenUsageHierarchyModal } from './components/TokenUsageHierarchyModal';
 
 function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   const maxCount = Math.max(1, ...(state.statsData?.items || []).map(item => item.count));
@@ -210,8 +213,9 @@ function TokenStatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> 
   );
 }
 
-function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView, formatDate, truncateText, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: {
+function LogTableRow({ log, visibleColumns, selected, onSelectionStart, onSelectionEnter, onView, formatDate, truncateText, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: {
   log: LLMLog; onView: () => void; formatDate: (d: string) => string;
+  visibleColumns: LogColumnKey[];
   selected: boolean;
   onSelectionStart: (id: string) => void;
   onSelectionEnter: (id: string) => void;
@@ -221,6 +225,28 @@ function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView
 }) {
   const { t } = useTranslation();
   const badge = getStatusBadgeConfig(log.status, log.error_message);
+  const renderCell = (key: LogColumnKey) => {
+    switch (key) {
+      case 'time': return formatDate(log.created_at);
+      case 'provider': return <span className="inline-flex items-center" title={log.provider}><ProviderLogo provider={log.provider} label={log.provider} className="h-6 w-6" /></span>;
+      case 'model': return log.model;
+      case 'task_type': return getTaskTypeLabel(log.task_type);
+      case 'novel': return <span title={log.novel_title || log.novel_id || ''}>{log.novel_title || log.novel_id || '—'}</span>;
+      case 'chapter': return <span title={log.chapter_title || log.chapter_id || ''}>{chapterLabel(log.chapter_number, log.chapter_title, log.chapter_id)}</span>;
+      case 'shot': return log.shot_index != null ? `Shot ${log.shot_index}` : log.shot_id || '—';
+      case 'template': return <div className="max-w-[180px] truncate" title={log.prompt_template_name || ''}>{log.prompt_template_name ? t(`promptConfig.templateNames.${log.prompt_template_name}`, { defaultValue: log.prompt_template_name }) : '—'}</div>;
+      case 'status': return <span className={`rounded-full px-2 py-1 text-xs ${badge.bg} ${badge.text}`}>{badge.label}</span>;
+      case 'proxy': return log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no');
+      case 'duration': return getDisplayDuration(log);
+      case 'speed': return <LogSpeed log={log} />;
+      case 'input_tokens': return log.metrics?.input_tokens == null ? '—' : formatTokenCount(log.metrics.input_tokens);
+      case 'output_tokens': return log.metrics?.output_tokens == null ? '—' : formatTokenCount(log.metrics.output_tokens);
+      case 'total_tokens': return log.metrics?.total_tokens == null
+        ? (log.metrics?.input_tokens != null && log.metrics?.output_tokens != null ? formatTokenCount(log.metrics.input_tokens + log.metrics.output_tokens) : '—')
+        : formatTokenCount(log.metrics.total_tokens);
+      case 'prompt': return <div className="max-w-[150px] truncate" title={log.user_prompt}>{truncateText(log.user_prompt, 50)}</div>;
+    }
+  };
   return (
     <tr
       className={selected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'}
@@ -237,24 +263,12 @@ function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView
       >
         <input type="checkbox" checked={selected} readOnly tabIndex={-1} className="pointer-events-none h-4 w-4 rounded border-gray-300 text-primary-600" aria-label={`选择日志 ${log.id}`} />
       </td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{formatDate(log.created_at)}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-        <span className="inline-flex items-center" title={log.provider}>
-          <ProviderLogo provider={log.provider} label={log.provider} className="h-6 w-6" />
-        </span>
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.model}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getTaskTypeLabel(log.task_type)}</td>
-      <td className="px-4 py-3 text-sm text-gray-600 max-w-[180px]">
-        <div className="truncate" title={log.prompt_template_name || ''}>{log.prompt_template_name ? t(`promptConfig.templateNames.${log.prompt_template_name}`, { defaultValue: log.prompt_template_name }) : '-'}</div>
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 text-xs ${badge.bg} ${badge.text} rounded-full`}>{badge.label}</span></td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getDisplayDuration(log)}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600"><LogSpeed log={log} /></td>
-      <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
-        <div className="truncate" title={log.user_prompt}>{truncateText(log.user_prompt, 50)}</div>
-      </td>
+      {visibleColumns.map(key => {
+        const textWidth = key === 'task_type' ? 'max-w-[260px]' : key === 'chapter' ? 'max-w-[200px]' : key === 'novel' ? 'max-w-[160px]' : key === 'model' || key === 'shot' ? 'max-w-[180px]' : '';
+        return <td key={key} className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+          {textWidth ? <div className={'truncate ' + textWidth} title={key === 'task_type' ? getTaskTypeLabel(log.task_type) : undefined}>{renderCell(key)}</div> : renderCell(key)}
+        </td>;
+      })}
       <td className="px-4 py-3 whitespace-nowrap text-sm">
         <button onClick={onView} className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-1">
           <Eye className="h-4 w-4" />{t('llmLogs.viewDetails')}
@@ -270,8 +284,24 @@ export default function LLMLogs() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
+  const [showHierarchy, setShowHierarchy] = useState(false);
+  const [showColumnControl, setShowColumnControl] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<LogColumnKey[]>(() => {
+    try {
+      const stored = localStorage.getItem(LOG_COLUMNS_STORAGE_KEY);
+      return stored ? normalizeLogColumns(JSON.parse(stored)) : [...defaultLogColumns];
+    } catch {
+      return [...defaultLogColumns];
+    }
+  });
   const terminationInFlight = useRef(false);
   const dragSelectionValue = useRef<boolean | null>(null);
+
+  const updateVisibleColumns = (columns: LogColumnKey[]) => {
+    const normalized = normalizeLogColumns(columns);
+    setVisibleColumns(normalized);
+    try { localStorage.setItem(LOG_COLUMNS_STORAGE_KEY, JSON.stringify(normalized)); } catch { /* Storage may be disabled. */ }
+  };
 
   useEffect(() => {
     const stopDragging = () => {
@@ -434,13 +464,29 @@ export default function LLMLogs() {
       </div>
 
       {/* Logs Table */}
-      <div className="card overflow-hidden">
+      <div className="card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <span>已选择 {selectedIds.size} 条</span>
             {selectedIds.size > 0 && <button type="button" onClick={() => setSelectedIds(new Set())} className="text-gray-500 hover:text-gray-800">清空选择</button>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <button type="button" onClick={() => setShowColumnControl(value => !value)} aria-expanded={showColumnControl} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                <Columns className="h-4 w-4" />显示列
+              </button>
+              {showColumnControl && <div className="absolute right-0 top-full z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+                <p className="mb-2 text-xs text-gray-500">按需显示日志列；时间、任务类型、状态始终显示。</p>
+                <div className="max-h-72 space-y-1 overflow-y-auto">
+                  {logColumns.map(column => <label key={column.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-gray-50">
+                    <input type="checkbox" checked={visibleColumns.includes(column.key)} disabled={requiredLogColumns.has(column.key)}
+                      onChange={event => updateVisibleColumns(event.target.checked ? [...visibleColumns, column.key] : visibleColumns.filter(key => key !== column.key))}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600" />{column.label}{requiredLogColumns.has(column.key) && <span className="text-xs text-gray-400">必显</span>}
+                  </label>)}
+                </div>
+                <div className="mt-2 flex justify-between border-t pt-2 text-sm"><button type="button" onClick={() => updateVisibleColumns([...defaultLogColumns])} className="text-primary-600">恢复默认</button><button type="button" onClick={() => setShowColumnControl(false)} className="text-gray-600">完成</button></div>
+              </div>}
+            </div>
             <button
               type="button"
               onClick={() => void terminateSelected()}
@@ -474,6 +520,7 @@ export default function LLMLogs() {
             >
               <BarChart3 className="h-4 w-4" />查看 Token 消耗
             </button>
+            <button type="button" onClick={() => setShowHierarchy(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"><BarChart3 className="h-4 w-4" />小说 / 章回 / Shot Token</button>
           </div>
         </div>
         {state.loading ? (
@@ -485,7 +532,7 @@ export default function LLMLogs() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-max min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="w-14 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
@@ -494,17 +541,15 @@ export default function LLMLogs() {
                       <span>选择</span>
                     </label>
                   </th>
-                  {[
-                    t('llmLogs.timestamp'), t('llmLogs.llmProvider'), t('llmLogs.model'), t('llmLogs.taskType'),
-                    t('llmLogs.promptTemplateName'), t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.speed'), t('llmLogs.promptPreview'), t('common.actions')
-                  ].map((h, i) => (
-                    <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  {logColumns.filter(column => visibleColumns.includes(column.key)).map(column => (
+                    <th key={column.key} className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{column.label}</th>
                   ))}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {state.logs.map((log) => (
-                  <LogTableRow key={log.id} log={log} selected={selectedIds.has(log.id)}
+                  <LogTableRow key={log.id} log={log} visibleColumns={visibleColumns} selected={selectedIds.has(log.id)}
                     onSelectionStart={beginDragSelection} onSelectionEnter={continueDragSelection}
                     onView={() => state.openLogDetail(log)}
                     formatDate={state.formatDate} truncateText={state.truncateText}
@@ -543,6 +588,7 @@ export default function LLMLogs() {
       )}
       {state.showStatsModal && <StatsModal state={state} />}
       {state.showTokenStatsModal && <TokenStatsModal state={state} />}
+      {showHierarchy && <TokenUsageHierarchyModal onClose={() => setShowHierarchy(false)} />}
     </div>
   );
 }

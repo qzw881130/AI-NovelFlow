@@ -45,7 +45,12 @@ export interface LLMLog {
   error_message: string | null;
   task_type: string | null;
   novel_id: string | null;
+  novel_title?: string | null;
   chapter_id: string | null;
+  chapter_number?: number | null;
+  chapter_title?: string | null;
+  shot_id?: string | null;
+  shot_index?: number | null;
   character_id: string | null;
   used_proxy: boolean;
   duration: number | null;
@@ -119,6 +124,22 @@ export interface LLMLogTokenStatsResponse {
   items: LLMLogTokenStatsItem[];
 }
 
+export interface TokenUsageNode {
+  id: string | null;
+  label: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  call_count: number;
+  missing_usage_count: number;
+  partial_usage_count: number;
+}
+
+export interface ShotTokenUsage extends TokenUsageNode {}
+export interface ChapterTokenUsage extends TokenUsageNode { shots: ShotTokenUsage[] }
+export interface NovelTokenUsage extends TokenUsageNode { chapters: ChapterTokenUsage[] }
+export interface TokenUsageHierarchy extends TokenUsageNode { novels: NovelTokenUsage[] }
+
 export const llmLogsApi = {
   /** 仅终止所选日志中的进行中调用，后端重新核对实时状态 */
   cancelSelected: async (ids: string[]): Promise<LLMLogCancellationResult> => {
@@ -172,6 +193,9 @@ export const llmLogsApi = {
     });
     return api.get<LLMLogTokenStatsResponse>(`/llm-logs/token-stats?${params}`);
   },
+
+  /** 按小说、章回、Shot 汇总所有历史日志中的供应商 Token 回执 */
+  fetchTokenUsageHierarchy: () => api.get<TokenUsageHierarchy>('/llm-logs/token-usage/hierarchy'),
 
   /** 打包下载所选日志的完整 LLM 参数与响应 */
   downloadSelected: async (ids: string[]) => {

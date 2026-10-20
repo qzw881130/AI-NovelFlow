@@ -708,7 +708,7 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
             result = await LLMService().chat_completion(
                 system_prompt=template.template, user_content=json.dumps(llm_input_view(runtime), ensure_ascii=False, indent=2),
                 images=images, response_format="json_object", task_type=TEMPLATE_TYPE,
-                prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id,
+                prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id, shot_id=shot.id,
             )
         record.update(llm_log_id=result.get("log_id"), raw_llm_response=result.get("raw_response"),
                       raw_response_content=result.get("content") or "")

@@ -91,6 +91,7 @@ class NovelService:
                 source_range=source_range,
                 prompt_template=template.template if template else None,
                 prompt_template_name=template.name if template else None,
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
             )
             
             if "error" in result:
@@ -287,7 +288,8 @@ class NovelService:
                 text=full_text[:150000],  # 限制长度
                 novel_id=novel_id,
                 prompt_template=prompt_template,
-                prompt_template_name=template.name if template else "默认道具解析提示词"
+                prompt_template_name=template.name if template else "默认道具解析提示词",
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
             )
 
             if result.get("error"):
@@ -461,7 +463,8 @@ class NovelService:
                 chapter_content=combined_content[:150000],  # 限制长度
                 chapter_title=source_range,
                 prompt_template=prompt_template,
-                prompt_template_name=prompt_template_name
+                prompt_template_name=prompt_template_name,
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
             )
             
             if result.get("error"):
@@ -585,7 +588,8 @@ class NovelService:
                 chapter_content=chapter.content[:20000],  # 限制长度
                 chapter_title=source_range,
                 prompt_template=prompt_template,
-                prompt_template_name=template.name if template else "默认场景解析提示词"
+                prompt_template_name=template.name if template else "默认场景解析提示词",
+                chapter_id=chapter.id,
             )
             
             if result.get("error"):

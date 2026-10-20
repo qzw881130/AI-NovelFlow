@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 import asyncio
+import json
 
 from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots, hd_repaint
@@ -20,6 +21,96 @@ from app.models.system_config import SystemConfig  # 导入系统配置模型
 from app.models.notification import NotificationSettings, NotificationDelivery
 from app.models.shot import Shot
 from app.models.image_quality_review import ImageQualityReview
+
+
+def backfill_llm_log_shot_ids(conn):
+    """Link legacy logs through verified structured IDs or persisted task/review relations."""
+    shot_context = {
+        shot_id: (chapter_id, novel_id)
+        for shot_id, chapter_id, novel_id in conn.execute(text(
+            "SELECT shots.id, shots.chapter_id, chapters.novel_id "
+            "FROM shots JOIN chapters ON chapters.id = shots.chapter_id"
+        ))
+    }
+    pending = {}
+
+    def assign(log_id, shot_id):
+        context = shot_context.get(shot_id) if isinstance(shot_id, str) else None
+        current = pending.get(log_id)
+        if not current or not context:
+            return
+        novel_id, chapter_id = current
+        if (chapter_id and chapter_id != context[0]) or (novel_id and novel_id != context[1]):
+            return
+        conn.execute(text(
+            "UPDATE llm_logs SET shot_id=:shot_id, chapter_id=COALESCE(chapter_id, :chapter_id), "
+            "novel_id=COALESCE(novel_id, :novel_id) WHERE id=:id AND shot_id IS NULL"
+        ), {"id": log_id, "shot_id": shot_id, "chapter_id": context[0], "novel_id": context[1]})
+        pending.pop(log_id, None)
+
+    for log_id, novel_id, chapter_id, prompt in conn.execute(text(
+        "SELECT id, novel_id, chapter_id, user_prompt FROM llm_logs WHERE shot_id IS NULL"
+    )):
+        pending[log_id] = (novel_id, chapter_id)
+        if not prompt or 'shot' not in prompt:
+            continue
+        start = prompt.find('{')
+        if start < 0:
+            continue
+        try:
+            data, end = json.JSONDecoder().raw_decode(prompt[start:])
+        except (TypeError, ValueError):
+            continue
+        if prompt[start + end:].strip() or not isinstance(data, dict):
+            continue
+        shot = data.get("shot")
+        shot_id = (shot.get("id") or shot.get("shot_id")) if isinstance(shot, dict) else data.get("shot_id")
+        assign(log_id, shot_id)
+
+    review_candidates = {}
+    for log_id, shot_id in conn.execute(text(
+        "SELECT reviews.llm_log_id, tasks.shot_id FROM image_quality_reviews AS reviews "
+        "JOIN tasks ON tasks.id = reviews.task_id "
+        "WHERE reviews.llm_log_id IS NOT NULL AND tasks.shot_id IS NOT NULL"
+    )):
+        if log_id in pending:
+            review_candidates.setdefault(log_id, set()).add(shot_id)
+    for log_id, shot_ids in review_candidates.items():
+        if len(shot_ids) == 1:
+            assign(log_id, next(iter(shot_ids)))
+
+    candidates = {}
+
+    def collect_log_ids(value, shot_id):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"llm_log_id", "log_id"} and isinstance(child, str) and child in pending:
+                    candidates.setdefault(child, set()).add(shot_id)
+                elif isinstance(child, (dict, list)):
+                    collect_log_ids(child, shot_id)
+        elif isinstance(value, list):
+            for child in value:
+                collect_log_ids(child, shot_id)
+
+    for shot_id, raw in conn.execute(text(
+        "SELECT shot_id, metadata_json FROM tasks WHERE shot_id IS NOT NULL AND metadata_json IS NOT NULL"
+    )):
+        if shot_id not in shot_context:
+            continue
+        try:
+            collect_log_ids(json.loads(raw), shot_id)
+        except (TypeError, ValueError):
+            continue
+    for shot_id, raw in conn.execute(text(
+        "SELECT id, video_director_plan FROM shots WHERE video_director_plan IS NOT NULL"
+    )):
+        try:
+            collect_log_ids(json.loads(raw), shot_id)
+        except (TypeError, ValueError):
+            continue
+    for log_id, shot_ids in candidates.items():
+        if len(shot_ids) == 1:
+            assign(log_id, next(iter(shot_ids)))
 
 
 def ensure_schema_updates():
@@ -188,6 +279,10 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN prompt_template_name VARCHAR"))
             if "usage_metrics" not in llm_log_columns:
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN usage_metrics JSON"))
+            if "shot_id" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN shot_id VARCHAR"))
+            backfill_llm_log_shot_ids(conn)
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_llm_logs_novel_chapter_shot ON llm_logs (novel_id, chapter_id, shot_id)"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")

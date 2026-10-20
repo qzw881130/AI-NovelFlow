@@ -237,7 +237,7 @@ async def repair_output(db,novel,shot,output,runtime,audit,check,*,state=None,pe
                  'template_version':version}
         try:
             result=await LLMService().chat_completion(system_prompt=template.template,user_content=json.dumps(request,ensure_ascii=False),
-                response_format='json_object',task_type=TEMPLATE_TYPE,prompt_template_name=f'{template.name} [{version[:12]}]',novel_id=novel.id,chapter_id=shot.chapter_id)
+                response_format='json_object',task_type=TEMPLATE_TYPE,prompt_template_name=f'{template.name} [{version[:12]}]',novel_id=novel.id,chapter_id=shot.chapter_id,shot_id=shot.id)
             attempt={'level':'L1','failed_checks':sorted(failed),'llm_log_id':result.get('log_id'),'raw_response':result,'template_id':template.id,'template_version':version,'accepted':False}
             state['attempts'].append(attempt)
             if not result.get('success'):raise ValueError(result.get('error') or 'REPAIR_LLM_FAILED')
