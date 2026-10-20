@@ -29,7 +29,7 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service, *, va
     metadata = safe_json_dict(task.metadata_json)
     contract = metadata.get("execution_contract") or {}
     capability = contract.get("capability")
-    if (task.type != "shot_video" or metadata.get("execution_scope") != "CLIP"
+    if (task.type != "shot_video" or (task.execution_scope or metadata.get("execution_scope")) != "CLIP"
             or capability not in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"}
             or not task.comfyui_prompt_id or not history):
         return False
@@ -137,7 +137,7 @@ async def accept_cancelled_generate_receipt(source_task, expected_prompt_id: str
     contract = source_metadata.get("execution_contract") or {}
     identity = contract.get("clip") or {}
     if (source_task.type != "shot_video" or source_task.status != "cancelled"
-            or source_task.result_url or source_metadata.get("execution_scope") != "CLIP"
+            or source_task.result_url or (source_task.execution_scope or source_metadata.get("execution_scope")) != "CLIP"
             or contract.get("capability") != "GENERATE" or contract.get("artifact_kind") != "CLIP_ONLY"
             or source_metadata.get("clip_index") != 1 or source_metadata.get("clip_plan_revision") != clip_plan_revision
             or identity.get("clip_index") != 1 or identity.get("clip_plan_revision") != clip_plan_revision
@@ -228,6 +228,7 @@ async def accept_cancelled_generate_receipt(source_task, expected_prompt_id: str
     })
     task = Task(
         type="shot_video", status="pending", name=f"接受已完成视频 Clip: 镜{shot.index} · C1",
+        execution_scope="CLIP", clip_index=1,
         description="以原 ComfyUI 回执登记用户已接受的 C1 视频；不重新生成",
         source_task_id=source_task.id, novel_id=source_task.novel_id,
         chapter_id=source_task.chapter_id, shot_id=shot.id,

@@ -140,6 +140,8 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const hasErrorDetails = Boolean(task.errorMessage && displayErrorMessage &&
+    (task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
   const chapterLabel = task.chapterNumber != null
     ? task.chapterTitle
       ? t('tasks.chapterContext', { number: task.chapterNumber, title: task.chapterTitle })
@@ -283,15 +285,15 @@ export function TaskCard({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{t('tasks.error')}: {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}</span>
-                    {displayErrorMessage.length > 100 && (
+                    {hasErrorDetails && (
                       <span className="text-red-500 ml-2 flex-shrink-0">
                         {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </span>
                     )}
                   </div>
-                  {expandedErrors.has(task.id) && displayErrorMessage.length > 100 && (
+                  {expandedErrors.has(task.id) && hasErrorDetails && (
                     <div className="mt-2 p-2 bg-red-50 rounded border border-red-200 font-mono whitespace-pre-wrap break-all">
-                      {displayErrorMessage}
+                      {task.errorMessage === displayErrorMessage ? displayErrorMessage : `原始错误：${task.errorMessage}`}
                     </div>
                   )}
                 </div>
@@ -562,8 +564,8 @@ export function TaskCard({
           )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
-          {task.status === 'failed' && (
-            <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={t('tasks.retry')}>
+          {(task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
+            <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={task.type === 'shot_video_batch' ? '恢复未完成的 Shot' : t('tasks.retry')}>
               <Play className="h-4 w-4" />
             </button>
           )}

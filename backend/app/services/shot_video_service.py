@@ -2834,6 +2834,8 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
     }
     next_task = Task(
         type="shot_video",
+        execution_scope="CLIP",
+        clip_index=int(next_clip.get("clip_index") or 0),
         status="pending",
         name=f"生成视频 Clip: 镜{shot.index} · C{next_clip.get('clip_index')}",
         description=f"自动生成 Shot {shot.index} 的下一 Clip",

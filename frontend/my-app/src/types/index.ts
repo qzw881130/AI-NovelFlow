@@ -36,6 +36,7 @@ export interface SystemConfig {
   videoPromptLanguage?: 'en' | 'zh';
   showFirstAppearanceNames?: boolean;
   autoApproveFirstAppearanceNames?: boolean;
+  generationQualityPolicy?: Record<string, boolean>;
   
   // 代理配置
   proxy: ProxyConfig;
@@ -216,6 +217,8 @@ export interface Character {
   name: string;
   description: string;
   appearance: string;
+  stableIdentityFeatures?: string | null;
+  stableIdentitySource?: string | null;
   voicePrompt?: string;
   referenceAudioUrl?: string;
   imageUrl?: string;
@@ -340,7 +343,7 @@ export interface Task {
   type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'novel_video' | 'transition_video' | 'prop_image' | 'shot_export';
   name: string;
   description?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
   progress: number;
   currentStep?: string;
   resultUrl?: string;

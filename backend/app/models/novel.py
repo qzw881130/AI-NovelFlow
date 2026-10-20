@@ -99,6 +99,8 @@ class Character(Base):
     name = Column(String, nullable=False, index=True)  # 名称查询
     description = Column(Text, default="")
     appearance = Column(Text, default="")
+    stable_identity_features = Column(Text, nullable=True)
+    stable_identity_source = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
 
     # 音色相关

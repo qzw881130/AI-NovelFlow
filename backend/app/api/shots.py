@@ -2592,6 +2592,8 @@ async def generate_clip_plan_video(
         "batch_force_rerun": force_rerun,
     }
     task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
+    task.execution_scope = "CLIP"
+    task.clip_index = int(clip.get("clip_index") or 0)
     task.parent_task_id = batch_parent_task_id
     db.commit()
     from app.services.shot_video_service import enqueue_shot_video_task
@@ -3356,8 +3358,8 @@ async def _execute_phase_b_semantic_clip(
     ).all():
         active_metadata = _safe_json_dict(active.metadata_json)
         if (
-            active_metadata.get("execution_scope") == "CLIP"
-            and int(active_metadata.get("clip_index") or 0) == window_index
+            (active.execution_scope or active_metadata.get("execution_scope")) == "CLIP"
+            and int(active.clip_index or active_metadata.get("clip_index") or 0) == window_index
             and int(active_metadata.get("clip_plan_revision") or 0) == int(request.clip_plan_revision)
         ):
             if result_mode(active_metadata) != request.result_mode:
@@ -3453,6 +3455,8 @@ async def _execute_phase_b_semantic_clip(
     if candidate:
         metadata.update(freeze_candidate_source(shot, plan, compiled))
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    task.execution_scope = "CLIP"
+    task.clip_index = window_index
     if not candidate and not plan.get("dialogue_timeline_source"):
         plan["dialogue_timeline_source"] = resolved_timeline
         plan["dialogue_timeline_status"] = resolved_status
@@ -4168,7 +4172,7 @@ def _semantic_clip_tasks(db: Session, shot: Shot, revision: int) -> list[Task]:
     tasks = []
     for task in db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_video").all():
         metadata = _safe_json_dict(task.metadata_json)
-        if not is_candidate(metadata) and metadata.get("execution_scope") == "CLIP" and int(metadata.get("clip_plan_revision") or 0) == int(revision):
+        if not is_candidate(metadata) and (task.execution_scope or metadata.get("execution_scope")) == "CLIP" and int(metadata.get("clip_plan_revision") or 0) == int(revision):
             tasks.append(task)
     return tasks
 
@@ -4572,12 +4576,16 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                     if semantic_batch and not semantic_clips:
                         semantic_clips = [{}]
                     if semantic_clips:
-                        conflicting_legacy_children = db.query(Task).filter(
+                        unnumbered_video_children = db.query(Task).filter(
                             Task.parent_task_id == batch_task_id,
                             Task.shot_id == shot.id,
                             Task.type == "shot_video",
                             Task.batch_order.is_(None),
-                        ).count()
+                        ).all()
+                        conflicting_legacy_children = any(
+                            (task.execution_scope or _safe_json_dict(task.metadata_json).get("execution_scope")) != "CLIP"
+                            for task in unnumbered_video_children
+                        )
                         if conflicting_legacy_children and not child_metadata.get("automatic_shot"):
                             raise RuntimeError("Batch child 结构已包含旧 Shot-level Task；拒绝与 Semantic Clip Tasks 混合完成")
                         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
@@ -4679,6 +4687,82 @@ def resume_active_shot_video_batches() -> None:
         db.close()
 
 
+@router.post("/{novel_id}/chapters/{chapter_id}/shot-videos/batch/preflight", response_model=dict)
+async def preview_shot_video_batch(novel_id: str, chapter_id: str, data: BatchShotVideoRequest,
+                                   db: Session = Depends(get_db)):
+    from app.api.config import get_or_create_config
+    from app.services.generation_preflight import config_policy, evaluate_batch
+    if not db.get(Novel, novel_id) or not ChapterRepository(db).get_by_id(chapter_id, novel_id):
+        raise HTTPException(status_code=404, detail="小说或章节不存在")
+    if not data.shot_ids:
+        raise HTTPException(status_code=400, detail="请选择要生成视频的分镜")
+    report = evaluate_batch(db, chapter_id, data.shot_ids,
+                            auto_prepare=bool(data.automatic_shot or data.auto_complete_details),
+                            allow_missing_image=bool(data.automatic_shot),
+                            policy=config_policy(get_or_create_config(db)))
+    return {"success": True, "data": report}
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shot-videos/batch/{batch_id}/resume", response_model=dict)
+async def resume_shot_video_batch(novel_id: str, chapter_id: str, batch_id: str,
+                                  db: Session = Depends(get_db)):
+    """Explicitly resume failed Shots; keep completed Clips and their receipts."""
+    from app.models.background_job import BackgroundJob
+    from app.services.generation_preflight import evaluate_batch
+    batch = db.get(Task, batch_id)
+    if not batch or batch.type != "shot_video_batch" or batch.novel_id != novel_id or batch.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="批量视频任务不存在")
+    if batch.status not in {"failed", "paused"}:
+        raise HTTPException(status_code=409, detail="仅能恢复失败或已暂停的批量任务")
+    jobs = db.query(BackgroundJob).filter(BackgroundJob.task_id == batch_id).all()
+    if any(job.status == "running" for job in jobs):
+        raise HTTPException(status_code=409, detail="批量任务仍在执行，请稍后重试")
+    children = db.query(Task).filter(Task.parent_task_id == batch_id, Task.batch_order.isnot(None)).order_by(Task.batch_order).all()
+    failed = [child for child in children if child.status != "completed"]
+    if not failed:
+        raise HTTPException(status_code=409, detail="没有需要恢复的 Shot")
+    failed_ids = {child.shot_id for child in failed}
+    receipts = [task.id for task in db.query(Task).filter(
+        Task.parent_task_id == batch_id, Task.shot_id.in_(failed_ids),
+        Task.batch_order.is_(None), Task.status == "failed",
+        Task.comfyui_prompt_id.isnot(None)).all()]
+    if receipts:
+        raise HTTPException(status_code=409, detail={
+            "code": "COMFYUI_RECEIPT_RECONCILIATION_REQUIRED", "taskIds": receipts,
+        })
+    metadata = _safe_json_dict(batch.metadata_json)
+    ordered_failed_ids = [child.shot_id for child in failed]
+    report = evaluate_batch(db, chapter_id, ordered_failed_ids,
+                            auto_prepare=bool(metadata.get("automatic_shot") or metadata.get("auto_complete_details")),
+                            allow_missing_image=bool(metadata.get("automatic_shot")),
+                            policy=(metadata.get("generation_preflight") or {}).get("policy") or {},
+                            ignore_task_ids=[child.id for child in children])
+    if not report["ready"]:
+        raise HTTPException(status_code=409, detail={"code": "GENERATION_PREFLIGHT_FAILED", "report": report})
+    for child in failed:
+        child.status = "pending"
+        child.error_message = None
+        child.completed_at = None
+        child.current_step = "等待从失败处恢复"
+        child_metadata = _safe_json_dict(child.metadata_json)
+        child_metadata["attempted_clip_ids"] = {}
+        child.metadata_json = json.dumps(child_metadata, ensure_ascii=False)
+    for job in jobs:
+        job.status = "queued"
+        job.completed_at = None
+    metadata["resume_count"] = int(metadata.get("resume_count") or 0) + 1
+    metadata["generation_preflight"] = report
+    batch.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    batch.status = "pending"
+    batch.error_message = None
+    batch.completed_at = None
+    batch.progress = 0
+    batch.current_step = "恢复未完成的 Shot，复用现有 Clip"
+    db.commit()
+    enqueue_shot_video_batch_task(batch.id)
+    return {"success": True, "data": {"batchTaskId": batch.id, "resumedShotIds": ordered_failed_ids}}
+
+
 @router.post("/{novel_id}/chapters/{chapter_id}/shot-videos/batch", response_model=dict)
 async def generate_shot_videos_batch(
     novel_id: str,
@@ -4722,6 +4806,20 @@ async def generate_shot_videos_batch(
     if data.h3_prompt_pipeline == "phase_b":
         data.optimize_h3_prompt = False
         preflight_auto_repair = False
+
+    from app.api.config import get_or_create_config
+    from app.services.generation_preflight import config_policy, evaluate_batch
+    quality_policy = config_policy(get_or_create_config(db))
+    preflight_report = evaluate_batch(
+        db, chapter_id, shot_ids,
+        auto_prepare=bool(data.automatic_shot or data.auto_complete_details),
+        allow_missing_image=bool(data.automatic_shot),
+        policy=quality_policy,
+    )
+    if not preflight_report["ready"]:
+        raise HTTPException(status_code=409, detail={
+            "code": "GENERATION_PREFLIGHT_FAILED", "report": preflight_report,
+        })
 
     validated = []
     selected_shots = []
@@ -4767,6 +4865,7 @@ async def generate_shot_videos_batch(
     batch_task = Task(
         **({"id": automatic_id} if automatic_id else {}),
         type="shot_video_batch",
+        execution_scope="BATCH",
         status="pending",
         name="批量生成分镜视频",
         description=f"为章节 '{chapter.title}' 批量生成 {len(validated)} 个分镜视频",
@@ -4789,6 +4888,7 @@ async def generate_shot_videos_batch(
             "preflight_auto_repair": preflight_auto_repair,
             "force_rerun": data.force_rerun,
             "auto_assemble": data.auto_assemble,
+            "generation_preflight": preflight_report,
         }, ensure_ascii=False),
     )
     db.add(batch_task)
@@ -4803,6 +4903,7 @@ async def generate_shot_videos_batch(
     for order, shot, active in validated:
         child = active or Task(
             type="shot_video",
+            execution_scope="SHOT",
             name=f"生成视频: 镜{shot.index}",
             description=f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成视频 (时长: {shot.duration or 4}s)",
             novel_id=novel_id,
@@ -4815,6 +4916,7 @@ async def generate_shot_videos_batch(
             db.add(child)
             db.flush()
         child.parent_task_id = batch_task.id
+        child.execution_scope = "SHOT"
         child.batch_order = order
         child.metadata_json = json.dumps({
             **_safe_json_dict(child.metadata_json),
@@ -6823,11 +6925,11 @@ def write_shot_video_materials_package(db, novel, chapter, shot, selected, zip_b
             for task in clip_tasks:
                 metadata = safe_json(task.metadata_json, {})
                 if (
-                    is_candidate(metadata) or metadata.get("execution_scope") != "CLIP"
+                    is_candidate(metadata) or (task.execution_scope or metadata.get("execution_scope")) != "CLIP"
                     or int(metadata.get("clip_plan_revision") or 0) != revision
                 ):
                     continue
-                clip_index = int(metadata.get("clip_index") or 0)
+                clip_index = int(task.clip_index or metadata.get("clip_index") or 0)
                 if clip_index and clip_index not in latest_task_by_clip:
                     latest_task_by_clip[clip_index] = task
 

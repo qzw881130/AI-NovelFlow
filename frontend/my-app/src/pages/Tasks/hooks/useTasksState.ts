@@ -3,6 +3,7 @@ import { useSerialPolling } from '../../../hooks/useSerialPolling';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
+import { shotsApi } from '../../../api/shots';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { TaskFilter, TaskTypeFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
 
@@ -215,6 +216,14 @@ export function useTasksState({ page = 1, pageSize = 30 } = {}) {
 
   const handleRetry = async (taskId: string) => {
     try {
+      const task = tasks.find(item => item.id === taskId);
+      if (task?.type === 'shot_video_batch') {
+        if (!task.novelId || !task.chapterId) throw new Error('批次缺少小说或章节信息，无法恢复');
+        const result = await shotsApi.resumeVideosBatch(task.novelId, task.chapterId, taskId);
+        toast.success(`已恢复 ${result.data.resumedShotIds.length} 个未完成的 Shot`);
+        fetchTasks();
+        return;
+      }
       const data = await taskApi.retry(taskId);
       if (data.success) {
         toast.success(t('tasks.taskRestarted'));

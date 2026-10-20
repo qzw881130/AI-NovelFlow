@@ -52,10 +52,25 @@ def ensure_schema_updates():
             character_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(characters)"))]
             if "is_protagonist" not in character_columns:
                 conn.execute(text("ALTER TABLE characters ADD COLUMN is_protagonist BOOLEAN NOT NULL DEFAULT 0"))
+            if "stable_identity_features" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN stable_identity_features TEXT"))
+            if "stable_identity_source" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN stable_identity_source VARCHAR"))
+            from app.utils.identity_features import extract_identity_features
+            for character_id, appearance in conn.execute(text(
+                "SELECT id, appearance FROM characters WHERE stable_identity_features IS NULL AND appearance IS NOT NULL"
+            )):
+                features = extract_identity_features(appearance)
+                if features:
+                    conn.execute(text("UPDATE characters SET stable_identity_features=:features, "
+                                      "stable_identity_source='APPEARANCE_CLAUSE' WHERE id=:id"),
+                                 {"features": features, "id": character_id})
 
             config_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(system_configs)"))]
             if "auto_approve_first_appearance_names" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
+            if "generation_quality_policy" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
 
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]
@@ -143,6 +158,27 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN seed INTEGER"))
             if "source_task_id" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN source_task_id VARCHAR"))
+            if "execution_scope" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN execution_scope VARCHAR"))
+            if "clip_index" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN clip_index INTEGER"))
+            # Backfill old JSON metadata once; subsequent lookups use typed columns.
+            for task_id, task_type, order, metadata_json in conn.execute(text(
+                "SELECT id, type, batch_order, metadata_json FROM tasks "
+                "WHERE execution_scope IS NULL AND type IN ('shot_video', 'shot_video_batch')"
+            )):
+                import json
+                try:
+                    metadata = json.loads(metadata_json or "{}")
+                except (TypeError, ValueError):
+                    metadata = {}
+                metadata = metadata if isinstance(metadata, dict) else {}
+                scope = ("BATCH" if task_type == "shot_video_batch" else
+                         "SHOT" if order is not None else
+                         "CLIP" if metadata.get("execution_scope") == "CLIP" else "SHOT")
+                clip_index = metadata.get("clip_index") if scope == "CLIP" else None
+                conn.execute(text("UPDATE tasks SET execution_scope=:scope, clip_index=:clip_index WHERE id=:id"),
+                             {"scope": scope, "clip_index": clip_index, "id": task_id})
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]

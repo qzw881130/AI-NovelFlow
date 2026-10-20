@@ -28,12 +28,12 @@ async def test_one_batch_prepares_two_shots_and_preserves_phase_b(db_session, mo
         shot.video_director_plan=json.dumps(p);db.commit();return {'success':True,'data':{'validation':{'passed':True}}}
     async def images(novel_id, chapter_id, sid, *args):calls.append((sid,'images'));return {'success':True,'data':{'items':[]}}
     monkeypatch.setattr(api,'plan_video_keyframes',visual);monkeypatch.setattr(api,'plan_shot_clips',clips);monkeypatch.setattr(api,'prepare_shot_required_images',images)
-    monkeypatch.setattr(api,'get_canonical_execution_readiness',lambda *a:{'ready':True})
+    monkeypatch.setattr(api,'get_canonical_execution_readiness',lambda *a, **kw:{'ready':True})
     def validate(db,shot,clip,*args):
         if not clip.get('generated_by_task_id'):raise ValueError('no clip')
         t=db.get(Task,clip['generated_by_task_id']);return t,json.loads(t.metadata_json),str(tmp_path/(t.id+'.mp4'))
     monkeypatch.setattr(api,'validate_semantic_clip_artifact',validate)
-    async def execute(novel_id, chapter_id, sid, index, request, *args):
+    async def execute(novel_id, chapter_id, sid, index, request, *args, **kwargs):
         calls.append((sid,'phase_b'))
         assert request.h3_prompt_pipeline=='phase_b' and not request.optimize_h3_prompt and not request.preflight_auto_repair
         if first_fails and sid=='s1':raise api.HTTPException(409,'contract failure')

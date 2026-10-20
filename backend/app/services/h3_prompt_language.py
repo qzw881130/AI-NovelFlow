@@ -28,10 +28,12 @@ def task_language(metadata):
     return None if value is None else validate_language(value)
 
 
-def description_sources(subject_names, appearances, picture_mapping, stable_marks):
+def description_sources(subject_names, appearances, picture_mapping, stable_marks, structured_features=None):
     sources = {}
+    structured_features = structured_features or {}
     for subject, name in subject_names.items():
-        marks = stable_marks(appearances.get(name))
+        marks = (structured_features.get(name) if name in structured_features
+                 else stable_marks(appearances.get(name)))
         if marks:
             sources["identity:" + subject] = marks
     for item in picture_mapping:

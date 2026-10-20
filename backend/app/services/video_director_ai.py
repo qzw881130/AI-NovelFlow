@@ -1870,6 +1870,16 @@ async def build_h3_video_prompt(
         for item in assigned_dialogues
     ]
     character_appearances = character_appearances or {}
+    # Freeze explicit identity facts with the builder input. A legacy snapshot
+    # without this field remains readable through the compiler's fallback.
+    from app.models.novel import Character
+    character_stable_features = {
+        character.name: character.stable_identity_features or ""
+        for character in db.query(Character).filter(
+            Character.novel_id == novel.id,
+            Character.name.in_(clip_visible_characters),
+        ).all()
+    } if clip_visible_characters and isinstance(db, Session) else {}
     sanitized_transitions = (
         [{key: item[key] for key in (
             "from_keyframe_index", "to_keyframe_index", "start_time", "end_time",
@@ -1915,6 +1925,7 @@ async def build_h3_video_prompt(
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "characters": shot_characters,
             "official_character_appearances": character_appearances,
+            "official_character_stable_features": character_stable_features,
             "scene": shot.scene or "",
             "props": get_visual_prop_names(db, novel.id, safe_json_list(shot.props)),
             **({} if canonical_path else {

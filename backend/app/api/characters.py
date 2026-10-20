@@ -115,6 +115,8 @@ async def export_characters(
                 "name": character.name,
                 "description": character.description,
                 "appearance": character.appearance,
+                "stableIdentityFeatures": character.stable_identity_features,
+                "stableIdentitySource": character.stable_identity_source,
                 "voicePrompt": character.voice_prompt,
                 "referenceAudioUrl": character.reference_audio_url,
                 "imageUrl": character.image_url,
@@ -169,6 +171,8 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "referenceAudioUrl": character.reference_audio_url,
             "imageUrl": character.image_url,
@@ -206,6 +210,8 @@ async def create_character(
         description=data.description or "",
         appearance=data.appearance or ""
     )
+    if data.stable_identity_features is not None:
+        character = character_repo.update(character, stable_identity_features=data.stable_identity_features)
     if data.is_protagonist and not character.is_narrator:
         character = character_repo.update_from_schema(character, is_protagonist=True)
     
@@ -217,6 +223,8 @@ async def create_character(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "imageUrl": character.image_url,
             "isProtagonist": bool(character.is_protagonist),
             "novelName": novel.title,
@@ -242,6 +250,7 @@ async def update_character(
         name=data.name,
         description=data.description,
         appearance=data.appearance,
+        stable_identity_features=data.stable_identity_features,
         voice_prompt=data.voice_prompt,
         is_protagonist=False if character.is_narrator else data.is_protagonist,
     )
@@ -256,6 +265,8 @@ async def update_character(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "imageUrl": character.image_url,
             "isProtagonist": bool(character.is_protagonist),
@@ -361,6 +372,8 @@ async def get_character_prompt(
             "isSystem": template.is_system if template else False,
             "template": template.template if template else None,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "description": character.description
         }
     }
@@ -465,6 +478,8 @@ async def upload_character_image(
                 "name": character.name,
                 "description": character.description,
                 "appearance": character.appearance,
+                "stableIdentityFeatures": character.stable_identity_features,
+                "stableIdentitySource": character.stable_identity_source,
                 "imageUrl": character.image_url,
                 "generatingStatus": character.generating_status,
                 "novelName": novel.title if novel else None,
@@ -610,6 +625,8 @@ async def replace_character_image(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "referenceAudioUrl": character.reference_audio_url,
             "imageUrl": character.image_url,

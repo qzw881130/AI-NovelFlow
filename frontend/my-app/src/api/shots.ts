@@ -599,6 +599,35 @@ export const shotsApi = {
     return data;
   },
 
+  preflightVideosBatch: async (novelId: string, chapterId: string, shotIds: string[], autoCompleteDetails: boolean) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch/preflight`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shot_ids: shotIds, auto_complete_details: autoCompleteDetails }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '批量预检失败');
+    return result as { success: boolean; data: { ready: boolean; checks: Array<{
+      id: string; status: 'PASS' | 'FAIL' | 'DEFERRED'; message: string;
+      blocking: boolean; shotId: string | null; shotIndex: number | null;
+    }> } };
+  },
+
+  resumeVideosBatch: async (novelId: string, chapterId: string, batchId: string) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch/${batchId}/resume`, {
+      method: 'POST',
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      const detail = result.detail;
+      if (detail?.code === 'GENERATION_PREFLIGHT_FAILED') {
+        const failed = (detail.report?.checks || []).filter((check: { blocking?: boolean }) => check.blocking);
+        throw new Error(`恢复前检查未通过：${failed.map((check: { message?: string }) => check.message).join('；') || '请查看生成质量控制设置'}`);
+      }
+      throw new Error(typeof detail === 'string' ? detail : result.message || detail?.code || '恢复批次失败');
+    }
+    return result as { success: true; data: { batchTaskId: string; resumedShotIds: string[] } };
+  },
+
   /**
    * 生成分镜视频
    */

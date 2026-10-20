@@ -275,6 +275,7 @@ class TaskRepository:
             novel_id=novel_id,
             chapter_id=chapter_id,
             shot_id=shot_id,
+            execution_scope="SHOT",
             status="pending",
             workflow_id=workflow_id,
             workflow_name=workflow_name

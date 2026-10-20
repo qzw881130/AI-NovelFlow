@@ -14,6 +14,7 @@ import NotificationConfig from './components/NotificationConfig';
 import GenerationQualityConfig from './components/GenerationQualityConfig';
 import type { SettingsFormData } from './types';
 import { configApi } from '../../api/config';
+import type { GenerationCheck } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
 type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality';
@@ -46,6 +47,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [nameplateAvailable, setNameplateAvailable] = useState(false);
   const [autoApproveNameplateAvailable, setAutoApproveNameplateAvailable] = useState(false);
+  const [generationChecks, setGenerationChecks] = useState<GenerationCheck[]>([]);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => getTabFromHash(window.location.hash));
   const isUserModifiedRef = useRef(false);
@@ -85,6 +87,7 @@ export default function Settings() {
             videoPromptLanguage: config.videoPromptLanguage ?? 'en',
             showFirstAppearanceNames: config.showFirstAppearanceNames ?? false,
             autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? false,
+            generationQualityPolicy: config.generationQualityPolicy ?? {},
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -100,6 +103,9 @@ export default function Settings() {
       }
     };
     loadConfig();
+    configApi.generationChecks().then(result => {
+      if (result.success && result.data) setGenerationChecks(result.data.checks);
+    }).catch(error => console.error('加载生成检查项失败:', error));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +132,7 @@ export default function Settings() {
           autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false,
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
           showFirstAppearanceNames: formData.showFirstAppearanceNames ?? false,
+          generationQualityPolicy: formData.generationQualityPolicy ?? {},
           ...(autoApproveNameplateAvailable ? {
             autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? false,
           } : {}),
@@ -284,6 +291,13 @@ export default function Settings() {
 
             {activeTab === 'generationQuality' && (
               <GenerationQualityConfig
+                checks={generationChecks}
+                policy={formData.generationQualityPolicy ?? {}}
+                onPolicyChange={(id, blocking) => {
+                  handleUserModified();
+                  setFormData(previous => ({...previous,
+                    generationQualityPolicy: {...(previous.generationQualityPolicy ?? {}), [id]: blocking}}));
+                }}
                 nameplateAvailable={nameplateAvailable}
                 autoApproveNameplateAvailable={autoApproveNameplateAvailable}
                 language={formData.videoPromptLanguage ?? 'en'}

@@ -14,6 +14,8 @@ from app.core.database import get_db
 from app.core.config import get_settings, update_settings
 from app.core.security import encrypt_value, decrypt_value
 from app.models.system_config import SystemConfig as SystemConfigModel
+from app.services.generation_preflight import catalog, config_policy, normalize_policy
+import json
 
 router = APIRouter()
 
@@ -52,6 +54,7 @@ class SystemConfigUpdate(BaseModel):
     videoPromptLanguage: Optional[Literal["en", "zh"]] = None
     showFirstAppearanceNames: Optional[bool] = None
     autoApproveFirstAppearanceNames: Optional[bool] = None
+    generationQualityPolicy: Optional[dict[str, bool]] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -77,6 +80,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         if "auto_approve_first_appearance_names" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
             db.commit()
+        if "generation_quality_policy" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
     if not config:
@@ -85,6 +91,12 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         db.commit()
         db.refresh(config)
     return config
+
+
+@router.get("/generation-checks")
+async def get_generation_checks(db: Session = Depends(get_db)):
+    policy = config_policy(get_or_create_config(db))
+    return {"success": True, "data": {"checks": catalog(policy), "policy": policy}}
 
 
 @router.get("/")
@@ -106,6 +118,7 @@ async def get_config(db: Session = Depends(get_db)):
             "videoPromptLanguage": config.video_prompt_language,
             "showFirstAppearanceNames": bool(config.show_first_appearance_names),
             "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
+            "generationQualityPolicy": config_policy(config),
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -148,6 +161,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "video_prompt_language": config.video_prompt_language,
             "show_first_appearance_names": bool(config.show_first_appearance_names),
             "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
+            "generation_quality_policy": config_policy(config),
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -203,6 +217,11 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             db_config.show_first_appearance_names = config.showFirstAppearanceNames
         if config.autoApproveFirstAppearanceNames is not None:
             db_config.auto_approve_first_appearance_names = config.autoApproveFirstAppearanceNames
+        if config.generationQualityPolicy is not None:
+            try:
+                db_config.generation_quality_policy = json.dumps(normalize_policy(config.generationQualityPolicy))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

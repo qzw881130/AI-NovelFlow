@@ -2613,6 +2613,7 @@ export function VideoGenTab({
   const [showResetVideoDataConfirm, setShowResetVideoDataConfirm] = useState(false);
   const [isResettingVideoData, setIsResettingVideoData] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
+  const [batchPreflightReport, setBatchPreflightReport] = useState<Awaited<ReturnType<typeof shotsApi.preflightVideosBatch>>['data'] | null>(null);
   const [materialShotIds, setMaterialShotIds] = useState<Set<string>>(new Set());
   const [preparingMaterials, setPreparingMaterials] = useState(false);
   const [materialResults, setMaterialResults] = useState<string[]>([]);
@@ -4109,9 +4110,19 @@ export function VideoGenTab({
     }) && !window.confirm('所选 Shot 已有部分或全部 Clip 结果。批量任务会复用当前版本的有效结果，只执行缺失或失败的 Clip。是否继续？')) return;
 
     setIsGeneratingAll(true);
-    setShowBatchSelectModal(false);
     const selectedShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
-    useChapterGenerateStore.setState((state) => ({
+    setBatchPreflightReport(null);
+    try {
+      const preflight = await shotsApi.preflightVideosBatch(
+        effectiveNovelId, effectiveChapterId, selectedShotIds, autoCompleteDetails,
+      );
+      setBatchPreflightReport(preflight.data);
+      if (!preflight.data.ready) {
+        toast.error('生成预检未通过，请查看下方逐项结果');
+        return;
+      }
+      setShowBatchSelectModal(false);
+      useChapterGenerateStore.setState((state) => ({
       pendingVideos: new Set([...state.pendingVideos, ...selectedShotIds]),
       shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => !selectedShotIds.includes(key))),
       shots: state.shots.map((shot: any) => (
@@ -4119,8 +4130,7 @@ export function VideoGenTab({
           ? { ...shot, videoStatus: 'pending' as const, videoUrl: null }
           : shot
       )),
-    }));
-    try {
+      }));
       const request = buildSemanticBatchRequest(selectedShotIds, autoAssemble, autoCompleteDetails);
       const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt });
       if (!result.success) {
@@ -5013,6 +5023,16 @@ export function VideoGenTab({
                 </div>
               )}
             </div>
+
+            {batchPreflightReport && <div className="border-t border-gray-200 px-5 py-3 text-xs">
+              <p className="font-medium text-gray-800">生成预检 · {batchPreflightReport.ready ? '可执行' : '需先处理阻断项'}</p>
+              <div className="mt-2 max-h-28 space-y-1 overflow-y-auto">
+                {batchPreflightReport.checks.map((check, index) => <p key={`${check.shotId}-${check.id}-${index}`}
+                  className={check.blocking ? 'text-red-700' : check.status === 'FAIL' ? 'text-amber-700' : 'text-gray-500'}>
+                  Shot #{check.shotIndex ?? '?'} · {check.id} · {check.status} · {check.message}
+                </p>)}
+              </div>
+            </div>}
 
             <div className="border-t border-gray-200 bg-gray-50 px-5 py-4">
               <label className="mb-3 flex cursor-pointer items-start gap-2 text-sm text-gray-700">

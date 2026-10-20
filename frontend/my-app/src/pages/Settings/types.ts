@@ -87,6 +87,7 @@ export interface SettingsFormData {
   videoPromptLanguage?: 'en' | 'zh';
   showFirstAppearanceNames?: boolean;
   autoApproveFirstAppearanceNames?: boolean;
+  generationQualityPolicy?: Record<string, boolean>;
   proxy: ProxyConfig;
   comfyUIHost: string;
   comfyUITimeout: number;

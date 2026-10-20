@@ -138,6 +138,47 @@ async def test_video_batch_runner_delegates_semantic_shot_and_waits_for_final(db
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("execution_scope, expected_status", [
+    ("CLIP", "completed"),
+    ("SHOT", "failed"),
+])
+async def test_semantic_batch_distinguishes_clip_tasks_from_old_shot_tasks(
+    db_session, monkeypatch, execution_scope, expected_status,
+):
+    monkeypatch.setattr(shots_api, "SessionLocal", sessionmaker(bind=db_session.bind))
+    batch, children = _create_video_batch(db_session, child_count=1)
+    shot = db_session.get(Shot, children[0].shot_id)
+    shot.video_director_plan = json.dumps({
+        "clip_plan_revision": 4,
+        "clip_plan_validation": {"passed": True},
+        "clip_plan": [{"clip_index": 1, "capability": "GENERATE"}],
+    })
+    children[0].metadata_json = json.dumps({"batch_mode": "SEMANTIC_CLIP", "clip_plan_revision": 4})
+    sibling = Task(
+        type="shot_video", status="completed", name="existing video task",
+        novel_id=batch.novel_id, chapter_id=batch.chapter_id, shot_id=shot.id,
+        parent_task_id=batch.id, metadata_json=json.dumps({
+            "execution_scope": execution_scope, "clip_index": 1, "clip_plan_revision": 4,
+        }),
+    )
+    db_session.add(sibling)
+    db_session.commit()
+    calls = []
+
+    async def run_semantic(_db, _batch, _child, _shot):
+        calls.append(_shot.id)
+        return "completed"
+
+    monkeypatch.setattr(shots_api, "_run_semantic_shot_for_batch", run_semantic)
+    await shots_api.run_shot_video_batch_task(batch.id)
+
+    db_session.expire_all()
+    assert db_session.get(Task, children[0].id).status == expected_status
+    assert db_session.get(Task, batch.id).status == expected_status
+    assert calls == ([shot.id] if execution_scope == "CLIP" else [])
+
+
+@pytest.mark.asyncio
 async def test_multi_clip_video_initializes_node_mapping_before_plan_update(db_session, tmp_path, monkeypatch):
     from app.services import shot_video_service
 

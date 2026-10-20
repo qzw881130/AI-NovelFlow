@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models.novel import Character
+from app.utils.identity_features import update_identity_features
 
 
 class CharacterRepository:
@@ -52,6 +53,7 @@ class CharacterRepository:
             end_chapter=end_chapter,
             source_range=source_range,
         )
+        update_identity_features(character, appearance)
         self.db.add(character)
         self.db.commit()
         self.db.refresh(character)
@@ -59,9 +61,13 @@ class CharacterRepository:
     
     def update(self, character: Character, **kwargs) -> Character:
         """更新角色"""
+        appearance_changed = "appearance" in kwargs
+        explicit_features = kwargs.pop("stable_identity_features", None)
         for key, value in kwargs.items():
             if hasattr(character, key):
                 setattr(character, key, value)
+        if explicit_features is not None or appearance_changed:
+            update_identity_features(character, character.appearance, explicit_features)
         self.db.commit()
         self.db.refresh(character)
         return character
@@ -93,7 +99,8 @@ class CharacterRepository:
     
     def update_from_schema(self, character: Character, name: str = None,
                           description: str = None, appearance: str = None,
-                          voice_prompt: str = None, is_protagonist: bool = None) -> Character:
+                          voice_prompt: str = None, is_protagonist: bool = None,
+                          stable_identity_features: str = None) -> Character:
         """从 Schema 数据更新角色"""
         update_data = {}
         if name is not None:
@@ -106,6 +113,8 @@ class CharacterRepository:
             update_data["voice_prompt"] = voice_prompt
         if is_protagonist is not None:
             update_data["is_protagonist"] = is_protagonist
+        if stable_identity_features is not None:
+            update_data["stable_identity_features"] = stable_identity_features
         return self.update(character, **update_data)
     
     def update_appearance(self, character: Character, appearance: str) -> Character:

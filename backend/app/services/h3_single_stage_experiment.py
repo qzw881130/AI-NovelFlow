@@ -186,11 +186,18 @@ def _stable_identity_marks(appearance):
     """Quote the existing explicit identity clause, excluding portrait outfits."""
     if not isinstance(appearance, str):
         return None
-    # Character descriptions use both the original "包括…；" and the newer
-    # "为…。" form. The punctuation closes the identity clause before the
-    # detailed portrait description begins.
-    match = re.search(r"稳定身份标记(?:包括|为)\s*([^；。\n]+)[；。]", appearance)
+    # Character records use both "稳定身份标记包括/为" and "稳定识别特征是".
+    # Stop at the clause boundary so the portrait's outfit is never quoted
+    # as a permanent identity feature.
+    match = re.search(r"(?:稳定身份标记(?:包括|为)|稳定识别特征是)\s*([^；。\n]+)[；。]", appearance)
     return match.group(1).strip(" ，,") if match and match.group(1).strip(" ，,") else None
+
+
+def _identity_features(name, appearances, structured):
+    """Prefer frozen structured facts; parse prose only for old snapshots."""
+    if isinstance(structured, dict) and name in structured:
+        return structured[name] or None
+    return _stable_identity_marks(appearances.get(name))
 
 
 def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation, *, prompt_language=None):
@@ -267,6 +274,7 @@ def _frozen_anchor_execution_notes(frozen, timing, picture_mapping, continuation
 def assemble_authority_owned_candidate(model_text, canonical, timing, subject_names,
                                        picture_mapping, continuation, verified_music,
                                        *, director_only=False, character_appearances=None,
+                                       character_stable_features=None,
                                        frozen_execution=None, execution_decisions=None,
                                        prompt_language=None, localized_descriptions=None,
                                        canonical_source_names=()):
@@ -321,16 +329,19 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
 
     from app.services import h3_prompt_rendering as render
     appearances = character_appearances if isinstance(character_appearances, dict) else {}
+    structured_features = character_stable_features if isinstance(character_stable_features, dict) else {}
     localized = localized_descriptions or {}
     definitions = []
     identity_sources = {}
     for subject, name in subject_names.items():
         number = (pictures_by_name.get(name) or [None])[0]
-        marks = _stable_identity_marks(appearances.get(name))
+        marks = _identity_features(name, appearances, structured_features)
         identity_sources[subject] = (
-            ("Character.appearance explicit stable-identity clause" if number is not None
-             else "Character.appearance text-only stable-identity clause")
-            if marks else "MISSING_EXPLICIT_STABLE_IDENTITY_CLAUSE")
+            ("Character.stable_identity_features" if name in structured_features else
+             "Character.appearance explicit stable-identity clause" if number is not None else
+             "Character.appearance text-only stable-identity clause")
+            if marks else "IMAGE_ONLY_IDENTITY" if number is not None else
+            "MISSING_IDENTITY_SOURCE")
         marks = localized.get("identity:" + subject, marks)
         definitions.append(render.identity_definition(subject, name, number, marks, prompt_language))
     if not definitions:
@@ -516,7 +527,8 @@ async def preview_single_stage_h3(*, payload, route, template_type, novel_id, ch
         prompt, review, picture = assemble_authority_owned_candidate(
             raw_output, canonical, timing, subject_names, manifest_mapping, continuation,
             experiment.get("verified_music"), director_only=director_only,
-            character_appearances=(payload.get("shot") or {}).get("official_character_appearances"))
+            character_appearances=(payload.get("shot") or {}).get("official_character_appearances"),
+            character_stable_features=(payload.get("shot") or {}).get("official_character_stable_features"))
         checks = review["structure"]
     else:
         prompt, checks, picture = _assemble(
@@ -714,6 +726,8 @@ def prepare_multi_keyframe_phase_a(snapshot):
         if music != "N/A":
             raise ValueError("MUSIC_NOT_COVERED")
         appearances = old_input["shot"].get("official_character_appearances") or {}
+        # A frozen Phase A response can reuse only the identity source it was
+        # verified against. The new Phase B route has no such saved dependency.
         if any(not _stable_identity_marks(appearances.get(name)) for name in names.values()):
             raise ValueError("STABLE_IDENTITY_SOURCE_NOT_COVERED")
         if not isinstance(authority.get("anchor_policy"), dict):
@@ -986,8 +1000,7 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         names = subject_order
         subject_for_name = {name: subject for subject, name in names.items()}
         appearances = old["shot"].get("official_character_appearances") or {}
-        if any(not _stable_identity_marks(appearances.get(name)) for name in names.values()):
-            raise ValueError("STABLE_IDENTITY_SOURCE_NOT_COVERED")
+        structured_features = old["shot"].get("official_character_stable_features") or {}
         assigned = context["clip_dialogues"]
         if any(a["end_time"] > b["start_time"] + 1e-6 for a, b in zip(assigned, assigned[1:])):
             raise ValueError("OVERLAPPING_DIALOGUE_NOT_COVERED")
@@ -1148,13 +1161,16 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         language = data.get("video_prompt_language")
         if language is not None:
             payload.update(video_prompt_language=validate_language(language), language_contract=LANGUAGE_CONTRACT,
-                           compiler_description_sources=description_sources(names, appearances, mapping, _stable_identity_marks))
+                           compiler_description_sources=description_sources(
+                               names, appearances, mapping,
+                               lambda appearance: _stable_identity_marks(appearance), structured_features))
         projection_record_for_prepare = projection_record(projection)
         authority = {"reference_bindings": [{"picture": r["picture"], "type": r["kind"]} for r in mapping],
                      "anchor_policy": {"catalog": catalog}}
         return {"mode": "H3_MULTI_KEYFRAME_PHASE_B", "status": "PREPARED", "llm_input": payload,
                 "images": images, "canonical": canonical, "assigned": assigned, "subject_names": names,
-                "character_appearances": appearances, "continuation": continuation, "limits": limits,
+                "character_appearances": appearances, "character_stable_features": structured_features,
+                "continuation": continuation, "limits": limits,
                 "reference_manifest": manifest, "picture_mapping": mapping, "temporal_anchors": temporal,
                 "authority": authority, "drop_capability": drop_capability,
                 "resource_hashes": hashes, "source": source, "music_contract": music,
@@ -1283,7 +1299,8 @@ def compile_multi_keyframe_phase_b(prepared, response):
         prompt, review, picture = assemble_authority_owned_candidate(
             director, canonical, timing, prepared["subject_names"], mapping, prepared["continuation"],
             prepared["music_contract"]["value"], director_only=True,
-            character_appearances=prepared["character_appearances"], execution_decisions=decisions,
+            character_appearances=prepared["character_appearances"],
+            character_stable_features=prepared.get("character_stable_features"), execution_decisions=decisions,
             prompt_language=language, localized_descriptions=localized,
             canonical_source_names=(shot_sources.get("scene"), *prop_names))
         passed = all(review["structure"].values()) and all(review["structured_authority"].values())

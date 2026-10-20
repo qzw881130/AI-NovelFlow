@@ -57,6 +57,7 @@ export default function Characters() {
     name: '',
     description: '',
     appearance: '',
+    stableIdentityFeatures: '',
     novelId: '',
   });
 
@@ -138,11 +139,12 @@ export default function Characters() {
         name: formData.name,
         description: formData.description,
         appearance: formData.appearance,
+        ...(formData.stableIdentityFeatures.trim() ? { stableIdentityFeatures: formData.stableIdentityFeatures } : {}),
       });
       if (data.success) {
         setCharacters([data.data!, ...characters]);
         setShowCreateModal(false);
-        setFormData({ name: '', description: '', appearance: '', novelId: '' });
+        setFormData({ name: '', description: '', appearance: '', stableIdentityFeatures: '', novelId: '' });
       }
     } catch (error) {
       console.error('创建角色失败:', error);
@@ -158,6 +160,8 @@ export default function Characters() {
         name: editingCharacter.name,
         description: editingCharacter.description,
         appearance: editingCharacter.appearance,
+        ...(editingCharacter.stableIdentityFeatures !== characters.find(c => c.id === editingCharacter.id)?.stableIdentityFeatures
+          ? { stableIdentityFeatures: editingCharacter.stableIdentityFeatures ?? '' } : {}),
         voice_prompt: editingCharacter.voicePrompt,
         isProtagonist: Boolean(editingCharacter.isProtagonist),
       } as Partial<Character>);
@@ -811,7 +815,7 @@ export default function Characters() {
           )}
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', appearance: '', novelId: selectedNovel });
+              setFormData({ name: '', description: '', appearance: '', stableIdentityFeatures: '', novelId: selectedNovel });
               setShowCreateModal(true);
             }}
             className="btn-primary"
@@ -1131,6 +1135,12 @@ export default function Characters() {
                 />
                 <p className="mt-1 text-xs text-gray-500">{t('characters.appearanceTip')}</p>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">稳定身份特征</label>
+                <textarea rows={2} value={formData.stableIdentityFeatures}
+                  onChange={e => setFormData({ ...formData, stableIdentityFeatures: e.target.value })}
+                  className="input-field mt-1" placeholder="例如：左眉尾浅痣、瘦长脸；留空时从外貌描述提取" />
+              </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.create')}</button>
@@ -1174,6 +1184,13 @@ export default function Characters() {
                   className="input-field mt-1"
                   placeholder={t('characters.appearancePlaceholder')}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">稳定身份特征</label>
+                <textarea rows={2} value={editingCharacter.stableIdentityFeatures ?? ''}
+                  onChange={e => setEditingCharacter({ ...editingCharacter, stableIdentityFeatures: e.target.value })}
+                  className="input-field mt-1" placeholder="留空时以身份参考图为准" />
+                <p className="mt-1 text-xs text-gray-500">视频提示词优先使用这里明确记录的特征，不要求外貌描述使用固定短语。</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">{t('characters.voicePromptLabel')}</label>

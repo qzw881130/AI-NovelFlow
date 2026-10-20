@@ -24,6 +24,7 @@ class SystemConfig(Base):
     video_prompt_language = Column(String, default="en", nullable=False)
     show_first_appearance_names = Column(Boolean, default=False, nullable=False)
     auto_approve_first_appearance_names = Column(Boolean, default=False, nullable=False)
+    generation_quality_policy = Column(Text, default="{}", nullable=False)
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

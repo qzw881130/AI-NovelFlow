@@ -103,17 +103,34 @@ class FakeComfy:
         return {'success': True, 'video_url': '/offline/output.mp4'}
 
 
-def test_phase_b_accepts_current_character_identity_clause(db_session):
+@pytest.mark.parametrize('clause_style', ['identity_mark', 'recognition_feature'])
+def test_phase_b_accepts_current_character_identity_clause(db_session, clause_style):
     snap, args, _ = make_case(db_session, NAMES[0])
     appearances = snap['builder_input']['shot']['official_character_appearances']
     for name, appearance in appearances.items():
-        updated = re.sub(r'稳定身份标记包括([^；]+)；', r'稳定身份标记为\1。', appearance)
+        replacement = (r'稳定身份标记为\1。' if clause_style == 'identity_mark'
+                       else r'稳定识别特征是\1。')
+        updated = re.sub(r'稳定身份标记包括([^；]+)；', replacement, appearance)
         assert updated != appearance
         appearances[name] = updated
     llm = FakeDirector(saved(NAMES[0], '_mock_response'))
     prompt = asyncio.run(pipe.build_phase_b_prompt(**args, llm=llm))
     assert llm.calls and 'recorded stable features:' in prompt
     assert json.loads(args['task'].metadata_json)['h3_phase_b']['status'] == 'COMPILED'
+
+
+def test_phase_b_missing_identity_clause_keeps_picture_binding_without_inventing_marks(db_session):
+    snap, args, _ = make_case(db_session, NAMES[0])
+    appearances = snap['builder_input']['shot']['official_character_appearances']
+    for name, appearance in appearances.items():
+        updated = re.sub(r'稳定身份标记包括[^；]+；', '', appearance)
+        assert updated != appearance
+        appearances[name] = updated
+    prompt = asyncio.run(pipe.build_phase_b_prompt(
+        **args, llm=FakeDirector(saved(NAMES[0], '_mock_response'))))
+    assert json.loads(args['task'].metadata_json)['h3_phase_b']['status'] == 'COMPILED'
+    assert 'recorded stable features:' not in prompt
+    assert 'stable identity is bound exclusively to <Picture' in prompt
 
 
 @pytest.mark.parametrize('narration_only', [False, True], ids=['mixed-speech', 'narration-only'])

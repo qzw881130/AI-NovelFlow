@@ -122,6 +122,8 @@ class NovelService:
                             existing.description = char_data.get("description")
                         if not existing.appearance and char_data.get("appearance"):
                             existing.appearance = char_data.get("appearance")
+                            from app.utils.identity_features import update_identity_features
+                            update_identity_features(existing, existing.appearance)
                         if not existing.voice_prompt and char_data.get("voice_prompt"):
                             existing.voice_prompt = char_data.get("voice_prompt")
                         if source_range:
@@ -133,6 +135,8 @@ class NovelService:
                         # 全量更新模式：直接覆盖
                         existing.description = char_data.get("description", existing.description)
                         existing.appearance = char_data.get("appearance", existing.appearance)
+                        from app.utils.identity_features import update_identity_features
+                        update_identity_features(existing, existing.appearance)
                         if char_data.get("voice_prompt"):
                             existing.voice_prompt = char_data.get("voice_prompt")
                         existing.source_range = source_range
@@ -153,6 +157,8 @@ class NovelService:
                         source_range=source_range,
                         last_parsed_at=datetime.utcnow()
                     )
+                    from app.utils.identity_features import update_identity_features
+                    update_identity_features(character, character.appearance)
                     self.db.add(character)
                     created_characters.append(character)
 

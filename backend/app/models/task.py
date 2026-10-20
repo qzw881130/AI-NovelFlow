@@ -26,6 +26,8 @@ class Task(Base):
     parent_task_id = Column(String, nullable=True, index=True)
     source_task_id = Column(String, nullable=True, index=True)
     batch_order = Column(Integer, nullable=True)
+    execution_scope = Column(String, nullable=True, index=True)  # BATCH, SHOT, CLIP
+    clip_index = Column(Integer, nullable=True)
 
     # 任务详情
     name = Column(String, nullable=False)

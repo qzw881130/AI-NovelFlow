@@ -16,6 +16,14 @@ export const formatUserFacingError = (message?: unknown): string => {
     return 'LLM 认证失败，请检查系统设置中的 API Key 是否正确或已过期。';
   }
 
+  if (rawMessage.includes('PHASE_B_DIRECTOR_FAILED')) {
+    if (/(?:\b502\b|\b503\b|\b504\b|upstream_error|Upstream service temporarily unavailable)/i.test(rawMessage)) {
+      const status = rawMessage.match(/API 错误\s*\((502|503|504)\)/)?.[1];
+      return `LLM 请求失败：接口返回${status ? ` HTTP ${status}` : '上游错误'}（上游服务暂时不可用）。Phase B 导演规划未完成，本次 Clip 尚未提交视频生成。请稍后恢复批次或重试 Clip；详情见大模型日志。`;
+    }
+    return 'LLM 导演规划调用失败，视频尚未提交。请查看大模型日志中的具体错误后重试。';
+  }
+
   if (rawMessage.includes('DIALOGUE_DURATION_INSUFFICIENT')) {
     return 'Clip 台词时长不足：当前 Clip 时长不足以容纳分配到的台词，请缩短台词、延长 Clip，或重新规划关键帧时间轴。';
   }

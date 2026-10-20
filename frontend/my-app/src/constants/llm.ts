@@ -28,6 +28,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   videoPromptLanguage: 'en',
   showFirstAppearanceNames: false,
   autoApproveFirstAppearanceNames: false,
+  generationQualityPolicy: {},
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
   comfyUITimeout: 900,
