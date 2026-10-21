@@ -151,6 +151,58 @@ async def test_clip_playback_saves_from_task_mapped_output_node(db_session, tmp_
 
 
 @pytest.mark.asyncio
+async def test_clip_playback_reads_savevideo_output_without_vhs_audio_pair(db_session, tmp_path, monkeypatch):
+    novel, chapter, shot, tasks, _ = _assembly_fixture(db_session, tmp_path, monkeypatch)
+    task = tasks[2]
+    graph = {'135': {'class_type': 'SaveVideo', 'inputs': {}}}
+    task.workflow_json = json.dumps(graph)
+    task.comfyui_prompt_id = 'save-video-prompt'
+    metadata = json.loads(task.metadata_json)
+    metadata['clip_video_output_node_id'] = '135'
+    metadata['video_save_node_id'] = '65'
+    metadata['comfyui_history'] = {
+        'prompt': [0, 'save-video-prompt', graph],
+        'outputs': {'135': {'videos': [{'filename': 'clip.mp4', 'type': 'output'}]}},
+    }
+    task.metadata_json = json.dumps(metadata)
+    db_session.commit()
+
+    selected, fetched = [], []
+    class Client:
+        base_url = 'http://comfy'
+        def _parse_outputs(self, outputs, _graph, node_id, strict_output_node=False):
+            selected.append((node_id, strict_output_node, list(outputs)))
+            return {'video_url': 'http://comfy/view?filename=clip.mp4&type=output'}
+    monkeypatch.setattr(playback.ComfyUIClient, 'for_product_runtime', lambda db: Client())
+    class HTTP:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def get(self, url):
+            fetched.append(url)
+            class Reply:
+                content = b'complete saved video'
+                def raise_for_status(self): pass
+            return Reply()
+    monkeypatch.setattr(playback.httpx, 'AsyncClient', lambda **kw: HTTP())
+    monkeypatch.setattr(playback, 'remux_native_av', lambda *args: pytest.fail('SaveVideo must not use VHS remux'))
+    span = metadata['physical_output']['assembly_span']
+    monkeypatch.setattr(playback, 'probe_clip_av', lambda path: {
+        'frame_count': span['end_frame'] - span['start_frame'], 'has_audio': True,
+    })
+    monkeypatch.setattr(playback, 'local_path_to_url', lambda path: str(path))
+    monkeypatch.setattr(playback, 'url_to_local_path', lambda url: str(tmp_path / Path(url).name) if url.startswith('/api/files/') else url)
+
+    result = await playback.clip_playback(db_session, shot, 2, novel.id, chapter.id)
+
+    assert selected == [('135', True, ['135'])]
+    assert fetched == ['http://comfy/view?filename=clip.mp4&type=output']
+    assert result['source_output_node'] == '135'
+    assert result['independent_media']['has_audio'] is True
+    assert Path(result['independent_url']).read_bytes() == b'complete saved video'
+    assert result['cumulative_url'] == task.result_url
+
+
+@pytest.mark.asyncio
 async def test_review_extracts_shared_context_with_synchronized_audio(tmp_path):
     import subprocess
     from app.services.continuous_clip_av import probe_clip_av

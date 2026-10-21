@@ -89,7 +89,8 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
                 client=ComfyUIClient.for_product_runtime(db)
                 graph=json.loads(task.workflow_json)
                 node=graph.get(clip_output_node_id) or {}
-                if node.get('class_type') not in {'VHS_VideoCombine','MiniMaxH3StreamLiveExtensionAVToVHS'}:
+                output_type=node.get('class_type')
+                if output_type not in {'VHS_VideoCombine','MiniMaxH3StreamLiveExtensionAVToVHS','SaveVideo'}:
                     raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                 async with httpx.AsyncClient(timeout=180) as http:
                     history=metadata.get('comfyui_history') or {}
@@ -106,15 +107,27 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
                     url=raw.get('video_url') if raw else None
                     if not url:raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                     parsed=urlsplit(url);query=parse_qsl(parsed.query,keep_blank_values=True)
-                    if not any(k=='filename' and v.endswith('-audio.mp4') for k,v in query):
-                        raise ValueError('RAW_CLIP_AV_PAIR_UNAVAILABLE')
-                    video_url=urlunsplit(parsed._replace(query=urlencode([(k,v[:-10]+'.mp4' if k=='filename' else v) for k,v in query])))
-                    av=outdir/'independent.mp4';video=outdir/'source_video.mp4'
-                    for remote,target in [(url,av),(video_url,video)]:
+                    if output_type == 'SaveVideo':
+                        filename=next((v for k,v in query if k=='filename'), '')
+                        suffix=Path(filename).suffix.lower()
+                        if suffix not in {'.mp4','.webm','.mov','.mkv'}:
+                            raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
+                        av=outdir/f'independent{suffix}'
+                        sources=[(url,av)]
+                    else:
+                        if not any(k=='filename' and v.endswith('-audio.mp4') for k,v in query):
+                            raise ValueError('RAW_CLIP_AV_PAIR_UNAVAILABLE')
+                        video_url=urlunsplit(parsed._replace(query=urlencode([(k,v[:-10]+'.mp4' if k=='filename' else v) for k,v in query])))
+                        av=outdir/'independent.mp4';video=outdir/'source_video.mp4'
+                        sources=[(url,av),(video_url,video)]
+                    for remote,target in sources:
                         response=await http.get(remote);response.raise_for_status()
                         temporary=target.with_suffix('.download');temporary.write_bytes(response.content);os.replace(temporary,target)
-                mux=await asyncio.to_thread(remux_native_av,str(video),str(av))
+                if output_type != 'SaveVideo':
+                    await asyncio.to_thread(remux_native_av,str(video),str(av))
                 independent_media=await asyncio.to_thread(probe_clip_av,str(av))
+                if output_type == 'SaveVideo' and not independent_media['has_audio']:
+                    raise ValueError('RAW_CLIP_AV_PAIR_UNAVAILABLE')
                 physical=metadata['physical_output'];span=physical['assembly_span']
                 if independent_media['frame_count']!=span['end_frame']-span['start_frame']:
                     raise ValueError('RAW_CLIP_FRAME_COUNT_MISMATCH')

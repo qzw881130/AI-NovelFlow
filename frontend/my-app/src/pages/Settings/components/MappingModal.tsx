@@ -1273,9 +1273,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.clipVideoOutputNode')}
-                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS, SaveVideo"
                     value={mappingForm.clipVideoOutputNodeId || ''}
-                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -1349,9 +1349,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.clipVideoOutputNode')}
-                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS, SaveVideo"
                     value={mappingForm.clipVideoOutputNodeId || ''}
-                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}

@@ -174,6 +174,8 @@ export function ChapterGenerateLayout({
 
   // 获取分镜列表（统一使用 store.shots）
   const shots = storeShots;
+  // 页面外层保留了 24px 底部内边距；导航栏固定在视口底部，预留区需扣除这段距离。
+  const bottomNavSpacerHeight = shots.length === 0 ? 'h-[6.5rem]' : bottomNavCollapsed ? 'h-4' : 'h-[10.5rem]';
   const currentShotById = currentShotId ? shots.find((shot) => shot.id === currentShotId) : undefined;
   const currentShot = currentShotById || shots[currentShotIndex - 1];
   const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
@@ -738,7 +740,7 @@ export function ChapterGenerateLayout({
         />
 
         {/* 为底部导航预留空间 */}
-        <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
+        <div className={bottomNavSpacerHeight} />
       </div>
     );
   }
@@ -809,7 +811,7 @@ export function ChapterGenerateLayout({
       />
 
       {/* 为底部导航预留空间 */}
-      <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
+      <div className={bottomNavSpacerHeight} />
     </div>
   );
 }
