@@ -317,24 +317,24 @@ def apply_execution(task, original_duration, manifest, paths):
 
 
 def verify_submission(task, workflow, graph, uploads, previous_path=None):
-    """Last deterministic check on the actual bound API graph, before POST /prompt."""
-    from app.services.clip_execution_inspector_service import submitted_evidence
+    """Check configured inputs and saved sources before POST /prompt.
+
+    ComfyUI owns the graph behind those mapped inputs; its topology can change.
+    """
     metadata = safe_json_dict(task.metadata_json)
     record = metadata["h3_phase_b"]
     result = record["compiler_result"]
     mapping = safe_json_dict(workflow.node_mapping)
-    evidence = submitted_evidence(graph, {"output_node_id": mapping.get("video_save_node_id")})
-    checks = {"prompt": bool(evidence["prompt"]) and evidence["prompt"]["text"] == result["prompt"] == task.prompt_text,
-              "frames": evidence["requested_latent_frame_count"] == target_frames(metadata["effective_duration"]),
+    prompt_inputs = graph.get(str(mapping.get("prompt_node_id")), {}).get("inputs", {})
+    checks = {"prompt": result["prompt"] == task.prompt_text and any(
+                  prompt_inputs.get(key) == result["prompt"] for key in ("prompt", "text", "value")),
               "duration": graph.get(str(mapping.get("duration_seconds_node_id")), {}).get("inputs", {}).get("value") == metadata["effective_duration"],
               "workflow": workflow.id == record["workflow_id"] and workflow.type == record["workflow_type"]}
-    refs = graph.get(str(mapping.get("reference_to_video_node_id")), {}).get("inputs", {})
     filenames = uploads["reference_filenames"]
     expected = result["reference_manifest"]["references"]
-    checks["picture_count"] = len(filenames) == len(expected) == sum(k.startswith("ref_images.ref_image_") for k in refs)
+    checks["picture_count"] = len(filenames) == len(expected)
     checks["picture_order"] = all(
-        refs.get(f"ref_images.ref_image_{i}") == [str(mapping.get(f"load_image_node_{i+1}")), 0]
-        and graph.get(str(mapping.get(f"load_image_node_{i+1}")), {}).get("inputs", {}).get("image") == filename
+        graph.get(str(mapping.get(f"load_image_node_{i+1}")), {}).get("inputs", {}).get("image") == filename
         for i, filename in enumerate(filenames))
     checks["picture_bytes"] = all(file_hash(r.get("local_path") or url_to_local_path(r["image_url"])) ==
                                   record["resource_hashes"][f"<Picture {r['source_slot']}>"] for r in expected)
@@ -346,11 +346,10 @@ def verify_submission(task, workflow, graph, uploads, previous_path=None):
         checks["previous_av"] = current == record["continuation"]
         checks["previous_upload"] = graph.get(str(mapping.get("load_video_node_id")), {}).get("inputs", {}).get("video") == uploads.get("previous_filename")
     else:
-        checks["no_previous_av"] = not previous_path and not evidence["previous_av_nodes"]
+        checks["no_previous_av"] = not previous_path
     anchors = result["temporal_manifest"]["anchors"]
     checks["temporal_bytes"] = all(file_hash(url_to_local_path(a["image_url"])) ==
                                    record["resource_hashes"]["TemporalAnchor:" + a["anchor_id"]] for a in anchors)
-    checks["temporal_positions"] = [p for n in evidence["anchor_nodes"] for p in n["positions"]] == [a["frame_position"] for a in anchors]
     checks["temporal_images"] = len(uploads.get("temporal_filenames", [])) == len(anchors) and all(
         graph.get(str(mapping.get(f"keyframe_node_{i+1}")), {}).get("inputs", {}).get("image") == name
         for i, name in enumerate(uploads.get("temporal_filenames", [])))

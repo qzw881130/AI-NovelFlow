@@ -1,12 +1,13 @@
-"""Timing of the existing H3 masked-context workflow; no graph or prompt rewriting.
+"""Physical AV timing for an explicitly configured continuation workflow.
 
-Only a real continuation capability plus the native source binding enables this
-contract. Ordinary generation has no overlap or shifted time origin.
+The workflow's internal nodes and links belong to ComfyUI and may change. This
+contract uses only the declared capability, input/output mapping and the saved
+previous video; it does not infer a pipeline from the workflow graph.
 """
 import json
 from pathlib import Path
 
-from app.services.continuous_clip_av import probe_clip_av
+from app.services.continuous_clip_av import FPS, OVERLAP_FRAMES, probe_clip_av
 from app.utils.path_utils import url_to_local_path
 
 
@@ -15,7 +16,7 @@ FRAME_EXPRESSION = "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) %
 
 
 def target_frames(duration):
-    """Evaluate the verified ComfyMathExpression, including its rounding rule."""
+    """Calculate the frame budget of the current H3 AV contract."""
     raw = max(5, round(float(duration) * 24))
     return raw + (5 - raw % 17) % 17
 
@@ -29,89 +30,18 @@ def continuation_contract(workflow, capability, previous_path, context):
         return None
     if not previous_path or capability not in CAPABILITIES or family not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
         raise ValueError("PREVIOUS_AV_BINDING_MISSING: continuation requires its actual workflow and source")
-    graph = json.loads(workflow.workflow_json)
-    mapping = json.loads(workflow.node_mapping)
-
-    def unique(kind):
-        found = [(k, n.get("inputs", {})) for k, n in graph.items() if n.get("class_type") == kind]
-        if len(found) != 1:
-            raise ValueError("PREVIOUS_AV_BINDING_UNVERIFIED: " + kind)
-        return found[0]
-
-    def literal(link, kind, key):
-        if not isinstance(link, list) or len(link) != 2 or link[1] != 0:
-            raise ValueError("PREVIOUS_AV_BINDING_UNVERIFIED: expected literal parameter link")
-        node = graph.get(str(link[0]), {})
-        if node.get("class_type") != kind:
-            raise ValueError("PREVIOUS_AV_BINDING_UNVERIFIED: " + kind)
-        return node["inputs"][key]
-
-    masked_id, masked = unique("MiniMaxH3StartMaskedContext")
-    native_id, native = unique("MiniMaxH3StreamLiveExtensionAVToVHS")
-    _, finalizer = unique("MiniMaxH3FinalizeVHSOutput")
-    _, crop = unique("MiniMaxH3CropTo32")
-    validate_id, validate = unique("MiniMaxH3Validate24FPSVideo")
-    load_id = str(mapping["load_video_node_id"])
-    load = graph[load_id]
-    _, audio = unique("MiniMaxH3SourceAudioPolicy")
-    reference_id = str(mapping["reference_to_video_node_id"])
-    _, math = unique("ComfyMathExpression")
-    frames = literal(masked["context_length"], "PrimitiveInt", "value")
-    feather = literal(masked["audio_feather_ticks"], "PrimitiveInt", "value")
-    fps = masked["source_fps"]
-    samplers = [(node_id, node.get("inputs", {})) for node_id, node in graph.items()
-                if node.get("class_type") == "SamplerCustomAdvanced"]
-    starters = [(node_id, inputs) for node_id, inputs in samplers
-                if inputs.get("latent_image") == [masked_id, 0]]
-    sampler_path_verified = False
-    # A downstream render/upscale branch may have its own sampler. It does not
-    # change the native AV output when extension_1 still uses the masked starter.
-    if len(starters) == 1 and native.get("extension_1") == [starters[0][0], 0]:
-        sampler_path_verified = True
-    elif len(starters) == 1 and len(samplers) == 2:
-        first_id = starters[0][0]
-        second_id, second = next((node_id, inputs) for node_id, inputs in samplers
-                                 if node_id != first_id)
-        upscale_link = second.get("latent_image")
-        upscale_id = str(upscale_link[0]) if isinstance(upscale_link, list) and len(upscale_link) == 2 else None
-        upscale = graph.get(upscale_id, {})
-        guider_link = second.get("guider")
-        guider = graph.get(str(guider_link[0]), {}) if isinstance(guider_link, list) and len(guider_link) == 2 else {}
-        sampler_path_verified = (
-            upscale_link == [upscale_id, 0]
-            and upscale.get("class_type") == "MiniMaxH3LatentUpscaleCombined"
-            and upscale.get("inputs", {}).get("samples") == [first_id, 1]
-            and isinstance(guider_link, list) and len(guider_link) == 2
-            and guider_link == [str(guider_link[0]), 0]
-            and guider.get("class_type") == "BasicGuider"
-            and guider.get("inputs", {}).get("conditioning") == [upscale_id, 1]
-            and native.get("extension_1") == [second_id, 0]
-        )
-    # Recognize the existing physical path. Do not guess unverified alternatives.
-    valid = (
-        literal(masked["start_mode"], "MiniMaxH3AVStartModeParam", "start") == "Existing Video"
-        and literal(audio["mode"], "MiniMaxH3AVSourceAudioModeParam", "source_audio") == "Keep source audio"
-        and sampler_path_verified
-        and str(mapping["video_save_node_id"]) == native_id
-        and finalizer.get("filenames") == [native_id, 0]
-        and masked["latent"] == [reference_id, 1]
-        and graph[reference_id]["class_type"] == "MiniMaxH3ReferenceToVideo"
-        and masked["source_frames"] == native["source_frames"] == audio["source_frames"]
-        and graph[masked["source_frames"][0]]["class_type"] == "MiniMaxH3CropTo32"
-        and crop["images"] == [validate_id, 0]
-        and validate["images"] == [load_id, 0] and validate["video_info"] == [load_id, 3]
-        and load["class_type"] == "VHS_LoadVideoFFmpeg"
-        and load["inputs"]["force_rate"] == fps == native["source_fps"] == audio["source_fps"] == 24
-        and load["inputs"]["frame_load_cap"] == 0 and load["inputs"]["start_time"] == 0
-        and masked["source_audio"] == native["source_audio"]
-        and graph[masked["source_audio"][0]]["class_type"] == "MiniMaxH3SourceAudioPolicy"
-        and native["context_frames"] == native["video_overlap_frames"] == frames
-        and math["expression"] == FRAME_EXPRESSION
-        and math["values.a"] == [str(mapping["duration_seconds_node_id"]), 0]
-        and isinstance(frames, int) and frames >= 39 and (frames - 39) % 51 == 0
-    )
-    if not valid:
-        raise ValueError("PREVIOUS_AV_BINDING_UNVERIFIED: native masked-context path changed")
+    graph = json.loads(workflow.workflow_json or "{}")
+    mapping = json.loads(workflow.node_mapping or "{}")
+    if not isinstance(graph, dict):
+        raise ValueError("PREVIOUS_AV_BINDING_MISSING: invalid workflow")
+    nodes = ({str(node.get("id")): node for node in graph["nodes"] if isinstance(node, dict)}
+             if isinstance(graph.get("nodes"), list) else graph)
+    if not isinstance(mapping, dict) or any(
+        not mapping.get(key) or str(mapping[key]) not in nodes
+        for key in ("load_video_node_id", "video_save_node_id")
+    ):
+        raise ValueError("PREVIOUS_AV_BINDING_MISSING: video input/output mapping is incomplete")
+    frames, fps, feather = OVERLAP_FRAMES, FPS, 8
     source = context.get("previous_clip") or {}
     physical = source.get("physical_output") or {}
     path = Path(url_to_local_path(str(previous_path)) or str(previous_path)).resolve()
@@ -119,7 +49,7 @@ def continuation_contract(workflow, capability, previous_path, context):
     if not source_path or path != Path(source_path).resolve() or not source.get("generated_by_task_id"):
         raise ValueError("PREVIOUS_AV_SOURCE_MISMATCH")
     actual = probe_clip_av(str(path))
-    if (not actual["has_audio"] or actual["frame_count"] < frames
+    if (not actual["has_audio"] or actual["frame_count"] < frames or actual["fps"] != fps
             or any(actual[k] != physical.get(k) for k in ("sha256", "frame_count", "fps", "timebase"))):
         raise ValueError("PREVIOUS_AV_SOURCE_MISMATCH")
     audio_ticks = frames / fps * 40

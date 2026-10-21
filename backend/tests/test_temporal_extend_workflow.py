@@ -216,11 +216,12 @@ async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('missing',['sink','native_output'])
-async def test_native_missing_cannot_queue_without_sink_or_fallback_to_raw(db_session,monkeypatch,missing):
+async def test_native_output_is_bound_by_mapping_without_inspecting_internal_sink(db_session,monkeypatch,missing):
     from unittest.mock import AsyncMock
     workflow=_workflow(db_session)
     graph=json.loads(workflow.workflow_json)
     if missing=='sink':graph.pop('99')
+    else:graph.pop('65')
     service=ComfyUIService()
     monkeypatch.setattr(service.client,'upload_video',AsyncMock(return_value={'success':True,'filename':'previous.mp4'}))
     queued=AsyncMock(return_value={'success':True,'prompt_id':'native-missing'})
@@ -236,9 +237,36 @@ async def test_native_missing_cannot_queue_without_sink_or_fallback_to_raw(db_se
         previous_video_path='/previous.mp4',duration_seconds=8,filename_prefix='test/native',
         capability='TEMPORAL_EXTEND',anchors=[],reference_image_paths=[],require_native_output=True)
     assert result['success'] is False
-    assert 'NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE' in result['message']
+    assert ('NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE' if missing=='sink' else '映射不完整') in result['message']
     assert not result.get('video_url')
-    assert queued.await_count==(0 if missing=='sink' else 1)
+    assert queued.await_count==(1 if missing=='sink' else 0)
+
+
+@pytest.mark.asyncio
+async def test_changed_internal_continuation_graph_can_use_mapped_output(db_session, monkeypatch):
+    from unittest.mock import AsyncMock
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph.pop('99')
+    graph['65']['class_type'] = 'CustomCumulativeAVOutput'
+    service = ComfyUIService()
+    monkeypatch.setattr(service.client, 'upload_video', AsyncMock(return_value={
+        'success': True, 'filename': 'previous.mp4'}))
+    monkeypatch.setattr(service.client, 'queue_prompt', AsyncMock(return_value={
+        'success': True, 'prompt_id': 'custom-output'}))
+    monkeypatch.setattr(service.client, 'wait_for_result', AsyncMock(return_value={
+        'success': True, 'video_url': 'cumulative.mp4'}))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt='unchanged', workflow_json=graph,
+        node_mapping=json.loads(workflow.node_mapping),
+        previous_video_path='/previous.mp4', duration_seconds=8,
+        filename_prefix='test/native', capability='TEMPORAL_EXTEND',
+        anchors=[], reference_image_paths=[], require_native_output=True,
+    )
+    assert result['success'] is True
+    assert result['output_node_id'] == '65'
+    assert result['physical_output_role'] == 'NATIVE_CONTINUITY_OUTPUT'
+    assert service.client.queue_prompt.await_count == 1
 
 
 def test_strict_native_output_parsing_uses_node65_and_never_scans_raw39():

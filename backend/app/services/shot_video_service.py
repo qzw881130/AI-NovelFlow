@@ -2897,7 +2897,9 @@ async def _save_generated_video(
         db.commit()
     contract = (safe_json_dict(task.metadata_json).get("execution_contract") or {})
     native_clip = bool(safe_json_dict(task.metadata_json).get("execution_scope") == "CLIP" and contract.get("capability") in CONTINUOUS_CAPABILITIES)
-    if native_clip and (result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT or result.get("output_node_id") != "65"):
+    configured_output_id = str(safe_json_dict(task.metadata_json).get("video_save_node_id") or "65")
+    if native_clip and (result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT
+                        or result.get("output_node_id") != configured_output_id):
         task.status = "failed"
         task.error_message = "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"
         task.current_step = "Clip native output missing"
@@ -2966,7 +2968,9 @@ async def _save_generated_video(
                 clip_mapping = safe_json_dict(task.metadata_json)
                 clip_output_node_id = (clip_mapping.get("clip_video_output_node_id")
                                        if "clip_video_output_node_id" in clip_mapping else "39")
-                physical_output = continuity_output_metadata(result, contract, local_path, local_url)
+                physical_output = continuity_output_metadata(
+                    result, contract, local_path, local_url, configured_output_id
+                )
                 if "raw_context_output" in physical_output:
                     physical_output["raw_context_output"]["output_node_id"] = (
                         str(clip_output_node_id) if clip_output_node_id else ""

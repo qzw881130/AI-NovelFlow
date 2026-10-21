@@ -586,19 +586,12 @@ class ComfyUIService:
                     filename_prefix,
                     reference_image_filenames=reference_filenames,
                 )
-            native_node = workflow.get("65") or {}
-            native_output = native_node.get("class_type") == "MiniMaxH3StreamLiveExtensionAVToVHS"
-            if (require_native_output or capability == "TEMPORAL_EXTEND") and not native_output:
+            # The configured output is the only workflow interface we rely on.
+            # ComfyUI owns the internal sampler, upscale and finalizer graph.
+            native_output = require_native_output or capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+            result_node_id = str(node_mapping.get("video_save_node_id") or "")
+            if not result_node_id or result_node_id not in workflow:
                 return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
-            if native_output:
-                inputs = native_node.get("inputs") or {}
-                finalized = any(
-                    node.get("class_type") == "MiniMaxH3FinalizeVHSOutput"
-                    and (node.get("inputs") or {}).get("filenames") == ["65", 0]
-                    for node in workflow.values() if isinstance(node, dict)
-                )
-                if not finalized or inputs.get("context_frames") != 39 or inputs.get("video_overlap_frames") != 39 or inputs.get("source_fps") != 24:
-                    return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
             if before_submit:
                 before_submit(workflow, {"reference_filenames": reference_filenames,
                                          "previous_filename": upload["filename"],
@@ -610,7 +603,6 @@ class ComfyUIService:
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             # The native output is the cumulative AV used for the next Clip.
             # The configured Clip output is saved separately for playback.
-            result_node_id = "65" if native_output else node_mapping.get("video_save_node_id")
             result = await self.client.wait_for_result(
                 prompt_id,
                 workflow,
@@ -621,9 +613,9 @@ class ComfyUIService:
             if native_output:
                 if not result.get("success") or not result.get("video_url"):
                     return {**result, "success": False,
-                            "message": f"NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE: {result.get('message') or 'node65 output missing'}",
+                            "message": f"NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE: {result.get('message') or 'configured output missing'}",
                             "prompt_id": prompt_id, "submitted_workflow": workflow}
-                result = {**result, "physical_output_role": "NATIVE_CONTINUITY_OUTPUT", "output_node_id": "65"}
+                result = {**result, "physical_output_role": "NATIVE_CONTINUITY_OUTPUT", "output_node_id": result_node_id}
             return {**result, "prompt_id": prompt_id, "submitted_workflow": workflow}
         except Exception as exc:
             return {"success": False, "message": str(exc)}

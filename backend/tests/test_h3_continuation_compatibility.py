@@ -143,78 +143,49 @@ def test_synthetic_feasible_schedule_is_not_shifted_or_extended_twice(continuati
     assert not cont.check_continuation_timing(continuation,[{'start_time':1.5,'end_time':2.5}],4)['continuation_dialogue_after_context']
 
 
-def test_configuration_not_a_global_39_frame_rule(physical):
-    w,path,ctx=physical;graph=json.loads(w.workflow_json)
-    graph['37']['inputs']['value']=90
-    graph['65']['inputs']['context_frames']=graph['65']['inputs']['video_overlap_frames']=90
-    w.workflow_json=json.dumps(graph)
-    c=cont.continuation_contract(w,'EXTEND',path,ctx)
-    assert c['context_frames']==90 and c['earliest_new_dialogue']==3.75
-    assert cont.continuation_contract(None,'MULTI_KEYFRAME',None,{}) is None
+def test_continuation_does_not_inspect_workflow_internals(physical):
+    w, path, ctx = physical
+    expected = cont.continuation_contract(w, 'EXTEND', path, ctx)
+    graph = json.loads(w.workflow_json)
+    # The only stable interface is the mapped input/output. Internal node
+    # classes, topology and timing widgets may change with the workflow.
+    for node_id in list(graph):
+        if node_id not in {'66', '65'}:
+            graph.pop(node_id)
+    graph['65']['class_type'] = 'CustomAVOutput'
+    graph['65']['inputs'] = {'filename_prefix': 'test'}
+    graph['200'] = {'class_type': 'NewUpscalePipeline', 'inputs': {}}
+    w.workflow_json = json.dumps(graph)
+    assert cont.continuation_contract(w, 'EXTEND', path, ctx) == expected
+    assert cont.continuation_contract(None, 'MULTI_KEYFRAME', None, {}) is None
 
 
-def two_pass_graph(workflow):
-    graph=json.loads(workflow.workflow_json)
-    graph['116']={'class_type':'MiniMaxH3LatentUpscaleCombined',
-                  'inputs':{'samples':['3',1]}}
-    graph['117']={'class_type':'BasicGuider',
-                  'inputs':{'conditioning':['116',1]}}
-    graph['119']={'class_type':'SamplerCustomAdvanced',
-                  'inputs':{'latent_image':['116',0],'guider':['117',0]}}
-    graph['65']['inputs']['extension_1']=['119',0]
-    return graph
+@pytest.mark.parametrize('missing', ['load_video_node_id', 'video_save_node_id'])
+def test_continuation_requires_mapped_input_and_output(physical, missing):
+    w, path, ctx = physical
+    mapping = json.loads(w.node_mapping)
+    mapping.pop(missing)
+    w.node_mapping = json.dumps(mapping)
+    with pytest.raises(ValueError, match='PREVIOUS_AV_BINDING_MISSING'):
+        cont.continuation_contract(w, 'EXTEND', path, ctx)
 
 
-def test_two_pass_continuation_uses_first_pass_masked_context(physical):
-    w,path,ctx=physical
-    w.workflow_json=json.dumps(two_pass_graph(w))
-    assert cont.continuation_contract(w,'EXTEND',path,ctx)['binding_verified'] is True
-
-
-def test_native_continuation_ignores_separate_second_pass_render(physical):
-    w,path,ctx=physical
-    graph=json.loads(w.workflow_json)
-    graph['156']={'class_type':'MiniMaxH3ChainPass2Prepare',
-                  'inputs':{'upscaled_video':['150',0],'source_audio':['149',1]}}
-    graph['158']={'class_type':'SamplerCustomAdvanced',
-                  'inputs':{'latent_image':['156',0],'guider':['157',0]}}
-    graph['161']={'class_type':'SaveVideo','inputs':{'video':['160',0]}}
-    w.workflow_json=json.dumps(graph)
-    assert cont.continuation_contract(w,'EXTEND',path,ctx)['binding_verified'] is True
-    graph['65']['inputs']['extension_1']=['158',0]
-    w.workflow_json=json.dumps(graph)
-    with pytest.raises(ValueError,match='PREVIOUS_AV_BINDING_UNVERIFIED'):
-        cont.continuation_contract(w,'EXTEND',path,ctx)
-
-
-@pytest.mark.parametrize('broken_link', ['first_pass','upscale','guider','mapped_output','finalizer'])
-def test_two_pass_continuation_rejects_disconnected_source(physical,broken_link):
-    w,path,ctx=physical
-    graph=two_pass_graph(w)
-    if broken_link=='first_pass':graph['3']['inputs']['latent_image']=['55',1]
-    elif broken_link=='upscale':graph['116']['inputs']['samples']=['55',1]
-    elif broken_link=='guider':graph['117']['inputs']['conditioning']=['55',0]
-    elif broken_link=='mapped_output':
-        mapping=json.loads(w.node_mapping);mapping['video_save_node_id']='39'
-        w.node_mapping=json.dumps(mapping)
-    elif broken_link=='finalizer':graph['99']['inputs']['filenames']=['39',0]
-    w.workflow_json=json.dumps(graph)
-    with pytest.raises(ValueError,match='PREVIOUS_AV_BINDING_UNVERIFIED'):
-        cont.continuation_contract(w,'EXTEND',path,ctx)
-
-
-@pytest.mark.parametrize('kind',['missing_source','wrong_source','wrong_hash','wrong_sampler','wrong_mode','wrong_context','missing_contract'])
-def test_illegal_continuation_binding_fails(physical,kind):
-    w,path,ctx=physical;graph=json.loads(w.workflow_json);cap='EXTEND'
-    if kind=='missing_source':path=None
-    elif kind=='wrong_source':path=path+'.other'
-    elif kind=='wrong_hash':ctx['previous_clip']['physical_output']['sha256']='wrong'
-    elif kind=='wrong_sampler':graph['3']['inputs']['latent_image']=['55',1]
-    elif kind=='wrong_mode':cap='GENERATE'
-    elif kind=='wrong_context':graph['37']['inputs']['value']=40
-    elif kind=='missing_contract':ctx={}
-    w.workflow_json=json.dumps(graph)
-    with pytest.raises(ValueError):cont.continuation_contract(w,cap,path,ctx)
+@pytest.mark.parametrize('kind', ['missing_source', 'wrong_source', 'wrong_hash', 'wrong_mode', 'missing_contract'])
+def test_illegal_continuation_source_fails(physical, kind):
+    w, path, ctx = physical
+    cap = 'EXTEND'
+    if kind == 'missing_source':
+        path = None
+    elif kind == 'wrong_source':
+        path = path + '.other'
+    elif kind == 'wrong_hash':
+        ctx['previous_clip']['physical_output']['sha256'] = 'wrong'
+    elif kind == 'wrong_mode':
+        cap = 'GENERATE'
+    elif kind == 'missing_contract':
+        ctx = {}
+    with pytest.raises(ValueError):
+        cont.continuation_contract(w, cap, path, ctx)
 
 
 def test_continuation_with_kf_keeps_both_contracts(continuation):

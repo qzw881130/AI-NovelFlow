@@ -101,7 +101,7 @@ def validate_native_output(metadata: dict, result_url: str, path: str) -> dict:
         contract.get("artifact_kind") != NATIVE_CONTINUITY_OUTPUT
         or output.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT
         or output.get("result_url") != result_url
-        or output.get("output_node_id") != "65"
+        or output.get("output_node_id") != str(metadata.get("video_save_node_id") or "65")
         or output.get("capability") != contract.get("capability")
         or output.get("overlap_frames") != OVERLAP_FRAMES
         or output.get("overlap_duration") != OVERLAP_FRAMES / FPS
@@ -132,9 +132,12 @@ def validate_temporal_anchor_output_bound(contract: dict, final_frames: int) -> 
             raise ValueError("NATIVE_TEMPORAL_ANCHOR_OUTPUT_BOUND_VIOLATION: " + json.dumps(details, sort_keys=True))
 
 
-def continuity_output_metadata(result: dict, contract: dict, path: str, result_url: str) -> dict:
+def continuity_output_metadata(result: dict, contract: dict, path: str, result_url: str,
+                               output_node_id: str = "65") -> dict:
     """Accept only the finalized cumulative output; keep Clip output provenance separate."""
-    if contract.get("artifact_kind") != NATIVE_CONTINUITY_OUTPUT or result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT or result.get("output_node_id") != "65":
+    if (contract.get("artifact_kind") != NATIVE_CONTINUITY_OUTPUT
+            or result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT
+            or result.get("output_node_id") != str(output_node_id)):
         raise ValueError("NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE")
     previous = contract.get("previous_clip") or {}
     source = previous.get("physical_output") or {}
@@ -149,7 +152,7 @@ def continuity_output_metadata(result: dict, contract: dict, path: str, result_u
     validate_temporal_anchor_output_bound(contract, actual["frame_count"])
     return {
         **actual, "physical_output_role": NATIVE_CONTINUITY_OUTPUT,
-        "output_node_id": "65", "source_video_url": result["video_url"], "result_url": result_url,
+        "output_node_id": str(output_node_id), "source_video_url": result["video_url"], "result_url": result_url,
         "capability": contract["capability"], "previous": previous,
         "overlap_frames": OVERLAP_FRAMES, "overlap_duration": OVERLAP_FRAMES / FPS,
         "planned_semantic_duration": (contract.get("clip") or {}).get("duration_seconds"),
