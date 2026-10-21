@@ -1031,10 +1031,8 @@ interface VideoDirectorPanelProps {
   continuationMode?: ContinuationMode;
   shotImageUrl?: string | null;
   plan: VideoDirectorPlan;
-  isRecommending: boolean;
   isPlanningKeyframes: boolean;
   isPlanningClips: boolean;
-  onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onPlanClips: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
@@ -1044,7 +1042,6 @@ interface VideoDirectorPanelProps {
   isGeneratingMissingKeyframes?: boolean;
   generatingKeyframes?: Set<string>;
   keyframeTasks?: any[];
-  onSelectMode: (mode: VideoMode) => void;
   onPreviewClip: (clip: any) => void;
   onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void;
   onMergeClips: () => void;
@@ -1071,10 +1068,8 @@ function VideoDirectorPanel({
   continuationMode,
   shotImageUrl,
   plan,
-  isRecommending,
   isPlanningKeyframes,
   isPlanningClips,
-  onRecommend,
   onPlanKeyframes,
   onPlanClips,
   onGenerateMissingKeyframes,
@@ -1084,7 +1079,6 @@ function VideoDirectorPanel({
   isGeneratingMissingKeyframes,
   generatingKeyframes = new Set(),
   keyframeTasks = [],
-  onSelectMode,
   onPreviewClip,
   onRegenerateClip,
   onMergeClips,
@@ -1370,26 +1364,6 @@ function VideoDirectorPanel({
     if (selectedKeyframeIndex >= keyframes.length) setSelectedKeyframeIndex(0);
   }, [keyframes.length, selectedKeyframeIndex]);
 
-  const renderModeButton = (mode: VideoMode, disabled = false, title = '') => {
-    const effectiveDisabled = disabled || !!isShotVideoGenerating;
-    const effectiveTitle = isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再切换生成模式' : title;
-    return (
-    <button
-      type="button"
-      onClick={() => !effectiveDisabled && onSelectMode(mode)}
-      disabled={effectiveDisabled}
-      title={effectiveTitle}
-      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-        selectedMode === mode
-          ? 'border-blue-500 bg-blue-50 text-blue-700'
-          : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-      } ${effectiveDisabled ? 'cursor-not-allowed bg-gray-50 text-gray-400 hover:border-gray-200 hover:bg-gray-50' : ''}`}
-    >
-      {getVideoModeLabel(mode)}{plan.recommended_mode === mode ? ' ★' : ''}{disabled ? '（当前不可用）' : ''}
-    </button>
-    );
-  };
-
   const getClipStatusClass = (status?: string) => {
     switch ((status || 'PENDING').toUpperCase()) {
       case 'PROMPT_BUILDING':
@@ -1563,7 +1537,7 @@ function VideoDirectorPanel({
             <span className="truncate text-xs font-normal text-gray-500">
               {isCanonicalPlan
                 ? `${t('chapterGenerate.visualTimeline')} · ${keyframes.length} ${t('chapterGenerate.visualStates')}`
-                : `AI推荐：${isRecommending ? '推荐中...' : getVideoModeLabel(plan.recommended_mode)}${plan.recommendation_reason ? ` · ${plan.recommendation_reason}` : ''}`}
+                : `旧版模式：${getVideoModeLabel(plan.selected_mode || plan.recommended_mode)}`}
             </span>
           </h3>
         </div>
@@ -2796,7 +2770,6 @@ export function VideoGenTab({
       }))
     : [];
   const previewTimelineDuration = Number(currentShotData?.duration || videoMetadata.duration || 0);
-  const [recommendingShotId, setRecommendingShotId] = useState<string | null>(null);
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [planningClipsShotId, setPlanningClipsShotId] = useState<string | null>(null);
   const [optimizeH3Prompt, setOptimizeH3Prompt] = useState(true);
@@ -3265,48 +3238,6 @@ export function VideoGenTab({
       setIsSavingVideoPrompts(false);
     }
   }, [currentShotData, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, t, updateCurrentShotVideoDirectorPlan, videoPromptDrafts]);
-
-  const handleRecommendVideoMode = useCallback(async (force = false) => {
-    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    if (isCanonicalVisualPlan(currentVideoDirectorPlan)) return;
-    setRecommendingShotId(currentShotId);
-    try {
-      const result = await shotsApi.recommendVideoMode(effectiveNovelId, effectiveChapterId, currentShotId, force);
-      if (result.success && result.data) {
-        updateCurrentShotVideoDirectorPlan(result.data);
-      } else {
-        toast.error(result.message || '视频模式推荐失败');
-      }
-    } catch (error) {
-      console.error('视频模式推荐失败:', error);
-      toast.error('视频模式推荐失败');
-    } finally {
-      setRecommendingShotId(null);
-    }
-  }, [currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
-
-  const handleSelectVideoMode = useCallback(async (mode: VideoMode) => {
-    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    if (isCanonicalVisualPlan(currentVideoDirectorPlan)) return;
-    const maxClipDuration = Math.min(currentVideoDirectorPlan.workflow_capability?.max_clip_duration || 20, 20);
-    if (mode === 'FIRST_LAST_FRAME' && (currentShotData?.duration || 0) > maxClipDuration) {
-      toast.info(`当前 Workflow 单次最大 ${maxClipDuration}s，本 Shot ${currentShotData?.duration || 0}s，请使用多关键帧`);
-      return;
-    }
-    const optimisticPlan = { ...currentVideoDirectorPlan, selected_mode: mode };
-    updateCurrentShotVideoDirectorPlan(optimisticPlan);
-    try {
-      const result = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, currentShotId, { selected_mode: mode });
-      if (result.success && result.data) {
-        updateCurrentShotVideoDirectorPlan(result.data);
-      } else {
-        toast.error(result.message || '保存视频模式失败');
-      }
-    } catch (error) {
-      console.error('保存视频模式失败:', error);
-      toast.error('保存视频模式失败');
-    }
-  }, [currentShotData?.duration, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
 
   const handlePlanVideoKeyframes = useCallback(async (force = true) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -4648,10 +4579,8 @@ export function VideoGenTab({
             shot={currentShotData}
             shotImageUrl={currentShotImageUrl}
             plan={currentVideoDirectorPlan}
-            isRecommending={recommendingShotId === currentShotId}
             isPlanningKeyframes={planningKeyframesShotId === currentShotId}
             isPlanningClips={planningClipsShotId === currentShotId}
-            onRecommend={handleRecommendVideoMode}
             onPlanKeyframes={handlePlanVideoKeyframes}
             onPlanClips={handlePlanSemanticClips}
             onGenerateMissingKeyframes={handleGenerateMissingKeyframes}
@@ -4661,7 +4590,6 @@ export function VideoGenTab({
             isGeneratingMissingKeyframes={generatingMissingKeyframesShotId === currentShotId}
             generatingKeyframes={generatingKeyframes}
             keyframeTasks={storeKeyframeTasks}
-            onSelectMode={handleSelectVideoMode}
             onPreviewClip={handlePreviewClip}
             onRegenerateClip={handleRegenerateClip}
             onMergeClips={handleMergeDirectorClips}

@@ -32,6 +32,7 @@ export default {
     generateAppearance: '生成外貌描述',
     clipExecutionPlanner: '视频片段执行规划',
     expandVideoPrompt: '扩写视频提示词',
+    firstAppearanceNameplate: '主角首次出镜姓名牌定位',
     timestamp: '时间',
     novel: '小说',
     chapter: '章节',

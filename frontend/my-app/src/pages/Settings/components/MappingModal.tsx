@@ -44,6 +44,8 @@ interface MappingForm {
   customKeyframesNodeId?: string;
   secondPassUpscaleStepNodeId?: string;
   secondPassUpscaleStep?: string;
+  secondPassUpscaleScaleNodeId?: string;
+  secondPassUpscaleScale?: string;
 }
 
 interface MappingModalProps {
@@ -118,12 +120,15 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     customKeyframesNodeId: '',
     secondPassUpscaleStepNodeId: '',
     secondPassUpscaleStep: '2',
+    secondPassUpscaleScaleNodeId: '',
+    secondPassUpscaleScale: '2',
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
     saveImage: [],
     easyInt: [],
     secondPassStepNodes: [],
+    secondPassScaleNodes: [],
     easyFloat: [],
     crPromptText: [],
     vhsVideoCombine: [],
@@ -175,6 +180,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const saveImage: string[] = [];
             const easyInt: string[] = [];
             const secondPassStepNodes: string[] = [];
+            const secondPassScaleNodes: string[] = [];
             const easyFloat: string[] = [];
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
@@ -197,6 +203,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
 
                 if (['INTConstant', 'easy int', 'Int'].includes(classType)) {
                   secondPassStepNodes.push(`${nodeId} (${metaTitle || classType})`);
+                }
+                const scaleInputs = (node as any).inputs || {};
+                const hasScaleInput = ['value', 'Number'].some(key =>
+                  Object.prototype.hasOwnProperty.call(scaleInputs, key) && !Array.isArray(scaleInputs[key]));
+                if (['PrimitiveFloat', 'Float', 'easy float', 'JWFloat', 'FloatConstant'].includes(classType)
+                    && (hasScaleInput || (Array.isArray(rawWorkflow?.nodes) && Array.isArray((node as any).widgets_values)))) {
+                  secondPassScaleNodes.push(`${nodeId} (${metaTitle || classType})`);
                 }
 
                 if (classType === 'CLIPTextEncode' || classType === 'CR Text' || isStringValueNode(classType, metaTitle, (node as any).inputs)) {
@@ -237,7 +250,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, secondPassScaleNodes, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -271,6 +284,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
                 secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
                 secondPassUpscaleStep: ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
+                secondPassUpscaleScaleNodeId: mapping.second_pass_upscale_scale_node_id || '',
+                secondPassUpscaleScale: ['1.5', '2', '3', '4'].includes(String(mapping.second_pass_upscale_scale)) ? String(mapping.second_pass_upscale_scale) : '2',
               });
             } else if (wf.type === 'VIDEO_CONTINUATION') {
               setMappingForm({
@@ -284,6 +299,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
                 secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
                 secondPassUpscaleStep: ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
+                secondPassUpscaleScaleNodeId: mapping.second_pass_upscale_scale_node_id || '',
+                secondPassUpscaleScale: ['1.5', '2', '3', '4'].includes(String(mapping.second_pass_upscale_scale)) ? String(mapping.second_pass_upscale_scale) : '2',
               });
             } else if (wf.type === 'video_upscale') {
               setMappingForm({
@@ -324,6 +341,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
                 secondPassUpscaleStepNodeId: wf.type === 'multi_reference_video' ? mapping.second_pass_upscale_step_node_id || '' : '',
                 secondPassUpscaleStep: wf.type === 'multi_reference_video' && ['2', '3', '4'].includes(String(mapping.second_pass_upscale_step)) ? String(mapping.second_pass_upscale_step) : '2',
+                secondPassUpscaleScaleNodeId: wf.type === 'multi_reference_video' ? mapping.second_pass_upscale_scale_node_id || '' : '',
+                secondPassUpscaleScale: wf.type === 'multi_reference_video' && ['1.5', '2', '3', '4'].includes(String(mapping.second_pass_upscale_scale)) ? String(mapping.second_pass_upscale_scale) : '2',
               });
             } else if (isFirstLastVideoType(wf.type)) {
               setMappingForm({
@@ -578,6 +597,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
           second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
           second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+          second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+          second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
         };
         Array.from({ length: 8 }).forEach((_, index) => {
           nodeMapping[`keyframe_node_${index + 1}`] = mappingForm.keyframeNodes[index] || null;
@@ -595,6 +616,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
           second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
           second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+          second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+          second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
         };
         Array.from({ length: 9 }).forEach((_, index) => {
           nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
@@ -639,6 +662,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           ...(workflow.type === 'multi_reference_video' ? {
             second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
             second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+            second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+            second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
           } : {}),
           max_side_node_id: mappingForm.maxSideNodeId || null,
           megapixels_node_id: mappingForm.megapixelsNodeId || null,
@@ -891,6 +916,30 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           className="input-field"
         >
           {[2, 3, 4].map(step => <option key={step} value={step}>{step}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+
+  const secondPassScaleFields = (
+    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+      <NodeSelectField
+        label="二采放大scale 配置（可选）"
+        nodeTypeHint="PrimitiveFloat, Float, easy float, JWFloat, FloatConstant"
+        value={mappingForm.secondPassUpscaleScaleNodeId || ''}
+        options={availableNodes.secondPassScaleNodes}
+        onChange={(v) => handleNodeSelect(v, 'secondPassUpscaleScaleNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">二采放大scale（可选）</label>
+        <select
+          value={mappingForm.secondPassUpscaleScale || '2'}
+          onChange={(event) => setMappingForm({ ...mappingForm, secondPassUpscaleScale: event.target.value })}
+          className="input-field"
+        >
+          {['1.5', '2', '3', '4'].map(scale => <option key={scale} value={scale}>{scale}</option>)}
         </select>
       </div>
     </div>
@@ -1241,6 +1290,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />
                   {secondPassStepFields}
+                  {secondPassScaleFields}
                 </>
               )}
 
@@ -1316,6 +1366,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />
                   {secondPassStepFields}
+                  {secondPassScaleFields}
                 </>
               )}
 
@@ -1491,6 +1542,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />}
                   {workflow.type === 'multi_reference_video' && secondPassStepFields}
+                  {workflow.type === 'multi_reference_video' && secondPassScaleFields}
 
                   {/* 额外关键帧节点配置 */}
                   {workflow.type === 'video' && <div className="mt-4">

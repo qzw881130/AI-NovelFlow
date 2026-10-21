@@ -13,9 +13,9 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   asset_generation: ['generate_character_appearance', 'generate_scene_setting', 'generate_prop_appearance'],
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
-  video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
+  video_director: ['keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt', 'first_appearance_nameplate'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -192,13 +192,14 @@ export function useLLMLogsState() {
       style: 'styleDesign', generate_character_appearance: 'assetGeneration',
       generate_scene_setting: 'assetGeneration', generate_prop_appearance: 'assetGeneration',
       shot_image_prompt: 'shotImage', split_chapter: 'shotPlanning',
-      video_mode_recommender: 'videoDirector', keyframe_description: 'videoDirector',
+      keyframe_description: 'videoDirector',
       keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
       keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage', image_quality_review_prompt: 'keyframeImage',
-      clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
-      h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
+      clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration',
+      h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
       h3_multi_keyframe_director_phase_b: 'videoGeneration',
       h3_preflight_repair_prompt: 'videoGeneration',
+      first_appearance_nameplate: 'videoGeneration',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -216,19 +217,17 @@ export function useLLMLogsState() {
       clip_execution_planner: t('llmLogs.clipExecutionPlanner'),
       expand_video_prompt: t('llmLogs.expandVideoPrompt'),
       shot_image_prompt: t('promptConfig.types.shotImagePrompt'),
-      video_mode_recommender: t('promptConfig.types.videoModeRecommender'),
       keyframe_description: t('promptConfig.types.keyframeDescription'),
       keyframe_planner: t('promptConfig.types.keyframePlanner'),
       keyframe_transition: t('promptConfig.types.keyframeTransition'),
       keyframe_image_prompt: t('promptConfig.types.keyframeImagePrompt'),
       image_quality_review_prompt: t('promptConfig.types.imageQualityReviewPrompt'),
       temporal_reference_selector: t('promptConfig.types.temporalReferenceSelector'),
-      h3_single_frame_prompt: t('promptConfig.types.h3SingleFramePrompt'),
-      h3_first_last_frame_prompt: t('promptConfig.types.h3FirstLastFramePrompt'),
       h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
       h3_multi_keyframe_director_phase_b: `#${TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.fileNumber} ${t(TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.nameKey)}`,
       h3_execution_optimizer_prompt: t('promptConfig.types.h3ExecutionOptimizerPrompt'),
       h3_preflight_repair_prompt: t('promptConfig.types.h3PreflightRepairPrompt'),
+      first_appearance_nameplate: t('llmLogs.firstAppearanceNameplate'),
     };
     if (!type) return '-';
     return labels[type] || type;

@@ -38,8 +38,6 @@ CLIP_BOUNDARY_CONTRACT_RULES = (
     "END uses ordinary ownership and is not automatically selected",
 )
 H3_TEMPLATES = [
-    ("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt", "h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建", "h3_single_frame_prompt_template_id"),
-    ("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt", "h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建", "h3_first_last_frame_prompt_template_id"),
     ("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt", "h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建", "h3_multi_keyframe_prompt_template_id"),
 ]
 

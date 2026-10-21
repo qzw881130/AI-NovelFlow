@@ -234,12 +234,6 @@ SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES: List[Dict] = [
 # 系统预设的视频导演提示词模板
 SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
     {
-        "name": "视频生成模式推荐",
-        "description": "根据 Shot 与 Workflow 能力推荐 SINGLE_FRAME / FIRST_LAST_FRAME / MULTI_KEYFRAME",
-        **file_template("07_NovelFlow_VideoGeneration_ModeRecommender_V1.txt"),
-        "type": "video_mode_recommender"
-    },
-    {
         "name": "关键帧过渡规划",
         "description": "根据相邻关键帧规划自然过渡的 Segment 动态导演描述",
         **file_template("10_NovelFlow_KeyframeTransition_Planner_V1.txt"),
@@ -292,18 +286,6 @@ SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES: List[Dict] = [
 
 # 系统预设的 MiniMax H3 视频生成最终提示词模板
 SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
-    {
-        "name": "MiniMax H3 单帧视频提示词构建",
-        "description": "根据单张权威起始帧、Clip 动态意图和精确对白构建 H3 单帧视频提示词",
-        **file_template("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt"),
-        "type": "h3_single_frame_prompt"
-    },
-    {
-        "name": "MiniMax H3 首尾帧视频提示词构建",
-        "description": "根据起止两张权威时间帧、过渡描述和精确对白构建 H3 首尾帧视频提示词",
-        **file_template("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt"),
-        "type": "h3_first_last_frame_prompt"
-    },
     {
         "name": "MiniMax H3 多关键帧视频提示词构建",
         "description": "根据多张时间顺序关键帧、过渡 Segment 和精确对白构建 H3 多关键帧提示词",
@@ -484,6 +466,11 @@ class PromptTemplateService:
     def init_system_templates(self) -> None:
         """初始化系统预设提示词模板"""
         print("[初始化] 更新系统预设提示词模板...")
+        self.db.query(PromptTemplate).filter(PromptTemplate.type.in_((
+            "video_mode_recommender",
+            "h3_single_frame_prompt",
+            "h3_first_last_frame_prompt",
+        ))).delete(synchronize_session=False)
 
         for tmpl_data in SYSTEM_PROMPT_TEMPLATES:
             # 检查是否已存在同名同类型的系统模板

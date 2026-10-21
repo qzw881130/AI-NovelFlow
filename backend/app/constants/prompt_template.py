@@ -6,11 +6,6 @@
 
 from typing import Dict, List
 
-# Business-entry retirement only: retain registry rows and IDs for history/export.
-RETIRED_H3_PROMPT_TYPES = frozenset({
-    "h3_single_frame_prompt", "h3_first_last_frame_prompt",
-})
-
 # Same template type and selection UI; separate records preserve V1 and user copies.
 TRANSITION_V1_NAME = "关键帧过渡规划"
 TRANSITION_V2_NAME = "关键帧过渡规划（因果上下文 V2）"
@@ -47,8 +42,6 @@ class PromptTemplateType:
     KEYFRAME_DESCRIPTION = "keyframe_description"
     # 分镜图提示词 - 用于构建主分镜图最终提示词
     SHOT_IMAGE_PROMPT = "shot_image_prompt"
-    # 视频生成模式推荐提示词
-    VIDEO_MODE_RECOMMENDER = "video_mode_recommender"
     # 关键帧规划提示词
     KEYFRAME_PLANNER = "keyframe_planner"
     # 关键帧生图提示词
@@ -59,10 +52,6 @@ class PromptTemplateType:
     KEYFRAME_TRANSITION = "keyframe_transition"
     # 视频片段执行规划提示词
     CLIP_EXECUTION_PLANNER = "clip_execution_planner"
-    # MiniMax H3 单帧视频提示词
-    H3_SINGLE_FRAME_PROMPT = "h3_single_frame_prompt"
-    # MiniMax H3 首尾帧视频提示词
-    H3_FIRST_LAST_FRAME_PROMPT = "h3_first_last_frame_prompt"
     # MiniMax H3 多关键帧视频提示词
     H3_MULTI_KEYFRAME_PROMPT = "h3_multi_keyframe_prompt"
     H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B = "h3_multi_keyframe_director_phase_b"
@@ -84,7 +73,6 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.PROP_APPEARANCE,
     PromptTemplateType.CHAPTER_SPLIT,
     PromptTemplateType.SHOT_IMAGE_PROMPT,
-    PromptTemplateType.VIDEO_MODE_RECOMMENDER,
     PromptTemplateType.KEYFRAME_DESCRIPTION,
     PromptTemplateType.KEYFRAME_PLANNER,
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
@@ -92,8 +80,6 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
     PromptTemplateType.CLIP_EXECUTION_PLANNER,
-    PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
-    PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B,
     PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
@@ -206,13 +192,6 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "color": "cyan",
         "file_number": "06",
     },
-    PromptTemplateType.VIDEO_MODE_RECOMMENDER: {
-        "name_key": "promptConfig.types.videoModeRecommender",
-        "desc_key": "promptConfig.types.videoModeRecommenderDesc",
-        "icon": "SlidersHorizontal",
-        "color": "violet",
-        "file_number": "07",
-    },
     PromptTemplateType.KEYFRAME_PLANNER: {
         "name_key": "promptConfig.types.keyframePlanner",
         "desc_key": "promptConfig.types.keyframePlannerDesc",
@@ -246,20 +225,6 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "desc_key": "promptConfig.types.clipExecutionPlannerDesc",
         "icon": "Route",
         "color": "violet",
-    },
-    PromptTemplateType.H3_SINGLE_FRAME_PROMPT: {
-        "name_key": "promptConfig.types.h3SingleFramePrompt",
-        "desc_key": "promptConfig.types.h3SingleFramePromptDesc",
-        "icon": "Video",
-        "color": "rose",
-        "file_number": "11",
-    },
-    PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT: {
-        "name_key": "promptConfig.types.h3FirstLastFramePrompt",
-        "desc_key": "promptConfig.types.h3FirstLastFramePromptDesc",
-        "icon": "Video",
-        "color": "rose",
-        "file_number": "12",
     },
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT: {
         "name_key": "promptConfig.types.h3MultiKeyframePrompt",
@@ -298,7 +263,6 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "prop_appearance": "prop_appearance_prompt_template_id",
     "chapter_split": "chapter_split_prompt_template_id",
     "shot_image_prompt": "shot_image_prompt_template_id",
-    "video_mode_recommender": "video_mode_recommender_prompt_template_id",
     "keyframe_description": "keyframe_description_prompt_template_id",
     "keyframe_planner": "keyframe_planner_prompt_template_id",
     "keyframe_image_prompt": "keyframe_image_prompt_template_id",
@@ -306,8 +270,6 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "temporal_reference_selector": "temporal_reference_selector_prompt_template_id",
     "keyframe_transition": "keyframe_transition_prompt_template_id",
     "clip_execution_planner": "clip_execution_planner_prompt_template_id",
-    "h3_single_frame_prompt": "h3_single_frame_prompt_template_id",
-    "h3_first_last_frame_prompt": "h3_first_last_frame_prompt_template_id",
     "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt_template_id",
     "h3_multi_keyframe_director_phase_b": "h3_multi_keyframe_director_phase_b_template_id",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt_template_id",

@@ -16,6 +16,7 @@ interface NovelState {
   deleteNovel: (id: string) => Promise<void>;
   importNovel: (file: File) => Promise<void>;
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
+  setNovelArchived: (id: string, isArchived: boolean) => Promise<void>;
 }
 
 export const useNovelStore = create<NovelState>((set, get) => ({
@@ -115,5 +116,17 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     } catch (error) {
       set({ error: '更新小说失败' });
     }
+  },
+
+  setNovelArchived: async (id, isArchived) => {
+    const response = await novelApi.setArchived(id, isArchived);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || (isArchived ? '归档失败' : '恢复失败'));
+    }
+    set((state) => ({
+      novels: state.novels.map((novel) => novel.id === id ? response.data! : novel),
+      currentNovel: state.currentNovel?.id === id ? response.data! : state.currentNovel,
+      error: null,
+    }));
   },
 }));

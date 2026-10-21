@@ -81,6 +81,7 @@ export interface Novel {
   cover?: string;
   chapterCount: number;
   status: 'pending' | 'processing' | 'completed';
+  isArchived?: boolean;
   // 提示词模板关联（每种类型可选择不同模板）
   storyWorldContextPromptTemplateId?: string;
   hasStoryWorldContext?: boolean;
@@ -97,15 +98,12 @@ export interface Novel {
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
   keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
   shotImagePromptTemplateId?: string;  // 主分镜图提示词模板
-  videoModeRecommenderPromptTemplateId?: string;  // 视频模式推荐提示词模板
   keyframePlannerPromptTemplateId?: string;  // 关键帧规划提示词模板
   keyframeImagePromptTemplateId?: string;  // 关键帧生图提示词模板
   temporalReferenceSelectorPromptTemplateId?: string;
   imageQualityReviewPromptTemplateId?: string;
   keyframeTransitionPromptTemplateId?: string;  // 关键帧过渡规划提示词模板
   clipExecutionPlannerPromptTemplateId?: string;
-  h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
-  h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
   h3MultiKeyframeDirectorPhaseBTemplateId?: string;  // H3 Phase B 单阶段导演视频提示词模板
   h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板

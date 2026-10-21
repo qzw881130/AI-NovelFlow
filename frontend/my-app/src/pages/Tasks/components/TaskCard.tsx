@@ -35,6 +35,33 @@ interface TaskCardProps {
   formatDate: (dateStr: string) => string;
 }
 
+const preflightCheckLabels: Record<string, string> = {
+  SHOT_EXISTS: '分镜归属',
+  SHOT_IMAGE_READY: '主分镜图',
+  CLIP_PLAN_READY: '片段计划',
+  TASK_RELATION_VALID: '任务关系',
+  ACTIVE_VIDEO_TASK: '重复执行',
+  IDENTITY_FEATURES_RECORDED: '人物稳定特征',
+  IDENTITY_PORTRAIT_READY: '人物参考图',
+};
+
+function videoErrorCategory(message?: string | null): string | null {
+  if (!message) return null;
+  if (message.includes('GENERATION_PREFLIGHT_FAILED')) {
+    const checkId = Object.keys(preflightCheckLabels).find(id => message.includes(id));
+    return checkId ? `视频生成预检 · ${preflightCheckLabels[checkId]}` : '视频生成预检';
+  }
+  if (message.includes('PREVIOUS_AV_BINDING_UNVERIFIED')) return '执行阶段 · 续接工作流绑定';
+  if (message.includes('PHASE_B_INPUT_NOT_COVERED')) return '执行阶段 · H3 Phase B 输入';
+  if (message.includes('PHASE_B_PREFLIGHT_FAILED')) return '执行阶段 · 提示词结构校验';
+  return null;
+}
+
+function formatElapsedDuration(seconds: number): string {
+  if (seconds <= 60) return `${seconds} 秒`;
+  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+}
+
 export function TaskCard({
   task,
   imageInfo,
@@ -140,6 +167,7 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const errorCategory = isVideoTask ? videoErrorCategory(task.errorMessage) : null;
   const hasErrorDetails = Boolean(task.errorMessage && displayErrorMessage &&
     (task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
   const chapterLabel = task.chapterNumber != null
@@ -284,7 +312,10 @@ export function TaskCard({
                 <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{t('tasks.error')}: {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}</span>
+                    <span className="font-medium">
+                      {t('tasks.error')}: {errorCategory && <span data-error-category className="mr-1 rounded bg-red-200 px-1.5 py-0.5">{errorCategory}</span>}
+                      {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}
+                    </span>
                     {hasErrorDetails && (
                       <span className="text-red-500 ml-2 flex-shrink-0">
                         {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -293,7 +324,8 @@ export function TaskCard({
                   </div>
                   {expandedErrors.has(task.id) && hasErrorDetails && (
                     <div className="mt-2 p-2 bg-red-50 rounded border border-red-200 font-mono whitespace-pre-wrap break-all">
-                      {task.errorMessage === displayErrorMessage ? displayErrorMessage : `原始错误：${task.errorMessage}`}
+                      <div>{displayErrorMessage}</div>
+                      {task.errorMessage !== displayErrorMessage && <div className="mt-2">原始错误：{task.errorMessage}</div>}
                     </div>
                   )}
                 </div>
@@ -414,7 +446,10 @@ export function TaskCard({
                         </button>
                       )}
                     </div>
-                    {clip.errorMessage && <div className="mt-1 text-red-600">{formatUserFacingError(clip.errorMessage)}</div>}
+                    {clip.errorMessage && <div className="mt-1 text-red-600">
+                      {videoErrorCategory(clip.errorMessage) && <span data-error-category className="mr-1 rounded bg-red-100 px-1.5 py-0.5">{videoErrorCategory(clip.errorMessage)}</span>}
+                      {formatUserFacingError(clip.errorMessage)}
+                    </div>}
                     {clip.promptText && <div className="mt-1 line-clamp-2 text-gray-500" title={clip.promptText}>Prompt: {clip.promptText}</div>}
                     {!!clip.referenceImages?.length && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -554,7 +589,7 @@ export function TaskCard({
             {task.sourceTaskId && <span className="mr-2 font-mono">Source: {task.sourceTaskId}</span>}
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
-            {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}
+            {elapsedSeconds !== null && ` · 耗时: ${formatElapsedDuration(elapsedSeconds)}`}
           </div>
         </div>
         <div className="flex items-center gap-2">

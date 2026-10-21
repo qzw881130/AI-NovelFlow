@@ -45,7 +45,6 @@ test('missing plan uses normal initial canonical planning and no historical warn
 
 test('canonical workspace remains after both boundary returns and refresh has no automatic #07 or #08 call', () => {
   assert.match(canonicalSource, /chapterGenerate\.visualTimeline/);
-  assert.match(canonicalSource, /renderModeButton\('SINGLE_FRAME'\)/);
   assert.ok(canonicalWorkspaceStart > missingStart, 'boundary returns prevent legacy selector rendering for historical and missing plans');
   assert.doesNotMatch(source, /shouldAutoRecommendLegacyVideoMode/);
   assert.match(source, /shotsApi\.planVideoKeyframes\(effectiveNovelId, effectiveChapterId, currentShotId, force\)/);

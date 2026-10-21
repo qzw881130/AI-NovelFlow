@@ -9,7 +9,6 @@ const JSON_OUTPUT_TEMPLATE_TYPES: TemplateType[] = [
   'scene_parse',
   'prop_parse',
   'chapter_split',
-  'video_mode_recommender',
   'keyframe_description',
   'keyframe_planner',
   'keyframe_transition',

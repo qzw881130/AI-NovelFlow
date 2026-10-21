@@ -256,12 +256,6 @@ class SaveVideoDirectorPlanRequest(BaseModel):
     validation: Optional[dict] = None
 
 
-class RecommendVideoModeRequest(BaseModel):
-    """推荐视频生成模式请求"""
-
-    force: bool = Field(False, description="是否强制重新推荐")
-
-
 class PlanVideoKeyframesRequest(BaseModel):
     """规划视频关键帧时间轴请求"""
 

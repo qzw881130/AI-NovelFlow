@@ -115,7 +115,6 @@ from app.schemas.shot import (
     ShotImageReplaceRequest,
     GenerateVideoRequest,
     GenerateVideoDirectorClipRequest,
-    RecommendVideoModeRequest,
     PlanVideoKeyframesRequest,
     PlanVideoTransitionsRequest,
     SaveVideoDirectorPlanRequest,
@@ -1454,35 +1453,6 @@ def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
     }
 
 
-def _get_video_mode_template(novel: Novel, template_repo: PromptTemplateRepository):
-    template = template_repo.resolve_for_type(
-        novel.video_mode_recommender_prompt_template_id, "video_mode_recommender")
-    if not template:
-        raise HTTPException(status_code=400, detail="未配置视频生成模式推荐提示词模板")
-    return template
-
-
-def _build_video_mode_user_content(shot, workflow_capability: dict) -> str:
-    continuity_requirements = _build_continuity_requirements(shot)
-    payload = {
-        "shot": {
-            "id": shot.id,
-            "index": shot.index,
-            "description": shot.description or "",
-            "video_description": shot.video_description or "",
-            "characters": _safe_json_list(shot.characters),
-            "scene": shot.scene or "",
-            "props": _safe_json_list(shot.props),
-            "duration": shot.duration or 4,
-            "continuity_mode": shot.continuity_mode or "NORMAL",
-            "dialogues": _safe_json_list(shot.dialogues),
-        },
-        "workflow_capability": workflow_capability,
-        "continuity_requirements": continuity_requirements,
-    }
-    return "请根据以下正式保存的 Shot 与 Workflow 能力推荐视频生成模式。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
-
-
 def _build_continuity_requirements(shot) -> dict:
     is_continuous_take = (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE"
     if is_continuous_take:
@@ -1508,33 +1478,6 @@ def _build_continuity_requirements(shot) -> dict:
             "Do not confuse NORMAL with permission to break character identity, geography, props, or dialogue continuity.",
         ],
     }
-
-
-def _parse_recommended_mode(content: str, duration: int, workflow_capability: dict) -> str:
-    try:
-        parsed = json.loads(content.strip())
-    except Exception:
-        start = content.find("{")
-        end = content.rfind("}")
-        parsed = json.loads(content[start:end + 1]) if start >= 0 and end > start else {}
-    mode = parsed.get("recommended_mode")
-    if mode not in VIDEO_MODE_LABELS:
-        mode = "MULTI_KEYFRAME" if duration > workflow_capability["max_clip_duration"] else "SINGLE_FRAME"
-    if mode == "FIRST_LAST_FRAME" and duration > workflow_capability["max_clip_duration"]:
-        mode = "MULTI_KEYFRAME"
-    return mode
-
-
-def _build_video_mode_reason(shot, mode: str, workflow_capability: dict) -> str:
-    duration = shot.duration or 4
-    max_clip_duration = workflow_capability["max_clip_duration"]
-    if duration > max_clip_duration:
-        return f"{duration} 秒超过当前 Workflow 单次最大 {max_clip_duration} 秒，V1 请使用多关键帧拆分为多个 Clip。"
-    if mode == "SINGLE_FRAME":
-        return f"{duration} 秒不超过当前 Workflow 单次最大 {max_clip_duration} 秒，适合由主分镜图驱动的简单 Shot。"
-    if mode == "FIRST_LAST_FRAME":
-        return f"{duration} 秒不超过当前 Workflow 单次最大 {max_clip_duration} 秒，适合用起点与终点共同约束画面变化。"
-    return "该 Shot 存在较强连续性或多阶段视觉变化，建议使用多关键帧保持画面稳定。"
 
 
 def _build_clip_plan(duration: int, max_clip_duration: int) -> list:
@@ -2334,112 +2277,6 @@ async def _plan_keyframe_transitions(
             )},
         })
     return transitions
-
-
-@router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/recommend",
-    response_model=dict,
-)
-async def recommend_video_mode(
-    novel_id: str,
-    chapter_id: str,
-    shot_id: str,
-    request: RecommendVideoModeRequest = RecommendVideoModeRequest(),
-    db: Session = Depends(get_db),
-    novel_repo: NovelRepository = Depends(get_novel_repo),
-    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
-    shot_repo: ShotRepository = Depends(get_shot_repo),
-    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
-    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
-    llm_service: LLMService = Depends(get_llm_service),
-):
-    shot = shot_repo.get_by_id(shot_id)
-    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-    if not chapter or not shot or shot.chapter_id != chapter_id:
-        raise HTTPException(status_code=404, detail="分镜不存在")
-    plan = _safe_json_dict(shot.video_director_plan)
-    if plan.get("canonical_visual_plan") is True:
-        return {"success": True, "data": plan}
-    _reject_retired_h3_entry()
-
-
-async def _recommend_legacy_video_mode(
-    novel_id, chapter_id, shot_id, request, db, novel_repo, chapter_repo,
-    shot_repo, workflow_repo, template_repo, llm_service,
-):
-    """Compatibility for already-persisted legacy batch jobs; no HTTP entry."""
-    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-    if not chapter:
-        raise HTTPException(status_code=404, detail="章节不存在")
-    novel = novel_repo.get_by_id(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说不存在")
-    shot = shot_repo.get_by_id(shot_id)
-    if not shot or shot.chapter_id != chapter_id:
-        raise HTTPException(status_code=404, detail="分镜不存在")
-
-    existing_plan = _safe_json_dict(shot.video_director_plan)
-    if existing_plan.get("canonical_visual_plan") is True:
-        return {"success": True, "data": existing_plan}
-    if existing_plan.get("recommended_mode") and not request.force:
-        return {"success": True, "data": existing_plan}
-
-    workflow = workflow_repo.get_active_by_type("video")
-    workflow_capability = _get_video_workflow_capability(workflow)
-    template = _get_video_mode_template(novel, template_repo)
-    result = await llm_service.chat_completion(
-        system_prompt=template.template,
-        user_content=_build_video_mode_user_content(shot, workflow_capability),
-        temperature=0.2,
-        max_tokens=512,
-        response_format="json_object",
-        task_type="video_mode_recommender",
-        prompt_template_name=template.name,
-        novel_id=novel.id,
-        chapter_id=chapter.id,
-        shot_id=shot.id,
-    )
-    if not result.get("success"):
-        raise HTTPException(status_code=500, detail=result.get("error") or "视频生成模式推荐失败")
-
-    duration = shot.duration or 4
-    selected_mode = _parse_recommended_mode(result.get("content") or "{}", duration, workflow_capability)
-    max_clip_duration = workflow_capability["max_clip_duration"]
-    parsed_result = {"recommended_mode": selected_mode}
-    execution_windows = _build_execution_windows(duration, max_clip_duration) if selected_mode == "MULTI_KEYFRAME" else []
-    if selected_mode == "FIRST_LAST_FRAME":
-        clips = _build_first_last_clip_plan(duration)
-    else:
-        clips = [] if selected_mode == "MULTI_KEYFRAME" else _build_clip_plan(duration, max_clip_duration)
-    keyframes = _build_minimal_keyframes(shot, selected_mode, max_clip_duration)
-    plan = _merge_video_director_plan(shot, {
-        "selected_mode": selected_mode,
-        "recommended_mode": selected_mode,
-        "recommended_label": VIDEO_MODE_LABELS[selected_mode],
-        "recommendation_reason": _build_video_mode_reason(shot, selected_mode, workflow_capability),
-        "workflow_capability": workflow_capability,
-        "first_last_available": duration <= max_clip_duration,
-        "notice": f"V1: {duration}s > {max_clip_duration}s，FIRST_LAST_FRAME 不可执行；请使用多关键帧" if duration > max_clip_duration else "",
-        "execution_windows": execution_windows,
-        "clips": clips,
-        "keyframes": keyframes,
-        "window_plans": [],
-    })
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    plan = append_video_ai_call(shot, {
-        "step": "07",
-        "task_type": "video_mode_recommender",
-        "prompt_template_name": template.name,
-        "status": "success",
-        "input_summary": f"Shot {shot.index} · duration {duration}s · max {max_clip_duration}s",
-        "response": result.get("content") or "",
-        "parsed_result": parsed_result,
-    })
-    updates = {"video_director_plan": plan}
-    if selected_mode == "FIRST_LAST_FRAME":
-        updates["keyframes"] = _build_legacy_keyframes_from_plan(shot, keyframes)
-    shot_repo.update(shot, **updates)
-    return {"success": True, "data": plan}
 
 
 @router.post(
@@ -3632,53 +3469,35 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
     shot_repo = ShotRepository(db)
     workflow_repo = WorkflowRepository(db)
     template_repo = PromptTemplateRepository(db)
-    llm_service = LLMService()
     shot = shot_repo.get_by_id(child_task.shot_id)
     if not shot or shot.chapter_id != child_task.chapter_id:
         raise ValueError("批量任务对应的分镜不存在")
 
     plan = _safe_json_dict(shot.video_director_plan)
-    selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
-    if not selected_mode:
-        await _recommend_legacy_video_mode(
-            child_task.novel_id,
-            child_task.chapter_id,
-            child_task.shot_id,
-            RecommendVideoModeRequest(force=False),
-            db,
-            novel_repo,
-            chapter_repo,
-            shot_repo,
-            workflow_repo,
-            template_repo,
-            llm_service,
-        )
-        db.expire_all()
-        shot = shot_repo.get_by_id(child_task.shot_id)
-        plan = _safe_json_dict(shot.video_director_plan)
-        selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+    if plan.get("canonical_visual_plan") is True:
+        return plan.get("selected_mode") or "SINGLE_FRAME"
 
-    if selected_mode == "FIRST_LAST_FRAME":
-        capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
-        max_clip_duration = clip_duration_maximum(capability)
-        if (shot.duration or 4) > max_clip_duration:
-            await _recommend_legacy_video_mode(
-                child_task.novel_id,
-                child_task.chapter_id,
-                child_task.shot_id,
-                RecommendVideoModeRequest(force=True),
-                db,
-                novel_repo,
-                chapter_repo,
-                shot_repo,
-                workflow_repo,
-                template_repo,
-                llm_service,
-            )
-            db.expire_all()
-            shot = shot_repo.get_by_id(child_task.shot_id)
-            plan = _safe_json_dict(shot.video_director_plan)
-            selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+    selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+    capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
+    if not capability:
+        capability = _get_video_workflow_capability(workflow_repo.get_active_by_type("video"))
+    duration = shot.duration or 4
+    max_clip_duration = clip_duration_maximum(capability)
+    if selected_mode not in VIDEO_MODE_LABELS or (selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration):
+        # Resume old batch jobs deterministically, without the removed LLM mode recommender.
+        selected_mode = "MULTI_KEYFRAME" if duration > max_clip_duration else "SINGLE_FRAME"
+        keyframes = _build_minimal_keyframes(shot, selected_mode, max_clip_duration)
+        plan = _merge_video_director_plan(shot, {
+            "selected_mode": selected_mode,
+            "recommended_mode": selected_mode,
+            "workflow_capability": capability,
+            "first_last_available": duration <= max_clip_duration,
+            "execution_windows": _build_execution_windows(duration, max_clip_duration) if selected_mode == "MULTI_KEYFRAME" else [],
+            "clips": [],
+            "keyframes": keyframes,
+            "window_plans": [],
+        })
+        shot_repo.update(shot, video_director_plan=plan)
 
     if selected_mode in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
         needs_plan = (
@@ -3696,9 +3515,8 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
                 novel_repo,
                 chapter_repo,
                 shot_repo,
-                workflow_repo,
                 template_repo,
-                llm_service,
+                LLMService(),
             )
             db.expire_all()
             shot = shot_repo.get_by_id(child_task.shot_id)

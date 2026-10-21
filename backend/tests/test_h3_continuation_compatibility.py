@@ -171,14 +171,29 @@ def test_two_pass_continuation_uses_first_pass_masked_context(physical):
     assert cont.continuation_contract(w,'EXTEND',path,ctx)['binding_verified'] is True
 
 
-@pytest.mark.parametrize('broken_link', ['first_pass','upscale','guider','output','mapped_output','finalizer'])
+def test_native_continuation_ignores_separate_second_pass_render(physical):
+    w,path,ctx=physical
+    graph=json.loads(w.workflow_json)
+    graph['156']={'class_type':'MiniMaxH3ChainPass2Prepare',
+                  'inputs':{'upscaled_video':['150',0],'source_audio':['149',1]}}
+    graph['158']={'class_type':'SamplerCustomAdvanced',
+                  'inputs':{'latent_image':['156',0],'guider':['157',0]}}
+    graph['161']={'class_type':'SaveVideo','inputs':{'video':['160',0]}}
+    w.workflow_json=json.dumps(graph)
+    assert cont.continuation_contract(w,'EXTEND',path,ctx)['binding_verified'] is True
+    graph['65']['inputs']['extension_1']=['158',0]
+    w.workflow_json=json.dumps(graph)
+    with pytest.raises(ValueError,match='PREVIOUS_AV_BINDING_UNVERIFIED'):
+        cont.continuation_contract(w,'EXTEND',path,ctx)
+
+
+@pytest.mark.parametrize('broken_link', ['first_pass','upscale','guider','mapped_output','finalizer'])
 def test_two_pass_continuation_rejects_disconnected_source(physical,broken_link):
     w,path,ctx=physical
     graph=two_pass_graph(w)
     if broken_link=='first_pass':graph['3']['inputs']['latent_image']=['55',1]
     elif broken_link=='upscale':graph['116']['inputs']['samples']=['55',1]
     elif broken_link=='guider':graph['117']['inputs']['conditioning']=['55',0]
-    elif broken_link=='output':graph['65']['inputs']['extension_1']=['3',0]
     elif broken_link=='mapped_output':
         mapping=json.loads(w.node_mapping);mapping['video_save_node_id']='39'
         w.node_mapping=json.dumps(mapping)

@@ -87,13 +87,13 @@ def test_shot12_c2_saved_16_5s_one_call_and_authority(monkeypatch):
                  "visual_controls": [{"index": 6, "description": "皇帝重新挺直"}],
                  "transitions": [{"canonical_source_id": "transition_5", "execution_scope": "Only unfinished action"}],
                  "dialogue_timeline_source": assigned},
-        route="single", template_type="h3_single_frame_prompt", novel_id="novel", chapter_id="chapter",
+        route="single", template_type="h3_multi_keyframe_prompt", novel_id="novel", chapter_id="chapter",
         assigned_dialogues=assigned, visible_characters=list(names.values()),
         picture_mapping=[{"picture_index": i} for i in range(1, 9)],
         reference_manifest={"references": refs}, temporal_anchors=[],
         experiment={"verified_timing": timing, "verified_continuation": continuation,
                     "previous_video_path": "/saved/previous.mp4"}, llm=llm))
-    assert len(llm.calls) == 1 and llm.calls[0]["task_type"] == "h3_single_frame_prompt"
+    assert len(llm.calls) == 1 and llm.calls[0]["task_type"] == "h3_multi_keyframe_prompt"
     assert len(llm.calls[0]["images"]) == 13
     assert result["image_input_order"] == [f"<Picture {i}>" for i in range(1, 9)] + [f"PreviousFrame{i}" for i in range(1, 6)]
     assert result["anchor_selection"] == "NOT_REQUIRED" and result["ready_for_h3_experiment"]
@@ -146,8 +146,8 @@ def test_existing_builder_three_routes_explicit_preview_no_write(monkeypatch, ro
         resolved_dialogue_timeline=[], single_stage_experiment={"enabled": True,
             "verified_timing": {"optimized_duration": 4, "dialogue_events": []}}))
     assert result["route"] == route and result["ready_for_h3_experiment"]
-    assert llm.calls[0]["task_type"] == {"single": "h3_single_frame_prompt",
-                                          "endpoint": "h3_first_last_frame_prompt",
+    assert llm.calls[0]["task_type"] == {"single": "h3_multi_keyframe_prompt",
+                                          "endpoint": "h3_multi_keyframe_prompt",
                                           "multi": "h3_multi_keyframe_prompt"}[route]
     assert len(llm.calls) == 1 and not commits and not hasattr(shot, "video_ai_calls")
     assert list(sections(result["prompt"])) == list(stage.sections(body))
@@ -171,7 +171,7 @@ def test_multi_anchor_keeps_manifest_and_marks_selection_uncovered(monkeypatch):
         payload={"clip": {"capability": "GENERATE"}, "visual_controls": [
             {"index": 1, "description": "Mira at door"}, {"index": 2, "description": "Mira at table"}],
             "transitions": [{"transition_description": "Mira moves from door to table"}]},
-        route="endpoint", template_type="h3_first_last_frame_prompt", novel_id="novel", chapter_id="chapter",
+        route="endpoint", template_type="h3_multi_keyframe_prompt", novel_id="novel", chapter_id="chapter",
         assigned_dialogues=[], visible_characters=["Mira"],
         picture_mapping=[{"picture_index": 1, "source_keyframe_index": 1},
                          {"picture_index": 2, "source_keyframe_index": 2}],
@@ -365,7 +365,7 @@ def test_authority_owned_preview_flag_is_isolated_and_never_ready(monkeypatch):
     llm = FakeLLM((SAVED_SINGLE_STAGE / "single_stage_raw_output.txt").read_text())
     result = asyncio.run(stage.preview_single_stage_h3(
         payload={"clip": {"capability": "EXTEND"}}, route="single",
-        template_type="h3_single_frame_prompt", novel_id="novel", chapter_id="chapter",
+        template_type="h3_multi_keyframe_prompt", novel_id="novel", chapter_id="chapter",
         assigned_dialogues=assigned, visible_characters=list(names.values()),
         picture_mapping=[{"picture_index": i} for i in range(1, 9)],
         reference_manifest={"references": refs}, temporal_anchors=[],
@@ -398,7 +398,7 @@ def test_authority_owned_director_only_uses_ordered_slots_and_backend_sections(m
     llm = FakeLLM(director)
     result = asyncio.run(stage.preview_single_stage_h3(
         payload={"clip": {"capability": "EXTEND"}}, route="single",
-        template_type="h3_single_frame_prompt", novel_id="novel", chapter_id="chapter",
+        template_type="h3_multi_keyframe_prompt", novel_id="novel", chapter_id="chapter",
         assigned_dialogues=[{"id": item["id"], "speaker": names[item["speaker"]],
                              "text": item["exact_dialogue"], "duration": item["duration"]}
                             for item in case["authority"]["dialogue_events"]],

@@ -34,6 +34,17 @@ export const api = {
     return res.json();
   },
 
+  patch: async <T>(url: string, body: unknown): Promise<{ success: boolean; data?: T; message?: string }> => {
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    if (!res.ok) return { success: false, message: result.detail || result.message || '请求失败' };
+    return result;
+  },
+
   delete: async <T>(url: string): Promise<{ success: boolean; data?: T; message?: string }> => {
     const res = await fetch(`${API_BASE}${url}`, { method: 'DELETE' });
     return res.json();

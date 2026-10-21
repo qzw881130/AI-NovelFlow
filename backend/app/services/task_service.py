@@ -241,8 +241,6 @@ class TaskService:
         if task.type != "shot_video" or not task.chapter_id:
             return
         h3_task_types = [
-            "h3_single_frame_prompt",
-            "h3_first_last_frame_prompt",
             "h3_multi_keyframe_prompt",
             "h3_multi_keyframe_director_phase_b",
         ]

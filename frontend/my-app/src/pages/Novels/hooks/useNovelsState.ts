@@ -14,7 +14,7 @@ const TEMPLATE_TYPES = TEMPLATE_FIELDS.map(field => field.templateType);
 
 export function useNovelsState() {
   const { t } = useTranslation();
-  const { novels, isLoading, fetchNovels, createNovel, copyNovel: copyNovelRequest, deleteNovel, importNovel, updateNovel } = useNovelStore();
+  const { novels, isLoading, fetchNovels, createNovel, copyNovel: copyNovelRequest, deleteNovel, importNovel, updateNovel, setNovelArchived } = useNovelStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -244,6 +244,7 @@ export function useNovelsState() {
     copyNovel,
     deleteNovel,
     updateNovel,
+    setNovelArchived,
     handleImport,
     openParseConfirm,
     closeParseConfirm,

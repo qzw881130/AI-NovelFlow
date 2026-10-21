@@ -194,8 +194,9 @@ export const llmLogsApi = {
     return api.get<LLMLogTokenStatsResponse>(`/llm-logs/token-stats?${params}`);
   },
 
-  /** 按小说、章回、Shot 汇总所有历史日志中的供应商 Token 回执 */
-  fetchTokenUsageHierarchy: () => api.get<TokenUsageHierarchy>('/llm-logs/token-usage/hierarchy'),
+  /** 按小说归档状态、章回、Shot 汇总历史日志中的供应商 Token 回执 */
+  fetchTokenUsageHierarchy: (scope: 'active' | 'archived' | 'all' = 'active') =>
+    api.get<TokenUsageHierarchy>(`/llm-logs/token-usage/hierarchy?scope=${scope}`),
 
   /** 打包下载所选日志的完整 LLM 参数与响应 */
   downloadSelected: async (ids: string[]) => {

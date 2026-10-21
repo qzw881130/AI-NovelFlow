@@ -730,8 +730,6 @@
     "backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V1.txt": "3ccfe43e13910c4193ee7c211351694195f78191e6f8ea4d985c30a28559ba36",
     "backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt": "710702922247e6ac7a85e8121a3294c3969f3c4299d8bc3c163c5043abbbd10c",
     "backend/prompt_templates/08_NovelFlow_VisualAttentionReplan_V1.txt": "5f19d1bf30c77a85b9b6fb8a1adafe44562a0414e9d09d7c256e811cce90505f",
-    "backend/prompt_templates/11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt": "1ea0cb25be2c6ec90ce44bea477f2f9f16be12a8b68be3ec484313a26b7ccb93",
-    "backend/prompt_templates/12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt": "c661f8b080b2f231a399a9e38333509cd9c753d35e3171457b795ccb137f5e96",
     "backend/prompt_templates/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt": "1a59220b39474966c9e75c8ecd2671c5ed37457a86950c18ac030ae378b54590",
     "backend/workflows/Qwen3-TTS-Voice-Clone.json": "f387fd3099913ed572337817c5d28664e2a130c49316e6813da1e97952014391",
     "backend/workflows/Qwen3-TTS-Voice-Design.json": "aad01dc738896873e61a9f7c9729b4918e177597b3f504c8005f62ed8bb1d039",

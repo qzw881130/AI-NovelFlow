@@ -64,8 +64,10 @@ def continuation_contract(workflow, capability, previous_path, context):
     starters = [(node_id, inputs) for node_id, inputs in samplers
                 if inputs.get("latent_image") == [masked_id, 0]]
     sampler_path_verified = False
-    if len(starters) == 1 and len(samplers) == 1:
-        sampler_path_verified = native.get("extension_1") == [starters[0][0], 0]
+    # A downstream render/upscale branch may have its own sampler. It does not
+    # change the native AV output when extension_1 still uses the masked starter.
+    if len(starters) == 1 and native.get("extension_1") == [starters[0][0], 0]:
+        sampler_path_verified = True
     elif len(starters) == 1 and len(samplers) == 2:
         first_id = starters[0][0]
         second_id, second = next((node_id, inputs) for node_id, inputs in samplers

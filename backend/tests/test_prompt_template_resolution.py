@@ -35,7 +35,6 @@ def template(db, kind, *, template_id=None, system=False, active=True, created_a
 
 @pytest.mark.parametrize("kind,getter", [
     ("shot_image_prompt", shot_api._get_shot_image_prompt_template),
-    ("video_mode_recommender", shot_api._get_video_mode_template),
     ("keyframe_planner", shot_api._get_keyframe_planner_template),
     ("keyframe_transition", shot_api._get_keyframe_transition_template),
 ])
@@ -140,7 +139,7 @@ async def test_character_worker_uses_active_character_template_without_comfyui(
 
 
 @pytest.mark.parametrize("kind", [
-    "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt",
+    "h3_multi_keyframe_prompt",
     "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt",
 ])
 def test_h3_existing_valid_selection_behavior_is_preserved(db_session, kind):

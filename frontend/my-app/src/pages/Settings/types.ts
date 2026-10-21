@@ -56,6 +56,8 @@ export interface Workflow {
     custom_keyframes_node_id?: string;
     second_pass_upscale_step_node_id?: string;
     second_pass_upscale_step?: string;
+    second_pass_upscale_scale_node_id?: string;
+    second_pass_upscale_scale?: string;
   };
   extension?: {
     [key: string]: any;
@@ -127,6 +129,8 @@ export interface MappingForm {
   customKeyframesNodeId?: string;
   secondPassUpscaleStepNodeId?: string;
   secondPassUpscaleStep?: string;
+  secondPassUpscaleScaleNodeId?: string;
+  secondPassUpscaleScale?: string;
 }
 
 export interface AvailableNodes {
@@ -134,6 +138,7 @@ export interface AvailableNodes {
   saveImage: string[];
   easyInt: string[];
   secondPassStepNodes: string[];
+  secondPassScaleNodes: string[];
   easyFloat: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];

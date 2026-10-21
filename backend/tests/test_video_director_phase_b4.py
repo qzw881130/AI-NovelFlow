@@ -336,9 +336,7 @@ async def test_b4_31_to_33_all_h3_capabilities_consume_same_soft_contract(monkey
             return {"success": True, "content": data["llm_response"]}
     monkeypatch.setattr(ai, "LLMService", FakeLLM)
     monkeypatch.setattr(ai, "get_visual_prop_names", lambda db, nid, props: props)
-    files = {"h3_single_frame_prompt": "11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt",
-             "h3_first_last_frame_prompt": "12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt",
-             "h3_multi_keyframe_prompt": "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"}
+    files = {"h3_multi_keyframe_prompt": "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"}
     monkeypatch.setattr(ai, "resolve_prompt_template", lambda db, novel, attr, kind: SimpleNamespace(
         name=kind, template=(ROOT / "backend/prompt_templates" / files[kind]).read_text()))
     shot = SimpleNamespace(**data["shot"], video_director_plan=json.dumps(data["plan"]))
@@ -417,7 +415,7 @@ def test_b4_37_production_logical_rows_schema_and_templates_are_frozen_read_only
         db.close()
 
 
-def test_b4_38_workflows_and_08_11_12_13_templates_are_frozen():
+def test_b4_38_workflows_and_active_templates_are_frozen():
     for path, expected in fixture()["frozen_files"].items():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == expected
 

@@ -6,6 +6,14 @@ export const formatUserFacingError = (message?: unknown): string => {
     return '视频导演提示词未通过结构校验，视频尚未提交生成。请重试当前 Shot；如果持续失败，请检查 Phase B 提示词格式。';
   }
 
+  if (rawMessage.includes('PREVIOUS_AV_BINDING_UNVERIFIED')) {
+    return '上一段音视频的续接绑定未通过验证：当前工作流的原生遮罩上下文节点路径与系统已验证的结构不一致。Clip 在 H3 Phase B 输入校验时停止，尚未提交 ComfyUI。请检查续接工作流的采样、放大和输出节点连接，或选择已验证的续接工作流。';
+  }
+
+  if (rawMessage.includes('PHASE_B_INPUT_NOT_COVERED')) {
+    return 'H3 Phase B 输入校验未通过，当前 Clip 尚未提交视频生成。请展开原始错误查看具体原因，并检查所选工作流及生成输入。';
+  }
+
   const lowerMessage = rawMessage.toLowerCase();
   const isAuthError = lowerMessage.includes('authentication fails')
     || lowerMessage.includes('unauthorized')

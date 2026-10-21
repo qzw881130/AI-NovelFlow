@@ -39,15 +39,12 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "chapterSplitPromptTemplateId", "attr": "chapter_split_prompt_template_id", "label": "分镜拆分提示词模板", "type": "chapter_split"},
     {"api_key": "keyframeDescriptionPromptTemplateId", "attr": "keyframe_description_prompt_template_id", "label": "关键帧描述提示词模板", "type": "keyframe_description"},
     {"api_key": "shotImagePromptTemplateId", "attr": "shot_image_prompt_template_id", "label": "主分镜图提示词模板", "type": "shot_image_prompt"},
-    {"api_key": "videoModeRecommenderPromptTemplateId", "attr": "video_mode_recommender_prompt_template_id", "label": "视频生成模式推荐提示词模板", "type": "video_mode_recommender"},
     {"api_key": "keyframePlannerPromptTemplateId", "attr": "keyframe_planner_prompt_template_id", "label": "关键帧时间轴规划提示词模板", "type": "keyframe_planner"},
     {"api_key": "keyframeImagePromptTemplateId", "attr": "keyframe_image_prompt_template_id", "label": "关键帧生图提示词模板", "type": "keyframe_image_prompt"},
     {"api_key": "temporalReferenceSelectorPromptTemplateId", "attr": "temporal_reference_selector_prompt_template_id", "label": "时序锚点参考选择器", "type": "temporal_reference_selector"},
     {"api_key": "imageQualityReviewPromptTemplateId", "attr": "image_quality_review_prompt_template_id", "label": "AI 图片质量评审", "type": "image_quality_review_prompt"},
     {"api_key": "keyframeTransitionPromptTemplateId", "attr": "keyframe_transition_prompt_template_id", "label": "关键帧过渡规划提示词模板", "type": "keyframe_transition"},
     {"api_key": "clipExecutionPlannerPromptTemplateId", "attr": "clip_execution_planner_prompt_template_id", "label": "视频片段执行规划", "type": "clip_execution_planner"},
-    {"api_key": "h3SingleFramePromptTemplateId", "attr": "h3_single_frame_prompt_template_id", "label": "H3 单帧视频提示词模板", "type": "h3_single_frame_prompt"},
-    {"api_key": "h3FirstLastFramePromptTemplateId", "attr": "h3_first_last_frame_prompt_template_id", "label": "H3 首尾帧视频提示词模板", "type": "h3_first_last_frame_prompt"},
     {"api_key": "h3MultiKeyframePromptTemplateId", "attr": "h3_multi_keyframe_prompt_template_id", "label": "H3 多关键帧视频提示词模板", "type": "h3_multi_keyframe_prompt"},
     {"api_key": "h3MultiKeyframeDirectorPhaseBTemplateId", "attr": "h3_multi_keyframe_director_phase_b_template_id", "label": "H3 单阶段导演规划（Phase B）", "type": "h3_multi_keyframe_director_phase_b"},
     {"api_key": "h3ExecutionOptimizerPromptTemplateId", "attr": "h3_execution_optimizer_prompt_template_id", "label": "H3 执行提示词优化模板", "type": "h3_execution_optimizer_prompt"},
@@ -57,6 +54,10 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
 
 class PromptTemplatesExportRequest(BaseModel):
     templateIds: dict = {}
+
+
+class NovelArchiveRequest(BaseModel):
+    isArchived: bool
 
 
 def _safe_filename_part(value: str) -> str:
@@ -112,15 +113,12 @@ def create_novel_in_session(novel: NovelCreate, db: Session) -> Novel:
         chapter_split_prompt_template_id=novel.chapter_split_prompt_template_id,
         keyframe_description_prompt_template_id=novel.keyframe_description_prompt_template_id,
         shot_image_prompt_template_id=novel.shot_image_prompt_template_id,
-        video_mode_recommender_prompt_template_id=novel.video_mode_recommender_prompt_template_id,
         keyframe_planner_prompt_template_id=novel.keyframe_planner_prompt_template_id,
         keyframe_image_prompt_template_id=novel.keyframe_image_prompt_template_id,
         temporal_reference_selector_prompt_template_id=novel.temporal_reference_selector_prompt_template_id,
         image_quality_review_prompt_template_id=novel.image_quality_review_prompt_template_id,
         keyframe_transition_prompt_template_id=novel.keyframe_transition_prompt_template_id,
         clip_execution_planner_prompt_template_id=novel.clip_execution_planner_prompt_template_id,
-        h3_single_frame_prompt_template_id=novel.h3_single_frame_prompt_template_id,
-        h3_first_last_frame_prompt_template_id=novel.h3_first_last_frame_prompt_template_id,
         h3_multi_keyframe_prompt_template_id=novel.h3_multi_keyframe_prompt_template_id,
         h3_multi_keyframe_director_phase_b_template_id=novel.h3_multi_keyframe_director_phase_b_template_id,
         h3_execution_optimizer_prompt_template_id=novel.h3_execution_optimizer_prompt_template_id,
@@ -147,6 +145,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "description": db_novel.description,
             "cover": db_novel.cover,
             "status": db_novel.status,
+            "isArchived": bool(db_novel.is_archived),
             "chapterCount": db_novel.chapter_count,
             "storyWorldContextPromptTemplateId": db_novel.story_world_context_prompt_template_id,
             "stylePromptTemplateId": db_novel.style_prompt_template_id,
@@ -161,15 +160,12 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "chapterSplitPromptTemplateId": db_novel.chapter_split_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": db_novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": db_novel.shot_image_prompt_template_id,
-            "videoModeRecommenderPromptTemplateId": db_novel.video_mode_recommender_prompt_template_id,
             "keyframePlannerPromptTemplateId": db_novel.keyframe_planner_prompt_template_id,
             "keyframeImagePromptTemplateId": db_novel.keyframe_image_prompt_template_id,
             "temporalReferenceSelectorPromptTemplateId": db_novel.temporal_reference_selector_prompt_template_id,
             "imageQualityReviewPromptTemplateId": db_novel.image_quality_review_prompt_template_id,
             "keyframeTransitionPromptTemplateId": db_novel.keyframe_transition_prompt_template_id,
             "clipExecutionPlannerPromptTemplateId": db_novel.clip_execution_planner_prompt_template_id,
-            "h3SingleFramePromptTemplateId": db_novel.h3_single_frame_prompt_template_id,
-            "h3FirstLastFramePromptTemplateId": db_novel.h3_first_last_frame_prompt_template_id,
             "h3MultiKeyframePromptTemplateId": db_novel.h3_multi_keyframe_prompt_template_id,
             "h3MultiKeyframeDirectorPhaseBTemplateId": db_novel.h3_multi_keyframe_director_phase_b_template_id,
             "h3ExecutionOptimizerPromptTemplateId": db_novel.h3_execution_optimizer_prompt_template_id,
@@ -384,6 +380,22 @@ async def export_novel_prompt_templates(
     )
 
 
+@router.patch("/{novel_id}/archive", response_model=dict)
+def set_novel_archive_state(
+    novel_id: str,
+    request: NovelArchiveRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    novel.is_archived = request.isArchived
+    db.commit()
+    db.refresh(novel)
+    return {"success": True, "data": novel_repo.to_response(novel)}
+
+
 @router.put("/{novel_id}", response_model=dict)
 async def update_novel(
     novel_id: str, 
@@ -414,15 +426,12 @@ async def update_novel(
         "chapterSplitPromptTemplateId": "chapter_split_prompt_template_id",
         "keyframeDescriptionPromptTemplateId": "keyframe_description_prompt_template_id",
         "shotImagePromptTemplateId": "shot_image_prompt_template_id",
-        "videoModeRecommenderPromptTemplateId": "video_mode_recommender_prompt_template_id",
         "keyframePlannerPromptTemplateId": "keyframe_planner_prompt_template_id",
         "keyframeImagePromptTemplateId": "keyframe_image_prompt_template_id",
         "temporalReferenceSelectorPromptTemplateId": "temporal_reference_selector_prompt_template_id",
         "imageQualityReviewPromptTemplateId": "image_quality_review_prompt_template_id",
         "keyframeTransitionPromptTemplateId": "keyframe_transition_prompt_template_id",
         "clipExecutionPlannerPromptTemplateId": "clip_execution_planner_prompt_template_id",
-        "h3SingleFramePromptTemplateId": "h3_single_frame_prompt_template_id",
-        "h3FirstLastFramePromptTemplateId": "h3_first_last_frame_prompt_template_id",
         "h3MultiKeyframePromptTemplateId": "h3_multi_keyframe_prompt_template_id",
         "h3MultiKeyframeDirectorPhaseBTemplateId": "h3_multi_keyframe_director_phase_b_template_id",
         "h3ExecutionOptimizerPromptTemplateId": "h3_execution_optimizer_prompt_template_id",

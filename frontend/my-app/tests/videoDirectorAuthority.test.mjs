@@ -17,7 +17,6 @@ const {
   getCanonicalVisualStates,
   getRequiredMissingCanonicalVisualStates,
   isCanonicalVisualPlan,
-  shouldAutoRecommendLegacyVideoMode,
 } = await import(moduleUrl);
 
 const makeCanonicalPlan = (count) => ({
@@ -73,21 +72,6 @@ test('D-F: canonical image status distinguishes required, optional, and ready', 
   assert.equal(classifyVisualStateImageStatus({ index: 4, time_seconds: 15, role: 'END', timed_visual_target: true }, '/ready.png'), 'READY');
 });
 
-test('canonical plan without recommended_mode suppresses automatic legacy #07', () => {
-  const canonicalPlan = {
-    canonical_visual_plan: true,
-    keyframes: [
-      { index: 1, time_seconds: 0, role: 'START', timed_visual_target: false },
-      { index: 2, time_seconds: 6, role: 'INTERMEDIATE', timed_visual_target: false },
-      { index: 3, time_seconds: 12, role: 'INTERMEDIATE', timed_visual_target: true },
-      { index: 4, time_seconds: 18, role: 'INTERMEDIATE', timed_visual_target: true },
-      { index: 5, time_seconds: 24, role: 'END', timed_visual_target: false },
-    ],
-  };
-
-  assert.equal(shouldAutoRecommendLegacyVideoMode(canonicalPlan, 'shot-1', null), false);
-});
-
 test('H: canonical planning ignores selected_frame_count and window plans', () => {
   const plan = {
     ...makeCanonicalPlan(5),
@@ -137,12 +121,6 @@ test('J: canonical adjacent transitions come from plan.transitions', () => {
 test('K: canonical path cannot use legacy shot generation fallback', () => {
   assert.equal(canUseLegacyShotGeneration(makeCanonicalPlan(3)), false);
   assert.equal(canUseLegacyShotGeneration({}), false);
-});
-
-test('historical noncanonical plan never starts a new legacy #07 call', () => {
-  assert.equal(shouldAutoRecommendLegacyVideoMode({}, 'shot-1', null), false);
-  assert.equal(shouldAutoRecommendLegacyVideoMode({ recommended_mode: 'MULTI_KEYFRAME' }, 'shot-1', null), false);
-  assert.equal(shouldAutoRecommendLegacyVideoMode({}, 'shot-1', 'shot-1'), false);
 });
 
 test('canonical ordinary Shot save never sends a browser-held full plan snapshot', () => {

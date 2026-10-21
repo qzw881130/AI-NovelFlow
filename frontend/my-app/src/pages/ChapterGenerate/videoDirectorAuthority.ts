@@ -91,11 +91,3 @@ export function buildVideoDirectorShotSavePayload(shot: {
   }
   return payload;
 }
-
-export function shouldAutoRecommendLegacyVideoMode(
-  plan: VideoDirectorPlan,
-  currentShotId: string,
-  recommendingShotId: string | null,
-): boolean {
-  return false; // #07 is no longer a new-task mode selector.
-}

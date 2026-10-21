@@ -43,8 +43,6 @@ def test_migration_preview_apply_and_idempotence(tmp_path):
         ("chapter_split", "章节分镜导演解析"): "05_NovelFlow_VideoDirector_ShotDirector_V1.txt",
         ("keyframe_planner", "关键帧时间轴规划"): "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt",
         ("keyframe_transition", "关键帧过渡规划"): "10_NovelFlow_KeyframeTransition_Planner_V1.txt",
-        ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"): "11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt",
-        ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"): "12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt",
         ("h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建"): "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt",
     }
     with sqlite3.connect(database) as db:

@@ -1,4 +1,4 @@
-"""Retire business entries without touching workflow execution or historical rows."""
+"""Removed prompt types and retired physical workflows stay out of new execution."""
 import json
 from types import SimpleNamespace
 
@@ -21,11 +21,9 @@ from app.services import video_director_ai as ai
     [{'index': 1, 'role': 'START'}, {'index': 2, 'role': 'END'}],
     [{'index': 1, 'role': 'START'}, {'index': 2}, {'index': 3, 'role': 'END'}]])
 async def test_formal_builder_uses_13_override_for_every_control_shape(db_session, monkeypatch, states):
-    old = PromptTemplate(id='legacy', name='legacy override', type='h3_single_frame_prompt', template='DO NOT USE', is_active=True)
     current = PromptTemplate(id='current', name='13 override', type='h3_multi_keyframe_prompt', template='FORMAL 13', is_active=True)
-    db_session.add_all([old, current]); db_session.commit()
-    novel = SimpleNamespace(id='novel', h3_single_frame_prompt_template_id=old.id,
-        h3_first_last_frame_prompt_template_id=old.id, h3_multi_keyframe_prompt_template_id=current.id)
+    db_session.add(current); db_session.commit()
+    novel = SimpleNamespace(id='novel', h3_multi_keyframe_prompt_template_id=current.id)
     shot = SimpleNamespace(id='shot', index=1, chapter_id='chapter', description='', video_description='',
         duration=8, continuity_mode='NORMAL', characters='[]', scene='', props='[]', dialogues='[]', video_director_plan='{}')
     calls = []
@@ -43,24 +41,51 @@ async def test_formal_builder_uses_13_override_for_every_control_shape(db_sessio
     payload = json.loads(calls[0]['user_content'].split('\n\n', 1)[1])
     assert len(payload['visual_controls']) == len(states)
     assert json.loads(shot.video_director_plan)['ai_calls'][-1]['step'] == '13'
-    assert db_session.get(PromptTemplate, 'legacy').template == 'DO NOT USE'
 
 
-def test_configuration_catalog_hides_11_12_but_history_remains(db_session):
-    rows = [PromptTemplate(id=kind, name=kind, type=kind, template=kind, is_system=True, is_active=True)
-        for kind in ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt',
-                     'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt']]
+def test_removed_prompt_types_are_not_registered_and_existing_rows_are_deleted(db_session):
+    removed_types = ['video_mode_recommender', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt']
+    rows = [PromptTemplate(id=f'{kind}-{origin}', name=kind, type=kind, template=kind,
+                           is_system=(origin == 'system'), is_active=True)
+            for kind in removed_types for origin in ('system', 'user')]
     db_session.add_all(rows); db_session.commit()
     service = PromptTemplateService(db_session)
+    service.init_system_templates()
     catalog = prompt_templates.get_configurable_template_types()['data']
-    for row in rows[:2]:
-        assert row.type not in catalog
-        assert prompt_templates.list_prompt_templates(type=row.type, service=service)['data'] == []
-        assert prompt_templates.get_prompt_template(row.id, service)['data']['template'] == row.template
-        assert prompt_templates.list_prompt_templates(type=row.type, include_retired=True, service=service)['data'][0]['id'] == row.id
-        assert row.is_active  # no migration or historical mutation
-    assert all(row.type in catalog for row in rows[2:])
-    assert db_session.query(PromptTemplate).count() == 5
+    assert all(kind not in catalog for kind in removed_types)
+    assert all(db_session.get(PromptTemplate, f'{kind}-{origin}') is None
+               for kind in removed_types for origin in ('system', 'user'))
+    assert 'h3_multi_keyframe_prompt' in catalog
+
+
+@pytest.mark.asyncio
+async def test_old_batch_without_mode_does_not_call_removed_recommender(monkeypatch):
+    shot = SimpleNamespace(id='shot', chapter_id='chapter', duration=5, description='',
+                           video_description='', video_director_plan='{}')
+    updates = []
+
+    class FakeShotRepo:
+        def __init__(self, db):
+            pass
+
+        def get_by_id(self, shot_id):
+            return shot
+
+        def update(self, current, **fields):
+            updates.append(fields)
+
+    monkeypatch.setattr(shots, 'ShotRepository', FakeShotRepo)
+    monkeypatch.setattr(shots, 'WorkflowRepository',
+                        lambda db: SimpleNamespace(get_active_by_type=lambda kind: None))
+    monkeypatch.setattr(shots, 'NovelRepository', lambda db: SimpleNamespace())
+    monkeypatch.setattr(shots, 'ChapterRepository', lambda db: SimpleNamespace())
+    monkeypatch.setattr(shots, 'PromptTemplateRepository', lambda db: SimpleNamespace())
+    monkeypatch.setattr(shots, 'LLMService', lambda: (_ for _ in ()).throw(AssertionError('unexpected LLM call')))
+
+    mode = await shots._prepare_batch_video_details(None, None,
+        SimpleNamespace(shot_id='shot', chapter_id='chapter'))
+    assert mode == 'SINGLE_FRAME'
+    assert updates[0]['video_director_plan']['selected_mode'] == mode
 
 
 @pytest.mark.parametrize('kind', sorted(RETIRED_H3_WORKFLOW_TYPES))
@@ -96,17 +121,23 @@ def legacy_repos(plan=None):
     return shot, shot_repo, chapter_repo, novel_repo
 
 
+def allow_isolated_preflight(monkeypatch):
+    monkeypatch.setattr('app.api.config.get_or_create_config', lambda db: None)
+    monkeypatch.setattr('app.services.generation_preflight.config_policy', lambda config: {})
+    monkeypatch.setattr('app.services.generation_preflight.evaluate_batch',
+                        lambda *args, **kwargs: {'ready': True})
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize('entry', ['recommend', 'shot', 'clip', 'clip_plan', 'batch', 'selection'])
-async def test_legacy_entries_stop_before_tasks_llm_or_asset_mutation(entry):
+@pytest.mark.parametrize('entry', ['shot', 'clip', 'clip_plan', 'batch', 'selection'])
+async def test_legacy_entries_stop_before_tasks_llm_or_asset_mutation(entry, monkeypatch):
     shot, sr, cr, nr = legacy_repos()
+    allow_isolated_preflight(monkeypatch)
     before = vars(shot).copy()
     # Empty collaborators deliberately fail if execution or persistence is attempted.
     empty = SimpleNamespace()
     with pytest.raises(HTTPException) as error:
-        if entry == 'recommend':
-            await shots.recommend_video_mode('novel','chapter','shot', shots.RecommendVideoModeRequest(), empty,nr,cr,sr,empty,empty,empty)
-        elif entry == 'shot':
+        if entry == 'shot':
             await shots.generate_shot_video('novel','chapter','shot', shots.GenerateVideoRequest(),nr,cr,empty,empty,sr)
         elif entry == 'clip':
             await shots.generate_video_director_clip('novel','chapter','shot',1, shots.GenerateVideoDirectorClipRequest(),nr,cr,empty,empty,sr)
@@ -119,16 +150,6 @@ async def test_legacy_entries_stop_before_tasks_llm_or_asset_mutation(entry):
     assert error.value.status_code == 410
     assert error.value.detail['code'] == 'LEGACY_H3_GENERATION_RETIRED'
     assert vars(shot) == before
-
-
-@pytest.mark.asyncio
-async def test_canonical_recommend_remains_read_only_without_07():
-    plan = {'canonical_visual_plan': True, 'keyframes': [{'index':1}], 'clip_plan': []}
-    shot,sr,cr,nr = legacy_repos(plan)
-    before = shot.video_director_plan
-    empty = SimpleNamespace()
-    result = await shots.recommend_video_mode('novel','chapter','shot', shots.RecommendVideoModeRequest(force=True),empty,nr,cr,sr,empty,empty,empty)
-    assert result['data'] == plan and shot.video_director_plan == before
 
 
 @pytest.mark.asyncio
@@ -146,7 +167,12 @@ async def test_workflow_generation_list_filters_by_type_not_name():
 def test_http_catalog_routes(client):
     templates = client.get('/api/prompt-templates/config-types').json()
     assert templates['success'] and 'h3_multi_keyframe_prompt' in templates['data']
-    assert 'h3_single_frame_prompt' not in templates['data']
+    assert not {'video_mode_recommender', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt'}.intersection(templates['data'])
+    for kind in ('video_mode_recommender', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt'):
+        response = client.post('/api/prompt-templates/', json={
+            'name': 'removed', 'template': 'removed', 'type': kind,
+        })
+        assert response.status_code == 400
     physical = client.get('/api/workflows/generation-types').json()
     assert physical['success'] and 'multi_reference_video' in physical['data']
     assert not RETIRED_H3_WORKFLOW_TYPES.intersection(physical['data'])
@@ -170,8 +196,9 @@ async def test_semantic_clip_entry_remains_on_existing_execution_path(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_batch_cannot_reintroduce_retired_semantic_capability():
+async def test_batch_cannot_reintroduce_retired_semantic_capability(monkeypatch):
     shot,sr,cr,nr = legacy_repos({'clip_plan':[{'clip_index':1, 'capability':'SINGLE_FRAME'}]})
+    allow_isolated_preflight(monkeypatch)
     with pytest.raises(HTTPException) as error:
         await shots.generate_shot_videos_batch('novel','chapter',shots.BatchShotVideoRequest(shot_ids=['shot']),SimpleNamespace(),nr,cr,sr)
     assert error.value.status_code == 410

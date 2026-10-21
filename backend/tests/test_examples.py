@@ -42,8 +42,7 @@ def test_examples_preview_import_and_defaults(client, db_session, monkeypatch):
             "status", "is_preset", "aspect_ratio", "prompt_template_id", "style_prompt_template_id",
             "story_world_context", "story_world_context_locked", "story_world_context_prompt_template_id",
             "character_parse_prompt_template_id", "scene_parse_prompt_template_id", "prop_parse_prompt_template_id",
-            "video_mode_recommender_prompt_template_id", "keyframe_planner_prompt_template_id",
-            "h3_single_frame_prompt_template_id", "h3_first_last_frame_prompt_template_id",
+            "keyframe_planner_prompt_template_id",
         ):
             assert getattr(novel, attr) == getattr(reference, attr), attr
         chapters = db_session.query(Chapter).filter_by(novel_id=novel_id).order_by(Chapter.number).all()

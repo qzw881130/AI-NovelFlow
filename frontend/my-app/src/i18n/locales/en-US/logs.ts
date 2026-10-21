@@ -32,6 +32,7 @@ export default {
     generateAppearance: 'Generate Appearance',
     clipExecutionPlanner: 'Clip Execution Planner',
     expandVideoPrompt: 'Expand Video Prompt',
+    firstAppearanceNameplate: 'Locate First Appearance Nameplate',
     timestamp: 'Timestamp',
     novel: 'Novel',
     chapter: 'Chapter',

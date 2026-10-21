@@ -111,6 +111,7 @@ class WorkflowBuilder:
             if node_mapping.get("load_image_node_1"):
                 self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
         self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
         return workflow
 
     def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix, reference_image_filenames=None):
@@ -131,6 +132,7 @@ class WorkflowBuilder:
         if node_mapping.get("load_image_node_1"):
             self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
         self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
         return workflow
 
     @staticmethod
@@ -175,6 +177,55 @@ class WorkflowBuilder:
             raise ValueError(f"二采放大Step 节点 {node_id} 缺少 {key} 输入")
         previous = inputs[key]
         node["inputs"][key] = str(step) if isinstance(previous, str) else step
+
+    @staticmethod
+    def _set_second_pass_upscale_scale(workflow: Dict[str, Any], node_mapping: Dict[str, Any]) -> None:
+        node_id = str(node_mapping.get("second_pass_upscale_scale_node_id") or "")
+        if not node_id:
+            return
+
+        raw_scale = node_mapping.get("second_pass_upscale_scale")
+        if raw_scale is None or raw_scale == "":
+            raw_scale = 2
+        try:
+            scale = float(raw_scale)
+        except (TypeError, ValueError):
+            raise ValueError("二采放大scale 只能是 1.5、2、3 或 4") from None
+        if isinstance(raw_scale, bool) or scale not in {1.5, 2.0, 3.0, 4.0}:
+            raise ValueError("二采放大scale 只能是 1.5、2、3 或 4")
+
+        supported_types = {"PrimitiveFloat", "Float", "easy float", "JWFloat", "FloatConstant"}
+        if isinstance(workflow.get("nodes"), list):
+            node = next((item for item in workflow["nodes"] if isinstance(item, dict) and str(item.get("id")) == node_id), None)
+            class_type = node.get("type") if node else None
+            if class_type not in supported_types:
+                raise ValueError(f"二采放大scale 节点 {node_id} 不存在或类型不支持")
+            named = node.get("widgets_values_named")
+            if not isinstance(named, dict):
+                named = {}
+                node["widgets_values_named"] = named
+            key = "Number" if "Number" in named and "value" not in named else "value"
+            previous = named.get(key)
+            value = str(scale) if isinstance(previous, str) else scale
+            named[key] = value
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = value
+            elif isinstance(values, list) and values:
+                values[0] = value
+            return
+
+        node = workflow.get(node_id)
+        class_type = node.get("class_type") if isinstance(node, dict) else None
+        if class_type not in supported_types:
+            raise ValueError(f"二采放大scale 节点 {node_id} 不存在或类型不支持")
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            raise ValueError(f"二采放大scale 节点 {node_id} 缺少 value 输入")
+        key = "value" if "value" in inputs else "Number" if "Number" in inputs else None
+        if key is None:
+            raise ValueError(f"二采放大scale 节点 {node_id} 缺少 value 输入")
+        inputs[key] = str(scale) if isinstance(inputs[key], str) else scale
 
     @staticmethod
     def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
@@ -433,6 +484,7 @@ class WorkflowBuilder:
         self._set_random_seed(workflow, seed)
 
         self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
 
         return workflow
 

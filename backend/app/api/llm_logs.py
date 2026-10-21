@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, timezone, timedelta
 
 from app.core.database import get_db
@@ -78,10 +78,15 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "asset_generation": ["generate_character_appearance", "generate_scene_setting", "generate_prop_appearance"],
     "shot_planning": ["split_chapter"],
     "shot_image": ["shot_image_prompt"],
-    "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
+    "video_director": ["keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
     "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt", "image_quality_review_prompt"],
-    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt", "h3_multi_keyframe_director_phase_b", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"],
+    "video_generation": ["expand_video_prompt", "h3_multi_keyframe_prompt", "h3_multi_keyframe_director_phase_b", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt", "first_appearance_nameplate"],
 }
+
+# Old log records remain readable/exportable, but retired prompt types are not choices for new filters.
+RETIRED_PROMPT_LOG_TYPES = frozenset({
+    "video_mode_recommender", "h3_single_frame_prompt", "h3_first_last_frame_prompt",
+})
 
 LLM_LOG_TASK_LABELS = {
     "story_world_context_recommender": "故事上下文-故事世界上下文推荐",
@@ -109,6 +114,7 @@ LLM_LOG_TASK_LABELS = {
     "h3_multi_keyframe_director_phase_b": "视频生成-H3单阶段导演（Phase B）",
     "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
     "h3_preflight_repair_prompt": "视频生成-MiniMax H3 Preflight 自动修复",
+    "first_appearance_nameplate": "视频生成-主角首次出镜姓名牌定位",
 }
 
 LLM_TASK_TEMPLATE_TYPES = {
@@ -365,9 +371,12 @@ def _add_usage(node, metrics):
 
 
 @router.get("/token-usage/hierarchy")
-def get_llm_token_usage_hierarchy(db: Session = Depends(get_db)):
-    """Aggregate provider-reported tokens across all saved LLM logs by novel/chapter/Shot."""
-    novels = dict(db.query(Novel.id, Novel.title).all())
+def get_llm_token_usage_hierarchy(
+    scope: Literal["active", "archived", "all"] = Query("active"),
+    db: Session = Depends(get_db),
+):
+    """Aggregate saved LLM logs by novel/chapter/Shot and novel archive state."""
+    novels = {row.id: row for row in db.query(Novel.id, Novel.title, Novel.is_archived).all()}
     chapters = {row.id: row for row in db.query(Chapter.id, Chapter.novel_id, Chapter.number, Chapter.title).all()}
     shots = {row.id: row for row in db.query(Shot.id, Shot.chapter_id, Shot.index).all()}
     root = _new_usage_node(None, "全部调用")
@@ -379,8 +388,11 @@ def get_llm_token_usage_hierarchy(db: Session = Depends(get_db)):
             chapter_id = shots[shot_id].chapter_id
         if chapter_id in chapters:
             novel_id = chapters[chapter_id].novel_id
+        if scope != "all" and (novel_id not in novels or bool(novels[novel_id].is_archived) != (scope == "archived")):
+            continue
         novel_node = novel_nodes.setdefault(novel_id, {**_new_usage_node(
-            novel_id, novels.get(novel_id, f"已删除小说 · {novel_id}") if novel_id else "未归属小说"
+            novel_id, novels[novel_id].title if novel_id in novels else
+            (f"已删除小说 · {novel_id}" if novel_id else "未归属小说")
         ), "chapters": {}})
         chapter_node = novel_node["chapters"].setdefault(chapter_id, {**_new_usage_node(
             chapter_id,
@@ -415,7 +427,8 @@ def get_log_filters(llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)):
     """获取日志筛选选项"""
     providers = llmlog_repo.get_distinct_providers()
     models = llmlog_repo.get_distinct_models()
-    task_types = llmlog_repo.get_distinct_task_types()
+    task_types = [task_type for task_type in llmlog_repo.get_distinct_task_types()
+                  if task_type not in RETIRED_PROMPT_LOG_TYPES]
     
     return {
         "success": True,

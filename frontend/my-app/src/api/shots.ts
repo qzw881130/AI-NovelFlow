@@ -667,23 +667,6 @@ export const shotsApi = {
     return data;
   },
 
-  recommendVideoMode: async (
-    novelId: string,
-    chapterId: string,
-    shotId: string,
-    force = false
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
-    const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/recommend`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force }),
-      }
-    );
-    return response.json();
-  },
-
   saveClipVisualStateReferences: async (
     novelId: string, chapterId: string, shotId: string, clipIndex: number,
     enabledStateIds: string[], expectedPlanRevision: number,
@@ -712,23 +695,6 @@ export const shotsApi = {
     const result = await response.json();
     if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || '保存视觉状态描述失败');
     return result;
-  },
-
-  saveVideoDirectorPlan: async (
-    novelId: string,
-    chapterId: string,
-    shotId: string,
-    plan: Partial<VideoDirectorPlan>
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
-    const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(plan),
-      }
-    );
-    return response.json();
   },
 
   planVideoKeyframes: async (

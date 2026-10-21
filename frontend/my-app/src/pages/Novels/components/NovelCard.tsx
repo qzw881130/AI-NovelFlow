@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Trash2, Edit2, Users, MapPin, Play, Sparkles, Loader2, Package, Globe2, ChevronDown } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, Trash2, Edit2, Users, MapPin, Play, Sparkles, Loader2, Package, Globe2, ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Novel, PromptTemplate } from '../../../types';
 
@@ -11,6 +11,8 @@ interface NovelCardProps {
   parsingScenesNovelId: string | null;
   parsingPropsNovelId: string | null;
   onDelete: (id: string) => void;
+  onArchiveChange: (id: string, isArchived: boolean) => void;
+  archiveBusy: boolean;
   onEdit: (novel: Novel) => void;
   onStoryContext: (novel: Novel) => void;
   onParseConfirm: (novelId: string, type: 'characters' | 'scenes' | 'props') => void;
@@ -30,6 +32,8 @@ export function NovelCard({
   parsingScenesNovelId,
   parsingPropsNovelId,
   onDelete,
+  onArchiveChange,
+  archiveBusy,
   onEdit,
   onStoryContext,
   onParseConfirm,
@@ -73,8 +77,9 @@ export function NovelCard({
           <span>{novel.chapterCount} {t('novelDetail.chapters')}</span>
         </div>
         <button
+          type="button"
           onClick={() => onDelete(novel.id)}
-          className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+          className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
           title={t('common.delete')}
         >
           <Trash2 className="h-4 w-4" />
@@ -211,6 +216,16 @@ export function NovelCard({
             >
               <Package className="h-4 w-4" />
             </Link>
+            <button
+              type="button"
+              onClick={() => onArchiveChange(novel.id, !novel.isArchived)}
+              disabled={archiveBusy}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-blue-600 disabled:opacity-50"
+              aria-label={novel.isArchived ? `恢复 ${novel.title} 到活动` : `归档 ${novel.title}`}
+            >
+              {archiveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : novel.isArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+              {novel.isArchived ? '恢复' : '归档'}
+            </button>
             <Link
               to={`/novels/${novel.id}`}
               className="btn-primary text-sm py-2 px-3 flex-shrink-0"

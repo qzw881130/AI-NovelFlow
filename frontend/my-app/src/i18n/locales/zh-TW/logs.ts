@@ -20,6 +20,7 @@ export default {
     generateAppearance: '生成外貌描述',
     clipExecutionPlanner: '影片片段執行規劃',
     expandVideoPrompt: '擴寫影片提示詞',
+    firstAppearanceNameplate: '主角首次出鏡姓名牌定位',
     timestamp: '時間',
     novel: '小說',
     chapter: '章節',

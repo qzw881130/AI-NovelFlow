@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import { llmLogsApi } from '../../../api/llmLogs';
 import type { TokenUsageHierarchy, TokenUsageNode } from '../../../api/llmLogs';
 
 const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
+type ArchiveScope = 'active' | 'archived' | 'all';
 
 function UsageCell({ value, emphasis = false, warning = false }: { value: number; emphasis?: boolean; warning?: boolean }) {
   const color = emphasis ? 'font-semibold text-slate-900' : warning && value ? 'font-medium text-amber-700' : 'text-slate-600';
@@ -15,30 +16,36 @@ export function TokenUsageHierarchyModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<ArchiveScope>('active');
+  const requestId = useRef(0);
   // undefined: no selection; null: the unassigned bucket.
   const [novelId, setNovelId] = useState<string | null | undefined>(undefined);
   const [chapterId, setChapterId] = useState<string | null | undefined>(undefined);
 
   const load = useCallback(async () => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
     setError('');
     try {
-      const result = await llmLogsApi.fetchTokenUsageHierarchy();
+      const result = await llmLogsApi.fetchTokenUsageHierarchy(scope);
       if (!result.success || !result.data) throw new Error(result.message || '获取 Token 用量失败');
-      setData(result.data);
+      if (currentRequest === requestId.current) setData(result.data);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '获取 Token 用量失败');
+      if (currentRequest === requestId.current) setError(cause instanceof Error ? cause.message : '获取 Token 用量失败');
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestId.current += 1; };
+  }, [load]);
 
   const novel = novelId === undefined ? undefined : data?.novels.find(item => item.id === novelId);
   const chapter = chapterId === undefined ? undefined : novel?.chapters.find(item => item.id === chapterId);
   const level = !novel ? 'novels' : !chapter ? 'chapters' : 'shots';
-  const scope: TokenUsageNode | null = level === 'shots' ? chapter! : level === 'chapters' ? novel! : data;
+  const usageScope: TokenUsageNode | null = level === 'shots' ? chapter! : level === 'chapters' ? novel! : data;
   const rows: TokenUsageNode[] = level === 'shots' ? chapter!.shots : level === 'chapters' ? novel!.chapters : data?.novels || [];
   const visibleRows = rows.filter(item => item.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const levelName = level === 'novels' ? '小说' : level === 'chapters' ? '章回' : 'Shot';
@@ -46,6 +53,16 @@ export function TokenUsageHierarchyModal({ onClose }: { onClose: () => void }) {
   const goToNovels = () => { setNovelId(undefined); setChapterId(undefined); setQuery(''); };
   const goToChapters = () => { setChapterId(undefined); setQuery(''); };
   const goBack = level === 'shots' ? goToChapters : goToNovels;
+  const changeScope = (nextScope: ArchiveScope) => {
+    if (nextScope === scope) return;
+    requestId.current += 1;
+    setData(null);
+    setLoading(true);
+    setNovelId(undefined);
+    setChapterId(undefined);
+    setQuery('');
+    setScope(nextScope);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" onClick={onClose}>
@@ -61,24 +78,34 @@ export function TokenUsageHierarchyModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
           <nav aria-label="Token 用量层级" className="flex min-w-0 items-center gap-2 text-sm">
             {level !== 'novels' && <button type="button" onClick={goBack} aria-label="返回上一级" className="mr-1 rounded-lg p-1 text-slate-500 hover:bg-slate-100"><ArrowLeft className="h-4 w-4" /></button>}
-            <button type="button" onClick={goToNovels} className={'shrink-0 hover:text-blue-600 ' + (level === 'novels' ? 'font-semibold text-slate-900' : 'text-slate-500')}>全部小说</button>
+            <button type="button" onClick={goToNovels} className={'shrink-0 hover:text-blue-600 ' + (level === 'novels' ? 'font-semibold text-slate-900' : 'text-slate-500')}>{scope === 'active' ? '活动小说' : scope === 'archived' ? '归档小说' : '全部小说'}</button>
             {novel && <><span className="text-slate-300">/</span><button type="button" onClick={goToChapters} className={'max-w-[200px] truncate hover:text-blue-600 ' + (level === 'chapters' ? 'font-semibold text-slate-900' : 'text-slate-500')} title={novel.label}>{novel.label}</button></>}
             {chapter && <><span className="text-slate-300">/</span><span className="max-w-[200px] truncate font-semibold text-slate-900" title={chapter.label}>{chapter.label}</span></>}
           </nav>
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={'h-3.5 w-3.5 ' + (loading ? 'animate-spin' : '')} />刷新</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5" role="group" aria-label="小说状态筛选">
+              {([['active', '活动'], ['archived', '归档'], ['all', '全部']] as const).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => changeScope(value)} aria-pressed={scope === value}
+                  className={'rounded-md px-2.5 py-1 text-xs ' + (scope === value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={'h-3.5 w-3.5 ' + (loading ? 'animate-spin' : '')} />刷新</button>
+          </div>
         </div>
 
         {loading ? <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" />加载中...</div>
           : error ? <p className="py-20 text-center text-sm text-red-600">{error}</p>
-          : !data?.call_count ? <p className="py-20 text-center text-sm text-slate-500">暂无 LLM 调用日志</p>
+          : !data?.call_count ? <p className="py-20 text-center text-sm text-slate-500">{scope === 'archived' ? '归档小说暂无 LLM 调用日志' : scope === 'active' ? '活动小说暂无 LLM 调用日志' : '暂无 LLM 调用日志'}</p>
           : <>
-            {scope && <div className="mx-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-5">
+            {usageScope && <div className="mx-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-5">
               {[
-                ['总 Token', scope.total_tokens],
-                ['输入 Token', scope.input_tokens],
-                ['输出 Token', scope.output_tokens],
-                ['调用次数', scope.call_count],
-                ['未计量', scope.missing_usage_count],
+                ['总 Token', usageScope.total_tokens],
+                ['输入 Token', usageScope.input_tokens],
+                ['输出 Token', usageScope.output_tokens],
+                ['调用次数', usageScope.call_count],
+                ['未计量', usageScope.missing_usage_count],
               ].map(([label, value]) => <div key={label} className="bg-slate-50 px-3 py-2.5">
                 <div className="text-[11px] text-slate-500">{label}</div>
                 <div className={'mt-0.5 text-base font-semibold tabular-nums ' + (label === '未计量' && value ? 'text-amber-700' : 'text-slate-900')}>{number(Number(value))}</div>
@@ -113,7 +140,7 @@ export function TokenUsageHierarchyModal({ onClose }: { onClose: () => void }) {
               </table>
               {visibleRows.length === 0 && <p className="py-10 text-center text-sm text-slate-500">没有匹配的{levelName}</p>}
             </div>
-            <p className="border-t border-slate-100 px-5 py-3 text-xs leading-5 text-slate-500">数据来自供应商实际返回的 Token。“未归属”表示日志缺少对应关联；“未计量”表示供应商未返回可确定的总数。仅返回总数时，输入与输出可能显示为 0。</p>
+            <p className="border-t border-slate-100 px-5 py-3 text-xs leading-5 text-slate-500">数据来自供应商实际返回的 Token。活动和归档按小说当前状态筛选；“全部”还包含未归属或已删除小说的日志。“未计量”表示供应商未返回可确定的总数。仅返回总数时，输入与输出可能显示为 0。</p>
           </>}
       </div>
     </div>

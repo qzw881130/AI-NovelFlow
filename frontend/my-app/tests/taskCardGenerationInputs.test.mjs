@@ -13,11 +13,16 @@ const t = (key, params = {}) => Object.entries(params).reduce((value, [name, rep
 const compiled = ts.transpileModule(source.replace(/^import[^;]+;\s*/gm, '').replace('export function', 'function'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None, jsx: ts.JsxEmit.React },
 }).outputText;
+const errorSource = await readFile(new URL('../src/utils/errorUtils.ts', import.meta.url), 'utf8');
+const errorExports = {};
+new Function('exports', ts.transpileModule(errorSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+}).outputText)(errorExports);
 const icons = ['CheckCircle', 'XCircle', 'Loader2', 'Clock', 'AlertCircle', 'Terminal', 'ChevronUp', 'ChevronDown',
   'Play', 'Code', 'Trash2', 'Film', 'ImageIcon', 'User', 'ListTodo', 'Music', 'Copy'];
 const icon = props => React.createElement('svg', props);
-const TaskCard = new Function('React', ...icons, 'useTranslation', 'formatUserFacingError', 'CandidateResultSummary', `${compiled};return TaskCard;`)(
-  React, ...icons.map(() => icon), () => ({ t }), value => value, () => null);
+const TaskCard = new Function('React', ...icons, 'useTranslation', 'useState', 'formatUserFacingError', 'CandidateResultSummary', `${compiled};return TaskCard;`)(
+  React, ...icons.map(() => icon), () => ({ t }), initial => [initial, () => {}], errorExports.formatUserFacingError, () => null);
 globalThis.fetch = async () => assert.fail('TaskCard must not fetch or mutate product data');
 
 export const baseTask = {
@@ -133,4 +138,16 @@ test('missing fields are safe; contract URL fallback works without guessing sour
 test('a URL-less planned temporal ID does not become a physical thumbnail', () => {
   const html = renderToStaticMarkup(renderCard({ ...baseTask, clipExecution: { temporal_anchor_ids: ['planned-KF9'] } }));
   assert.doesNotMatch(html, /data-generation-inputs|planned-KF9/);
+});
+
+test('task errors distinguish settings preflight categories from runtime continuation validation', () => {
+  const runtimeError = 'PHASE_B_INPUT_NOT_COVERED: ValueError: PREVIOUS_AV_BINDING_UNVERIFIED: native masked-context path changed';
+  const runtime = renderToStaticMarkup(renderCard({ ...baseTask, status: 'failed', errorMessage: runtimeError }));
+  assert.match(runtime, /执行阶段 · 续接工作流绑定/);
+  assert.doesNotMatch(runtime, /视频生成预检/);
+  const expanded = renderToStaticMarkup(renderCard({ ...baseTask, status: 'failed', errorMessage: runtimeError }, { expandedErrors: new Set(['task']) }));
+  assert.match(expanded, /原始错误：PHASE_B_INPUT_NOT_COVERED/);
+
+  const preflight = renderToStaticMarkup(renderCard({ ...baseTask, status: 'failed', errorMessage: 'GENERATION_PREFLIGHT_FAILED: SHOT_IMAGE_READY' }));
+  assert.match(preflight, /视频生成预检 · 主分镜图/);
 });

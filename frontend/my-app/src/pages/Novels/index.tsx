@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Copy, Search, BookOpen, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
+import { toast } from '../../stores/toastStore';
 import { useNovelsState } from './hooks/useNovelsState';
 import { NovelCard } from './components/NovelCard';
 import { CreateNovelModal } from './components/CreateNovelModal';
@@ -37,6 +38,7 @@ export default function Novels() {
     copyNovel,
     deleteNovel,
     updateNovel,
+    setNovelArchived,
     openParseConfirm,
     closeParseConfirm,
     confirmParseCharacters,
@@ -50,6 +52,9 @@ export default function Novels() {
     ...emptyNovelTemplateSelection(),
   });
   const [storyContextNovel, setStoryContextNovel] = useState<(typeof novels)[number] | null>(null);
+  const [archiveView, setArchiveView] = useState(false);
+  const [archivingNovelId, setArchivingNovelId] = useState<string | null>(null);
+  const visibleNovels = filteredNovels.filter(novel => Boolean(novel.isArchived) === archiveView);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +85,18 @@ export default function Novels() {
     await deleteNovel(novelId);
   };
 
+  const handleArchiveChange = async (novelId: string, isArchived: boolean) => {
+    setArchivingNovelId(novelId);
+    try {
+      await setNovelArchived(novelId, isArchived);
+      toast.success(isArchived ? '小说已归档' : '小说已恢复到活动');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新归档状态失败');
+    } finally {
+      setArchivingNovelId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -99,6 +116,20 @@ export default function Novels() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="小说状态">
+        {([false, true] as const).map(isArchived => (
+          <button
+            key={String(isArchived)}
+            type="button"
+            onClick={() => setArchiveView(isArchived)}
+            aria-pressed={archiveView === isArchived}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${archiveView === isArchived ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+          >
+            {isArchived ? '归档' : '活动'} <span className="ml-1 opacity-70">{novels.filter(novel => Boolean(novel.isArchived) === isArchived).length}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
@@ -116,15 +147,15 @@ export default function Novels() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
         </div>
-      ) : filteredNovels.length === 0 ? (
+      ) : visibleNovels.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
           <BookOpen className="mx-auto h-12 w-12 text-gray-300" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">{t('novels.noNovelsTitle')}</h3>
-          <p className="mt-1 text-sm text-gray-500">{t('novels.noNovelsSubtitle')}</p>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">{searchQuery ? '没有匹配的小说' : archiveView ? '暂无归档小说' : t('novels.noNovelsTitle')}</h3>
+          <p className="mt-1 text-sm text-gray-500">{searchQuery ? '试试其他关键词' : archiveView ? '在活动列表中点击归档按钮后，小说会显示在这里。' : t('novels.noNovelsSubtitle')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {filteredNovels.map((novel) => (
+          {visibleNovels.map((novel) => (
             <NovelCard
               key={novel.id}
               novel={novel}
@@ -133,6 +164,8 @@ export default function Novels() {
               parsingScenesNovelId={parsingScenesNovelId}
               parsingPropsNovelId={parsingPropsNovelId}
               onDelete={handleDeleteNovel}
+              onArchiveChange={handleArchiveChange}
+              archiveBusy={archivingNovelId === novel.id}
               onEdit={setEditingNovel}
               onStoryContext={setStoryContextNovel}
               onParseConfirm={openParseConfirm}

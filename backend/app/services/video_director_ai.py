@@ -1768,41 +1768,16 @@ async def build_h3_video_prompt(
             route = "single"
         else:
             route = "multi" if semantic_controls else "single"
-        if route == "endpoint":
-            step = "12"
-            template_attr = "h3_first_last_frame_prompt_template_id"
-            template_type = "h3_first_last_frame_prompt"
-        elif route == "multi":
-            step = "13"
-            template_attr = "h3_multi_keyframe_prompt_template_id"
-            template_type = "h3_multi_keyframe_prompt"
-        else:
-            step = "11"
-            template_attr = "h3_single_frame_prompt_template_id"
-            template_type = "h3_single_frame_prompt"
     elif selected_mode == "FIRST_LAST_FRAME":
         route = "endpoint"
-        step = "12"
-        template_attr = "h3_first_last_frame_prompt_template_id"
-        template_type = "h3_first_last_frame_prompt"
     elif selected_mode == "MULTI_KEYFRAME":
         route = "multi"
-        step = "13"
-        template_attr = "h3_multi_keyframe_prompt_template_id"
-        template_type = "h3_multi_keyframe_prompt"
     else:
         route = "single"
-        step = "11"
-        template_attr = "h3_single_frame_prompt_template_id"
-        template_type = "h3_single_frame_prompt"
-
-    # Formal H3 construction uses #13 for every semantic control shape, including
-    # zero/one control and START/END pairs. This does not select a physical workflow.
-    # Retain the historical routes only for the explicitly isolated experiment API.
-    if single_stage_experiment is None:
-        step = "13"
-        template_attr = "h3_multi_keyframe_prompt_template_id"
-        template_type = "h3_multi_keyframe_prompt"
+    # All H3 visual-control shapes share the same #13 prompt template.
+    step = "13"
+    template_attr = "h3_multi_keyframe_prompt_template_id"
+    template_type = "h3_multi_keyframe_prompt"
 
     sanitized_keyframes = (
         [{key: item[key] for key in (

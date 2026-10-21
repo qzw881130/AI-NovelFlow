@@ -19,6 +19,7 @@ class Novel(Base):
     description = Column(Text, default="")
     cover = Column(String, nullable=True)
     status = Column(String, default="pending", index=True)  # 状态过滤
+    is_archived = Column(Boolean, default=False, server_default="0", nullable=False, index=True)
     chapter_count = Column(Integer, default=0)
     is_preset = Column(Boolean, default=False, index=True)  # 预设过滤
     
@@ -39,15 +40,12 @@ class Novel(Base):
     chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
     keyframe_description_prompt_template_id = Column(String, nullable=True)  # 关键帧描述提示词模板
     shot_image_prompt_template_id = Column(String, nullable=True)  # 主分镜图提示词模板
-    video_mode_recommender_prompt_template_id = Column(String, nullable=True)  # 视频模式推荐提示词模板
     keyframe_planner_prompt_template_id = Column(String, nullable=True)  # 关键帧规划提示词模板
     keyframe_image_prompt_template_id = Column(String, nullable=True)  # 关键帧生图提示词模板
     temporal_reference_selector_prompt_template_id = Column(String, nullable=True)
     image_quality_review_prompt_template_id = Column(String, nullable=True)
     keyframe_transition_prompt_template_id = Column(String, nullable=True)  # 关键帧过渡规划提示词模板
     clip_execution_planner_prompt_template_id = Column(String, nullable=True)
-    h3_single_frame_prompt_template_id = Column(String, nullable=True)  # H3 单帧视频提示词模板
-    h3_first_last_frame_prompt_template_id = Column(String, nullable=True)  # H3 首尾帧视频提示词模板
     h3_multi_keyframe_prompt_template_id = Column(String, nullable=True)  # H3 多关键帧视频提示词模板
     h3_multi_keyframe_director_phase_b_template_id = Column(String, nullable=True)  # H3 Phase B 单阶段导演视频提示词模板
     h3_execution_optimizer_prompt_template_id = Column(String, nullable=True)  # H3 执行提示词优化模板

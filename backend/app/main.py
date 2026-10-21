@@ -192,16 +192,15 @@ def ensure_schema_updates():
 
             result = conn.execute(text("PRAGMA table_info(novels)"))
             novel_columns = [row[1] for row in result.fetchall()]
+            if "is_archived" not in novel_columns:
+                conn.execute(text("ALTER TABLE novels ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0"))
             novel_prompt_columns = [
                 "story_world_context_prompt_template_id",
                 "keyframe_description_prompt_template_id",
                 "shot_image_prompt_template_id",
-                "video_mode_recommender_prompt_template_id",
                 "keyframe_planner_prompt_template_id",
                 "keyframe_image_prompt_template_id",
                 "keyframe_transition_prompt_template_id",
-                "h3_single_frame_prompt_template_id",
-                "h3_first_last_frame_prompt_template_id",
                 "h3_multi_keyframe_prompt_template_id",
                 "h3_multi_keyframe_director_phase_b_template_id",
                 "h3_execution_optimizer_prompt_template_id",
@@ -215,6 +214,14 @@ def ensure_schema_updates():
             for column in novel_prompt_columns:
                 if column not in novel_columns:
                     conn.execute(text(f"ALTER TABLE novels ADD COLUMN {column} VARCHAR"))
+            # Remove bindings for prompt types that are no longer part of any generation path.
+            for column in (
+                "video_mode_recommender_prompt_template_id",
+                "h3_single_frame_prompt_template_id",
+                "h3_first_last_frame_prompt_template_id",
+            ):
+                if column in novel_columns:
+                    conn.execute(text(f"ALTER TABLE novels DROP COLUMN {column}"))
             if "story_world_context" not in novel_columns:
                 conn.execute(text("ALTER TABLE novels ADD COLUMN story_world_context TEXT"))
             if "story_world_context_locked" not in novel_columns:

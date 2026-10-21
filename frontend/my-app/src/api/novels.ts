@@ -77,6 +77,10 @@ export const novelApi = {
   /** 更新小说 */
   update: (id: string, data: Partial<Novel>) => api.put<Novel>(`/novels/${id}/`, data),
 
+  /** 在活动小说与归档小说之间移动 */
+  setArchived: (id: string, isArchived: boolean) =>
+    api.patch<Novel>(`/novels/${id}/archive`, { isArchived }),
+
   /** 导出当前小说配置的提示词模板 */
   exportPromptTemplates: async (id: string, templateIds: Record<string, string | undefined>) => {
     const response = await fetch(`${API_BASE}/novels/${id}/prompt-templates/export`, {
