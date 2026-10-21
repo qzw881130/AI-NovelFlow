@@ -298,6 +298,7 @@ export interface VideoDirectorTaskClip {
 
 export interface ClipExecutionMetadata {
   video_prompt_language?: 'en' | 'zh' | null;
+  generation_quality_warnings?: string[];
   result_mode?: NonNullable<ApiTask['clipExecution']>['result_mode'];
   candidate_result?: NonNullable<ApiTask['clipExecution']>['candidate_result'];
   planned_capability?: string;

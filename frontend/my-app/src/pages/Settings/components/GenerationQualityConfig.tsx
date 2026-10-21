@@ -1,6 +1,13 @@
 import { useTranslation } from '../../../stores/i18nStore';
 import type { GenerationCheck } from '../../../api/config';
 
+const checkStages: Array<{ id: GenerationCheck['stage']; title: string; note: string }> = [
+  { id: 'before_queue', title: '启动前', note: '批量生成前立即检查，可看到当前结果。' },
+  { id: 'director', title: '导演规划与提示词', note: 'LLM 返回后才检查，启动前无法预判结果。' },
+  { id: 'submission', title: '提交视频前', note: '核对实际引用和提交参数，不检查工作流内部流程。' },
+  { id: 'assembly', title: '生成后与合并前', note: '拿到视频文件后检查实际输出及来源。' },
+];
+
 export default function GenerationQualityConfig({ enabled, onChange, language, onLanguageChange, nameplateAvailable, autoApproveNameplateAvailable, showFirstAppearanceNames, onShowFirstAppearanceNamesChange, autoApproveFirstAppearanceNames, onAutoApproveFirstAppearanceNamesChange, checks, policy, onPolicyChange }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
@@ -59,18 +66,30 @@ export default function GenerationQualityConfig({ enabled, onChange, language, o
     </div>}
     <div className="rounded-lg border border-gray-200 p-4 text-sm">
       <h4 className="font-medium text-gray-800">视频生成预检</h4>
-      <p className="mt-1 text-gray-500">批量生成前会汇总所有分镜的检查结果。执行完整性检查始终强制；以下质量检查可选择是否阻断生成。</p>
-      <div className="mt-3 divide-y divide-gray-100">
-        {checks.map(check => <label key={check.id} className="flex items-start gap-3 py-3">
-          <input type="checkbox" className="mt-1" checked={check.configurable ? !!policy[check.id] : true}
-            disabled={!check.configurable}
-            onChange={event => onPolicyChange(check.id, event.target.checked)} />
-          <span>
-            <span className="font-medium text-gray-800">{check.label}</span>
-            <span className="ml-2 text-xs text-gray-500">{check.configurable ? (policy[check.id] ? '强制通过后生成' : '仅提示，不阻断') : '始终强制'}</span>
-            <span className="block text-gray-500">{check.description}</span>
-          </span>
-        </label>)}
+      <p className="mt-1 text-gray-500">这里列出视频生成链路中的检查。启动前检查会立即汇总结果；其余检查会在运行到相应步骤时执行。关闭可选项只是不阻断，仍记录警告。保存后对新任务及重试生效。</p>
+      <div className="mt-4 space-y-4">
+        {checkStages.map(stage => {
+          const stageChecks = checks.filter(check => (check.stage || 'before_queue') === stage.id);
+          if (!stageChecks.length) return null;
+          return <div key={stage.id}>
+            <div className="flex flex-wrap items-baseline gap-x-2 border-b border-gray-100 pb-2">
+              <h5 className="font-medium text-gray-800">{stage.title}</h5>
+              <span className="text-xs text-gray-500">{stage.note}</span>
+            </div>
+            <div className="grid gap-x-5 sm:grid-cols-2">
+              {stageChecks.map(check => <label key={check.id} className="flex items-start gap-2 border-b border-gray-50 py-2.5">
+                <input type="checkbox" className="mt-0.5" checked={check.configurable ? !!policy[check.id] : true}
+                  disabled={!check.configurable}
+                  onChange={event => onPolicyChange(check.id, event.target.checked)} />
+                <span className="min-w-0">
+                  <span className="font-medium text-gray-800">{check.label}</span>
+                  <span className="ml-2 text-xs text-gray-500">{check.configurable ? (policy[check.id] ? '强制通过' : '警告，不阻断') : '始终强制'}</span>
+                  <span className="block text-xs leading-5 text-gray-500">{check.description}</span>
+                </span>
+              </label>)}
+            </div>
+          </div>;
+        })}
       </div>
     </div>
   </section>;

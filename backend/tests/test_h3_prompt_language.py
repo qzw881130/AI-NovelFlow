@@ -136,6 +136,62 @@ def test_english_director_preserves_canonical_prop_name(language_cases):
     assert 'H3_PROMPT_LANGUAGE_MISMATCH' in str(rejected['reasons'])
 
 
+def test_nonblocking_language_check_records_warning_without_skipping_contract(language_cases):
+    prepared = deepcopy(language_cases[NAMES[0], 'en'])
+    prepared['llm_input']['shot']['props'] = ['邹忌铜镜']
+    response = language_response(prepared['llm_input'], saved(NAMES[0], '_mock_response'))
+    response['detailed_description'] += ' The 邹忌 mirror remains visible.'
+
+    strict = compiler.compile_multi_keyframe_phase_b(prepared, response)
+    assert strict['status'] == 'VALIDATION_FAILED'
+    relaxed = compiler.compile_multi_keyframe_phase_b(prepared, response, enforce_english_prose=False)
+    assert relaxed['status'] == 'CANDIDATE_FOR_REVIEW', relaxed
+    assert 'H3_PROMPT_LANGUAGE_MISMATCH' in relaxed['review']['quality_warnings'][0]
+    assert pipe.preflight(prepared, relaxed)['passed'] is True
+    assert pipe.preflight(prepared, relaxed)['quality_warnings'] == relaxed['review']['quality_warnings']
+
+
+@pytest.mark.asyncio
+async def test_saved_language_policy_controls_runtime_blocking(db_session):
+    from h3_language_fakes import language_response
+    snap, args, _ = make_case(db_session, NAMES[0])
+    args['task'].metadata_json = json.dumps({**json.loads(args['task'].metadata_json),
+                                               'video_prompt_language': 'en'})
+    response = language_response(
+        compiler.prepare_multi_keyframe_phase_b({**snap, 'video_prompt_language': 'en',
+            'source': {**snap['source'], 'hashes': {**snap['source']['hashes'],
+                'video_prompt_language': compiler._snapshot_digest('en')}}})['llm_input'],
+        saved(NAMES[0], '_mock_response'))
+    response['overall_soundscape'] += ' 中文环境音'
+
+    class Director(FakeDirector):
+        async def chat_completion(self, **kwargs):
+            self.content = response
+            return await super().chat_completion(**kwargs)
+
+    db_session.add(SystemConfig(id='default', generation_quality_policy='{}'))
+    db_session.commit()
+    await pipe.build_phase_b_prompt(**args, llm=Director({}))
+    metadata = json.loads(args['task'].metadata_json)
+    assert metadata['h3_phase_b']['status'] == 'COMPILED'
+    assert metadata['generation_quality_warnings']
+    from app.api.tasks import _format_task_summaries, _task_summary_query
+    listed = _format_task_summaries(
+        _task_summary_query(db_session, status_only=False).filter(Task.id == args['task'].id).all(),
+        status_only=False)[0]
+    assert listed['clipExecution']['generation_quality_warnings'] == metadata['generation_quality_warnings']
+
+    config = db_session.get(SystemConfig, 'default')
+    config.generation_quality_policy = json.dumps({'PHASE_B_LANGUAGE_CONSISTENCY': True})
+    db_session.commit()
+    second_snap, second_args, _ = make_case(db_session, NAMES[0])
+    second_args['task'].metadata_json = json.dumps({**json.loads(second_args['task'].metadata_json),
+                                                      'video_prompt_language': 'en'})
+    db_session.commit()
+    with pytest.raises(ValueError, match='PHASE_B_PREFLIGHT_FAILED.*H3_PROMPT_LANGUAGE_MISMATCH'):
+        await pipe.build_phase_b_prompt(**second_args, llm=Director({}))
+
+
 def test_language_cache_isolation(language_cases):
     template = SimpleNamespace(id='template', template=compiler.PHASE_B_TEMPLATE.read_text())
     fingerprints = {pipe.input_fingerprint(language_cases[NAMES[0], lang], template) for lang in ['en', 'zh']}

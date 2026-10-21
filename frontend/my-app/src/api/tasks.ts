@@ -60,6 +60,7 @@ export interface Task {
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {
     video_prompt_language?: 'en' | 'zh' | null;
+    generation_quality_warnings?: string[];
     result_mode?: import('./shots').VideoResultMode;
     source_revision?: number;
     source_clip_plan_fingerprint?: string;

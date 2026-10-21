@@ -1530,7 +1530,7 @@ class TaskService:
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
                 "artifact_kind", "physical_output", "execution_contract",
-                "clip_playback", "h3_prompt_pipeline", "video_prompt_language", "continuation_mode", "execution_projection",
+                "clip_playback", "h3_prompt_pipeline", "video_prompt_language", "generation_quality_warnings", "continuation_mode", "execution_projection",
                 "planned_capability", "effective_capability", "suppressed_temporal_anchor_ids",
             )
             return {key: metadata.get(key) for key in keys if key in metadata}

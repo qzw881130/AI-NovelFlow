@@ -21,6 +21,7 @@ export interface GenerationCheck {
   description: string;
   configurable: boolean;
   blocking: boolean;
+  stage: 'before_queue' | 'director' | 'submission' | 'assembly';
 }
 
 export const configApi = {

@@ -53,6 +53,7 @@ function videoErrorCategory(message?: string | null): string | null {
   }
   if (message.includes('PREVIOUS_AV_BINDING_UNVERIFIED')) return '执行阶段 · 续接工作流绑定';
   if (message.includes('PHASE_B_INPUT_NOT_COVERED')) return '执行阶段 · H3 Phase B 输入';
+  if (message.includes('H3_PROMPT_LANGUAGE_MISMATCH')) return '执行阶段 · 提示词语言一致性';
   if (message.includes('PHASE_B_PREFLIGHT_FAILED')) return '执行阶段 · 提示词结构校验';
   return null;
 }
@@ -260,6 +261,11 @@ export function TaskCard({
             </button>
           </div>
           <CandidateResultSummary task={task} onPreviewVideo={onPreviewVideo} />
+          {(task.clipExecution?.generation_quality_warnings?.length ?? 0) > 0 && (
+            <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800" data-generation-quality-warning>
+              提示词语言一致性：已记录警告，未阻断生成。{task.clipExecution?.generation_quality_warnings?.join('；')}
+            </p>
+          )}
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
           {(task.novelName || chapterLabel) && (
             <p className="mt-2 flex flex-wrap gap-1.5 text-xs">

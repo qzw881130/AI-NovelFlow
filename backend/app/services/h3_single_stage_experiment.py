@@ -277,7 +277,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
                                        character_stable_features=None,
                                        frozen_execution=None, execution_decisions=None,
                                        prompt_language=None, localized_descriptions=None,
-                                       canonical_source_names=()):
+                                       canonical_source_names=(), enforce_english_prose=True):
     """Offline-only six-section candidate; the model's director prose is not repaired.
 
     The caller supplies already verified Dialogue timing and the selected physical
@@ -382,9 +382,11 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
         "non_diegetic_music": verified_music,
     }
     prompt = "\n\n".join(f"{heading}:\n{parts[heading]}" for heading in SECTIONS)
+    language_finding = None
     if prompt_language == "en":
         from app.services.h3_prompt_language import validate_english_prose
-        validate_english_prose(prompt, (*subject_names.values(), *canonical_source_names))
+        language_finding = validate_english_prose(
+            prompt, (*subject_names.values(), *canonical_source_names), blocking=enforce_english_prose)
     voices = speaker_bindings(canonical)
     for index, event in enumerate(canonical, 1):
         subject = event["speaker"]
@@ -457,6 +459,7 @@ def assemble_authority_owned_candidate(model_text, canonical, timing, subject_na
         "speaker_visual_handoff": "REVIEW_REQUIRED: no camera or listener action was inserted",
         "soundscape_authority": "REVIEW_REQUIRED: original model Foley prose was preserved",
         "submission_authorized": False,
+        "quality_warnings": [language_finding] if language_finding else [],
     }
     return prompt, review, picture
 
@@ -1180,7 +1183,7 @@ def prepare_multi_keyframe_phase_b(snapshot, *, runtime=False):
         return _phase_b_not_covered(f"{type(exc).__name__}: {exc}")
 
 
-def compile_multi_keyframe_phase_b(prepared, response):
+def compile_multi_keyframe_phase_b(prepared, response, *, enforce_english_prose=True):
     """Validate one new Director response, derive numbers and compile, without LLM."""
     from app.services.h3_anchor_policy import project_reference_manifest
     from app.services.video_director_ai import build_physical_picture_mapping
@@ -1302,7 +1305,8 @@ def compile_multi_keyframe_phase_b(prepared, response):
             character_appearances=prepared["character_appearances"],
             character_stable_features=prepared.get("character_stable_features"), execution_decisions=decisions,
             prompt_language=language, localized_descriptions=localized,
-            canonical_source_names=(shot_sources.get("scene"), *prop_names))
+            canonical_source_names=(shot_sources.get("scene"), *prop_names),
+            enforce_english_prose=enforce_english_prose)
         passed = all(review["structure"].values()) and all(review["structured_authority"].values())
         return {"mode": "H3_MULTI_KEYFRAME_PHASE_B", "status": "CANDIDATE_FOR_REVIEW" if passed else "VALIDATION_FAILED",
                 "prompt": prompt, "director_response": output, "director_text": director,

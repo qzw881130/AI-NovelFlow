@@ -9,6 +9,9 @@ export function phaseBSummary(record: any) {
   for (const [name, check] of entries(record?.preflight?.native_diagnostics || result?.review?.native_prompt_diagnostics)) {
     if (check === false) warnings.add(name);
   }
+  for (const warning of record?.preflight?.quality_warnings || result?.review?.quality_warnings || []) {
+    warnings.add(String(warning));
+  }
   for (const [scope, diagnostic] of Object.entries({ preflight: record?.preflight, submission: record?.submission_preflight })) {
     if (diagnostic?.passed === false) errors.add(scope);
   }

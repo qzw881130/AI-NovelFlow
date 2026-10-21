@@ -70,7 +70,7 @@ def _task_summary_query(db: Session, *, status_only: bool):
     if not status_only:
         for key in (
             "candidate_result", "source_revision", "source_clip_plan_fingerprint",
-            "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline", "video_prompt_language",
+            "execution_scope", "clip_id", "clip_index", "clip_plan_revision", "h3_prompt_pipeline", "video_prompt_language", "generation_quality_warnings",
             "approval_status", "approval_mode", "artifact_kind", "capability",
             "planned_duration", "actual_duration", "assembled_media_duration",
             "assembled_result", "physical_output", "clip_playback",
@@ -123,7 +123,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
                 "previous_approved_video_source",
                 "continuation_mode", "planned_capability", "effective_capability",
             ) if value[key] is not None}
-            for key in ("candidate_result", "assembled_result", "physical_output", "clip_playback", "dialogue_assignment",
+            for key in ("candidate_result", "assembled_result", "physical_output", "clip_playback", "dialogue_assignment", "generation_quality_warnings",
                         "execution_projection", "suppressed_temporal_anchor_ids"):
                 if value[key] is not None:
                     execution[key] = _json_value(value[key])

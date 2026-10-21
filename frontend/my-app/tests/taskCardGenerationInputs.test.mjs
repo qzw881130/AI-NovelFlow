@@ -151,3 +151,13 @@ test('task errors distinguish settings preflight categories from runtime continu
   const preflight = renderToStaticMarkup(renderCard({ ...baseTask, status: 'failed', errorMessage: 'GENERATION_PREFLIGHT_FAILED: SHOT_IMAGE_READY' }));
   assert.match(preflight, /视频生成预检 · 主分镜图/);
 });
+
+test('language mismatch is categorized and a nonblocking result stays visible', () => {
+  const error = 'PHASE_B_PREFLIGHT_FAILED: ValueError: H3_PROMPT_LANGUAGE_MISMATCH: Chinese description in English output';
+  const failed = renderToStaticMarkup(renderCard({ ...baseTask, status: 'failed', errorMessage: error }));
+  assert.match(failed, /执行阶段 · 提示词语言一致性/);
+  assert.match(failed, /生成质量控制/);
+  const warning = renderToStaticMarkup(renderCard({ ...baseTask,
+    clipExecution: { generation_quality_warnings: ['H3_PROMPT_LANGUAGE_MISMATCH'] } }));
+  assert.match(warning, /已记录警告，未阻断生成/);
+});

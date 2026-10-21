@@ -1,4 +1,4 @@
-"""Stable, user-visible checks for a Shot video batch before it is queued."""
+"""User-visible video validation catalog and the checks available before queueing."""
 import json
 
 from app.models.novel import Character
@@ -14,7 +14,27 @@ CHECKS = (
     {"id": "IDENTITY_FEATURES_RECORDED", "label": "人物稳定特征", "description": "角色有独立记录的稳定外貌特征", "configurable": True},
     {"id": "IDENTITY_PORTRAIT_READY", "label": "人物参考图", "description": "角色已有独立身份参考图", "configurable": True},
 )
-CONFIGURABLE = frozenset(item["id"] for item in CHECKS if item["configurable"])
+# These checks run only after the batch starts. Keep them in the same catalog so
+# users can see every blocking validation stage without claiming it was already
+# evaluated by evaluate_batch(). Only descriptive-language purity is advisory.
+RUNTIME_CHECKS = (
+    {"id": "VISUAL_PLAN_CONTRACT", "label": "视觉状态与过渡计划", "description": "核对关键帧状态、过渡归属和正式时间轴；需要自动规划时在运行中检查。", "stage": "director", "configurable": False},
+    {"id": "REQUIRED_IMAGE_RESOURCES", "label": "必需关键帧图片", "description": "核对本次视频需要的关键帧图片、版本与生成结果；准备图片后检查。", "stage": "director", "configurable": False},
+    {"id": "CLIP_EXECUTION_INPUT", "label": "Clip 执行输入", "description": "核对正式片段计划、对白归属、时长与资源来源；运行到 Clip 时检查。", "stage": "director", "configurable": False},
+    {"id": "VIDEO_WORKFLOW_CONFIGURATION", "label": "视频工作流配置", "description": "核对所需视频模式的工作流、节点映射及参数是否可用；不检查工作流内部流程。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_SOURCE_BINDING", "label": "Phase B 输入与续接来源", "description": "核对 Canonical 状态、参考图、上一段视频及冻结来源；导演调用前检查。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_PLAN_REUSE", "label": "导演计划复用", "description": "选择复用提示词时，核对原导演计划、模板、输入和工作流仍与当前任务一致。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_DIRECTOR_SCHEMA", "label": "导演输出格式", "description": "核对 LLM 返回的 JSON 字段、描述翻译字段及必填内容；导演返回后检查。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_TIMING_ANCHORS", "label": "对白时间与关键帧", "description": "核对时长、对白 ID 和时序、锚点决策及 Canonical 事实；导演返回后检查。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_LANGUAGE_CONSISTENCY", "label": "提示词语言一致性", "description": "英文模式下检查描述中残留的中文；关闭阻断时记录警告，允许继续生成。台词和完整专名不受此项限制。", "stage": "director", "configurable": True},
+    {"id": "PHASE_B_PROMPT_STRUCTURE", "label": "视频提示词结构", "description": "核对六段式结构、Subject/Speaker 绑定、原文对白及时间标记；提交前检查。", "stage": "director", "configurable": False},
+    {"id": "PHASE_B_PICTURE_BINDING", "label": "图片引用绑定", "description": "核对 Picture 编号、顺序、实体身份与实际参考图；提交前检查。", "stage": "submission", "configurable": False},
+    {"id": "PHASE_B_WORKFLOW_BINDING", "label": "工作流提交绑定", "description": "核对选定工作流的输入、视频续接和输出映射与提交参数；提交 ComfyUI 前检查，不检查工作流内部流程。", "stage": "submission", "configurable": False},
+    {"id": "VIDEO_OUTPUT_ARTIFACT", "label": "视频输出文件", "description": "核对 ComfyUI 返回的视频、文件可读性与续接视频的物理属性；生成后检查。", "stage": "assembly", "configurable": False},
+    {"id": "CLIP_ASSEMBLY_PROVENANCE", "label": "片段合并来源", "description": "核对 Clip 顺序、任务来源、上一段视频依赖与最终合并输入；合并前检查。", "stage": "assembly", "configurable": False},
+)
+CATALOG_CHECKS = CHECKS + RUNTIME_CHECKS
+CONFIGURABLE = frozenset(item["id"] for item in CATALOG_CHECKS if item["configurable"])
 
 
 def normalize_policy(value):
@@ -25,15 +45,16 @@ def normalize_policy(value):
 
 def config_policy(config):
     try:
-        return normalize_policy(json.loads(config.generation_quality_policy or "{}"))
+        return normalize_policy(json.loads(config.generation_quality_policy or "{}")) if config else normalize_policy({})
     except (TypeError, ValueError):
         return normalize_policy({})
 
 
 def catalog(policy=None):
     policy = normalize_policy(policy or {})
-    return [{**item, "blocking": True if not item["configurable"] else policy[item["id"]]}
-            for item in CHECKS]
+    return [{**item, "stage": item.get("stage", "before_queue"),
+             "blocking": True if not item["configurable"] else policy[item["id"]]}
+            for item in CATALOG_CHECKS]
 
 
 def _issue(check_id, status, message, *, shot=None, policy=None, evidence=None):

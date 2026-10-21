@@ -3,6 +3,9 @@ export const formatUserFacingError = (message?: unknown): string => {
   if (!rawMessage) return '';
 
   if (rawMessage.includes('PHASE_B_PREFLIGHT_FAILED')) {
+    if (rawMessage.includes('H3_PROMPT_LANGUAGE_MISMATCH')) {
+      return '视频导演提示词存在与所选语言不一致的描述，尚未提交视频生成。可重试当前任务，或在“生成质量控制”中将“提示词语言一致性”设为“警告，不阻断”后重试。';
+    }
     return '视频导演提示词未通过结构校验，视频尚未提交生成。请重试当前 Shot；如果持续失败，请检查 Phase B 提示词格式。';
   }
 

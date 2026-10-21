@@ -154,6 +154,7 @@ def preflight(prepared, result):
     checks["canonical_scope_available"] = compiler.has_phase_b_canonical_scope(
         prepared["llm_input"]["clip"], prepared["llm_input"]["canonical"])
     return {"contract": VERSION, "passed": all(v is True for v in checks.values()), "checks": checks,
+            "quality_warnings": review.get("quality_warnings", []),
             "native_diagnostics": review.get("native_prompt_diagnostics", {}),
             "director_semantics": "REVIEW_REQUIRED; no automatic natural-language quality certification"}
 
@@ -167,11 +168,16 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
     plan = safe_json_dict(shot.video_director_plan)
     metadata = safe_json_dict(task.metadata_json)
     language = task_language(metadata)
+    from app.models.system_config import SystemConfig
+    from app.services.generation_preflight import config_policy
+    quality_policy = config_policy(db.query(SystemConfig).filter_by(id="default").first())
+    enforce_english_prose = quality_policy["PHASE_B_LANGUAGE_CONSISTENCY"]
     # Language rules belong to the selected template; the choice is input data.
     system_prompt = template.template
     record = {"pipeline": PIPELINE, "version": VERSION, "status": "PREPARING", "clip_index": builder_input["clip"]["clip_index"],
               "template": {"id": template.id, "name": template.name, "sha256": digest(template.template)},
-              "workflow_id": workflow.id, "workflow_type": workflow.type, "llm_call_count": 0}
+              "workflow_id": workflow.id, "workflow_type": workflow.type, "llm_call_count": 0,
+              "quality_policy": {"PHASE_B_LANGUAGE_CONSISTENCY": enforce_english_prose}}
     if language is not None:
         record.update(video_prompt_language=language, language_contract=LANGUAGE_CONTRACT,
                       effective_system_prompt=system_prompt, effective_system_prompt_sha256=digest(system_prompt))
@@ -247,7 +253,8 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                 raise ValueError("PHASE_B_DIRECTOR_FAILED: " + str(response.get("error") or response.get("message") or "LLM failed"))
             raw = response.get("content") or ""
         record["raw_response"] = raw
-        result = compiler.compile_multi_keyframe_phase_b(prepared, raw)
+        result = compiler.compile_multi_keyframe_phase_b(
+            prepared, raw, enforce_english_prose=enforce_english_prose)
         requested_prompt = metadata.get("phase_b_requested_prompt") or ""
         if metadata.get("skip_llm_when_prompt_exists") and requested_prompt.strip() and result.get("prompt") != requested_prompt:
             raise ValueError("PHASE_B_CURRENT_PROMPT_CHANGED: re-run Director for this input/template")
@@ -257,6 +264,9 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
             raise ValueError("PHASE_B_PREFLIGHT_FAILED: " + str(result.get("reasons") or record["preflight"]["checks"]))
         record.update(status="COMPILED", elapsed_seconds=round(monotonic() - started, 3),
                       final_prompt_sha256=digest(result["prompt"]))
+        current = safe_json_dict(task.metadata_json)
+        current["generation_quality_warnings"] = record["preflight"]["quality_warnings"]
+        task.metadata_json = json.dumps(current, ensure_ascii=False)
         task.prompt_text = result["prompt"]
         persist()
         if not is_candidate(metadata):

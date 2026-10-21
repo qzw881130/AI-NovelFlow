@@ -57,6 +57,34 @@ def test_batch_preflight_reports_soft_checks_and_rejects_only_enabled_policy(db_
         normalize_policy({"SHOT_IMAGE_READY": False})
 
 
+def test_catalog_lists_runtime_gates_without_pretending_batch_evaluated_them(db_session):
+    _, chapter, shot = seed(db_session)
+    all_checks = catalog()
+    ids = {item['id'] for item in all_checks}
+    assert {'PHASE_B_SOURCE_BINDING', 'PHASE_B_DIRECTOR_SCHEMA', 'PHASE_B_TIMING_ANCHORS',
+            'PHASE_B_LANGUAGE_CONSISTENCY', 'PHASE_B_PROMPT_STRUCTURE',
+            'PHASE_B_PICTURE_BINDING', 'PHASE_B_WORKFLOW_BINDING',
+            'VIDEO_OUTPUT_ARTIFACT', 'CLIP_ASSEMBLY_PROVENANCE'} <= ids
+    language = next(item for item in all_checks if item['id'] == 'PHASE_B_LANGUAGE_CONSISTENCY')
+    assert language['stage'] == 'director' and language['configurable'] and not language['blocking']
+    assert next(item for item in catalog({'PHASE_B_LANGUAGE_CONSISTENCY': True})
+                if item['id'] == 'PHASE_B_LANGUAGE_CONSISTENCY')['blocking']
+    report = evaluate_batch(db_session, chapter.id, [shot.id])
+    assert all(item['id'] not in {entry['id'] for entry in report['checks']}
+               for item in all_checks if item['stage'] != 'before_queue')
+
+
+def test_language_gate_policy_is_saved_and_exposed_in_settings(client):
+    response = client.post('/api/config/', json={
+        'generationQualityPolicy': {'PHASE_B_LANGUAGE_CONSISTENCY': True},
+    })
+    assert response.status_code == 200, response.text
+    data = client.get('/api/config/generation-checks').json()['data']
+    assert data['policy']['PHASE_B_LANGUAGE_CONSISTENCY'] is True
+    language = next(item for item in data['checks'] if item['id'] == 'PHASE_B_LANGUAGE_CONSISTENCY')
+    assert language['blocking'] is True and language['stage'] == 'director'
+
+
 @pytest.mark.asyncio
 async def test_batch_preflight_rejects_entire_batch_before_creating_tasks(db_session):
     novel, chapter, shot = seed(db_session)
