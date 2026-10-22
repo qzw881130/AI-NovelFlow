@@ -8,12 +8,16 @@ import json
 import httpx
 import uuid
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, ClassVar
 from .errors import error_payload, http_error_detail, underlying_exception, safe_error
 
 
 class ComfyUIClient:
     """ComfyUI HTTP 客户端"""
+
+    # A timed-out prompt can remain in queue_running when ComfyUI's execution
+    # thread has exited. Share this guard across clients in this backend process.
+    _stalled_prompts: ClassVar[Dict[str, str]] = {}
     
     def __init__(self, *, runtime_mode: str = "product", base_url: str = None):
         if runtime_mode not in {"product", "standalone"}:
@@ -189,12 +193,107 @@ class ComfyUIClient:
         return await self._upload_asset(audio_path, mime_type, 60.0, "音频")
 
     # ==================== 任务提交 ====================
+
+    @staticmethod
+    def _missing_workflow_links(workflow: Dict[str, Any]) -> List[str]:
+        """Check ComfyUI API-format links before they can reach prompt_worker."""
+        if not isinstance(workflow, dict):
+            return []
+        node_ids = {str(node_id) for node_id, node in workflow.items()
+                    if isinstance(node, dict) and node.get("class_type")}
+        missing = []
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict) or not node.get("class_type"):
+                continue
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict):
+                continue
+            for input_name, value in inputs.items():
+                if (isinstance(value, (list, tuple)) and len(value) == 2
+                        and isinstance(value[0], str) and isinstance(value[1], int)
+                        and not isinstance(value[1], bool) and value[0] not in node_ids):
+                    missing.append(f"{node_id}.{input_name} → {value[0]}")
+        return missing
+
+    async def _stalled_executor_failure(self) -> Optional[Dict[str, Any]]:
+        """Reject new work while our timed-out prompt still occupies the executor."""
+        endpoint = self.base_url
+        prompt_id = self._stalled_prompts.get(endpoint)
+        if not prompt_id and self.runtime_mode != "product":
+            return None
+        queue_info = await self.get_queue_info()
+        if queue_info.get("_lookup_error"):
+            # A failed lookup cannot prove the executor has recovered.
+            if not prompt_id:
+                return None
+            message = f"ComfyUI 执行器状态无法确认：{safe_error(queue_info['_lookup_error'])}"
+        elif prompt_id and self._queue_contains_prompt({"queue_running": queue_info.get("queue_running", [])}, prompt_id):
+            message = f"ComfyUI 中超时任务 {prompt_id} 仍占用执行队列；请检查或重启 ComfyUI 执行服务"
+        else:
+            self._stalled_prompts.pop(endpoint, None)
+            prompt_id = self._terminal_running_prompt(queue_info) if self.runtime_mode == "product" else None
+            if not prompt_id:
+                return None
+            self._stalled_prompts[endpoint] = prompt_id
+            message = f"ComfyUI 中已结束的项目任务 {prompt_id} 仍占用执行队列；请检查或重启 ComfyUI 执行服务"
+        return {"success": False, "message": message, "error": message,
+                "comfyui_error": self._error("COMFYUI_EXECUTOR_STALLED", "PROMPT_SUBMIT", message)}
+
+    @staticmethod
+    def _terminal_running_prompt(queue_info: Dict[str, Any]) -> Optional[str]:
+        """Recognize a dead/late executor across backend process restarts."""
+        running_ids = [str(item[1]) for item in queue_info.get("queue_running", [])
+                       if isinstance(item, (list, tuple)) and len(item) > 1 and isinstance(item[1], str)]
+        if not running_ids:
+            return None
+        from app.core.database import SessionLocal
+        from app.models.task import Task
+        db = None
+        try:
+            db = SessionLocal()
+            row = db.query(Task.comfyui_prompt_id).filter(
+                Task.comfyui_prompt_id.in_(running_ids), Task.status.in_(["failed", "cancelled"])
+            ).first()
+            return row[0] if row else None
+        except Exception as exc:
+            print(f"[ComfyUI] Cannot inspect terminal running prompt: {safe_error(exc)}")
+            return None
+        finally:
+            if db is not None:
+                db.close()
+
+    async def _cleanup_timed_out_prompt(self, prompt_id: str) -> str:
+        """Only touch this prompt; never clear other users' ComfyUI work."""
+        queue_info = await self.get_queue_info()
+        if queue_info.get("_lookup_error"):
+            return f"；ComfyUI 队列状态无法确认：{safe_error(queue_info['_lookup_error'])}"
+        if self._queue_contains_prompt({"queue_pending": queue_info.get("queue_pending", [])}, prompt_id):
+            result = await self.delete_from_queue(prompt_id)
+            return "；已从 ComfyUI 等待队列移除" if result.get("success") else f"；移除等待任务失败：{result.get('message')}"
+        if not self._queue_contains_prompt({"queue_running": queue_info.get("queue_running", [])}, prompt_id):
+            return ""
+        await self.interrupt_execution(max_retries=1)
+        queue_info = await self.get_queue_info()
+        if queue_info.get("_lookup_error"):
+            return f"；已请求中断，但 ComfyUI 队列状态无法确认：{safe_error(queue_info['_lookup_error'])}"
+        if self._queue_contains_prompt({"queue_running": queue_info.get("queue_running", [])}, prompt_id):
+            self._stalled_prompts[self.base_url] = prompt_id
+            return "；已请求中断，但任务仍占用 ComfyUI 执行队列。后续提交将暂缓，请检查或重启 ComfyUI"
+        return "；已请求中断 ComfyUI 中的超时任务"
     
     async def queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """提交任务到 ComfyUI"""
         failure = self._configuration_failure("PROMPT_SUBMIT")
         if failure:
             return failure
+        missing_links = self._missing_workflow_links(workflow)
+        if missing_links:
+            message = "工作流引用不存在的节点：" + "、".join(missing_links[:8])
+            return {"success": False, "message": message, "error": message,
+                    "comfyui_error": self._error("COMFYUI_INVALID_WORKFLOW", "PROMPT_SUBMIT", message)}
+        stalled = await self._stalled_executor_failure()
+        if stalled:
+            return stalled
         try:
             async with self._client() as client:
                 response = await client.post(
@@ -267,7 +366,8 @@ class ComfyUIClient:
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
-                return execution_failure(f"任务超时 ({timeout}s)")
+                cleanup = await self._cleanup_timed_out_prompt(prompt_id)
+                return execution_failure(f"任务超时 ({timeout}s){cleanup}")
 
             try:
                 async with self._client() as client:
@@ -364,7 +464,8 @@ class ComfyUIClient:
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
-                return execution_failure(f"任务超时 ({timeout}s)")
+                cleanup = await self._cleanup_timed_out_prompt(prompt_id)
+                return execution_failure(f"任务超时 ({timeout}s){cleanup}")
 
             try:
                 async with self._client() as client:

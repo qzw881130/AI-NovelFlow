@@ -1,5 +1,7 @@
 import json
+from copy import deepcopy
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -109,6 +111,105 @@ def test_temporal_anchors_and_visual_references_vary_independently(db_session, a
             assert node_id not in graph and key not in graph["55"]["inputs"]
 
 
+@pytest.mark.parametrize("anchor_count", [0, 1])
+def test_temporal_extend_updates_all_mapped_keyframe_controllers(db_session, anchor_count):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    graph["151"]["inputs"]["conditioning"] = ["116", 0]
+    graph["2"]["inputs"]["conditioning"] = ["151", 0]
+    mapping = {**json.loads(workflow.node_mapping), "custom_keyframes_node_ids": ["116", "151"]}
+    anchors = [{"image": "anchor.png", "position": 383}] if anchor_count else []
+
+    result = WorkflowBuilder().build_temporal_extend_workflow(
+        graph, mapping, "previous.mp4", 16, anchors, "test/dual-controller",
+    )
+
+    assert "134" not in result
+    if anchor_count:
+        for node_id in ("116", "151"):
+            inputs = result[node_id]["inputs"]
+            assert json.loads(inputs["keyframe_state"]) == {"count": 1, "positions": [383]}
+            assert "keyframe_image_8" not in inputs
+        assert result["117"]["inputs"]["image"] == "anchor.png"
+        assert result["2"]["inputs"]["conditioning"] == ["151", 0]
+    else:
+        assert "116" not in result and "151" not in result
+        assert result["2"]["inputs"]["conditioning"] == ["55", 0]
+    assert all(
+        not (isinstance(value, list) and len(value) == 2 and str(value[0]) not in result)
+        for node in result.values() for value in node.get("inputs", {}).values()
+    )
+
+
+def test_temporal_extend_rejects_unmapped_second_controller_before_submission(db_session):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    with pytest.raises(ValueError, match="请映射所有关键帧控制节点"):
+        WorkflowBuilder().build_temporal_extend_workflow(
+            graph, json.loads(workflow.node_mapping), "previous.mp4", 16,
+            [{"image": "anchor.png", "position": 383}], "test/unmapped-controller",
+        )
+
+
+@pytest.mark.parametrize("anchor_count", [0, 1])
+def test_temporal_extend_ui_graph_handles_two_keyframe_controllers(anchor_count):
+    graph = {
+        "nodes": [
+            {"id": node_id, "type": node_type, "inputs": inputs, "widgets_values_named": {}}
+            for node_id, node_type, inputs in [
+                (55, "MiniMaxH3ReferenceToVideo", []),
+                (66, "VHS_LoadVideoFFmpeg", []),
+                (125, "PrimitiveFloat", []),
+                (65, "VHS_VideoCombine", []),
+                (117, "LoadImage", []),
+                (134, "LoadImage", []),
+                (116, "MiniMaxH3CustomKeyframes", [
+                    {"name": "conditioning", "link": 1},
+                    {"name": "keyframe_image_1", "link": 4},
+                    {"name": "keyframe_image_8", "link": 5},
+                ]),
+                (151, "MiniMaxH3CustomKeyframes", [
+                    {"name": "conditioning", "link": 2},
+                    {"name": "keyframe_image_1", "link": 7},
+                    {"name": "keyframe_image_8", "link": 6},
+                ]),
+                (2, "BasicGuider", [{"name": "conditioning", "link": 3}]),
+            ]
+        ],
+        "links": [
+            [1, 55, 0, 116, 0, "CONDITIONING"],
+            [2, 116, 0, 151, 0, "CONDITIONING"],
+            [3, 151, 0, 2, 0, "CONDITIONING"],
+            [4, 117, 0, 116, 1, "IMAGE"],
+            [5, 134, 0, 116, 2, "IMAGE"],
+            [6, 134, 0, 151, 2, "IMAGE"],
+            [7, 117, 0, 151, 1, "IMAGE"],
+        ],
+    }
+    mapping = {
+        "load_video_node_id": "66", "duration_seconds_node_id": "125", "video_save_node_id": "65",
+        "custom_keyframes_node_id": "116", "custom_keyframes_node_ids": ["116", "151"],
+        "keyframe_node_1": "117", "keyframe_node_8": "134",
+    }
+    anchors = [{"image": "anchor.png", "position": 383}] if anchor_count else []
+
+    ui_result = WorkflowBuilder().build_temporal_extend_workflow(
+        graph, mapping, "previous.mp4", 16, anchors, "test/dual-controller",
+    )
+    result = WorkflowBuilder().convert_ui_to_api(ui_result)
+    assert "134" not in result
+    if anchor_count:
+        for node_id in ("116", "151"):
+            assert json.loads(result[node_id]["inputs"]["keyframe_state"]) == {"count": 1, "positions": [383]}
+            assert "keyframe_image_8" not in result[node_id]["inputs"]
+        assert result["2"]["inputs"]["conditioning"] == ["151", 0]
+    else:
+        assert "116" not in result and "151" not in result
+        assert result["2"]["inputs"]["conditioning"] == ["55", 0]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("count", [0, 4, 9])
 async def test_temporal_extend_service_submits_only_requested_references(db_session, monkeypatch, count):
@@ -145,6 +246,38 @@ async def test_temporal_extend_service_submits_only_requested_references(db_sess
     assert result["success"] and len(queued) == 1
     assert queued[0]["117"]["inputs"]["image"] == "anchor.png"
     assert len([key for key in queued[0]["55"]["inputs"] if key.startswith("ref_images.ref_image_")]) == count
+
+
+@pytest.mark.asyncio
+async def test_temporal_extend_service_submits_both_keyframe_controllers(db_session, monkeypatch):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    graph["151"]["inputs"]["conditioning"] = ["116", 0]
+    graph["2"]["inputs"]["conditioning"] = ["151", 0]
+    mapping = {**json.loads(workflow.node_mapping), "custom_keyframes_node_ids": ["116", "151"]}
+    service = ComfyUIService()
+    queued = []
+    monkeypatch.setattr(service.client, "upload_video", AsyncMock(return_value={"success": True, "filename": "previous.mp4"}))
+    monkeypatch.setattr(service.client, "upload_image", AsyncMock(return_value={"success": True, "filename": "anchor.png"}))
+
+    async def queue_prompt(submitted):
+        queued.append(submitted)
+        return {"success": True, "prompt_id": "dual-controller"}
+
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", AsyncMock(return_value={"success": True, "video_url": "result.mp4"}))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="next scene", workflow_json=graph, node_mapping=mapping,
+        previous_video_path="/videos/previous.mp4", duration_seconds=16,
+        filename_prefix="test/dual-controller", capability="TEMPORAL_EXTEND",
+        anchors=[{"image_path": "/images/anchor.png", "position": 383}], reference_image_paths=[],
+    )
+    assert result["success"] and len(queued) == 1
+    for node_id in ("116", "151"):
+        assert json.loads(queued[0][node_id]["inputs"]["keyframe_state"]) == {"count": 1, "positions": [383]}
+        assert "keyframe_image_8" not in queued[0][node_id]["inputs"]
+    assert "134" not in queued[0]
 
 
 @pytest.mark.asyncio

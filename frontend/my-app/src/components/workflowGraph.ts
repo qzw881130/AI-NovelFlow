@@ -39,10 +39,13 @@ function mappingLabels(mapping: unknown, ids: Set<string>): Map<string, string[]
   const labels = new Map<string, string[]>();
   for (const [key, value] of Object.entries(record(mapping))) {
     // Mapping objects also contain literal settings such as scale_value.
-    if (!/node(?:_\d+)?(?:_id)?$/.test(key) && !/_node_id$/.test(key)) continue;
-    const id = nodeId(value);
-    if (!ids.has(id)) continue;
-    labels.set(id, [...(labels.get(id) || []), key]);
+    if (!/node(?:_\d+)?(?:_id)?$/.test(key) && !/_node_ids?$/.test(key)) continue;
+    for (const item of Array.isArray(value) ? value : [value]) {
+      const id = nodeId(item);
+      if (!ids.has(id)) continue;
+      const current = labels.get(id) || [];
+      if (!current.includes(key)) labels.set(id, [...current, key]);
+    }
   }
   return labels;
 }

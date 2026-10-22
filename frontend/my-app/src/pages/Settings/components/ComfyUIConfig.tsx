@@ -122,6 +122,8 @@ export default function ComfyUIConfig({ formData, onFormDataChange, onUserModifi
           <option value={900}>15 分钟</option>
           <option value={1200}>20 分钟</option>
           <option value={1800}>30 分钟</option>
+          <option value={2700}>45 分钟</option>
+          <option value={3600}>60 分钟</option>
         </select>
         <p className="mt-1 text-xs text-gray-500">
           用于视频等长任务完成后，等待后端保存结果的超时阈值。

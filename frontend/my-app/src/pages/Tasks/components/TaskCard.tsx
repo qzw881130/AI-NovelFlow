@@ -222,6 +222,8 @@ export function TaskCard({
     COMFYUI_UPLOAD_FAILED: t('tasks.comfyUploadFailed'),
     COMFYUI_HTTP_ERROR: t('tasks.comfyHttpError'),
     COMFYUI_PROMPT_SUBMIT_FAILED: t('tasks.comfySubmitFailed'),
+    COMFYUI_INVALID_WORKFLOW: t('tasks.comfySubmitFailed'),
+    COMFYUI_EXECUTOR_STALLED: t('tasks.comfyExecutionFailed'),
     COMFYUI_EXECUTION_FAILED: t('tasks.comfyExecutionFailed'),
   };
   const comfyStages: Record<string, string> = {

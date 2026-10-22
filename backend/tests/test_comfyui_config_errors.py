@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 import httpx
 import pytest
+from sqlalchemy.orm import sessionmaker
 from app.core import config
 from app.models.system_config import SystemConfig
 from app.models.task import Task
@@ -18,6 +19,7 @@ from test_video_reference_phase1 import assets, fixture as clip_fixture
 
 @pytest.fixture(autouse=True)
 def isolated_runtime(monkeypatch):
+    ComfyUIClient._stalled_prompts.clear()
     monkeypatch.setattr(config, '_settings_instance', config.Settings())
     monkeypatch.setattr(config, '_comfyui_configured_url', None)
     monkeypatch.setattr(httpx.AsyncClient, 'post', AsyncMock(side_effect=AssertionError('REAL HTTP FORBIDDEN')))
@@ -26,6 +28,17 @@ def isolated_runtime(monkeypatch):
 def configure(db, endpoint='http://192.168.50.1:8288'):
     db.add(SystemConfig(id='default', comfyui_host=endpoint, comfyui_timeout=321))
     db.commit()
+
+
+@pytest.mark.parametrize('timeout', [2700, 3600])
+def test_long_comfyui_timeout_persists_and_reloads(client, db_session, timeout):
+    response = client.post('/api/config/', json={'comfyUITimeout': timeout})
+    assert response.status_code == 200, response.text
+    assert client.get('/api/config/').json()['data']['comfyUITimeout'] == timeout
+    assert db_session.query(SystemConfig).filter_by(id='default').one().comfyui_timeout == timeout
+    config.get_settings().COMFYUI_TIMEOUT = 900
+    config.initialize_product_comfyui_config(db_session)
+    assert config.get_settings().COMFYUI_TIMEOUT == timeout
 
 class HTTP:
     def __init__(self, outcomes):
@@ -255,6 +268,93 @@ async def test_execution_failure_retains_submitted_true(monkeypatch):
     monkeypatch.setattr(client, '_client', lambda: transport)
     error = (await client.wait_for_result('submitted', {}))['comfyui_error']
     assert error['error_code'] == 'COMFYUI_EXECUTION_FAILED' and error['prompt_submitted'] is True and error['attempts'] == 1
+
+@pytest.mark.asyncio
+async def test_dangling_workflow_link_is_rejected_before_submission(monkeypatch):
+    client = ComfyUIClient(runtime_mode='standalone')
+    transport = HTTP([httpx.Response(200, json={'prompt_id': 'valid'})])
+    monkeypatch.setattr(client, '_client', lambda: transport)
+    graph = {'151': {'class_type': 'MiniMaxH3CustomKeyframes', 'inputs': {'keyframe_image_8': ['134', 0]}}}
+    result = await client.queue_prompt(graph)
+    assert result['comfyui_error']['error_code'] == 'COMFYUI_INVALID_WORKFLOW'
+    assert '151.keyframe_image_8 → 134' in result['message']
+    assert result['comfyui_error']['prompt_submitted'] is False
+    assert not transport.requests
+
+    graph['134'] = {'class_type': 'LoadImage', 'inputs': {'image': 'anchor.png'}}
+    assert (await client.queue_prompt(graph))['prompt_id'] == 'valid'
+    assert len(transport.requests) == 1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('wait_method', ['wait_for_result', 'wait_for_audio_result'])
+async def test_timed_out_running_prompt_blocks_new_submissions_until_queue_recovers(monkeypatch, wait_method):
+    client = ComfyUIClient(runtime_mode='standalone')
+    running = {'queue_running': [[1, 'stuck-prompt', {}]], 'queue_pending': []}
+    recovered = {'queue_running': [], 'queue_pending': []}
+    monkeypatch.setattr(client, 'get_queue_info', AsyncMock(side_effect=[running, running, running, recovered]))
+    interrupt = AsyncMock(return_value={'success': True})
+    monkeypatch.setattr(client, 'interrupt_execution', interrupt)
+    transport = HTTP([httpx.Response(200, json={'prompt_id': 'next-prompt'})])
+    monkeypatch.setattr(client, '_client', lambda: transport)
+
+    result = await getattr(client, wait_method)('stuck-prompt', {}, timeout=-1)
+    assert result['comfyui_error']['prompt_submitted'] is True
+    assert '请检查或重启 ComfyUI' in result['message']
+    interrupt.assert_awaited_once_with(max_retries=1)
+    assert client._stalled_prompts[client.base_url] == 'stuck-prompt'
+
+    graph = {'1': {'class_type': 'SaveImage', 'inputs': {}}}
+    blocked = await client.queue_prompt(graph)
+    assert blocked['comfyui_error']['error_code'] == 'COMFYUI_EXECUTOR_STALLED'
+    assert blocked['comfyui_error']['prompt_submitted'] is False
+    assert not transport.requests
+
+    assert (await client.queue_prompt(graph))['prompt_id'] == 'next-prompt'
+    assert client.base_url not in client._stalled_prompts
+    assert len(transport.requests) == 1
+
+@pytest.mark.asyncio
+async def test_timed_out_pending_prompt_is_deleted_without_interrupting_running_work(monkeypatch):
+    client = ComfyUIClient(runtime_mode='standalone')
+    monkeypatch.setattr(client, 'get_queue_info', AsyncMock(return_value={
+        'queue_running': [[1, 'other-prompt', {}]],
+        'queue_pending': [[2, 'our-prompt', {}]],
+    }))
+    delete = AsyncMock(return_value={'success': True})
+    interrupt = AsyncMock()
+    monkeypatch.setattr(client, 'delete_from_queue', delete)
+    monkeypatch.setattr(client, 'interrupt_execution', interrupt)
+
+    result = await client.wait_for_result('our-prompt', {}, timeout=-1)
+    assert '已从 ComfyUI 等待队列移除' in result['message']
+    delete.assert_awaited_once_with('our-prompt')
+    interrupt.assert_not_awaited()
+    assert client.base_url not in client._stalled_prompts
+
+@pytest.mark.asyncio
+async def test_product_client_detects_failed_running_prompt_after_backend_restart(db_session, db_engine, monkeypatch):
+    configure(db_session)
+    config.initialize_product_comfyui_config(db_session)
+    db_session.add(Task(type='shot_video', name='old failed clip', status='failed', comfyui_prompt_id='old-prompt'))
+    db_session.commit()
+    monkeypatch.setattr('app.core.database.SessionLocal', sessionmaker(bind=db_engine))
+    client = ComfyUIClient.for_product_runtime(db_session)
+    queue = AsyncMock(side_effect=[
+        {'queue_running': [[1, 'old-prompt', {}]], 'queue_pending': [[2, 'next-prompt', {}]]},
+        {'queue_running': [], 'queue_pending': [[2, 'next-prompt', {}]]},
+    ])
+    monkeypatch.setattr(client, 'get_queue_info', queue)
+    transport = HTTP([httpx.Response(200, json={'prompt_id': 'new-prompt'})])
+    monkeypatch.setattr(client, '_client', lambda: transport)
+    graph = {'1': {'class_type': 'SaveImage', 'inputs': {}}}
+
+    blocked = await client.queue_prompt(graph)
+    assert blocked['comfyui_error']['error_code'] == 'COMFYUI_EXECUTOR_STALLED'
+    assert not transport.requests
+    assert client._stalled_prompts[client.base_url] == 'old-prompt'
+
+    assert (await client.queue_prompt(graph))['prompt_id'] == 'new-prompt'
+    assert len(transport.requests) == 1
 
 def test_diagnostics_do_not_expose_credentials():
     task = Task(metadata_json=json.dumps({'comfyui_error': {'error_code': 'COMFYUI_CONNECTION_FAILED', 'stage': 'PREVIOUS_AV_UPLOAD',

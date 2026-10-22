@@ -54,6 +54,7 @@ export interface Workflow {
     scale_node_id?: string;
     scale_value?: string;
     custom_keyframes_node_id?: string;
+    custom_keyframes_node_ids?: string[];
     second_pass_upscale_step_node_id?: string;
     second_pass_upscale_step?: string;
     second_pass_upscale_scale_node_id?: string;

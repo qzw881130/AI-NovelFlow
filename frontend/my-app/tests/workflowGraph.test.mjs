@@ -36,6 +36,19 @@ test('saved UI workflow reads links, widget values and original positions', () =
   assert.equal(graph.nodes[0].inputs[0].value, 'ref.png');
 });
 
+test('all mapped keyframe controllers are marked in the graph', () => {
+  const workflow = {
+    '116': { class_type: 'MiniMaxH3CustomKeyframes', inputs: {} },
+    '151': { class_type: 'MiniMaxH3CustomKeyframes', inputs: {} },
+  };
+  const graph = parseWorkflowGraph(workflow, {
+    custom_keyframes_node_id: '116',
+    custom_keyframes_node_ids: ['116', '151'],
+  });
+  assert.ok(graph.nodes.find(node => node.id === '116').mappingKeys.includes('custom_keyframes_node_ids'));
+  assert.ok(graph.nodes.find(node => node.id === '151').mappingKeys.includes('custom_keyframes_node_ids'));
+});
+
 test('invalid JSON returns no graph and a real stored workflow parses', async () => {
   assert.equal(parseWorkflowGraph('{bad json'), null);
   const fixture = JSON.parse(await readFile(new URL('../../../backend/tests/fixtures/h3_continuation_workflow.json', import.meta.url), 'utf8'));

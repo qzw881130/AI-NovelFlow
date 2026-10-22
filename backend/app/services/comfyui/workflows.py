@@ -268,14 +268,45 @@ class WorkflowBuilder:
         inputs["value"] = value
 
     @staticmethod
+    def _temporal_custom_node_ids(mapping):
+        primary = mapping.get("custom_keyframes_node_id")
+        additional = mapping.get("custom_keyframes_node_ids")
+        if additional is not None and not isinstance(additional, list):
+            raise ValueError("关键帧控制节点映射必须是节点列表")
+        ids = [str(primary)] if primary else []
+        ids.extend(str(value) for value in (additional or []) if value)
+        unique_ids = list(dict.fromkeys(ids))
+        if not unique_ids:
+            raise ValueError("时序续生成工作流缺少关键帧控制节点映射")
+        return unique_ids
+
+    @staticmethod
+    def _assert_no_removed_api_references(workflow, removed):
+        for node_id, node in workflow.items():
+            for value in node.get("inputs", {}).values():
+                if isinstance(value, list) and len(value) == 2 and str(value[0]) in removed:
+                    raise ValueError(
+                        f"节点 {node_id} 仍引用已移除的关键帧节点 {value[0]}；请映射所有关键帧控制节点"
+                    )
+
+    @staticmethod
+    def _assert_ui_links_preserved(workflow, removed_link_ids):
+        for node in workflow.get("nodes", []):
+            for item in node.get("inputs", []):
+                if isinstance(item, dict) and item.get("link") in removed_link_ids:
+                    raise ValueError(
+                        f"节点 {node.get('id')} 仍引用已移除的关键帧连接；请映射所有关键帧控制节点"
+                    )
+
+    @staticmethod
     def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
         nodes = {str(node.get("id")): node for node in workflow.get("nodes", []) if isinstance(node, dict)}
         load_video_id = str(mapping.get("load_video_node_id") or "")
         duration_id = str(mapping.get("duration_seconds_node_id") or "")
-        custom_id = str(mapping.get("custom_keyframes_node_id") or "")
+        custom_ids = WorkflowBuilder._temporal_custom_node_ids(mapping)
         save_id = str(mapping.get("video_save_node_id") or "")
         keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
-        required = [load_video_id, duration_id, custom_id, save_id]
+        required = [load_video_id, duration_id, save_id, *custom_ids]
         if any(not node_id or node_id not in nodes for node_id in required):
             raise ValueError("时序续生成工作流缺少加载视频、时长、关键帧控制或保存节点")
 
@@ -297,35 +328,47 @@ class WorkflowBuilder:
             set_widget(nodes[prompt_id], "prompt", prompt)
             set_widget(nodes[prompt_id], "text", prompt)
 
-        custom_node = nodes[custom_id]
         links = workflow.get("links", [])
         if not anchors:
-            incoming = next((link for link in links if str(link[3]) == custom_id and int(link[4]) == 0), None)
-            if incoming:
-                for link in links:
-                    if str(link[1]) == custom_id:
-                        link[1], link[2] = incoming[1], incoming[2]
-            removed = {custom_id, *keyframe_ids}
+            def bypass(source_id, output, seen=None):
+                if str(source_id) not in custom_ids:
+                    return source_id, output
+                seen = seen or set()
+                if str(source_id) in seen or output != 0:
+                    raise ValueError("关键帧控制节点连接无法安全绕过")
+                incoming = next((link for link in links if str(link[3]) == str(source_id) and int(link[4]) == 0), None)
+                if not incoming:
+                    raise ValueError(f"关键帧控制节点 {source_id} 缺少 conditioning 输入")
+                return bypass(incoming[1], incoming[2], seen | {str(source_id)})
+
+            for link in links:
+                if str(link[1]) in custom_ids and str(link[3]) not in custom_ids:
+                    link[1], link[2] = bypass(link[1], link[2])
+            removed = {*custom_ids, *keyframe_ids}
             workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in removed]
             workflow["links"] = [link for link in links if str(link[3]) not in removed and str(link[1]) not in removed]
+            WorkflowBuilder._assert_ui_links_preserved(workflow, {link[0] for link in links if link not in workflow["links"]})
             return
 
         positions = [int(anchor["position"]) for anchor in anchors]
         state = json.dumps({"count": len(anchors), "positions": positions}, separators=(",", ":"))
-        set_widget(custom_node, "keyframe_state", state)
-        if isinstance(custom_node.get("widgets_values"), list):
-            if custom_node["widgets_values"]:
-                custom_node["widgets_values"][0] = state
-            else:
-                custom_node["widgets_values"] = [state, "1-based", "center"]
-        custom_node["inputs"] = [
-            item for item in custom_node.get("inputs", [])
-            if not re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", "")))
-            or int(re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", ""))).group(2)) <= len(anchors)
-        ]
+        for custom_id in custom_ids:
+            custom_node = nodes[custom_id]
+            set_widget(custom_node, "keyframe_state", state)
+            if isinstance(custom_node.get("widgets_values"), list):
+                if custom_node["widgets_values"]:
+                    custom_node["widgets_values"][0] = state
+                else:
+                    custom_node["widgets_values"] = [state, "1-based", "center"]
+            custom_node["inputs"] = [
+                item for item in custom_node.get("inputs", [])
+                if not re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", "")))
+                or int(re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", ""))).group(2)) <= len(anchors)
+            ]
         unused_ids = set(keyframe_ids[len(anchors):])
         workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in unused_ids]
         workflow["links"] = [link for link in links if str(link[1]) not in unused_ids and str(link[3]) not in unused_ids]
+        WorkflowBuilder._assert_ui_links_preserved(workflow, {link[0] for link in links if link not in workflow["links"]})
         for index, anchor in enumerate(anchors):
             node_id = keyframe_ids[index]
             if not node_id or node_id not in nodes:
@@ -339,10 +382,10 @@ class WorkflowBuilder:
     def _configure_temporal_extend_api_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
         load_video_id = str(mapping.get("load_video_node_id") or "")
         duration_id = str(mapping.get("duration_seconds_node_id") or "")
-        custom_id = str(mapping.get("custom_keyframes_node_id") or "")
+        custom_ids = WorkflowBuilder._temporal_custom_node_ids(mapping)
         save_id = str(mapping.get("video_save_node_id") or "")
         keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
-        if any(node_id not in workflow for node_id in [load_video_id, duration_id, custom_id, save_id]):
+        if any(node_id not in workflow for node_id in [load_video_id, duration_id, save_id, *custom_ids]):
             raise ValueError("时序续生成 API 工作流节点映射不完整")
         workflow[load_video_id].setdefault("inputs", {})["video"] = video_filename
         workflow[duration_id].setdefault("inputs", {})["value"] = float(duration_seconds)
@@ -356,19 +399,35 @@ class WorkflowBuilder:
                 prompt_inputs["prompt"] = prompt
             else:
                 prompt_inputs["text"] = prompt
-        custom_inputs = workflow[custom_id].setdefault("inputs", {})
-        conditioning = custom_inputs.get("conditioning")
         if not anchors:
-            for node in workflow.values():
+            def bypass(value, seen=None):
+                if not (isinstance(value, list) and len(value) == 2 and str(value[0]) in custom_ids):
+                    return value
+                source_id, output = str(value[0]), value[1]
+                seen = seen or set()
+                if source_id in seen or output != 0:
+                    raise ValueError("关键帧控制节点连接无法安全绕过")
+                conditioning = workflow[source_id].get("inputs", {}).get("conditioning")
+                if conditioning is None:
+                    raise ValueError(f"关键帧控制节点 {source_id} 缺少 conditioning 输入")
+                return bypass(conditioning, seen | {source_id})
+
+            for node_id, node in workflow.items():
+                if node_id in custom_ids:
+                    continue
                 inputs = node.get("inputs", {}) if isinstance(node, dict) else {}
                 for key, value in list(inputs.items()):
-                    if value == [custom_id, 0] and conditioning:
-                        inputs[key] = conditioning
-            for node_id in [custom_id, *keyframe_ids]:
+                    inputs[key] = bypass(value)
+            removed = {*custom_ids, *keyframe_ids}
+            for node_id in removed:
                 workflow.pop(node_id, None)
+            WorkflowBuilder._assert_no_removed_api_references(workflow, removed)
             return
         positions = [int(anchor["position"]) for anchor in anchors]
-        custom_inputs["keyframe_state"] = json.dumps({"count": len(anchors), "positions": positions}, separators=(",", ":"))
+        for custom_id in custom_ids:
+            workflow[custom_id].setdefault("inputs", {})["keyframe_state"] = json.dumps(
+                {"count": len(anchors), "positions": positions}, separators=(",", ":")
+            )
         for index in range(1, 9):
             if index <= len(anchors):
                 node_id = keyframe_ids[index - 1]
@@ -376,9 +435,12 @@ class WorkflowBuilder:
                     raise ValueError(f"时序续生成缺少关键帧 {index} LoadImage 节点")
                 workflow[node_id].setdefault("inputs", {})["image"] = anchors[index - 1]["image"]
             else:
-                custom_inputs.pop(f"keyframe_image_{index}", None)
-                custom_inputs.pop(f"keyframe_position_{index}", None)
+                for custom_id in custom_ids:
+                    custom_inputs = workflow[custom_id]["inputs"]
+                    custom_inputs.pop(f"keyframe_image_{index}", None)
+                    custom_inputs.pop(f"keyframe_position_{index}", None)
                 workflow.pop(keyframe_ids[index - 1], None)
+        WorkflowBuilder._assert_no_removed_api_references(workflow, set(keyframe_ids[len(anchors):]))
     
     def build_shot_workflow(
         self,

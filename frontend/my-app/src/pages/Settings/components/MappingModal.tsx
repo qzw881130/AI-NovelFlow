@@ -41,7 +41,7 @@ interface MappingForm {
   loadVideoNodeId?: string;
   scaleNodeId?: string;
   scaleValue?: string;
-  customKeyframesNodeId?: string;
+  customKeyframesNodeIds?: string[];
   secondPassUpscaleStepNodeId?: string;
   secondPassUpscaleStep?: string;
   secondPassUpscaleScaleNodeId?: string;
@@ -120,7 +120,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     loadVideoNodeId: '',
     scaleNodeId: '',
     scaleValue: '2x',
-    customKeyframesNodeId: '',
+    customKeyframesNodeIds: [''],
     secondPassUpscaleStepNodeId: '',
     secondPassUpscaleStep: '',
     secondPassUpscaleScaleNodeId: '',
@@ -282,7 +282,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 megapixelsNodeId: mapping.megapixels_node_id || '',
                 megapixelsValue: String(mapping.megapixels_value ?? '0.4'),
                 keyframeNodes: Array.from({ length: 8 }, (_, index) => mapping[`keyframe_node_${index + 1}`] || ''),
-                customKeyframesNodeId: mapping.custom_keyframes_node_id || '',
+                customKeyframesNodeIds: Array.isArray(mapping.custom_keyframes_node_ids) && mapping.custom_keyframes_node_ids.length
+                  ? mapping.custom_keyframes_node_ids.map(String)
+                  : [mapping.custom_keyframes_node_id || ''],
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
                 multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
                 videoSaveNodeId: mapping.video_save_node_id || '',
@@ -573,7 +575,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     
     setSavingMapping(true);
     try {
-      let nodeMapping: Record<string, string | null> = {};
+      let nodeMapping: Record<string, string | string[] | null> = {};
       if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION'].includes(workflow.type)
           && mappingForm.clipVideoOutputNodeId
           && mappingForm.clipVideoOutputNodeId === mappingForm.videoSaveNodeId) {
@@ -594,13 +596,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
       }
       
       if (workflow.type === 'TEMPORAL_EXTEND') {
+        const customNodeIds = (mappingForm.customKeyframesNodeIds || []).filter(Boolean);
+        if (!customNodeIds.length || new Set(customNodeIds).size !== customNodeIds.length) {
+          toast.error('请选择至少一个关键帧控制节点，且不能重复选择');
+          setSavingMapping(false);
+          return;
+        }
         nodeMapping = {
           load_video_node_id: mappingForm.loadVideoNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
           megapixels_node_id: mappingForm.megapixelsNodeId || null,
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
-          custom_keyframes_node_id: mappingForm.customKeyframesNodeId || null,
+          custom_keyframes_node_id: customNodeIds[0],
+          custom_keyframes_node_ids: customNodeIds,
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
           clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
@@ -810,6 +819,14 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         ? { secondPassUpscaleStep: value ? current.secondPassUpscaleStep || '2' : '' } : {}),
       ...(field === 'secondPassUpscaleScaleNodeId'
         ? { secondPassUpscaleScale: value ? current.secondPassUpscaleScale || '2' : '' } : {}),
+    }));
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleCustomKeyframesNodeSelect = (value: string, index: number) => {
+    setMappingForm(current => ({
+      ...current,
+      customKeyframesNodeIds: (current.customKeyframesNodeIds || ['']).map((nodeId, itemIndex) => itemIndex === index ? value : nodeId),
     }));
     if (value) setSelectedNodeId(value);
   };
@@ -1317,15 +1334,35 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
-                  <NodeSelectField
-                    label="关键帧控制节点"
-                    nodeTypeHint="MiniMaxH3CustomKeyframes"
-                    value={mappingForm.customKeyframesNodeId || ''}
-                    options={availableNodes.customKeyframes}
-                    onChange={(v) => handleNodeSelect(v, 'customKeyframesNodeId')}
-                    onFocus={handleNodeFocus}
-                    t={t}
-                  />
+                  <div className="space-y-2">
+                    {(mappingForm.customKeyframesNodeIds || ['']).map((nodeId, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1">
+                          <NodeSelectField
+                            label={`关键帧控制节点 ${index + 1}`}
+                            nodeTypeHint="MiniMaxH3CustomKeyframes"
+                            value={nodeId}
+                            options={availableNodes.customKeyframes}
+                            onChange={(value) => handleCustomKeyframesNodeSelect(value, index)}
+                            onFocus={handleNodeFocus}
+                            t={t}
+                          />
+                        </div>
+                        {index > 0 && (
+                          <button type="button" className="btn-secondary" onClick={() => setMappingForm(current => ({
+                            ...current,
+                            customKeyframesNodeIds: (current.customKeyframesNodeIds || ['']).filter((_, itemIndex) => itemIndex !== index),
+                          }))}>移除</button>
+                        )}
+                      </div>
+                    ))}
+                    {(mappingForm.customKeyframesNodeIds || ['']).length < availableNodes.customKeyframes.length && (
+                      <button type="button" className="text-sm text-blue-600 hover:text-blue-700" onClick={() => setMappingForm(current => ({
+                        ...current,
+                        customKeyframesNodeIds: [...(current.customKeyframesNodeIds || ['']), ''],
+                      }))}>+ 添加关键帧控制节点</button>
+                    )}
+                  </div>
                   <NodeSelectField
                     label={t('systemSettings.workflow.clipVideoOutputNode')}
                     nodeTypeHint="VHS_VideoCombine, VideoCombineV2, MiniMaxH3StreamLiveExtensionAVToVHS, SaveVideo"
