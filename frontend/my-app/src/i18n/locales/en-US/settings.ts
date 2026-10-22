@@ -214,7 +214,7 @@ export default {
       videoSaveNode: 'Video Output Node',
       clipVideoOutputNode: 'Clip Video Output Node',
       mergedVideoOutputNode: 'Merged Video Output Node',
-      videoSaveNodeTip: 'Select the VHS_VideoCombine or H3 AV Stream node that outputs the video',
+      videoSaveNodeTip: 'Select the VHS_VideoCombine, VideoCombineV2 or H3 AV Stream node that outputs the video',
       maxSideNode: 'Max Side Node (easy int - Max Side)',
       maxSideNodeTip: 'Select easy int node for setting video max side',
       referenceImageNode: 'Reference Image Node (LoadImage)',

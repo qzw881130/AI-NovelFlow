@@ -104,10 +104,11 @@ def test_review_does_not_use_unverified_boundary(db_session, tmp_path, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_clip_playback_saves_from_task_mapped_output_node(db_session, tmp_path, monkeypatch):
+@pytest.mark.parametrize('output_class', ['VHS_VideoCombine', 'VideoCombineV2'])
+async def test_clip_playback_saves_from_task_mapped_output_node(db_session, tmp_path, monkeypatch, output_class):
     novel, chapter, shot, tasks, _ = _assembly_fixture(db_session, tmp_path, monkeypatch)
     task = tasks[2]
-    graph = {'124': {'class_type': 'VHS_VideoCombine', 'inputs': {}}}
+    graph = {'124': {'class_type': output_class, 'inputs': {}}}
     task.workflow_json = json.dumps(graph)
     task.comfyui_prompt_id = 'mapped-prompt'
     metadata = json.loads(task.metadata_json)

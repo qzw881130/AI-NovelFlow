@@ -142,7 +142,7 @@ export interface AvailableNodes {
   secondPassScaleNodes: string[];
   easyFloat: string[];
   crPromptText: string[];
-  vhsVideoCombine: string[];
+  videoCombine: string[];
   h3VideoOutputs: string[];
   saveVideo: string[];
   loadImage: string[];

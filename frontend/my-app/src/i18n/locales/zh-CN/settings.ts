@@ -216,7 +216,7 @@ export default {
       videoSaveNode: '视频输出节点',
       clipVideoOutputNode: '片断视频输出节点',
       mergedVideoOutputNode: '合并视频输出节点',
-      videoSaveNodeTip: '选择输出视频的 VHS_VideoCombine 或 H3 AV Stream 节点',
+      videoSaveNodeTip: '选择输出视频的 VHS_VideoCombine、VideoCombineV2 或 H3 AV Stream 节点',
       maxSideNode: '最长边节点 (easy int - 最长边)',
       maxSideNodeTip: '选择用于设置视频最长边的 easy int 节点',
       referenceImageNode: '参考图片节点 (LoadImage)',

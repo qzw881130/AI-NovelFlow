@@ -90,7 +90,7 @@ async def clip_playback(db, shot, clip_index, novel_id, chapter_id):
                 graph=json.loads(task.workflow_json)
                 node=graph.get(clip_output_node_id) or {}
                 output_type=node.get('class_type')
-                if output_type not in {'VHS_VideoCombine','MiniMaxH3StreamLiveExtensionAVToVHS','SaveVideo'}:
+                if output_type not in {'VHS_VideoCombine','VideoCombineV2','MiniMaxH3StreamLiveExtensionAVToVHS','SaveVideo'}:
                     raise ValueError('RAW_CLIP_OUTPUT_UNAVAILABLE')
                 async with httpx.AsyncClient(timeout=180) as http:
                     history=metadata.get('comfyui_history') or {}
