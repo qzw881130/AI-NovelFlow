@@ -9,6 +9,7 @@ export interface SystemConfig {
   showFirstAppearanceNames?: boolean;
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
   comfyUITimeout?: number;

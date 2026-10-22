@@ -35,6 +35,20 @@ export interface NovelVideoMergeChapter {
   videoUrl: string;
 }
 
+export interface NovelVideoCover {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  imageUrl?: string | null;
+  frameSeconds: number;
+  aspectRatio: '16:9' | '9:16' | '4:3' | '1:1';
+  title: string;
+  author: string;
+  production: string;
+}
+
 export interface NovelVideoMergeHistory {
   id: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -50,6 +64,7 @@ export interface NovelVideoMergeHistory {
   chapters: NovelVideoMergeChapter[];
   createdAt?: string | null;
   completedAt?: string | null;
+  cover?: NovelVideoCover | null;
 }
 
 export const novelApi = {
@@ -124,6 +139,16 @@ export const novelApi = {
   /** 下载合并视频，文件名由服务端根据小说标题和视频版本生成 */
   videoMergeDownloadUrl: (novelId: string, taskId: string) =>
     `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/download`,
+
+  generateVideoCover: (novelId: string, taskId: string, data: {
+    frameSeconds: number; aspectRatio: NovelVideoCover['aspectRatio']; title: string; author: string; production: string;
+  }) => api.post<NovelVideoCover>(`/novels/${novelId}/video-merges/${taskId}/cover`, {
+    frame_seconds: data.frameSeconds, aspect_ratio: data.aspectRatio,
+    title: data.title, author: data.author, production: data.production,
+  }),
+
+  videoCoverDownloadUrl: (novelId: string, taskId: string) =>
+    `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/cover/download`,
 
   /** 导入小说 */
   import: async (file: File) => {

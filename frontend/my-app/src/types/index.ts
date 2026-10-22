@@ -37,6 +37,7 @@ export interface SystemConfig {
   showFirstAppearanceNames?: boolean;
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   
   // 代理配置
   proxy: ProxyConfig;

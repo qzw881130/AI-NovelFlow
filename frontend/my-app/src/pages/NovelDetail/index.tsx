@@ -258,7 +258,7 @@ export default function NovelDetail() {
       <BatchImportModal show={state.showBatchImportModal} novelId={state.id!}
         onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
       {showMergeModal && (
-        <MergeChapterVideosModal novelId={state.id!} chapters={state.chapters} initialProfile={mergeProfile} onClose={() => setShowMergeModal(false)} />
+        <MergeChapterVideosModal novelId={state.id!} novelTitle={state.novel.title} novelAuthor={state.novel.author} chapters={state.chapters} initialProfile={mergeProfile} onClose={() => setShowMergeModal(false)} />
       )}
       {showReaderModal && state.chapters.length > 0 && (
         <ChapterReaderModal novelId={state.id!} novelTitle={state.novel.title} chapters={state.chapters} onClose={() => setShowReaderModal(false)} />

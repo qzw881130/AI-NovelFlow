@@ -55,6 +55,7 @@ class SystemConfigUpdate(BaseModel):
     showFirstAppearanceNames: Optional[bool] = None
     autoApproveFirstAppearanceNames: Optional[bool] = None
     generationQualityPolicy: Optional[dict[str, bool]] = None
+    coverProduction: Optional[str] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -82,6 +83,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
             db.commit()
         if "generation_quality_policy" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
+        if "cover_production" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN cover_production VARCHAR NOT NULL DEFAULT '旺仔有声小说'"))
             db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
@@ -119,6 +123,7 @@ async def get_config(db: Session = Depends(get_db)):
             "showFirstAppearanceNames": bool(config.show_first_appearance_names),
             "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
             "generationQualityPolicy": config_policy(config),
+            "coverProduction": config.cover_production or "旺仔有声小说",
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -162,6 +167,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "show_first_appearance_names": bool(config.show_first_appearance_names),
             "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
             "generation_quality_policy": config_policy(config),
+            "cover_production": config.cover_production or "旺仔有声小说",
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -222,6 +228,11 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
                 db_config.generation_quality_policy = json.dumps(normalize_policy(config.generationQualityPolicy))
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if config.coverProduction is not None:
+            production = config.coverProduction.strip()
+            if not production or len(production) > 80:
+                raise HTTPException(status_code=400, detail="制作名称长度必须为 1–80 个字符")
+            db_config.cover_production = production
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled
@@ -274,6 +285,9 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         update_settings(updates)
         
         return {"success": True, "message": "配置已更新"}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"配置更新失败: {str(e)}")

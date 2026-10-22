@@ -90,6 +90,7 @@ export interface SettingsFormData {
   showFirstAppearanceNames?: boolean;
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   proxy: ProxyConfig;
   comfyUIHost: string;
   comfyUITimeout: number;

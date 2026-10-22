@@ -356,6 +356,8 @@ async def lifespan(app: FastAPI):
     resume_active_chapter_video_merges()
     from app.services.novel_video_merge_service import resume_active_novel_video_merges
     resume_active_novel_video_merges()
+    from app.services.novel_video_cover_service import resume_active_novel_video_covers
+    resume_active_novel_video_covers()
     from app.services.hd_repaint_service import resume_active_hd_repaints
     resume_active_hd_repaints()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())

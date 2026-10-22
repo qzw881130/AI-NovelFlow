@@ -25,6 +25,7 @@ class SystemConfig(Base):
     show_first_appearance_names = Column(Boolean, default=False, nullable=False)
     auto_approve_first_appearance_names = Column(Boolean, default=False, nullable=False)
     generation_quality_policy = Column(Text, default="{}", nullable=False)
+    cover_production = Column(String, default="旺仔有声小说", nullable=False)
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

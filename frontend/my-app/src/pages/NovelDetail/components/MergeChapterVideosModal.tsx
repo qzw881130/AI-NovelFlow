@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, Clock, Download, Film, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
-import { novelApi, type NovelVideoMergeHistory } from '../../../api/novels';
+import { CheckCircle, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
+import { novelApi, type NovelVideoCover, type NovelVideoMergeHistory } from '../../../api/novels';
+import { configApi } from '../../../api/config';
 import type { Chapter, ChapterVideoAsset } from '../../../types';
 import { toast } from '../../../stores/toastStore';
 
@@ -25,8 +26,12 @@ const formatDate = (value?: string | null) => value
   ? new Date(value).toLocaleString('zh-CN', { hour12: false })
   : '-';
 
-export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { kind: 'draft' }, onClose }: {
+const coverRatios: NovelVideoCover['aspectRatio'][] = ['16:9', '9:16', '4:3', '1:1'];
+
+export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chapters, initialProfile = { kind: 'draft' }, onClose }: {
   novelId: string;
+  novelTitle: string;
+  novelAuthor: string;
   chapters: Chapter[];
   initialProfile?: { kind: 'draft' | 'hd'; targetMegapixels?: number };
   onClose: () => void;
@@ -39,6 +44,71 @@ export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { 
   const [historyLoading, setHistoryLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [playingItem, setPlayingItem] = useState<NovelVideoMergeHistory | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [frameSeconds, setFrameSeconds] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState<NovelVideoCover['aspectRatio']>('16:9');
+  const [coverTitle, setCoverTitle] = useState(novelTitle);
+  const [coverAuthor, setCoverAuthor] = useState(novelAuthor);
+  const [coverProduction, setCoverProduction] = useState('旺仔有声小说');
+  const [generatingCover, setGeneratingCover] = useState(false);
+  const currentPlayingItem = playingItem && (history.find(item => item.id === playingItem.id) || playingItem);
+  const currentCover = currentPlayingItem?.cover;
+
+  useEffect(() => {
+    let cancelled = false;
+    void configApi.get().then(response => {
+      if (!cancelled && response.success) setCoverProduction(response.data?.coverProduction || '旺仔有声小说');
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const openVideo = (item: NovelVideoMergeHistory) => {
+    setPlayingItem(item);
+    setVideoDuration(item.duration || 0);
+    setFrameSeconds(item.cover?.frameSeconds || 0);
+    setAspectRatio(item.cover?.aspectRatio || '16:9');
+    setCoverTitle(item.cover?.title || novelTitle);
+    setCoverAuthor(item.cover?.author || novelAuthor);
+    if (item.cover?.production) setCoverProduction(item.cover.production);
+  };
+
+  const seekFrame = (seconds: number) => {
+    if (!Number.isFinite(seconds)) return;
+    const duration = videoRef.current?.duration || videoDuration;
+    const next = Math.max(0, duration > 0 ? Math.min(seconds, Math.max(0, duration - 0.05)) : seconds);
+    setFrameSeconds(next);
+    if (videoRef.current && Number.isFinite(videoRef.current.duration)) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = next;
+    }
+  };
+
+  const submitCover = async () => {
+    if (!currentPlayingItem) return;
+    if (!coverTitle.trim() || !coverAuthor.trim() || !coverProduction.trim()) {
+      toast.error('请填写封面标题、原作者和制作');
+      return;
+    }
+    setGeneratingCover(true);
+    try {
+      const response = await novelApi.generateVideoCover(novelId, currentPlayingItem.id, {
+        frameSeconds: Math.round(frameSeconds * 10) / 10, aspectRatio,
+        title: coverTitle.trim(), author: coverAuthor.trim(), production: coverProduction.trim(),
+      });
+      if (!response.success || !response.data) {
+        const detail = (response as typeof response & { detail?: string }).detail;
+        throw new Error(detail || response.message || '提交封面生成失败');
+      }
+      setHistory(previous => previous.map(item => item.id === currentPlayingItem.id ? { ...item, cover: response.data } : item));
+      toast.success('封面已加入生成队列');
+      await refreshHistory(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '提交封面生成失败');
+    } finally {
+      setGeneratingCover(false);
+    }
+  };
 
   const refreshHistory = async (silent = false) => {
     if (!silent) setHistoryLoading(true);
@@ -180,7 +250,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { 
                   {item.status !== 'completed' && item.currentStep && <p className="mt-2 text-xs text-gray-500">{item.currentStep}</p>}
                   {item.status === 'completed' && item.videoUrl && (
                     <div className="mt-3 flex justify-end gap-2 border-t pt-3">
-                      <button type="button" onClick={() => setPlayingItem(item)} className="btn-secondary px-3 py-1.5 text-sm"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
+                      <button type="button" onClick={() => openVideo(item)} className="btn-secondary px-3 py-1.5 text-sm"><Play className="mr-1 h-3.5 w-3.5" />播放 / 封面</button>
                       <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-3.5 w-3.5" />下载</a>
                     </div>
                   )}
@@ -191,14 +261,94 @@ export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { 
         </div>
       </div>
 
-      {playingItem?.videoUrl && (
-        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-black/80 p-4" onClick={() => setPlayingItem(null)}>
-          <div className="w-full max-w-5xl overflow-hidden rounded-xl bg-white" onClick={event => event.stopPropagation()}>
+      {currentPlayingItem?.videoUrl && (
+        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-black/80 p-4" onClick={event => { event.stopPropagation(); setPlayingItem(null); }}>
+          <div className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white" onClick={event => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-medium text-gray-900">章回合并视频</h3>
+              <h3 className="font-medium text-gray-900">章回合并视频 · 制作封面</h3>
               <button type="button" onClick={() => setPlayingItem(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-5 w-5" /></button>
             </div>
-            <div className="bg-black"><video src={playingItem.videoUrl} controls autoPlay className="max-h-[75vh] w-full" /></div>
+            <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="min-w-0 border-r border-gray-200">
+                <div className="flex min-h-56 items-center justify-center bg-black">
+                  <video
+                    ref={videoRef} src={currentPlayingItem.videoUrl} controls autoPlay
+                    className="max-h-[55vh] w-full"
+                    onLoadedMetadata={event => {
+                      const duration = event.currentTarget.duration;
+                      setVideoDuration(Number.isFinite(duration) ? duration : 0);
+                      if (frameSeconds > 0 && Number.isFinite(duration)) event.currentTarget.currentTime = Math.min(frameSeconds, Math.max(0, duration - 0.05));
+                    }}
+                    onTimeUpdate={event => setFrameSeconds(event.currentTarget.currentTime)}
+                  />
+                </div>
+                <div className="space-y-4 p-5">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+                      <label htmlFor="cover-frame-seconds" className="font-medium text-gray-900">选取封面画面</label>
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <input id="cover-frame-seconds" type="number" min="0" max={videoDuration || undefined} step="0.1"
+                          value={Number(frameSeconds.toFixed(1))} onChange={event => seekFrame(Number(event.target.value))}
+                          className="w-20 rounded-md border border-gray-300 px-2 py-1 text-right text-gray-900" />
+                        秒 / {formatDuration(videoDuration)}
+                      </div>
+                    </div>
+                    <input aria-label="选择封面视频帧" type="range" min="0" max={Math.max(0, videoDuration - 0.05)} step="0.1"
+                      value={Math.min(frameSeconds, Math.max(0, videoDuration - 0.05))} onChange={event => seekFrame(Number(event.target.value))}
+                      className="w-full accent-blue-600" />
+                    <p className="mt-1 text-xs text-gray-500">播放或拖动视频后，使用当前时间的画面作为生成参考。</p>
+                  </div>
+                  <div>
+                    <span className="mb-2 block text-sm font-medium text-gray-900">封面比例</span>
+                    <div className="flex flex-wrap gap-2">
+                      {coverRatios.map(ratio => <button key={ratio} type="button" onClick={() => setAspectRatio(ratio)}
+                        aria-pressed={aspectRatio === ratio}
+                        className={`rounded-md border px-3 py-1.5 text-sm ${aspectRatio === ratio ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>{ratio}</button>)}
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="block text-sm font-medium text-gray-800">标题
+                      <input value={coverTitle} maxLength={100} onChange={event => setCoverTitle(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="小说名" />
+                    </label>
+                    <label className="block text-sm font-medium text-gray-800">原作者
+                      <input value={coverAuthor} maxLength={100} onChange={event => setCoverAuthor(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="原作者" />
+                    </label>
+                    <label className="block text-sm font-medium text-gray-800">制作
+                      <input value={coverProduction} maxLength={80} onChange={event => setCoverProduction(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="制作单位" />
+                    </label>
+                  </div>
+                  <button type="button" onClick={submitCover}
+                    disabled={generatingCover || currentCover?.status === 'pending' || currentCover?.status === 'running'}
+                    className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
+                    {generatingCover || currentCover?.status === 'pending' || currentCover?.status === 'running'
+                      ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />}
+                    {currentCover?.status === 'pending' || currentCover?.status === 'running' ? '封面生成中...' : currentCover?.status === 'completed' ? '重新生成封面' : '生成视频封面'}
+                  </button>
+                </div>
+              </div>
+              <aside className="flex flex-col border-t bg-gray-50 p-5 lg:border-t-0">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h4 className="font-medium text-gray-900">视频封面</h4>
+                  {currentCover?.status === 'completed' && <a href={novelApi.videoCoverDownloadUrl(novelId, currentPlayingItem.id)}
+                    className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-4 w-4" />下载</a>}
+                </div>
+                {currentCover?.status === 'completed' && currentCover.imageUrl ? (
+                  <img src={currentCover.imageUrl} alt={`${currentCover.title} 视频封面`} className="max-h-[66vh] w-full rounded-lg border border-gray-200 bg-gray-900 object-contain" />
+                ) : currentCover?.status === 'failed' ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{currentCover.errorMessage || '封面生成失败，请重试'}</div>
+                ) : currentCover?.status === 'pending' || currentCover?.status === 'running' ? (
+                  <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-blue-200 bg-blue-50 text-center text-sm text-blue-700">
+                    <Loader2 className="mb-3 h-7 w-7 animate-spin" />
+                    <span>{currentCover.currentStep || '正在生成封面...'}</span>
+                  </div>
+                ) : (
+                  <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-center text-sm text-gray-500">
+                    <ImageIcon className="mb-3 h-8 w-8 text-gray-400" />选好视频帧后生成封面
+                  </div>
+                )}
+                <p className="mt-3 text-xs leading-5 text-gray-500">使用当前场景分镜图工作流生成画面，再将标题和署名准确排版在封面上。</p>
+              </aside>
+            </div>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 // Settings 页面主组件
 
 import { useState, useEffect, useRef } from 'react';
-import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity, Bell, ShieldCheck } from 'lucide-react';
+import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity, Bell, ShieldCheck, Clapperboard } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
@@ -17,7 +17,7 @@ import { configApi } from '../../api/config';
 import type { GenerationCheck } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
-type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality';
+type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality' | 'content';
 
 const TAB_HASHES: Record<SettingsTab, string> = {
   llm: 'llm',
@@ -27,6 +27,7 @@ const TAB_HASHES: Record<SettingsTab, string> = {
   systemStatus: 'system-status',
   notifications: 'notifications',
   generationQuality: 'generation-quality',
+  content: 'content',
 };
 
 const getTabFromHash = (hash: string): SettingsTab => {
@@ -88,6 +89,7 @@ export default function Settings() {
             showFirstAppearanceNames: config.showFirstAppearanceNames ?? false,
             autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? false,
             generationQualityPolicy: config.generationQualityPolicy ?? {},
+            coverProduction: config.coverProduction ?? '旺仔有声小说',
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -137,6 +139,8 @@ export default function Settings() {
             autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? false,
           } : {}),
         };
+      } else if (activeTab === 'content') {
+        payload = { coverProduction: formData.coverProduction?.trim() || '旺仔有声小说' };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
@@ -173,7 +177,7 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('systemSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          {activeTab === 'notifications' ? '设置通知通道、提示音和事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : t('systemSettings.subtitle')}
+          {activeTab === 'notifications' ? '设置通知通道、提示音和事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置视频封面等内容的默认署名' : t('systemSettings.subtitle')}
         </p>
       </div>
 
@@ -181,11 +185,11 @@ export default function Settings() {
       <div className="card">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-100 rounded-lg">
-            {activeTab === 'generationQuality' ? <ShieldCheck className="h-5 w-5 text-blue-600" /> : activeTab === 'notifications' ? <Bell className="h-5 w-5 text-blue-600" /> : <Bot className="h-5 w-5 text-blue-600" />}
+            {activeTab === 'generationQuality' ? <ShieldCheck className="h-5 w-5 text-blue-600" /> : activeTab === 'notifications' ? <Bell className="h-5 w-5 text-blue-600" /> : activeTab === 'content' ? <Clapperboard className="h-5 w-5 text-blue-600" /> : <Bot className="h-5 w-5 text-blue-600" />}
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{activeTab === 'notifications' ? '消息通知' : activeTab === 'generationQuality' ? t('systemSettings.generationQualityControl') : t('systemSettings.llmConfig')}</h2>
-            <p className="text-sm text-gray-500">{activeTab === 'notifications' ? '配置页面声音、外部推送与事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : t('systemSettings.subtitle')}</p>
+            <h2 className="text-lg font-semibold text-gray-900">{activeTab === 'notifications' ? '消息通知' : activeTab === 'generationQuality' ? t('systemSettings.generationQualityControl') : activeTab === 'content' ? '内容设置' : t('systemSettings.llmConfig')}</h2>
+            <p className="text-sm text-gray-500">{activeTab === 'notifications' ? '配置页面声音、外部推送与事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置封面制作署名' : t('systemSettings.subtitle')}</p>
           </div>
         </div>
         
@@ -269,6 +273,10 @@ export default function Settings() {
             className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'generationQuality' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />{t('systemSettings.generationQualityControl')}</span>
           </button>
+          <button type="button" onClick={() => selectTab('content')}
+            className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'content' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="flex items-center gap-2"><Clapperboard className="h-4 w-4" />内容设置</span>
+          </button>
         </div>
 
         {/* 工作流管理面板 - 独立于表单之外，避免嵌套表单问题 */}
@@ -280,6 +288,16 @@ export default function Settings() {
         {/* LLM/Proxy/ComfyUI 配置需要表单提交 */}
         {activeTab !== 'workflows' && activeTab !== 'notifications' && (
           <form onSubmit={handleSubmit} className="space-y-6">
+            {activeTab === 'content' && (
+              <div className="rounded-lg border border-gray-200 p-5">
+                <label htmlFor="cover-production" className="block text-sm font-medium text-gray-900">视频封面制作署名</label>
+                <p className="mt-1 text-sm text-gray-500">生成章回合并视频封面时默认填写，可在每次生成前修改。</p>
+                <input id="cover-production" type="text" maxLength={80} required
+                  value={formData.coverProduction ?? ''}
+                  onChange={event => setFormData(previous => ({ ...previous, coverProduction: event.target.value }))}
+                  className="input mt-3 w-full max-w-md" placeholder="旺仔有声小说" />
+              </div>
+            )}
             {/* LLM 配置面板 */}
             {activeTab === 'llm' && (
               <LLMConfig 
