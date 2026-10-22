@@ -35,6 +35,8 @@ export interface NovelVideoMergeChapter {
   videoUrl: string;
 }
 
+export type CoverTextStyle = 'classic' | 'cinematic' | 'editorial' | 'vintage';
+
 export interface NovelVideoCover {
   id: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -43,10 +45,24 @@ export interface NovelVideoCover {
   errorMessage?: string | null;
   imageUrl?: string | null;
   frameSeconds: number;
-  aspectRatio: '16:9' | '9:16' | '4:3' | '1:1';
+  aspectRatio: '16:9' | '9:16' | '4:3' | '3:4' | '1:1';
+  textStyle?: CoverTextStyle;
   title: string;
   author: string;
   production: string;
+}
+
+export interface YoutubeUpload {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  title: string;
+  privacyStatus: 'private' | 'unlisted' | 'public';
+  youtubeUrl?: string | null;
+  warnings?: string[];
+  createdAt?: string | null;
 }
 
 export interface NovelVideoMergeHistory {
@@ -65,6 +81,9 @@ export interface NovelVideoMergeHistory {
   createdAt?: string | null;
   completedAt?: string | null;
   cover?: NovelVideoCover | null;
+  covers?: NovelVideoCover[];
+  activeCovers?: NovelVideoCover[];
+  youtubeUpload?: YoutubeUpload | null;
 }
 
 export const novelApi = {
@@ -141,14 +160,16 @@ export const novelApi = {
     `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/download`,
 
   generateVideoCover: (novelId: string, taskId: string, data: {
-    frameSeconds: number; aspectRatio: NovelVideoCover['aspectRatio']; title: string; author: string; production: string;
+    frameSeconds: number; aspectRatio: NovelVideoCover['aspectRatio']; textStyle: CoverTextStyle;
+    title: string; author: string; production: string;
   }) => api.post<NovelVideoCover>(`/novels/${novelId}/video-merges/${taskId}/cover`, {
     frame_seconds: data.frameSeconds, aspect_ratio: data.aspectRatio,
+    text_style: data.textStyle,
     title: data.title, author: data.author, production: data.production,
   }),
 
-  videoCoverDownloadUrl: (novelId: string, taskId: string) =>
-    `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/cover/download`,
+  videoCoverDownloadUrl: (novelId: string, taskId: string, coverId?: string) =>
+    `${API_BASE}/novels/${encodeURIComponent(novelId)}/video-merges/${encodeURIComponent(taskId)}/cover/download${coverId ? `?cover_id=${encodeURIComponent(coverId)}` : ''}`,
 
   /** 导入小说 */
   import: async (file: File) => {

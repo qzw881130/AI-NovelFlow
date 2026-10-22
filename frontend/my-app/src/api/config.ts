@@ -14,6 +14,11 @@ export interface SystemConfig {
   comfyUIHost?: string;
   comfyUITimeout?: number;
   systemStatusSource?: 'comfyui' | 'windows_gpu_monitor';
+  proxyEnabled?: boolean;
+  httpProxy?: string;
+  httpsProxy?: string;
+  youtubeProxyEnabled?: boolean;
+  youtubeProxyUrl?: string;
 }
 
 export interface GenerationCheck {

@@ -17,6 +17,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
+import { ImageQualityBadge, useImageQuality } from './ImageQualityStatus';
 import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
@@ -162,6 +163,12 @@ export function ShotImageGenTab({
     return () => { active = false; window.clearInterval(timer); };
   }, [batchTaskId]);
   const currentImageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
+  const currentImageTaskId = currentShotObj?.imageTaskId || null;
+  const { current: imageQualities } = useImageQuality(
+    currentImageUrl && currentImageTaskId ? [{ taskId: currentImageTaskId, imageUrl: currentImageUrl }] : [],
+    imageReviewTarget,
+  );
+  const currentImageQuality = imageQualities[0];
 
   const hasImage = !!currentImageUrl;
   const hasCompletedCurrentImage = hasImage && currentShotObj?.imageStatus === 'completed';
@@ -830,9 +837,10 @@ export function ShotImageGenTab({
                 }}
                 disabled={!currentShotObj?.imageTaskId || !hasImage}
                 title={!hasImage ? '当前分镜暂无图片' : !currentShotObj?.imageTaskId ? '当前图片没有关联的生成任务' : '查看当前分镜图的 AI 评审记录'}
-                className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Eye className="h-3 w-3" />查看 AI 评审
+                {currentImageQuality && <ImageQualityBadge status={currentImageQuality.qualityStatus} summary={currentImageQuality.summary} />}
               </button>
             </div>
             <div className="flex items-center gap-2">

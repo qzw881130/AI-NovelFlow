@@ -7,7 +7,7 @@ import json
 
 from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots, hd_repaint
-from app.api import clip_execution_inspector, notifications, image_reviews, events
+from app.api import clip_execution_inspector, notifications, image_reviews, events, youtube
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -21,6 +21,7 @@ from app.models.system_config import SystemConfig  # 导入系统配置模型
 from app.models.notification import NotificationSettings, NotificationDelivery
 from app.models.shot import Shot
 from app.models.image_quality_review import ImageQualityReview
+from app.models.youtube_config import YoutubeConfig
 
 
 def backfill_llm_log_shot_ids(conn):
@@ -358,6 +359,8 @@ async def lifespan(app: FastAPI):
     resume_active_novel_video_merges()
     from app.services.novel_video_cover_service import resume_active_novel_video_covers
     resume_active_novel_video_covers()
+    from app.services.youtube_upload_service import resume_active_uploads
+    resume_active_uploads()
     from app.services.hd_repaint_service import resume_active_hd_repaints
     resume_active_hd_repaints()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
@@ -433,6 +436,7 @@ app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"]
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
 app.include_router(novel_videos.router, prefix="/api", tags=["novel-videos"])
+app.include_router(youtube.router, prefix="/api", tags=["youtube"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
 app.include_router(clip_execution_inspector.router, prefix="/api/clip-execution-inspector", tags=["clip-execution-inspector"])
 

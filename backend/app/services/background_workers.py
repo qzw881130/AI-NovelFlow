@@ -159,6 +159,8 @@ class WorkerManager:
                 request.task_id, queue_name, request.handler,
                 request.payload.get("only_window_index"),
             ]
+            if request.handler == "app.services.youtube_upload_service:run_upload":
+                identity.append(request.payload.get("enqueue_attempt"))
             if request.handler == "app.services.shot_video_service:generate_shot_video_task":
                 task = db.get(Task, request.task_id)
                 try:

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Literal, Optional
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
@@ -36,6 +37,8 @@ class ProxyConfig(BaseModel):
     enabled: bool
     httpProxy: Optional[str] = None
     httpsProxy: Optional[str] = None
+    youtubeEnabled: Optional[bool] = None
+    youtubeProxyUrl: Optional[str] = None
 
 
 class SystemConfigUpdate(BaseModel):
@@ -61,8 +64,16 @@ class SystemConfigUpdate(BaseModel):
 def get_or_create_config(db: Session) -> SystemConfigModel:
     """获取或创建系统配置记录"""
     inspector = inspect(db.bind)
+    migrate_youtube_proxy = False
     if "system_configs" in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns("system_configs")}
+        migrate_youtube_proxy = "youtube_proxy_enabled" not in columns or "youtube_proxy_url" not in columns
+        if "youtube_proxy_enabled" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN youtube_proxy_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            db.commit()
+        if "youtube_proxy_url" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN youtube_proxy_url VARCHAR NOT NULL DEFAULT ''"))
+            db.commit()
         if "video_prompt_language" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN video_prompt_language VARCHAR NOT NULL DEFAULT 'en'"))
             db.commit()
@@ -94,6 +105,12 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         db.add(config)
         db.commit()
         db.refresh(config)
+    if "system_configs" in inspector.get_table_names() and migrate_youtube_proxy and "youtube_configs" in inspector.get_table_names():
+        legacy = db.execute(text("SELECT proxy_enabled, proxy_url FROM youtube_configs WHERE id='default'")).first()
+        if legacy:
+            config.youtube_proxy_enabled = bool(legacy[0])
+            config.youtube_proxy_url = legacy[1] or ""
+            db.commit()
     return config
 
 
@@ -128,6 +145,8 @@ async def get_config(db: Session = Depends(get_db)):
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
             "httpsProxy": config.https_proxy,
+            "youtubeProxyEnabled": bool(config.youtube_proxy_enabled),
+            "youtubeProxyUrl": config.youtube_proxy_url or "",
             # ComfyUI 配置
             "comfyUIHost": config.comfyui_host,
             "comfyUITimeout": config.comfyui_timeout or 900,
@@ -171,6 +190,8 @@ async def get_full_config(db: Session = Depends(get_db)):
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
+            "youtube_proxy_enabled": bool(config.youtube_proxy_enabled),
+            "youtube_proxy_url": config.youtube_proxy_url or "",
             "comfyui_host": config.comfyui_host,
             "comfyui_timeout": config.comfyui_timeout or 900,
             "system_status_source": config.system_status_source or "comfyui",
@@ -242,6 +263,21 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             updates["proxy_enabled"] = config.proxy.enabled
             updates["http_proxy"] = config.proxy.httpProxy
             updates["https_proxy"] = config.proxy.httpsProxy
+            if config.proxy.youtubeProxyUrl is not None:
+                proxy_url = config.proxy.youtubeProxyUrl.strip()
+                if proxy_url:
+                    try:
+                        parsed = urlparse(proxy_url)
+                        valid = parsed.scheme == "http" and bool(parsed.hostname) and bool(parsed.port)
+                    except ValueError:
+                        valid = False
+                    if not valid or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+                        raise HTTPException(status_code=400, detail="YouTube 代理地址必须是包含主机和端口的 http:// 地址")
+                db_config.youtube_proxy_url = proxy_url
+            if config.proxy.youtubeEnabled is not None:
+                db_config.youtube_proxy_enabled = config.proxy.youtubeEnabled
+            if db_config.youtube_proxy_enabled and not db_config.youtube_proxy_url:
+                raise HTTPException(status_code=400, detail="启用 YouTube 代理前请填写代理地址")
         
         if config.comfyUIHost:
             db_config.comfyui_host = config.comfyUIHost

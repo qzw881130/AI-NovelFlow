@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
+import { formatAspectRatio } from '../../../utils/aspectRatio';
 
 interface ImagePreviewModalProps {
   imageUrl: string;
@@ -12,29 +13,33 @@ interface ImagePreviewModalProps {
 
 export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onNavigate, onClose }: ImagePreviewModalProps) {
   const { t } = useTranslation();
-  const [info, setInfo] = useState<{ width: number; height: number; size?: string } | null>(null);
+  const [info, setInfo] = useState<{ width?: number; height?: number; size?: string } | null>(null);
   const canNavigate = images.length > 1 && !!onNavigate;
   const currentImage = images[currentIndex];
 
   useEffect(() => {
+    let active = true;
+    setInfo(null);
     const img = new Image();
     img.onload = () => {
-      setInfo(prev => ({ ...prev, width: img.naturalWidth, height: img.naturalHeight }));
+      if (active) setInfo(prev => ({ ...prev, width: img.naturalWidth, height: img.naturalHeight }));
     };
     img.src = imageUrl;
 
     fetch(imageUrl, { method: 'HEAD' })
       .then(res => {
+        if (!active) return;
         const contentLength = res.headers.get('content-length');
         if (contentLength) {
           const size = parseInt(contentLength);
           const sizeStr = size > 1024 * 1024
             ? `${(size / 1024 / 1024).toFixed(2)} MB`
             : size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B`;
-          setInfo(prev => ({ ...prev, size: sizeStr } as any));
+          setInfo(prev => ({ ...prev, size: sizeStr }));
         }
       })
       .catch(() => {});
+    return () => { active = false; img.onload = null; };
   }, [imageUrl]);
 
   useEffect(() => {
@@ -102,8 +107,9 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
         />
         {info && (
           <div className="mt-3 text-white text-sm opacity-80 flex items-center gap-4">
-            <span>{t('tasks.dimensions')}: {info.width} × {info.height} px</span>
+            {info.width && info.height && <span>{t('tasks.dimensions')}: {info.width} × {info.height} px</span>}
             {info.size && <span>{t('tasks.size')}: {info.size}</span>}
+            {info.width && info.height && <span>比例：{formatAspectRatio(info.width, info.height)}</span>}
           </div>
         )}
         {/* 关闭按钮 */}

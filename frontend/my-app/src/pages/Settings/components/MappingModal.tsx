@@ -59,6 +59,7 @@ const MEGAPIXEL_OPTIONS = [
   { value: '0.3', output: '736x416' },
   { value: '0.4', output: '864x480' },
   { value: '0.5', output: '960x544' },
+  { value: '0.52', output: '960x544' },
   { value: '0.6', output: '1056x608' },
   { value: '0.7', output: '1152x640' },
   { value: '0.8', output: '1216x672' },
@@ -276,6 +277,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 loadVideoNodeId: mapping.load_video_node_id || '',
                 durationSecondsNodeId: mapping.duration_seconds_node_id || '',
                 promptNodeId: mapping.prompt_node_id || '',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: String(mapping.megapixels_value ?? '0.4'),
                 keyframeNodes: Array.from({ length: 8 }, (_, index) => mapping[`keyframe_node_${index + 1}`] || ''),
                 customKeyframesNodeId: mapping.custom_keyframes_node_id || '',
                 referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
@@ -293,6 +296,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 loadVideoNodeId: mapping.load_video_node_id || '',
                 durationSecondsNodeId: mapping.duration_seconds_node_id || '',
                 promptNodeId: mapping.prompt_node_id || '',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: String(mapping.megapixels_value ?? '0.4'),
                 videoSaveNodeId: mapping.video_save_node_id || '',
                 clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
                 multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
@@ -591,6 +596,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           load_video_node_id: mappingForm.loadVideoNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           custom_keyframes_node_id: mappingForm.customKeyframesNodeId || null,
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
@@ -611,6 +618,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           load_video_node_id: mappingForm.loadVideoNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
           clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
           reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
@@ -945,12 +954,45 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     </div>
   );
 
+  const continuationMegapixelsFields = (
+    <div>
+      <NodeSelectField
+        label="Megapixels 节点"
+        nodeTypeHint="Float, easy float, JWFloat, FloatConstant"
+        value={mappingForm.megapixelsNodeId}
+        options={availableNodes.easyFloat}
+        onChange={(value) => handleNodeSelect(value, 'megapixelsNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      {mappingForm.megapixelsNodeId && (
+        <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Megapixels</label>
+            <select
+              value={mappingForm.megapixelsValue}
+              onChange={(event) => setMappingForm({ ...mappingForm, megapixelsValue: event.target.value })}
+              className="input-field"
+            >
+              {MEGAPIXEL_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.value}</option>
+              ))}
+            </select>
+          </div>
+          <div className="text-sm text-gray-600 pb-2 whitespace-nowrap">
+            output: {MEGAPIXEL_OPTIONS.find(option => option.value === mappingForm.megapixelsValue)?.output || '864x480'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (!workflow) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className={`bg-white rounded-lg p-6 w-full max-h-[90vh] overflow-hidden flex flex-col ${workflow.type === 'TEMPORAL_EXTEND' ? 'max-w-6xl' : 'max-w-4xl'}`}>
-        <h3 className="text-lg font-medium mb-4">
+        <h3 className="text-lg font-medium mb-4 shrink-0">
           {t('systemSettings.workflow.nodeMapping')} - {workflow.name}
         </h3>
         <div className={`gap-4 flex-1 min-h-0 ${workflow.type === 'TEMPORAL_EXTEND' ? 'flex flex-col lg:flex-row' : 'flex'}`}>
@@ -972,7 +1014,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           
           {/* 右侧: 映射表单 */}
           <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'w-full lg:w-[68%]' : 'w-1/2'} min-h-0 overflow-y-auto`}>
-            <form onSubmit={handleSaveMapping} className="space-y-4">
+            <form id="node-mapping-form" onSubmit={handleSaveMapping} className="space-y-4">
               {/* 根据工作流类型显示不同的映射字段 */}
               {(workflow.type === 'character' || workflow.type === 'scene' || workflow.type === 'prop') && (
                 <>
@@ -1289,6 +1331,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  {continuationMegapixelsFields}
                   {secondPassStepFields}
                   {secondPassScaleFields}
                 </>
@@ -1365,6 +1408,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  {continuationMegapixelsFields}
                   {secondPassStepFields}
                   {secondPassScaleFields}
                 </>
@@ -1812,24 +1856,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 </>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn-secondary"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingMapping}
-                  className="btn-primary"
-                >
-                  {savingMapping ? t('common.loading') : t('common.save')}
-                </button>
-              </div>
             </form>
           </div>
+        </div>
+        <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 pt-4 mt-4">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            {t('common.cancel')}
+          </button>
+          <button type="submit" form="node-mapping-form" disabled={savingMapping} className="btn-primary">
+            {savingMapping ? t('common.loading') : t('common.save')}
+          </button>
         </div>
       </div>
     </div>

@@ -39,6 +39,8 @@ const fetchConfigFromBackend = async () => {
           enabled: data.data.proxyEnabled,
           httpProxy: data.data.httpProxy || '',
           httpsProxy: data.data.httpsProxy || '',
+          youtubeEnabled: data.data.youtubeProxyEnabled ?? false,
+          youtubeProxyUrl: data.data.youtubeProxyUrl || '',
         } : DEFAULT_CONFIG.proxy,
         comfyUIHost: data.data.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
         comfyUITimeout: data.data.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,

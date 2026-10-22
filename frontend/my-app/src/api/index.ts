@@ -22,7 +22,12 @@ export const api = {
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    return res.json();
+    const responseText = await res.text();
+    try {
+      return JSON.parse(responseText);
+    } catch {
+      return { success: false, message: `服务器响应异常（HTTP ${res.status}），请查看后端日志` };
+    }
   },
 
   put: async <T>(url: string, body: unknown): Promise<{ success: boolean; data?: T; message?: string }> => {

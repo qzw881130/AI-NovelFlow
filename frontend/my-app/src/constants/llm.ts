@@ -11,6 +11,8 @@ export const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
   httpProxy: '',
   httpsProxy: '',
+  youtubeEnabled: false,
+  youtubeProxyUrl: '',
 };
 
 /**

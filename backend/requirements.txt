@@ -15,6 +15,12 @@ passlib[bcrypt]==1.7.4
 pillow==12.1.1
 opencv-python-headless==4.13.0.92
 cryptography==42.0.0
+google-api-python-client>=2.0,<3.0
+google-auth>=2.0,<3.0
+google-auth-httplib2>=0.2,<1.0
+httplib2>=0.20,<1.0
+requests>=2.0,<3.0
+PySocks>=1.7.1,<2.0
 
 # 测试依赖
 pytest==8.0.0

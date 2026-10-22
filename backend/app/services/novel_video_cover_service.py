@@ -15,6 +15,7 @@ from app.models.novel import Novel
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.services.background_workers import persistent_job, worker_manager
+from app.services.cover_text_styles import draw_styled_cover
 from app.services.comfyui.service import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
@@ -23,7 +24,8 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.time_utils import format_datetime
 
 
-COVER_SIZES = {"16:9": (1536, 864), "9:16": (864, 1536), "4:3": (1152, 864), "1:1": (1024, 1024)}
+COVER_SIZES = {"16:9": (1536, 864), "9:16": (864, 1536), "4:3": (1152, 864), "3:4": (864, 1152), "1:1": (1024, 1024)}
+COVER_TEXT_STYLES = {"classic", "cinematic", "editorial", "vintage"}
 
 
 def format_novel_video_cover(task: Task | None) -> dict | None:
@@ -36,6 +38,7 @@ def format_novel_video_cover(task: Task | None) -> dict | None:
         "imageUrl": task.result_url, "frameSeconds": metadata.get("frame_seconds"),
         "aspectRatio": metadata.get("aspect_ratio"), "title": metadata.get("title"),
         "author": metadata.get("author"), "production": metadata.get("production"),
+        "textStyle": metadata.get("text_style", "classic"),
         "createdAt": format_datetime(task.created_at),
     }
 
@@ -90,9 +93,19 @@ def _set_dimension(workflow: dict, node_id: str | None, value: int) -> None:
         raise ValueError("场景分镜图工作流的宽高节点没有可写数值")
 
 
-def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], title: str, author: str, production: str) -> None:
+def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], title: str, author: str, production: str,
+                text_style: str = "classic") -> None:
+    if text_style not in COVER_TEXT_STYLES:
+        raise ValueError("不支持的封面文字款式")
     with Image.open(io.BytesIO(image_bytes)) as source:
         canvas = ImageOps.fit(source.convert("RGB"), size, method=Image.Resampling.LANCZOS).convert("RGBA")
+    if text_style != "classic":
+        canvas = draw_styled_cover(canvas, title, author, production, text_style)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_suffix(".tmp.png")
+        canvas.convert("RGB").save(temporary, format="PNG", optimize=True)
+        os.replace(temporary, destination)
+        return
     width, height = size
     overlay = Image.new("RGBA", size)
     overlay_draw = ImageDraw.Draw(overlay)
@@ -105,11 +118,11 @@ def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], ti
     margin = round(min(width, height) * 0.075)
     text_width = width - 2 * margin
 
-    def wrap(text: str, font) -> list[str]:
+    def wrap(text: str, font, max_width: float = text_width) -> list[str]:
         lines, current = [], ""
         for char in text:
             candidate = current + char
-            if current and draw.textlength(candidate, font=font) > text_width:
+            if current and draw.textlength(candidate, font=font) > max_width:
                 lines.append(current)
                 current = char
             else:
@@ -118,18 +131,27 @@ def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], ti
             lines.append(current)
         return lines
 
-    details = [f"原作者：{author}", f"制作：{production}"]
+    details = [("原作者", author), ("制　作", production)]
     detail_size = max(22, round(min(width, height) * 0.035))
     detail_font = load_chinese_font(detail_size)
-    detail_lines = [wrap(line, detail_font) for line in details]
+    label_width = max(draw.textlength(label, font=detail_font) for label, _ in details)
+    colon_width = draw.textlength("：", font=detail_font)
+    detail_gap = round(detail_size * 0.12)
+    detail_lines = [wrap(value, detail_font, text_width - label_width - colon_width - detail_gap) for _, value in details]
     while detail_size > 16 and sum(map(len, detail_lines)) > 4:
         detail_size -= 2
         detail_font = load_chinese_font(detail_size)
-        detail_lines = [wrap(line, detail_font) for line in details]
+        label_width = max(draw.textlength(label, font=detail_font) for label, _ in details)
+        colon_width = draw.textlength("：", font=detail_font)
+        detail_gap = round(detail_size * 0.12)
+        detail_lines = [wrap(value, detail_font, text_width - label_width - colon_width - detail_gap) for _, value in details]
+    widest_value = max(draw.textlength(line, font=detail_font) for lines in detail_lines for line in lines)
+    detail_x = (width - label_width - colon_width - detail_gap - widest_value) / 2
+    value_x = detail_x + label_width + colon_width + detail_gap
     detail_step = round(detail_size * 1.45)
     detail_height = sum(map(len, detail_lines)) * detail_step + detail_step // 3
 
-    title_text = f"《{title}》"
+    title_text = title.strip()
     title_size = round(min(width, height) * 0.105)
     title_font = load_chinese_font(title_size)
     title_lines = wrap(title_text, title_font)
@@ -138,16 +160,19 @@ def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], ti
         title_font = load_chinese_font(title_size)
         title_lines = wrap(title_text, title_font)
     title_step = round(title_size * 1.2)
-    base_y = height - margin - detail_height
+    base_y = height - margin - detail_height - round(height * 0.18)
     title_y = base_y - len(title_lines) * title_step - round(title_size * 0.22)
-    draw.rounded_rectangle((margin, title_y - 19, margin + max(48, title_size // 2), title_y - 13), radius=3, fill=(227, 183, 104, 240))
     for index, line in enumerate(title_lines):
         y = title_y + index * title_step
-        draw.text((margin + 2, y + 3), line, font=title_font, fill=(0, 0, 0, 150), stroke_width=2)
-        draw.text((margin, y), line, font=title_font, fill=(255, 252, 242, 255))
-    for part in detail_lines:
-        for line in part:
-            draw.text((margin, base_y), line, font=detail_font, fill=(246, 241, 229, 235))
+        x = (width - draw.textlength(line, font=title_font)) / 2
+        draw.text((x + 2, y + 3), line, font=title_font, fill=(0, 0, 0, 150), stroke_width=2)
+        draw.text((x, y), line, font=title_font, fill=(255, 252, 242, 255))
+    for (label, _), lines in zip(details, detail_lines):
+        for index, line in enumerate(lines):
+            if index == 0:
+                draw.text((detail_x, base_y), label, font=detail_font, fill=(246, 241, 229, 235))
+                draw.text((detail_x + label_width, base_y), "：", font=detail_font, fill=(246, 241, 229, 235))
+            draw.text((value_x, base_y), line, font=detail_font, fill=(246, 241, 229, 235))
             base_y += detail_step
         base_y += detail_step // 3
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -185,11 +210,20 @@ async def run_novel_video_cover_task(task_id: str) -> None:
 
         service = ComfyUIService(db=db)
         style, _ = get_style(db, novel, "character")
+        text_style = metadata.get("text_style", "classic")
+        ratio = metadata["aspect_ratio"]
+        is_wide = COVER_SIZES[ratio][0] / COVER_SIZES[ratio][1] >= 1.2
+        space_for_type = {
+            "classic": "toward the lower center",
+            "cinematic": "on a dark wall between the central and right figures" if is_wide else "in the lower third",
+            "editorial": "in the lower left" if is_wide else "in the lower quarter",
+            "vintage": "in the upper middle and lower right" if is_wide else "in the upper center and lower quarter",
+        }[text_style]
         prompt = (
             "Create an elegant cinematic literary cover illustration using the supplied video frame "
             "as the primary reference. Preserve its characters, setting, era and visual style. "
             "Refine composition, lighting and depth with subtle painterly detail; keep a calm, uncluttered "
-            "area toward the lower left for editorial typography. Sophisticated book-cover design, "
+            f"area {space_for_type} for editorial typography. Sophisticated book-cover design, "
             "restrained colors and clear focal point. No text, letters, symbols, logos, watermark or border."
         )
         graph = service.builder.build_shot_workflow(
@@ -236,7 +270,7 @@ async def run_novel_video_cover_task(task_id: str) -> None:
                 image_bytes = response.content
         output_path = output_dir / f"cover-{task.id}.png"
         await asyncio.to_thread(_draw_cover, image_bytes, output_path, size,
-                                metadata["title"], metadata["author"], metadata["production"])
+                                metadata["title"], metadata["author"], metadata["production"], text_style)
         task.result_url = local_path_to_url(str(output_path))
         if not task.result_url:
             raise RuntimeError("无法生成封面访问地址")

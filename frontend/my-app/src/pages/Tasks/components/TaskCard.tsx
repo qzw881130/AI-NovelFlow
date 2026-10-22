@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { toast } from '../../../stores/toastStore';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
+import { formatAspectRatio } from '../../../utils/aspectRatio';
 
 interface TaskCardProps {
   task: Task;
@@ -117,6 +118,7 @@ export function TaskCard({
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
+      case 'novel_video_cover': return <ImageIcon className="h-5 w-5" />;
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
@@ -484,7 +486,7 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' ? (
                 <div>
                   <div className="relative group inline-block">
                     <img
@@ -509,6 +511,8 @@ export function TaskCard({
                     <div className="mt-1 text-xs text-gray-500">
                       {imageInfo[task.id].width && <span>{imageInfo[task.id].width} × {imageInfo[task.id].height} px</span>}
                       {imageInfo[task.id].size && <span className="ml-2">· {imageInfo[task.id].size}</span>}
+                      {imageInfo[task.id].width && imageInfo[task.id].height &&
+                        <span className="ml-2">· 比例 {formatAspectRatio(imageInfo[task.id].width, imageInfo[task.id].height)}</span>}
                     </div>
                   )}
                 </div>

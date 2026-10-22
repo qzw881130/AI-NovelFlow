@@ -94,6 +94,8 @@ export default function Settings() {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
               httpsProxy: config.httpsProxy || '',
+              youtubeEnabled: config.youtubeProxyEnabled ?? false,
+              youtubeProxyUrl: config.youtubeProxyUrl || '',
             } : DEFAULT_CONFIG.proxy,
             comfyUIHost: config.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
             comfyUITimeout: config.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,

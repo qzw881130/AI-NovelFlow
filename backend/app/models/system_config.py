@@ -31,6 +31,8 @@ class SystemConfig(Base):
     proxy_enabled = Column(Boolean, default=False)
     http_proxy = Column(String, nullable=True)
     https_proxy = Column(String, nullable=True)
+    youtube_proxy_enabled = Column(Boolean, default=False, nullable=False)
+    youtube_proxy_url = Column(String, default="", nullable=False)
     
     # ComfyUI 配置
     comfyui_host = Column(String, default="http://127.0.0.1:8188")
