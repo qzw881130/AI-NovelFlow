@@ -86,7 +86,7 @@ async def create_novel_video_merge(
         type="novel_video",
         status="pending",
         progress=0,
-        name=f"合并小说章回视频: {novel.title}",
+        name=f"合并小说视频: {novel.title}",
         description=f"合并 {len(chapters)} 个章回视频",
         novel_id=novel_id,
         metadata_json=json.dumps({

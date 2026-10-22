@@ -6,6 +6,7 @@ export default {
     ...zhCN.characters,
     title: '角色庫',
     subtitle: '管理小說中的角色',
+    noProtagonistReminder: '目前小說尚未指定主角。請建立或編輯角色，勾選「指定為主角」；否則合併章回影片時不會產生首次出鏡姓名牌。',
     addCharacter: '新增角色',
     importCharacters: '匯入角色',
     characterName: '角色名稱',

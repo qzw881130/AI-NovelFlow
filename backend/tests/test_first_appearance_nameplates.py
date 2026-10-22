@@ -37,7 +37,7 @@ def test_first_appearance_uses_novel_order_and_excludes_narrator(db_session, mon
         shot_one.id: ["甲"],
     }
     monkeypatch.setattr(nameplates, "_probe_video", lambda path: (640, 360, 4.0 if "shot" in str(path) else 1.0))
-    async def fake_locate(video, character, duration):
+    async def fake_locate(video, character, duration, shot=None):
         return [{"time": 0.25, "bbox": [300, 100, 600, 950]},
                 {"time": 1.25, "bbox": [320, 100, 620, 950]}]
     monkeypatch.setattr(nameplates, "_locate_protagonist", fake_locate)
@@ -63,9 +63,11 @@ def test_detection_rejects_uncertain_or_invalid_positions():
     assert [item["index"] for item in parsed] == [1]
 
 
-def test_location_hint_does_not_confuse_gaze_direction():
-    shot = Shot(description="Characters:\n- 邹忌: 位于画面中央，身体朝向画面右侧的铜镜。")
-    assert nameplates._position_hint(shot, "邹忌") == "center"
+def test_multi_person_shot_uses_reference_matching_instead_of_local_hog():
+    shot = Shot(characters=json.dumps(["甲", "乙"]))
+    character = Character(name="甲")
+    assert nameplates._locate_protagonist_local(
+        "/video-is-not-needed.mp4", shot, character, 4.0) == []
 
 
 def test_config_defaults_and_can_toggle(client):
@@ -211,5 +213,44 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(client, db_session, monkey
 
 def test_nameplate_position_accounts_for_chapter_merge_scaling():
     # An 800x800 Shot is padded to the first Shot's 1600x900 canvas.
-    assert nameplates._badge_position([100, 100, 300, 600], "甲", 800, 800,
-                                      (1600, 900)) == (645, 77)
+    x, y = nameplates._badge_position([100, 100, 300, 600], "甲", 800, 800,
+                                      (1600, 900))
+    assert 440 <= x <= 620
+    assert y < 90
+
+
+def test_nameplate_layout_avoids_people_and_other_badges():
+    size = (1984, 1088)
+    events = [{"start": 5.0, "end": 7.8, "name": name,
+               "_boxes": [{"time": 5.0, "bbox": box},
+                          {"time": 7.0, "bbox": [value + (40 if index % 2 == 0 else 0)
+                                                   for index, value in enumerate(box)]}]}
+              for name, box in [
+                  ("阿虎", [200, 240, 580, 1050]),
+                  ("阿福", [600, 245, 970, 1050]),
+                  ("阿宁", [990, 250, 1370, 1050]),
+                  ("王戎", [1390, 255, 1770, 1050]),
+              ]]
+    source_boxes = {event["name"]: event["_boxes"] for event in events}
+    assert nameplates._layout_nameplate_events(events, size) == []
+    assert len(events) == 4
+    for second in (5.0, 5.5, 6.0, 6.5, 7.0, 7.5):
+        badges = []
+        for event in events:
+            track = event["track"]
+            left = next(point for point in reversed(track) if point["time"] <= second)
+            right = next((point for point in track if point["time"] > second), left)
+            if left is right:
+                x, y = left["xy"]
+            else:
+                fraction = (second - left["time"]) / (right["time"] - left["time"])
+                x, y = [a + (b - a) * fraction for a, b in zip(left["xy"], right["xy"])]
+            width, height, _, _ = nameplates._badge_size(event["name"], *size)
+            rect = (x, y, x + width, y + height)
+            assert 0 <= x and x + width <= size[0]
+            assert 0 <= y and y + height <= size[1]
+            for boxes in source_boxes.values():
+                assert nameplates._overlap_area(rect, nameplates._box_at(boxes, second)) == 0
+            for other in badges:
+                assert nameplates._overlap_area(rect, other) == 0
+            badges.append(rect)

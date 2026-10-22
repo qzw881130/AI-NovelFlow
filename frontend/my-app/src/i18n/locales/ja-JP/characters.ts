@@ -6,6 +6,7 @@ export default {
     ...enUS.characters,
     title: 'キャラクターライブラリ',
     subtitle: '小説のキャラクターを管理',
+    noProtagonistReminder: 'この小説には主人公が設定されていません。キャラクターを作成または編集して「主人公」に指定すると、章の結合動画で初登場時の名前札を生成できます。',
     addCharacter: 'キャラクターを追加',
     importCharacters: 'キャラクターをインポート',
     characterName: 'キャラクター名',

@@ -163,7 +163,6 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
                                previous_path, execution_contract, llm=None):
     """Persist one #13 attempt (or a matching compiled reuse); never call #14/A."""
     from app.services.llm_service import LLMService
-    from app.services.llm.http_retry import single_attempt_llm_request
     template = resolve_prompt_template(db, novel, None, TEMPLATE_TYPE)
     plan = safe_json_dict(shot.video_director_plan)
     metadata = safe_json_dict(task.metadata_json)
@@ -242,12 +241,12 @@ async def build_phase_b_prompt(*, db, task, novel, shot, builder_input, manifest
             task.current_step = "#13 Phase B 单阶段导演规划..."
             record.update(status="DIRECTING", llm_call_count=1)
             persist()
-            with single_attempt_llm_request():
-                response = await (llm or LLMService()).chat_completion(
-                    system_prompt=system_prompt, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
-                    images=prepared["images"], response_format="json_object", temperature=0.3, max_tokens=4500,
-                    task_type=TEMPLATE_TYPE, prompt_template_name=template.name,
-                    novel_id=novel.id, chapter_id=shot.chapter_id, shot_id=shot.id)
+            # Keep one logical Director call while the LLM transport retries transient HTTP responses.
+            response = await (llm or LLMService()).chat_completion(
+                system_prompt=system_prompt, user_content=json.dumps(prepared["llm_input"], ensure_ascii=False),
+                images=prepared["images"], response_format="json_object", temperature=0.3, max_tokens=4500,
+                task_type=TEMPLATE_TYPE, prompt_template_name=template.name,
+                novel_id=novel.id, chapter_id=shot.chapter_id, shot_id=shot.id)
             record["llm_response"] = response
             if not response.get("success"):
                 raise ValueError("PHASE_B_DIRECTOR_FAILED: " + str(response.get("error") or response.get("message") or "LLM failed"))

@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import subprocess
 import tempfile
 import uuid
@@ -23,8 +22,10 @@ from app.utils.path_utils import url_to_local_path
 
 
 NAMEPLATE_SECONDS = 2.8
-RENDER_VERSION = 2
+DETECTION_VERSION = 2
+RENDER_VERSION = 3
 MIN_CONFIDENCE = 0.72
+LAYOUT_STEP = 0.25
 
 
 def _shot_character_names(shot: Shot) -> list[str]:
@@ -117,35 +118,18 @@ def _parse_detection(content: str, count: int) -> list[dict]:
     return detections
 
 
-def _position_hint(shot: Shot, name: str) -> str | None:
-    description = shot.description or ""
-    match = re.search(rf"(?:^|\n)\s*[-•]?\s*{re.escape(name)}\s*[：:]([^\n]+)", description)
-    text = match.group(1) if match else ""
-    # Direction of gaze is not the character's location. Inspect the
-    # positioning clause before movement/gaze clauses.
-    text = re.split(r"身体|视线|朝向|面向|保持|镜头", text, maxsplit=1)[0]
-    if re.search(r"(?:画面|镜头)?左(?:侧|边|方)|位于左边", text):
-        return "left"
-    if re.search(r"(?:画面|镜头)?右(?:侧|边|方)|位于右边", text):
-        return "right"
-    if re.search(r"画面中央|画面中间|居中|正中央", text):
-        return "center"
-    return None
-
-
 def _locate_protagonist_local(video: Path, shot: Shot, character: Character,
                                duration: float) -> list[dict]:
-    """Use scene direction and local person detection when the LLM is unavailable.
+    """Use local detection only when the Shot contains one named person.
 
-    Only deterministic left/right/center assignments, or a sole-person Shot,
-    are accepted. Ambiguous multi-person frames are left for vision matching.
+    HOG detections in stylized multi-person frames are often fragments of a
+    person. Scene-direction left/center/right hints cannot verify identity.
     """
+    expected = _shot_character_names(shot)
+    if expected != [character.name]:
+        return []
     import cv2
 
-    expected = _shot_character_names(shot)
-    hint = _position_hint(shot, character.name)
-    if not hint and expected != [character.name]:
-        return []
     hog = cv2.HOGDescriptor()
     hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
     cap = cv2.VideoCapture(str(video))
@@ -168,23 +152,12 @@ def _locate_protagonist_local(video: Path, shot: Shot, character: Character,
                 frame, winStride=(8, 8), padding=(8, 8), scale=1.05)
             people = [(tuple(map(int, box)), float(weight))
                       for box, weight in zip(boxes, weights)
-                      if float(weight) >= 0.3 and box[2] >= 40 and box[3] >= 90]
-            if len(people) < len(expected) or not people:
+                      if float(weight) >= 0.3
+                      and box[2] >= max(40, width * 0.06)
+                      and box[3] >= max(90, height * 0.22)]
+            if len(people) != 1:
                 continue
-            if len(people) > len(expected) and hint in {"left", "right"}:
-                continue
-            people.sort(key=lambda item: item[0][0] + item[0][2] / 2)
-            if hint == "left":
-                box, _ = people[0]
-            elif hint == "right":
-                box, _ = people[-1]
-            elif hint == "center":
-                box, _ = min(people, key=lambda item:
-                             abs(item[0][0] + item[0][2] / 2 - width / 2))
-            elif len(people) == 1:
-                box, _ = people[0]
-            else:
-                continue
+            box, _ = people[0]
             x, y, w, h = box
             # HOG sometimes sees only the lower body. Extend the box upward
             # before placing the badge so it remains near the person's head.
@@ -221,7 +194,7 @@ async def _locate_protagonist(video: Path, character: Character, duration: float
     llm = LLMService()
     video_stat = video.stat()
     cache_key = hashlib.sha256(json.dumps({
-        "version": RENDER_VERSION, "character_id": character.id,
+        "version": DETECTION_VERSION, "character_id": character.id,
         "reference_sha256": reference["source_sha256"], "video": str(video.resolve()),
         "video_size": video_stat.st_size, "video_mtime_ns": video_stat.st_mtime_ns,
         "provider": llm.provider, "model": llm.model,
@@ -284,21 +257,134 @@ def _badge_size(name: str, width: int, height: int) -> tuple[int, int, int, int]
 def _badge_position(box: list[float], name: str, width: int, height: int,
                     output_size: tuple[int, int] | None = None) -> tuple[int, int]:
     output_width, output_height = output_size or (width, height)
+    x1, y1, x2, _ = _scaled_box(box, width, height, output_size)
+    badge_width, badge_height, _, _ = _badge_size(name, output_width, output_height)
+    margin_x = max(8, round(output_width * 0.016))
+    margin_y = max(8, round(output_height * 0.006))
+    gap = max(16, round(output_height * 0.035))
+    x = round((x1 + x2 - badge_width) / 2)
+    y = round(y1 - badge_height - gap)
+    return (max(margin_x, min(x, output_width - badge_width - margin_x)),
+            max(margin_y, min(y, output_height - badge_height - margin_y)))
+
+
+def _scaled_box(box: list[float], width: int, height: int,
+                output_size: tuple[int, int] | None = None) -> tuple[float, float, float, float]:
+    output_width, output_height = output_size or (width, height)
     # Chapter merging scales each input to fit the first video's frame and
     # centers it with black padding. Apply the same transform to detections.
     scale = min(output_width / width, output_height / height)
     pad_x = (output_width - width * scale) / 2
     pad_y = (output_height - height * scale) / 2
-    badge_width, badge_height, _, _ = _badge_size(name, output_width, output_height)
-    x1, y1, x2, _ = box
-    margin = max(8, int(output_width * 0.016))
-    right = round(pad_x + x2 * width / 1000 * scale) + margin
-    left = round(pad_x + x1 * width / 1000 * scale) - badge_width - margin
-    x = right if right + badge_width <= output_width - margin else left
-    x = max(margin, min(x, output_width - badge_width - margin))
-    y = round(pad_y + y1 * height / 1000 * scale) - badge_height // 5
-    y = max(margin, min(y, output_height - badge_height - margin))
-    return x, y
+    x1, y1, x2, y2 = box
+    return (pad_x + x1 * width / 1000 * scale,
+            pad_y + y1 * height / 1000 * scale,
+            pad_x + x2 * width / 1000 * scale,
+            pad_y + y2 * height / 1000 * scale)
+
+
+def _box_at(track: list[dict], second: float) -> tuple[float, float, float, float]:
+    if second <= track[0]["time"]:
+        return tuple(track[0]["bbox"])
+    for left, right in zip(track, track[1:]):
+        if second <= right["time"]:
+            fraction = (second - left["time"]) / max(0.001, right["time"] - left["time"])
+            return tuple(start + (end - start) * fraction
+                         for start, end in zip(left["bbox"], right["bbox"]))
+    return tuple(track[-1]["bbox"])
+
+
+def _overlap_area(a: tuple[float, float, float, float],
+                  b: tuple[float, float, float, float]) -> float:
+    return max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
+def _placement(event: dict, second: float, style: tuple[str, int],
+               output_size: tuple[int, int]) -> tuple[int, int]:
+    width, height = output_size
+    x1, y1, x2, _ = _box_at(event["_boxes"], second)
+    badge_width, badge_height, _, _ = _badge_size(event["name"], width, height)
+    margin_x = max(8, round(width * 0.016))
+    margin_y = max(8, round(height * 0.006))
+    gap = max(16, round(height * 0.035))
+    kind, shift = style
+    if kind == "above":
+        x = (x1 + x2 - badge_width) / 2 + shift * (badge_width + gap)
+        y = y1 - badge_height - gap
+    elif kind == "side":
+        x = x1 - badge_width - gap if shift < 0 else x2 + gap
+        y = y1
+    else:  # Keep a last-resort label in the top margin, near its character.
+        x = (x1 + x2 - badge_width) / 2 + shift * (badge_width + gap)
+        y = margin_y
+    return (max(margin_x, min(round(x), width - badge_width - margin_x)),
+            max(margin_y, min(round(y), height - badge_height - margin_y)))
+
+
+def _layout_nameplate_events(events: list[dict], output_size: tuple[int, int]) -> list[str]:
+    """Choose one stable lane per name, avoiding detected people and other labels."""
+    if not events:
+        return []
+    width, height = output_size
+    samples = sorted({second for event in events for second in (
+        [round(event["start"] + index * LAYOUT_STEP, 3)
+         for index in range(math.ceil((event["end"] - event["start"]) / LAYOUT_STEP))]
+        + [round(event["end"] - 0.001, 3)]
+    ) if event["start"] <= second < event["end"]})
+    styles = ([("above", shift) for shift in (0, -1, 1, -2, 2, -3, 3, -4, 4)]
+              + [("top", shift) for shift in (0, -1, 1, -2, 2, -3, 3)]
+              + [("side", shift) for shift in (-1, 1)])
+    placed: list[dict] = []
+    warnings = []
+
+    for event in sorted(events, key=lambda item: (
+        item["start"], sum(_box_at(item["_boxes"], item["start"])[::2]) / 2,
+    )):
+        badge_width, badge_height, _, _ = _badge_size(event["name"], width, height)
+        badge_area = badge_width * badge_height
+        best = None
+        for rank, style in enumerate(styles):
+            overlap = 0.0
+            for second in samples:
+                if not event["start"] <= second < event["end"]:
+                    continue
+                x, y = _placement(event, second, style, output_size)
+                rect = (x, y, x + badge_width, y + badge_height)
+                for person in events:
+                    if not person["start"] <= second < person["end"]:
+                        continue
+                    px1, py1, px2, py2 = _box_at(person["_boxes"], second)
+                    guard = max(14, round(height * 0.025))
+                    overlap += _overlap_area(rect, (px1 - guard, py1 - guard,
+                                                    px2 + guard, py2 + guard)) / badge_area
+                for other in placed:
+                    if not other["start"] <= second < other["end"]:
+                        continue
+                    ox, oy = _placement(other, second, other["_style"], output_size)
+                    ow, oh, _, _ = _badge_size(other["name"], width, height)
+                    guard = max(8, round(width * 0.008))
+                    overlap += _overlap_area(rect, (ox - guard, oy - guard,
+                                                    ox + ow + guard, oy + oh + guard)) / badge_area
+            score = (overlap, rank)
+            if best is None or score < best[0]:
+                best = (score, style)
+                if score[0] == 0 and rank == 0:
+                    break
+        if best is None or best[0][0] > 0.01:
+            warnings.append(f"{event['name']}：没有避开人物和其他姓名牌的安全位置，未添加姓名牌")
+            continue
+        event["_style"] = best[1]
+        placed.append(event)
+
+    for event in events[:]:
+        if "_style" not in event:
+            events.remove(event)
+            continue
+        event["track"] = [{"time": second, "xy": _placement(event, second, event["_style"], output_size)}
+                          for second in samples if event["start"] <= second < event["end"]]
+        event.pop("_boxes")
+        event.pop("_style")
+    return warnings
 
 
 async def build_nameplate_events(db, novel_id: str, chapter_id: str,
@@ -332,13 +418,15 @@ async def build_nameplate_events(db, novel_id: str, chapter_id: str,
                     continue
                 first = positions[0]["time"]
                 end = min(duration, first + NAMEPLATE_SECONDS)
-                track = [{"time": round(offset + point["time"], 3),
-                          "xy": _badge_position(point["bbox"], name, width, height, output_size)}
+                boxes = [{"time": round(offset + point["time"], 3),
+                          "bbox": _scaled_box(point["bbox"], width, height, output_size)}
                          for point in positions if point["time"] < end]
-                if track and end - first >= 0.4:
+                if boxes and end - first >= 0.4:
                     events.append({"start": round(offset + first, 3), "end": round(offset + end, 3),
-                                   "name": name, "character_id": character.id, "track": track})
+                                   "name": name, "character_id": character.id, "_boxes": boxes})
         offset += duration
+    if events:
+        warnings.extend(_layout_nameplate_events(events, output_size or (width, height)))
     return events, warnings
 
 

@@ -1,0 +1,70 @@
+# 小说级提示词模板审计
+
+审计依据：`app/constants/prompt_template.py` 的 25 项类型注册表、`app/services/prompt_template_service.py` 的系统版本种子、提示词管理页分类、小说模型与实际调用入口。默认版本是该类型按现有仓库规则读取的首个系统模板；`style` 还提供其他系统风格，`keyframe_description` 还提供“电影级关键帧”。
+
+| 分类 | prompt_type | 显示名 | 默认系统版本 | 自定义版本 | 小说级选择 | 实际调用位置 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 故事上下文 | `story_world_context_recommender` | 故事世界上下文推荐 | 故事世界上下文推荐 | 支持 | 支持 | `app/api/novels.py` 推荐故事世界上下文 |
+| 风格设计 | `style` | 风格提示词 | 动漫风格 | 支持 | 支持 | `app/services/prompt_builder.py` 图片风格注入 |
+| 素材解析 | `character_parse` | 角色解析提示词 | 标准角色解析 | 支持 | 支持 | `app/api/characters.py` 角色解析 |
+| 素材解析 | `scene_parse` | 场景解析提示词 | 标准场景解析 | 支持 | 支持 | `app/api/scenes.py` 场景解析 |
+| 素材解析 | `prop_parse` | 道具解析提示词 | 标准道具解析 | 支持 | 支持 | `app/api/props.py` 道具解析 |
+| 素材生成 | `character` | 角色生成提示词 | 标准角色生成 | 支持 | 支持 | `app/services/character_service.py`、`app/api/characters.py` 角色图 |
+| 素材生成 | `scene` | 场景生成提示词 | 标准场景图 | 支持 | 支持 | `app/services/scene_service.py`、`app/api/scenes.py` 场景图 |
+| 素材生成 | `prop` | 道具生成提示词 | 标准道具图 | 支持 | 支持 | `app/services/prop_image_service.py`、`app/api/props.py` 道具图 |
+| 素材生成 | `scene_setting` | 场景设定描述提示词 | 场景设定描述 | 支持 | 支持 | `app/api/scenes.py` → `app/services/llm_service.py` 场景设定 |
+| 素材生成 | `prop_appearance` | 道具外观描述提示词 | 道具外观描述 | 支持 | 支持 | `app/api/props.py` → `app/services/llm_service.py` 道具外观 |
+| 分镜规划 | `chapter_split` | 分镜拆分提示词 | 章节分镜导演解析 | 支持 | 支持 | `app/services/novel_service.py` 章回分镜拆分 |
+| 分镜生图 | `shot_image_prompt` | 主分镜图生成提示词构建 | 主分镜图生成提示词构建 | 支持 | 支持 | `app/api/shots.py` 主分镜图提示词构建 |
+| 视频导演 | `video_mode_recommender` | 视频生成模式推荐 | 视频生成模式推荐 | 支持 | 支持 | `app/api/shots.py` 视频模式推荐 |
+| 分镜规划 | `keyframe_description` | 关键帧描述提示词 | 标准关键帧描述 | 支持 | 支持 | `app/services/shot_keyframe_service.py` 关键帧描述 |
+| 视频导演 | `keyframe_planner` | 关键帧时间轴规划 | 关键帧时间轴规划 | 支持 | 支持 | `app/api/shots.py` 关键帧规划 |
+| 关键帧生图 | `keyframe_image_prompt` | 视频关键帧生图提示词构建 | 视频关键帧生图提示词构建 | 支持 | 支持 | `app/services/shot_keyframe_service.py` #09 生图提示词 |
+| 关键帧生图 | `image_quality_review_prompt` | AI 图片质量评审 | AI 图片质量评审 | 支持 | 支持 | `app/services/image_quality_review.py` #15 评审快照和 LLM |
+| 关键帧生图 | `temporal_reference_selector` | Temporal Anchor Reference Selector V1 | Temporal Anchor Reference Selector V1 | 支持 | 支持 | `app/services/shot_keyframe_service.py` #09A 参考选择 |
+| 视频导演 | `keyframe_transition` | 关键帧过渡规划 | 关键帧过渡规划 | 支持 | 支持 | `app/api/shots.py` 过渡规划 |
+| 视频导演 | `clip_execution_planner` | Clip Execution Planner | Clip Execution Planner | 支持 | 支持 | `app/services/clip_planner.py` 视频片段执行规划 |
+| 视频生成 | `h3_single_frame_prompt` | MiniMax H3 单帧视频提示词构建 | MiniMax H3 单帧视频提示词构建 | 支持 | 支持 | `app/services/video_director_ai.py` H3 单帧构建 |
+| 视频生成 | `h3_first_last_frame_prompt` | MiniMax H3 首尾帧视频提示词构建 | MiniMax H3 首尾帧视频提示词构建 | 支持 | 支持 | `app/services/video_director_ai.py` H3 首尾帧构建 |
+| 视频生成 | `h3_multi_keyframe_prompt` | MiniMax H3 多关键帧视频提示词构建 | MiniMax H3 多关键帧视频提示词构建 | 支持 | 支持 | `app/services/video_director_ai.py` H3 多关键帧构建 |
+| 视频生成 | `h3_execution_optimizer_prompt` | MiniMax H3 执行提示词优化 | MiniMax H3 执行提示词优化 | 支持 | 支持 | `app/services/h3_execution_optimizer.py` #14 优化 |
+| 视频生成 | `h3_preflight_repair_prompt` | MiniMax H3 Preflight 自动修复 | MiniMax H3 Preflight 自动修复 | 支持 | 支持 | `app/services/h3_preflight_repair.py` #14A 修复 |
+
+## 审计发现
+
+- 创建/编辑原先各有 20 项，缺少 `scene_setting`、`prop_appearance`、`clip_execution_planner`、`temporal_reference_selector`（#09A）、`image_quality_review_prompt`（#15）。#09、#14、#14A 已有小说字段与选择项，本轮核对并统一其有效版本回退。
+- 提示词管理页类型配置列有 25 项，但分类数组遗漏了 `keyframe_description`；现已放回“分镜规划”。
+- 系统种子额外包含 `visual_attention_replan`（视觉关注重规划），它不在 `PROMPT_TEMPLATE_TYPES`、管理页类型与分类注册表中。实际调用在 `app/api/shots.py` 的内部 `ATTENTION_REPLAN` 操作，固定读取系统模板，并作用于 canonical visual states 的只读重规划输入。本轮没有把这个内部类型加入小说级配置，以免扩大用户指定的现有管理架构范围；若将来把它正式注册成可管理模板，应一并定义其小说级字段和解析路径。
+- 小说仅保存版本 ID。本轮新接入及重点核查的链路在选中版本被删除、停用或类型不符时回退系统默认。复制时失效 ID 不继承，原小说保持原值。
+- #15 是否自动评审仍只由系统 `auto_image_review_enabled` 控制；#14A 是否运行仍只由既有 `preflight_auto_repair` 流程控制。
+
+## 重点运行时链路
+
+| 模板 | 选择解析与实际调用 | novel_id | 功能触发条件 |
+| --- | --- | --- | --- |
+| #09A | `ShotKeyframeService._select_references` 解析小说选中版本，传其正文给 `chat_completion` | 传递 `novel.id` | 仅在关键帧参考选择流程中 |
+| #09 | `ShotKeyframeService._get_keyframe_image_prompt_template` 解析小说选中版本，`_build_keyframe_prompt` 使用其正文 | 传递 `novel.id` | 仅在关键帧生图提示词构建中 |
+| #14 | `optimize_h3_execution_prompt` 经 `resolve_prompt_template` 解析小说版本 | 传递 `novel.id` | 既有 H3 优化开关与流程 |
+| #14A | `repair_output` 经 `resolve_prompt_template` 解析小说版本 | 传递 `novel.id` | 既有 `preflight_auto_repair` 条件 |
+| #15 | `create_image_review` 按任务的 `novel_id` 快照化选中版本，`execute_image_review` 调用该正文 | 传递快照中的 `novel_id` | 自动模式受 `auto_image_review_enabled` 控制，手动模式仍可单独触发 |
+
+以上调用保持原有输入、输出格式。默认选择解析系统版本，失效或错误类型的引用也回退系统版本。创建、编辑、复制只处理小说与章回数据，不创建生成任务。
+
+## 创建、编辑、复制结果
+
+- 创建与编辑共同使用一份 25 项前端字段配置，按管理页现有分类分组；选择为空时显示“使用默认”。创建请求与小说列表、详情、更新响应都保留新字段。旧小说的新增字段为空时由运行时解析系统模板，无需重新保存。
+- 编辑以当前小说已有选择为初值，提交时只更新所提交的字段；切换单项不会清除其他项。
+- 复制继承作者、简介、画面比例和有效的提示词版本 ID；复制章回标题、正文、顺序。角色、场景、道具、解析结果、分镜与生成资产均不复制。失效版本在副本中记为空，来源小说保持原值。复制弹窗已同步说明。
+
+## 验证结果
+
+- 隔离内存 SQLite 回归：95 项通过。覆盖全部默认、新模板自定义、编辑单项、旧小说回退、默认与多自定义复制、失效版本回退、#15 开关关闭、#09A 与素材描述实际 LLM 入参、#09/#14/#14A/#15 既有调用测试、无生成任务；还验证了 #15 手动与自动入口均按小说配置取模板，未选择时不会被管理页的全局自定义版本覆盖。
+- 前端 TypeScript `tsc --noEmit` 通过；Vite 生产构建通过；`git diff --check` 与 Python 编译检查通过。
+- 未对主库、真实 LLM、ComfyUI 或 Canonical Story 数据执行写入。
+
+## 修改文件清单
+
+- 后端注册与数据：`backend/app/constants/prompt_template.py`、`backend/app/models/novel.py`、`backend/app/schemas/novel.py`、`backend/app/main.py`、`backend/app/repositories/novel_repository.py`、`backend/app/services/novel_prompt_templates.py`。
+- 后端接口与调用：`backend/app/api/novels.py`、`backend/app/api/scenes.py`、`backend/app/api/props.py`、`backend/app/api/prompt_templates.py`、`backend/app/services/llm_service.py`、`backend/app/services/shot_keyframe_service.py`、`backend/app/services/clip_planner.py`、`backend/app/services/image_quality_review.py`、`backend/app/services/video_director_ai.py`。
+- 前端：`frontend/my-app/src/pages/Novels/promptTemplateFields.ts`、`frontend/my-app/src/pages/Novels/components/CreateNovelModal.tsx`、`frontend/my-app/src/pages/Novels/components/EditNovelModal.tsx`、`frontend/my-app/src/pages/Novels/hooks/useNovelsState.ts`、`frontend/my-app/src/pages/Novels/index.tsx`、`frontend/my-app/src/pages/Novels/types.ts`、`frontend/my-app/src/pages/PromptConfig/index.tsx`、`frontend/my-app/src/types/index.ts`、五个语言目录中的 `novels.ts`。
+- 测试与报告：`backend/tests/test_novel_prompt_selection.py`、`backend/tests/test_novel_service.py`、`backend/tests/test_image_quality_review.py`、`docs/novel-prompt-template-audit.txt`。

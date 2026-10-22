@@ -6,6 +6,7 @@ export default {
     ...enUS.characters,
     title: '캐릭터 도감',
     subtitle: '소설의 캐릭터 관리',
+    noProtagonistReminder: '이 소설에는 주인공이 지정되지 않았습니다. 캐릭터를 만들거나 편집해 주인공으로 지정하면 합친 장 영상에서 첫 등장 이름표를 생성할 수 있습니다.',
     addCharacter: '캐릭터 추가',
     importCharacters: '캐릭터 가져오기',
     characterName: '캐릭터명',

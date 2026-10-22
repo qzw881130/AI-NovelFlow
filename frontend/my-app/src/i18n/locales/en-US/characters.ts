@@ -4,6 +4,7 @@ export default {
   characters: {
     title: 'Character Library',
     subtitle: 'Manage characters in your novels',
+    noProtagonistReminder: 'No protagonist is selected for this novel. Create or edit a character and select “Protagonist” to enable first-appearance nameplates in merged chapter videos.',
     addCharacter: 'Add Character',
     importCharacters: 'Import Characters',
     characterName: 'Character Name',

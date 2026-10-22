@@ -1,0 +1,69 @@
+# NovelFlow 消息通知基础设施 V1
+
+本阶段只提供配置、事件注册、发送服务和开发测试入口。Shot、Clip、批量生成、Preflight、合并和任务状态代码没有通知埋点。
+
+## API
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| GET | `/api/notifications/config` | 读取通道配置、五种提示音、21 个事件及页面声音游标；凭据仅返回掩码 |
+| PUT | `/api/notifications/config` | 局部更新 `pageSound`、`feishu`、`telegram`、`eventSwitches` |
+| POST | `/api/notifications/test-channel` | 测试启用的 `FEISHU` 或 `TELEGRAM` 通道 |
+| POST | `/api/notifications/test-event` | `DEBUG` 开启且由私有网络中的 NovelFlow 同源前端代理访问时，经 `NotificationService.emit` 模拟事件 |
+| GET | `/api/notifications/page-sound?after_id=N` | 浏览器轮询待播声音记录 |
+
+`test-event` 请求示例：
+
+```json
+{
+  "event_code": "clip.generation.completed",
+  "payload": {"shot_index": 4, "clip_index": 2, "status": "completed"}
+}
+```
+
+模拟消息带有“开发模拟事件”标记，接口不会修改 Shot、Clip 或任务状态。该接口要求后端 `DEBUG=true`、私有网络的同源 `Origin`、本机 Vite 前端代理标记和本机代理连接；直接访问后端 8000 端口、跨站请求及公网 Host 会被拒绝。局域网客户端通过已开放访问的前端端口（例如 `192.168.50.3:5173`）使用该入口。项目目前没有用户登录机制，设备访问权限沿用前端端口的现有网络/防火墙边界。
+
+## 配置数据
+
+数据库沿用现有 SQLAlchemy/SQLite 连接，应用启动时通过 `Base.metadata.create_all` 创建两张独立表：
+
+- `notification_settings`：`page_sound_enabled=true`、`sound_id=chime`、`volume=0.7`、`feishu_enabled=false`、`telegram_enabled=false`、Webhook/签名密钥/Bot Token/Chat ID 的加密字段，以及 `event_switches` JSON。事件默认开启，JSON 仅保存覆盖值。
+- `notification_deliveries`：事件码、通道、状态（`queued`、`sent`、`failed`）、测试标记和时间。页面声音的 `queued` 表示已交给浏览器轮询，不代表浏览器实际播放成功。
+
+更新示例：
+
+```json
+{
+  "pageSound": {"enabled": true, "soundId": "bell", "volume": 0.5},
+  "feishu": {"enabled": true, "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/...", "secret": "..."},
+  "telegram": {"enabled": true, "botToken": "123:...", "chatId": "-100123"},
+  "eventSwitches": {"clip.generation.completed": false}
+}
+```
+
+凭据字段省略或设为 `null` 表示保持已保存值；传入空字符串表示清除。后端响应不会返回明文凭据。保存和发送失败不会把凭据写入浏览器存储。
+
+## Event Registry 和统一调用
+
+21 个完整事件码、名称、分类和描述在 `backend/app/services/notification_registry.py`。每个注册项默认 `enabled=true`。
+
+第二阶段业务埋点可在明确的业务完成/失败边界调用：
+
+```python
+from app.services.notification_service import NotificationService
+
+await NotificationService.emit("clip.generation.completed", {"shot_index": 4, "clip_index": 2})
+```
+
+`emit` 检查注册和事件开关，再独立尝试 `PAGE_SOUND`、`FEISHU`、`TELEGRAM`。它返回各通道结果，失败不会抛给调用方。接入前应为每个事件确定真实触发时机、去重键、允许发送的 payload 字段，并补业务边界测试；V1 未添加任何业务调用。
+
+## 验证
+
+页面截图：`docs/notifications-v1.png`。截图使用浏览器测试的模拟配置响应，展示默认开关和全部事件；未包含任何真实凭据。
+
+- `backend/venv/bin/python -m pytest -q backend/tests/test_notifications.py`：9 通过，覆盖默认值、持久化、加密与脱敏、三通道组合、事件开关、模拟事件正式路径、失败隔离和两种外部适配器的模拟 HTTP 请求。
+- `backend/venv/bin/python -m pytest -q backend/tests/test_shot_video_enqueue.py backend/tests/test_video_continuation_workflow.py backend/tests/test_video_merge_cache.py`：11 通过。
+- `frontend/my-app` 的 `tsc --noEmit` 和 `vite build` 通过；Playwright 检查 21 个事件显示、提示音请求、音量保存、事件开关和模拟事件请求。
+- 局域网集成环境：隔离的通知 API 与 Vite 代理运行在测试端口，浏览器从 `192.168.50.3:5174` 访问；确认页面声音播放、事件关闭后抑制通知，以及飞书/Telegram 分别启停。测试适配器使用内存模拟发送，不接触真实机器人。
+
+飞书和 Telegram 的真实外网送达仍需在用户填写有效凭据后，使用页面中的“保存并发送测试”按钮验证。

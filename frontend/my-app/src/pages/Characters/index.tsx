@@ -2,7 +2,7 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Loader2, User, Image, X, Download } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Trash2, Loader2, User, Image, X, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
@@ -19,6 +19,7 @@ export default function Characters() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [loadedCharactersNovelId, setLoadedCharactersNovelId] = useState<string | null>(null);
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,15 +91,18 @@ export default function Characters() {
   const fetchCharacters = async () => {
     if (!selectedNovel) {
       setCharacters([]);
+      setLoadedCharactersNovelId(null);
       setIsLoading(false);
       return;
     }
     
     setIsLoading(true);
+    setLoadedCharactersNovelId(null);
     try {
       const data = await characterApi.fetchList(selectedNovel);
       if (data.success) {
         setCharacters(data.data || []);
+        setLoadedCharactersNovelId(selectedNovel);
       }
     } catch (error) {
       console.error('获取角色失败:', error);
@@ -728,6 +732,10 @@ export default function Characters() {
     },
     { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 }
   );
+  const showNoProtagonistReminder = Boolean(selectedNovel)
+    && loadedCharactersNovelId === selectedNovel
+    && !isLoading
+    && !characters.some(character => character.isProtagonist && !character.isNarrator);
 
   const statCardClass = (filter: typeof statusFilter, className: string) =>
     `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${
@@ -756,12 +764,18 @@ export default function Characters() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('characters.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('characters.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        {showNoProtagonistReminder && (
+          <div role="alert" className="flex min-w-[260px] max-w-xl flex-1 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{t('characters.noProtagonistReminder')}</span>
+          </div>
+        )}
+        <div className="ml-auto flex flex-wrap gap-3">
           {filteredCharacters.length > 0 && (
             <button
               onClick={generateAllPortraits}

@@ -13,6 +13,7 @@ import { UploadModal } from './UploadModal';
 import { EditModal } from './EditModal';
 import { MappingModal } from './MappingModal';
 import { WorkflowCard } from './WorkflowCard';
+import { WorkflowTemplateGraphModal } from './WorkflowTemplateGraphModal';
 
 const typeIcons: Record<string, typeof User> = {
   character: User,
@@ -62,6 +63,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
   const [mappingWorkflow, setMappingWorkflow] = useState<Workflow | null>(null);
+  const [graphWorkflow, setGraphWorkflow] = useState<Workflow | null>(null);
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<WorkflowImportPreview | null>(null);
@@ -334,6 +336,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                   onSetDefault={handleSetDefault}
                   onOpenEdit={setEditingWorkflow}
                   onOpenMapping={setMappingWorkflow}
+                  onOpenGraph={setGraphWorkflow}
                   onDelete={handleDelete}
                   onDownload={handleDownload}
                 />
@@ -456,6 +459,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
         onClose={() => setMappingWorkflow(null)}
         onSuccess={fetchWorkflows}
       />
+      <WorkflowTemplateGraphModal workflow={graphWorkflow} onClose={() => setGraphWorkflow(null)} />
     </div>
   );
 }

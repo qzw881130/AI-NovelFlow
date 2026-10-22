@@ -1,4 +1,4 @@
-import { Star, Edit2, Download, Trash2, Settings as SettingsIcon, User, Image as ImageIcon, Film, Mountain, Box, Music, Clapperboard, Mic } from 'lucide-react';
+import { Star, Edit2, Download, Trash2, Settings as SettingsIcon, User, Image as ImageIcon, Film, Mountain, Box, Music, Clapperboard, Mic, Workflow as WorkflowIcon } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { getWorkflowDisplayName, getWorkflowDisplayDescription, checkWorkflowMappingComplete } from '../utils';
@@ -59,6 +59,7 @@ interface WorkflowCardProps {
   onSetDefault: (workflow: Workflow) => void;
   onOpenEdit: (workflow: Workflow) => void;
   onOpenMapping: (workflow: Workflow) => void;
+  onOpenGraph: (workflow: Workflow) => void;
   onDelete: (workflow: Workflow) => void;
   onDownload: (workflow: Workflow) => void;
 }
@@ -69,6 +70,7 @@ export function WorkflowCard({
   onSetDefault, 
   onOpenEdit, 
   onOpenMapping, 
+  onOpenGraph,
   onDelete,
   onDownload 
 }: WorkflowCardProps) {
@@ -137,6 +139,15 @@ export function WorkflowCard({
               <Star className="h-4 w-4" />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => onOpenGraph(workflow)}
+            className="p-2 text-gray-400 hover:text-blue-600"
+            title={t('tasks.workflowGraph')}
+            aria-label={`${t('tasks.workflowGraph')}: ${getWorkflowDisplayName(workflow, t)}`}
+          >
+            <WorkflowIcon className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => onOpenMapping(workflow)}

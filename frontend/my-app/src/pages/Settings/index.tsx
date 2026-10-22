@@ -297,7 +297,7 @@ export default function Settings() {
                 <input id="cover-production" type="text" maxLength={80} required
                   value={formData.coverProduction ?? ''}
                   onChange={event => setFormData(previous => ({ ...previous, coverProduction: event.target.value }))}
-                  className="input mt-3 w-full max-w-md" placeholder="旺仔有声小说" />
+                  className="input-field mt-3 max-w-md" placeholder="旺仔有声小说" />
               </div>
             )}
             {/* LLM 配置面板 */}

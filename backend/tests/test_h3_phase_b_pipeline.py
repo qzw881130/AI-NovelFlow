@@ -103,6 +103,61 @@ class FakeComfy:
         return {'success': True, 'video_url': '/offline/output.mp4'}
 
 
+@pytest.mark.asyncio
+async def test_phase_b_retries_transient_502_with_one_director_log(db_session, db_engine, monkeypatch, tmp_path):
+    import httpx
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core import database
+    from app.models.llm_log import LLMLog
+    from app.services.file_storage import file_storage
+    from app.services.llm import http_retry
+    from app.services.llm.base import LLMConfig
+    from app.services.llm.client import LLMClient
+
+    _, args, _ = make_case(db_session, NAMES[0])
+    monkeypatch.setattr(database, 'SessionLocal', sessionmaker(bind=db_engine))
+    monkeypatch.setattr(file_storage, 'base_dir', tmp_path)
+    delays = []
+    requests = []
+    statuses = [502, 200]
+    director_response = saved(NAMES[0], '_mock_response')
+    response_content = json.dumps(director_response)
+
+    class FakeHTTPClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def post(self, endpoint, *, headers, json, timeout):
+            requests.append((endpoint, deepcopy(headers), deepcopy(json), timeout))
+            status = statuses.pop(0)
+            body = ({'choices': [{'message': {'content': response_content}}]}
+                    if status == 200 else {'error': 'upstream'})
+            return httpx.Response(status, json=body, request=httpx.Request('POST', endpoint))
+
+    async def fake_sleep(seconds):
+        delays.append(seconds)
+
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **_: FakeHTTPClient())
+    monkeypatch.setattr(http_retry.asyncio, 'sleep', fake_sleep)
+    llm = LLMClient(LLMConfig(provider='openai', model='test-model', api_url='https://llm.test/v1', api_key='key'))
+
+    prompt = await pipe.build_phase_b_prompt(**args, llm=llm)
+
+    assert prompt == args['task'].prompt_text
+    assert len(requests) == 2 and requests[0] == requests[1]
+    assert delays == [2]
+    record = json.loads(args['task'].metadata_json)['h3_phase_b']
+    assert record['status'] == 'COMPILED' and record['llm_call_count'] == 1
+    log = db_session.query(LLMLog).one()
+    retry = json.loads(log.request_info)['httpRetry']
+    assert [attempt['httpStatus'] for attempt in retry['attempts']] == [502, 200]
+    assert retry['outcome'] == 'recovered' and log.status == 'success'
+
+
 @pytest.mark.parametrize('clause_style', ['identity_mark', 'recognition_feature'])
 def test_phase_b_accepts_current_character_identity_clause(db_session, clause_style):
     snap, args, _ = make_case(db_session, NAMES[0])

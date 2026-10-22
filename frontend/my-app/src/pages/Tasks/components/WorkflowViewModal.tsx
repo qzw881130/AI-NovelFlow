@@ -1,5 +1,5 @@
 import { CandidateResultSummary } from './CandidateResultSummary';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Download, Loader2, Play, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
@@ -7,6 +7,8 @@ import JSONEditor from '../../../components/JSONEditor';
 import type { Task } from '../../../types';
 import type { WorkflowData } from '../types';
 import { taskApi } from '../../../api/tasks';
+
+const WorkflowGraphView = lazy(() => import('../../../components/WorkflowGraphView'));
 
 interface WorkflowViewModalProps {
   viewingWorkflow: Task | null;
@@ -30,10 +32,12 @@ export function WorkflowViewModal({
   const { t } = useTranslation();
   const [showBoundParameters, setShowBoundParameters] = useState(false);
   const [showOnlyMappedNodes, setShowOnlyMappedNodes] = useState(true);
+  const [workflowView, setWorkflowView] = useState<'graph' | 'json'>('graph');
 
   useEffect(() => {
     setShowBoundParameters(false);
     setShowOnlyMappedNodes(true);
+    setWorkflowView('graph');
   }, [viewingWorkflow?.id, viewingWorkflow?.name, workflowData]);
 
   if (!viewingWorkflow) return null;
@@ -153,7 +157,7 @@ export function WorkflowViewModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className={`bg-white rounded-lg w-full ${workflowView === 'graph' ? 'max-w-7xl' : 'max-w-4xl'} max-h-[90vh] flex flex-col overflow-hidden`}>
         <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 bg-white">
           <h3 className="text-lg font-semibold text-gray-900">
             {t('tasks.workflowDetails')}
@@ -318,7 +322,14 @@ export function WorkflowViewModal({
               {workflowData.workflow && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium text-gray-700">{t('tasks.workflowJSON')}</h4>
+                    <div className="flex rounded-lg border border-gray-200 p-0.5" role="tablist" aria-label={t('tasks.workflowDetails')}>
+                      <button type="button" role="tab" aria-selected={workflowView === 'graph'} onClick={() => setWorkflowView('graph')} className={`rounded-md px-3 py-1.5 text-sm ${workflowView === 'graph' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {t('tasks.workflowGraph')}
+                      </button>
+                      <button type="button" role="tab" aria-selected={workflowView === 'json'} onClick={() => setWorkflowView('json')} className={`rounded-md px-3 py-1.5 text-sm ${workflowView === 'json' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {t('tasks.workflowJSON')}
+                      </button>
+                    </div>
                     <div className="flex items-center gap-2">
                       {!hasReferences && archiveButton}
                       <button
@@ -332,14 +343,15 @@ export function WorkflowViewModal({
                       </button>
                     </div>
                   </div>
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <JSONEditor
-                      value={workflowJsonText}
-                      onChange={() => {}}
-                      readOnly={true}
-                      height="50vh"
-                    />
-                  </div>
+                  {workflowView === 'graph' ? (
+                    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">{t('common.loading')}</div>}>
+                      <WorkflowGraphView workflow={workflowData.workflow} nodeMapping={workflowData.nodeMapping} />
+                    </Suspense>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <JSONEditor value={workflowJsonText} onChange={() => {}} readOnly={true} height="50vh" />
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex justify-end pt-4">
