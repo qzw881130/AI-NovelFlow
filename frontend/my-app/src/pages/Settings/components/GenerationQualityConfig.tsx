@@ -77,16 +77,22 @@ export default function GenerationQualityConfig({ enabled, onChange, language, o
               <span className="text-xs text-gray-500">{stage.note}</span>
             </div>
             <div className="grid gap-x-5 sm:grid-cols-2">
-              {stageChecks.map(check => <label key={check.id} className="flex items-start gap-2 border-b border-gray-50 py-2.5">
-                <input type="checkbox" className="mt-0.5" checked={check.configurable ? !!policy[check.id] : true}
-                  disabled={!check.configurable}
-                  onChange={event => onPolicyChange(check.id, event.target.checked)} />
-                <span className="min-w-0">
-                  <span className="font-medium text-gray-800">{check.label}</span>
-                  <span className="ml-2 text-xs text-gray-500">{check.configurable ? (policy[check.id] ? '强制通过' : '警告，不阻断') : '始终强制'}</span>
-                  <span className="block text-xs leading-5 text-gray-500">{check.description}</span>
-                </span>
-              </label>)}
+              {stageChecks.map(check => <div key={check.id} className="border-b border-gray-50 py-2.5">
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-0.5" checked={check.configurable ? !!policy[check.id] : true}
+                    disabled={!check.configurable}
+                    onChange={event => onPolicyChange(check.id, event.target.checked)} />
+                  <span className="min-w-0">
+                    <span className="font-medium text-gray-800">{check.label}</span>
+                    <span className="ml-2 text-xs text-gray-500">{check.configurable ? (policy[check.id] ? '强制通过' : '警告，不阻断') : '始终强制'}</span>
+                    <span className="block text-xs leading-5 text-gray-500">{check.description}</span>
+                  </span>
+                </label>
+                {!!check.error_codes?.length && <details className="ml-5 mt-1 text-xs text-gray-600">
+                  <summary className="cursor-pointer">可能触发的错误码（{check.error_codes.length}）</summary>
+                  <span className="mt-1 block break-all font-mono leading-5">{check.error_codes.join(' · ')}</span>
+                </details>}
+              </div>)}
             </div>
           </div>;
         })}

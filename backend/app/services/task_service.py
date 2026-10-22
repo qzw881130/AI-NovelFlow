@@ -810,11 +810,12 @@ class TaskService:
         if tasks is None:
             tasks = task_repo.list_active_tasks() + db.query(Task).filter(
                 Task.type == "shot_video", Task.status == "failed",
-                Task.error_message == INTERRUPTED_CLIP_ERROR,
+                Task.error_message.in_([INTERRUPTED_CLIP_ERROR, "CLIP_RECOVERY_PLAN_CHANGED"]),
                 Task.comfyui_prompt_id.isnot(None),
             ).all()
         active_tasks = [task for task in tasks if task.status in ["pending", "running"]
-                        or task.status == "failed" and task.error_message == INTERRUPTED_CLIP_ERROR]
+                        or task.status == "failed" and task.error_message in {
+                            INTERRUPTED_CLIP_ERROR, "CLIP_RECOVERY_PLAN_CHANGED"}]
         if not active_tasks:
             return 0
 
@@ -941,12 +942,18 @@ class TaskService:
                                     if recovered:
                                         updated_count += 1
                                         continue
-                                    error = "Clip 恢复失败：原提交工作流的输出节点没有可用视频"
+                                    error = "CLIP_RECOVERY_RESULT_UNAVAILABLE:原提交工作流的输出节点没有可用视频"
                                 except (CanonicalExecutionConflict, ValueError) as exc:
                                     error = str(exc)
                                 db.refresh(task)
                                 if task.status in {"cancelled", "completed"} or task.comfyui_prompt_id != recovery_prompt_id:
                                     continue
+                                if error == "CLIP_RECOVERY_PLAN_CHANGED":
+                                    from app.services.clip_recovery_diagnostics import recovery_plan_mismatches
+                                    shot = ShotRepository(db).get_by_id(task.shot_id)
+                                    details = recovery_plan_mismatches(db, task, shot)
+                                    if details:
+                                        error += ":" + json.dumps(details, ensure_ascii=False, separators=(",", ":"))
                                 task.status = "failed"
                                 task.error_message = error
                                 task.current_step = "Clip 结果恢复被拒绝"

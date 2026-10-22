@@ -2,6 +2,16 @@ export const formatUserFacingError = (message?: unknown): string => {
   const rawMessage = String(message || '').trim();
   if (!rawMessage) return '';
 
+  if (rawMessage.startsWith('CLIP_RECOVERY_PLAN_CHANGED')) {
+    return 'Clip 结果恢复被拒绝：片段计划或原结果归属与当前任务不一致。展开可查看保存的具体校验项及原始错误码。';
+  }
+  if (rawMessage.startsWith('CLIP_RECOVERY_EXECUTION_CHANGED:STATUS')) {
+    return 'Clip 结果恢复被拒绝：任务状态在回写前发生变化。展开可查看当时的状态和原始错误码。';
+  }
+  if (rawMessage.startsWith('CLIP_RECOVERY_')) {
+    return 'Clip 结果恢复被拒绝。展开可查看原始错误码和保存的校验信息。';
+  }
+
   if (rawMessage.includes('PHASE_B_PREFLIGHT_FAILED')) {
     if (rawMessage.includes('H3_PROMPT_LANGUAGE_MISMATCH')) {
       return '视频导演提示词存在与所选语言不一致的描述，尚未提交视频生成。可重试当前任务，或在“生成质量控制”中将“提示词语言一致性”设为“警告，不阻断”后重试。';

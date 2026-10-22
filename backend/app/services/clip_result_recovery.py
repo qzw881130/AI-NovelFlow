@@ -13,6 +13,7 @@ from app.services.canonical_execution_invalidation import (
 )
 from app.services.continuous_clip_av import CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT
 from app.services.video_director_ai import safe_json_dict
+from app.services.clip_recovery_diagnostics import is_prior_approved_clip_owner
 
 
 INTERRUPTED_CLIP_ERROR = "服务重启中断 Clip 回写；已保留 ComfyUI prompt，未重新生成"
@@ -71,7 +72,8 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service, *, va
         if safe_json_dict(task.metadata_json).get("execution_contract") != contract:
             raise CanonicalExecutionConflict("CLIP_RECOVERY_EXECUTION_CHANGED:CONTRACT")
         if not (task.status in {"pending", "running"}
-                or task.status == "failed" and task.error_message == INTERRUPTED_CLIP_ERROR):
+                or task.status == "failed" and task.error_message in {
+                    INTERRUPTED_CLIP_ERROR, "CLIP_RECOVERY_PLAN_CHANGED"}):
             raise CanonicalExecutionConflict(f"CLIP_RECOVERY_EXECUTION_CHANGED:STATUS:{task.status}:{task.error_message}")
         validate_candidate_source(shot, metadata)
         plan = safe_json_dict(shot.video_director_plan)
@@ -79,6 +81,11 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service, *, va
         revision = int(metadata.get("clip_plan_revision") or 0)
         clip = next((c for c in plan.get("clip_plan") or [] if c.get("clip_index") == index), None)
         identity = contract.get("clip") or {}
+        if clip and not is_candidate(metadata):
+            owner_id = clip.get("generated_by_task_id")
+            if owner_id not in {None, "", task.id} and is_prior_approved_clip_owner(db, task, clip, index, revision):
+                # Keep the previous result on the Shot until replacement passes.
+                clip = {**clip, "generated_by_task_id": task.id}
         if (not clip or int(plan.get("clip_plan_revision") or 0) != revision
                 or identity.get("clip_index") != index or identity.get("clip_plan_revision") != revision
                 or task_execution_projection(plan, clip, metadata)["effective_capability"] != capability

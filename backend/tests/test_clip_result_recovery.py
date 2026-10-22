@@ -11,6 +11,7 @@ from app.models.shot import Shot
 from app.models.task import Task
 from app.services import shot_video_service
 from app.services.clip_result_recovery import INTERRUPTED_CLIP_ERROR, recover_completed_clip
+from app.services.clip_recovery_diagnostics import recovery_plan_mismatches
 from app.services.task_service import TaskService
 from app.services.canonical_execution_invalidation import CanonicalExecutionConflict
 
@@ -83,6 +84,35 @@ async def test_old_interrupted_failure_is_recovered_on_default_reconciliation(ex
     db_session.commit()
     assert await service.reconcile_active_tasks() == 1
     assert task.status == "completed" and task.error_message is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("previous_failure", [False, True])
+async def test_recovery_can_replace_an_older_approved_clip(execution, db_session, previous_failure):
+    task, shot, history, service, _, _ = execution
+    old_metadata = json.loads(task.metadata_json)
+    old_metadata["approval_status"] = "APPROVED"
+    old = Task(id="previous-clip", name="previous C1", type="shot_video", status="completed",
+               novel_id=task.novel_id, chapter_id=task.chapter_id, shot_id=shot.id,
+               result_url="/api/files/previous-clip.mp4", metadata_json=json.dumps(old_metadata),
+               created_at=task.created_at - timedelta(minutes=1))
+    plan = json.loads(shot.video_director_plan)
+    plan["clip_plan"][0].update(generated_by_task_id=old.id, video_url=old.result_url)
+    shot.video_director_plan = json.dumps(plan)
+    db_session.add(old)
+    db_session.commit()
+
+    if previous_failure:
+        task.status = "failed"
+        task.error_message = "CLIP_RECOVERY_PLAN_CHANGED"
+        db_session.commit()
+        task.updated_at = datetime.utcnow() - timedelta(minutes=2)
+        db_session.commit()
+        assert await service.reconcile_active_tasks() == 1
+    else:
+        assert await recover_completed_clip(task, history, db_session, service.comfyui_service)
+    assert task.status == "completed", task.error_message
+    assert json.loads(shot.video_director_plan)["clip_plan"][0]["generated_by_task_id"] == task.id
 
 
 @pytest.mark.asyncio
@@ -159,10 +189,34 @@ async def test_stale_or_cancelled_receipts_never_write(execution, db_session, ch
             plan["clip_plan"][0]["generated_by_task_id"] = "new-owner"
         shot.video_director_plan = json.dumps(plan)
     db_session.commit()
-    with pytest.raises(CanonicalExecutionConflict):
+    with pytest.raises(CanonicalExecutionConflict) as error:
         await recover_completed_clip(task, history, db_session, service.comfyui_service)
+    if change in {"owner", "revision"}:
+        assert str(error.value) == "CLIP_RECOVERY_PLAN_CHANGED"
+    if change == "owner":
+        assert any(item["field"] == "generated_by_task_id"
+                   for item in recovery_plan_mismatches(db_session, task, shot))
+    if change == "revision":
+        assert any(item["field"] == "clip_plan_revision"
+                   for item in recovery_plan_mismatches(db_session, task, shot))
     download.assert_not_awaited()
     assert shot.video_url == "/api/files/existing-final.mp4"
+
+
+@pytest.mark.asyncio
+async def test_recovery_failure_records_the_mismatched_plan_field(execution, db_session):
+    task, shot, _, service, _, _ = execution
+    plan = json.loads(shot.video_director_plan)
+    plan["clip_plan_revision"] = 3
+    shot.video_director_plan = json.dumps(plan)
+    db_session.commit()
+
+    assert await service.reconcile_active_tasks([task]) == 1
+    assert task.status == "failed"
+    prefix = "CLIP_RECOVERY_PLAN_CHANGED:"
+    assert task.error_message.startswith(prefix)
+    details = json.loads(task.error_message[len(prefix):])
+    assert {"field": "clip_plan_revision", "expected": 2, "actual": 3} in details
 
 
 def native_execution(task, shot, history, db_session):

@@ -46,17 +46,52 @@ const preflightCheckLabels: Record<string, string> = {
   IDENTITY_PORTRAIT_READY: '人物参考图',
 };
 
-function videoErrorCategory(message?: string | null): string | null {
+function videoErrorCategory(message?: string | null, currentStep?: string | null): string | null {
   if (!message) return null;
   if (message.includes('GENERATION_PREFLIGHT_FAILED')) {
     const checkId = Object.keys(preflightCheckLabels).find(id => message.includes(id));
     return checkId ? `视频生成预检 · ${preflightCheckLabels[checkId]}` : '视频生成预检';
+  }
+  if (currentStep === '已完成视频回执接受失败' || message.includes('CLIP_RECEIPT_ACCEPTANCE_')) {
+    return '视频生成预检 · 已完成 Clip 回执接受';
+  }
+  if (currentStep === 'Clip 结果恢复被拒绝' || message.includes('CLIP_RECOVERY_')
+      || message.includes('CANONICAL_RECOVERY_CONFLICT')) {
+    return '视频生成预检 · Clip 结果恢复与回写';
   }
   if (message.includes('PREVIOUS_AV_BINDING_UNVERIFIED')) return '执行阶段 · 续接工作流绑定';
   if (message.includes('PHASE_B_INPUT_NOT_COVERED')) return '执行阶段 · H3 Phase B 输入';
   if (message.includes('H3_PROMPT_LANGUAGE_MISMATCH')) return '执行阶段 · 提示词语言一致性';
   if (message.includes('PHASE_B_PREFLIGHT_FAILED')) return '执行阶段 · 提示词结构校验';
   return null;
+}
+
+type RecoveryMismatch = { field: string; expected?: unknown; actual?: unknown };
+
+function clipRecoveryPlanMismatches(message?: string | null): RecoveryMismatch[] | null {
+  const prefix = 'CLIP_RECOVERY_PLAN_CHANGED:';
+  if (!message?.startsWith(prefix)) return null;
+  try {
+    const parsed: unknown = JSON.parse(message.slice(prefix.length));
+    return Array.isArray(parsed) && parsed.every(item => item && typeof item.field === 'string')
+      ? parsed as RecoveryMismatch[] : null;
+  } catch {
+    return null;
+  }
+}
+
+const recoveryFieldLabels: Record<string, string> = {
+  clip: '片段是否存在',
+  clip_plan_revision: '片段计划版本',
+  'execution_contract.clip.clip_index': '执行合同中的片段序号',
+  'execution_contract.clip.clip_plan_revision': '执行合同中的计划版本',
+  effective_capability: '实际执行类型',
+  generated_by_task_id: '当前结果归属任务',
+};
+
+function detailValue(value: unknown): string {
+  if (value == null || value === '') return '无';
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 function formatElapsedDuration(seconds: number): string {
@@ -170,9 +205,10 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
-  const errorCategory = isVideoTask ? videoErrorCategory(task.errorMessage) : null;
+  const errorCategory = isVideoTask ? videoErrorCategory(task.errorMessage, task.currentStep) : null;
   const hasErrorDetails = Boolean(task.errorMessage && displayErrorMessage &&
-    (task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
+    (errorCategory || task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
+  const recoveryMismatches = clipRecoveryPlanMismatches(task.errorMessage);
   const chapterLabel = task.chapterNumber != null
     ? task.chapterTitle
       ? t('tasks.chapterContext', { number: task.chapterNumber, title: task.chapterTitle })
@@ -313,13 +349,15 @@ export function TaskCard({
           )}
           {task.status === 'failed' && !comfyError && displayErrorMessage && (
             <div className="mt-2">
-              <div
-                className="p-2 bg-red-100 rounded text-xs text-red-700 flex items-start gap-2 cursor-pointer hover:bg-red-200 transition-colors"
+              <button type="button"
+                className="w-full p-2 bg-red-100 rounded text-xs text-red-700 flex items-start gap-2 text-left enabled:cursor-pointer enabled:hover:bg-red-200 transition-colors"
                 onClick={() => onToggleError(task.id)}
+                disabled={!hasErrorDetails}
+                aria-expanded={hasErrorDetails ? expandedErrors.has(task.id) : undefined}
               >
                 <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center justify-between">
                     <span className="font-medium">
                       {t('tasks.error')}: {errorCategory && <span data-error-category className="mr-1 rounded bg-red-200 px-1.5 py-0.5">{errorCategory}</span>}
                       {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}
@@ -329,15 +367,20 @@ export function TaskCard({
                         {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </span>
                     )}
-                  </div>
-                  {expandedErrors.has(task.id) && hasErrorDetails && (
-                    <div className="mt-2 p-2 bg-red-50 rounded border border-red-200 font-mono whitespace-pre-wrap break-all">
-                      <div>{displayErrorMessage}</div>
-                      {task.errorMessage !== displayErrorMessage && <div className="mt-2">原始错误：{task.errorMessage}</div>}
-                    </div>
-                  )}
+                  </span>
+                </span>
+              </button>
+              {expandedErrors.has(task.id) && hasErrorDetails && (
+                <div className="mt-1 p-2 bg-red-50 rounded border border-red-200 text-xs text-red-800 whitespace-pre-wrap break-all">
+                  <div>{displayErrorMessage}</div>
+                  {recoveryMismatches?.map((item, index) => <div key={`${item.field}-${index}`} className="mt-1">
+                    {recoveryFieldLabels[item.field] || item.field}：期望 {detailValue(item.expected)}；实际 {detailValue(item.actual)}
+                  </div>)}
+                  {task.errorMessage?.startsWith('CLIP_RECOVERY_PLAN_CHANGED') && !recoveryMismatches &&
+                    <div className="mt-1">此历史任务只保存了错误码，未保存各项比较结果。</div>}
+                  <div className="mt-2 font-mono">原始错误：{task.errorMessage}</div>
                 </div>
-              </div>
+              )}
               {displayErrorMessage.includes('ComfyUI') && (
                 <p className="text-xs text-red-600 mt-1 ml-6">{t('tasks.comfyuiHint')}</p>
               )}

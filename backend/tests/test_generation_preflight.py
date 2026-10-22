@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -64,7 +66,12 @@ def test_catalog_lists_runtime_gates_without_pretending_batch_evaluated_them(db_
     assert {'PHASE_B_SOURCE_BINDING', 'PHASE_B_DIRECTOR_SCHEMA', 'PHASE_B_TIMING_ANCHORS',
             'PHASE_B_LANGUAGE_CONSISTENCY', 'PHASE_B_PROMPT_STRUCTURE',
             'PHASE_B_PICTURE_BINDING', 'PHASE_B_WORKFLOW_BINDING',
-            'VIDEO_OUTPUT_ARTIFACT', 'CLIP_ASSEMBLY_PROVENANCE'} <= ids
+            'VIDEO_OUTPUT_ARTIFACT', 'CLIP_RESULT_RECOVERY', 'CLIP_RECEIPT_ACCEPTANCE',
+            'CLIP_ASSEMBLY_PROVENANCE'} <= ids
+    recovery = next(item for item in all_checks if item['id'] == 'CLIP_RESULT_RECOVERY')
+    assert recovery['stage'] == 'assembly' and recovery['blocking'] and not recovery['configurable']
+    assert 'CLIP_RECOVERY_PLAN_CHANGED' in recovery['error_codes']
+    assert 'CLIP_RECOVERY_EXECUTION_CHANGED:STATUS' in recovery['error_codes']
     language = next(item for item in all_checks if item['id'] == 'PHASE_B_LANGUAGE_CONSISTENCY')
     assert language['stage'] == 'director' and language['configurable'] and not language['blocking']
     assert next(item for item in catalog({'PHASE_B_LANGUAGE_CONSISTENCY': True})
@@ -72,6 +79,14 @@ def test_catalog_lists_runtime_gates_without_pretending_batch_evaluated_them(db_
     report = evaluate_batch(db_session, chapter.id, [shot.id])
     assert all(item['id'] not in {entry['id'] for entry in report['checks']}
                for item in all_checks if item['stage'] != 'before_queue')
+
+
+def test_clip_recovery_error_codes_are_registered():
+    source = (Path(__file__).resolve().parents[1] / 'app/services/clip_result_recovery.py').read_text()
+    listed = {entry['id']: set(entry.get('error_codes', [])) for entry in catalog()}
+    for prefix, check_id in ((r'CLIP_RECOVERY_[A-Z_]+(?::[A-Z_]+)?', 'CLIP_RESULT_RECOVERY'),
+                             (r'CLIP_RECEIPT_ACCEPTANCE_[A-Z_]+', 'CLIP_RECEIPT_ACCEPTANCE')):
+        assert set(re.findall(prefix, source)) <= listed[check_id]
 
 
 def test_language_gate_policy_is_saved_and_exposed_in_settings(client):
