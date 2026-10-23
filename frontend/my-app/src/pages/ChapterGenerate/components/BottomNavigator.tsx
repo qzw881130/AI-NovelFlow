@@ -112,9 +112,9 @@ export function BottomNavigator({
     if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
     if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) return 'queued';
-    if (isCurrentShot) return 'current';
     if (currentTab === 1 && hasImageResult) return 'completed';
     if (currentTab === 3 && hasVideoResult) return 'completed';
+    if (isCurrentShot) return 'current';
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
