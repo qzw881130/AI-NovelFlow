@@ -6,46 +6,11 @@ AI-Powered Novel to Video Platform
 
 ## Project Overview
 
-NovelFlow is an AI platform that automatically converts novels into videos.
+NovelFlow turns novel text, character and scene references, shot images, audio, and video tasks into an editable production workflow. You can review each stage or process chapters and shots in batches.
 
-**Core Workflow:**
+**Production flow:** Import TXT/EPUB or an example novel → extract characters, scenes, and props → create reference images and voices → edit chapters and split shots → generate and review shot images → plan and render clips with Video Director → merge chapter/novel videos → create a cover and optionally upload to YouTube.
 
-```
-┌─────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  Novel  │ → │ AI Parse  │ → │ AI Parse  │ → │ AI Parse  │ → │ Generate  │
-│         │    │ Characters│    │  Scenes   │    │   Props   │    │Character  │
-│         │    │           │    │           │    │           │    │  Images   │
-└─────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                                    ↓
-┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  Generate │ ← │  Generate │ ← │ Gen Shot  │ ← │ AI Split  │ ← │ Generate  │
-│   Video   │    │   Audio   │    │  Image    │    │   Shots   │    │  Scene    │
-└───────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                        ↑
-                              ┌───────────┐    ┌───────────┐
-                              │   Edit    │ ← │ Generate  │
-                              │  Chapter  │    │Prop Images│
-                              └───────────┘    └───────────┘
-```
-
-**Detailed Steps:**
-1. **Import Novel** - Create new or import novel text (TXT, EPUB supported)
-2. **AI Parse Characters** - Automatically extract character info (name, description, appearance)
-3. **AI Parse Scenes** - Automatically extract scene info (scene name, environment description)
-4. **AI Parse Props** - Automatically extract prop info (prop name, appearance description)
-5. **Generate Character Images** - Generate AI character portraits for each character
-6. **Generate Scene Images** - Generate reference images for each scene
-7. **Generate Prop Images** - Generate reference images for each prop
-8. **Edit Chapter / AI Split Shots** - Edit chapter content, AI automatically splits into shots
-9. **Generate Shot Images** - Generate scene images based on shot descriptions
-10. **Generate Audio** - Generate voiceover/sound effects for shots (optional)
-11. **Generate Video** - Use Video Director to generate single-frame, first-last-frame, or multi-keyframe shot videos, then merge them into a complete video
-
-**Key Features:**
-- Support for chapter-style novel parsing
-- Character consistency (maintain character appearance across multiple scenes)
-- Scene consistency (maintain scene environment across multiple shots)
-- Automatic shot generation and video composition
+Video Director supports multi-reference generation, video continuation, and timeline-anchored extension. It stores prompts, tasks, keyframes, and generated artifacts for inspection and retries.
 
 ## Interface Preview
 
@@ -68,26 +33,22 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 
 ## Tech Stack
 
-- **Frontend**: React + TypeScript + Tailwind CSS + Vite
-- **State Management**: Zustand (global state + i18n/timezone state)
-- **Backend**: FastAPI + SQLAlchemy + SQLite
-- **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **Video Generation**: MiniMax H3 image-to-video, first-last-frame video, and multi-keyframe video
-- **i18n**: Custom i18n implementation (5 languages supported)
+- **Frontend:** React, TypeScript, Tailwind CSS, Vite, Zustand
+- **Backend:** FastAPI, SQLAlchemy, SQLite, background jobs and file storage
+- **AI and media:** Configurable LLM providers, ComfyUI, FFmpeg; Moss Image and Qwen Image 2.1 image presets, MiniMax H3 video presets, and Qwen3-TTS audio presets
+- **Interface:** Simplified/Traditional Chinese, English, Japanese, Korean, and configurable timezones
 
 ## Main Features
 
-- **Novel Management**: Support creating, editing, deleting novels, automatic chapter parsing
-- **Character Library**: AI auto-parse characters, support character image generation and consistency
-- **Scene Library**: AI auto-parse scenes, support scene reference image generation and environment settings
-- **Shot Generation**: AI auto-split chapters into shots, with batch image generation, structured editing, and state recovery
-- **Video Director**: Supports single-frame, first-last-frame, three-keyframe, and four-keyframe video planning, while preserving AI call logs and final prompts
-- **Video Composition**: Merge shot videos and multi-clip outputs into a complete chapter video
-- **Workflow Management**: Support custom ComfyUI workflows, node mapping configuration
-- **Task Queue**: Background async task processing, real-time task status monitoring
-- **Preset Test Cases**: Built-in test cases like "The Little Horse Crosses the River", "Little Red Riding Hood", "The Emperor's New Clothes"
-- **Multi-language Support**: Support Simplified Chinese, Traditional Chinese, English, Japanese, Korean interfaces
-- **Timezone Support**: Users can customize timezone, all time displays are converted to specified timezone
+- **Novels and chapters:** Create, edit, delete, and import TXT/EPUB novels; parse chapters, import/split them in batches, or start from examples.
+- **Asset libraries:** Extract characters, scenes, and props by novel or chapter; generate and manage reference images, character voices, and reference audio.
+- **Shots and images:** AI shot splitting, manual editing, batch image generation, reference binding, keyframes, single/multi-image editing, AI image quality review, and HD repaint.
+- **Video Director:** Plan shots and clips with multi-reference generation, continuation, and temporal anchors; retain prompts, LLM logs, tasks, and outputs.
+- **Clip inspection:** Inspect generated frames, timelines, source evidence, and observations to investigate a clip.
+- **Audio and delivery:** Optional voice design and speech generation; merge clips, chapters, and novels, preview first-appearance nameplates, create covers, and upload to YouTube.
+- **Workflows and prompts:** Manage system/custom ComfyUI workflows, node mappings, workflow import/export, and prompt templates.
+- **Tasks and notifications:** Background jobs, retry and recovery, business events, page sounds, and Feishu/Telegram notifications.
+- **Localization:** Five interface languages and user-selected timezones.
 
 ## Project Structure
 
@@ -107,7 +68,7 @@ AI-NovelFlow/
 │   ├── workflows/       # ComfyUI Workflow Configs
 │   ├── user_workflows/  # User Custom Workflows
 │   ├── user_story/      # Generated images/videos storage
-│   └── main.py
+│   └── run_server.py
 ├── frontend/            # React Frontend
 │   └── my-app/
 │       ├── src/
@@ -155,67 +116,16 @@ Visit after starting backend: http://localhost:8000/docs
 
 ### 1. LLM API Configuration
 
-Support multiple LLM providers:
-- **DeepSeek** (default): https://api.deepseek.com
-- **OpenAI**: https://api.openai.com
-- **Gemini**: https://generativelanguage.googleapis.com
-- **Anthropic**: https://api.anthropic.com
-- **Azure OpenAI**: Custom Azure endpoint
-
-Set API Key and proxy (if needed) in the [System Settings] page.
+System Settings provides presets for DeepSeek, OpenAI, Gemini, Anthropic, Azure OpenAI, Alibaba Cloud Bailian, Ollama, and custom OpenAI-compatible services. Configure the endpoint, model, and API key for your provider; local services such as Ollama can use their own settings. Proxy settings are available, and Prompt Configuration manages templates for each production stage.
 
 ### 2. ComfyUI Configuration
 
-- **ComfyUI Address**: Default http://localhost:8188
-- **Workflow Configuration**: Support uploading custom workflows, need node mapping
-  - Character Generation: Prompt node + Image save node
-  - Scene Generation: Prompt node + Image save node + Width/Height node
-  - Shot Image: Prompt node + Image save node + Width/Height node
-  - Single-frame Video: Prompt node + Video save node + Reference image node + Duration node
-  - First-last-frame Video: Prompt node + First image node + Last image node + Video save node + Duration node
-  - Three/Four-keyframe Video: Prompt node + Start reference node + Keyframe nodes + Video save node + Duration node
-  - Keyframe Image: Prompt node + Image save node + Reference image node
+- Default address: `http://localhost:8188`; change it in System Settings.
+- System workflow JSON files live in `backend/workflows/`, with registration and node mappings in `backend/app/constants/workflow.py`. Uploaded workflows live in `backend/user_workflows/`. The UI can import, export, and select workflows and map prompt, reference, duration, and output nodes.
+- Current image presets cover Moss Image T2I character four-view, scene, and prop generation, plus Qwen Image 2.1 shots, keyframes, and single/multi-image editing. Video presets cover MiniMax H3 multi-reference generation, video continuation, temporal extension, second-pass sampling, and 3D latent upscaling. Audio workflows also include Qwen3-TTS.
+- The active workflow depends on the database selection. `debug/workflows/` contains examples and is not loaded as system presets.
 
-System workflows are stored in `backend/workflows/` and registered through `backend/app/constants/workflow.py`. User-uploaded workflows are stored in `backend/user_workflows/`. `debug/workflows/MiniMax H3/` is only for debugging and workflow comparison; it is not loaded as system defaults.
-
-#### 2.1 Model Files
-
-Directory is based on `ComfyUI/models/...`; if you use ComfyUI-Manager, it generally scans these directories as well.
-
-| Model Filename | Type | Main Purpose | Workflows Used | Recommended Directory |
-|---------------|------|-------------|----------------|---------------------|
-| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 reference-to-video model | Single-frame, first-last-frame, three-keyframe, and four-keyframe video workflows | `models/diffusion_models/` |
-| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 text/vision encoding | MiniMax H3 video workflows | `models/text_encoders/` |
-| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 video VAE | MiniMax H3 video workflows | `models/vae/` |
-| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 audio VAE | MiniMax H3 video workflows | `models/vae/` |
-| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 acceleration LoRA | MiniMax H3 fast workflows | `models/loras/` |
-| `ae.safetensors` | VAE / AE | Used as VAE/AE in Z-image-turbo and some default character workflows | Z-image-turbo Single Image / System Default - Character | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein image edit and shot image generation | Shot image, keyframe image, default character workflows | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein image edit and shot image workflows | `models/vae/` |
-| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 text encoding | Flux2-Klein image edit and shot image workflows | `models/clip/` |
-| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 image editing | Qwen-Edit-2511 shot reference workflows | `models/diffusion_models/` |
-| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4-step acceleration | Qwen-Edit-2511 shot reference workflows | `models/loras/` |
-| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 shot reference workflows | `models/vae/` |
-| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 text/vision encoding | Qwen-Edit-2511 shot reference workflows | `models/clip/` |
-| `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo single image generation UNet | Z-image-turbo Single Image / System Default - Character | `models/unet/` |
-| `qwen_3_4b.safetensors` | text encoder | Z-image-turbo text encoding | Z-image-turbo Single Image / System Default - Character | `models/clip/` |
-| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | Local LLM prompt expansion in debug workflows | `debug/workflows/MiniMax H3/` LLM debug workflows | `models/LLM/` |
-
-#### 2.2 Third-Party Node Packages
-
-| Third-Party Node Package | GitHub Repository | Node class_type in Workflows |
-|-------------------------|------------------|------------------------------|
-| **MiniMax H3** | ComfyUI MiniMax H3 nodes | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
-| **Flux2 / Qwen Image Edit** | Flux2 and Qwen-Edit ComfyUI nodes | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
-| **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
-| **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
-| **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
-| **Comfyroll** | [Suzie1/ComfyUI_Comfyroll_CustomNodes](https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes) | `CR Prompt Text`, `CR Text` |
-| **FizzNodes / ConcatStringSingle** | [FizzleDorf/ComfyUI_FizzNodes](https://github.com/FizzleDorf/ComfyUI_FizzNodes) | `ConcatStringSingle` |
-| **comfyui-various / JWInteger** | [jamesWalker55/comfyui-various](https://github.com/jamesWalker55/comfyui-various) | `JWInteger` |
-| **ReservedVRAM** | [Windecay/ComfyUI-ReservedVRAM](https://github.com/Windecay/ComfyUI-ReservedVRAM) | `ReservedVRAMSetter` |
-| **Qwen3-VL-Instruct / Qwen3_VQA** | [luvenisSapiens/ComfyUI_Qwen3-VL-Instruct](https://github.com/IuvenisSapiens/ComfyUI_Qwen3-VL-Instruct) | `Qwen3_VQA` |
-| **Comfyui-zhenzhen** | [T8mars/Comfyui-zhenzhen](https://github.com/T8mars/Comfyui-zhenzhen) | `Zhenzhen_nano_banana`, `Zhenzhen API Settings` |
+**Models and nodes:** [Quark download](https://pan.quark.cn/s/2a630b7755ed). Install only what your selected workflow JSON references. The 2026-10-23 inventory covers Moss Image, Qwen Image 2.1 and local Qwen PE rewrite models, plus the H3 model/VAE/LoRA/upscaler and custom node plugins. See the [ComfyUI dependency inventory](docs/COMFYUI_DEPENDENCIES.md) for exact paths, plugin repositories, and active/inactive status.
 
 ### 3. Windows GPU Monitor (Optional)
 
@@ -246,10 +156,7 @@ Service runs at http://localhost:5000 by default
 
 ### 4. Prompt Template Configuration
 
-Support customization:
-- AI parse characters system prompt
-- Character generation prompt templates
-- Chapter split prompt templates
+View system templates and create, copy, edit, export, or bind custom templates to novels in Prompt Configuration. Templates cover asset extraction, shots, video planning, image quality review, and other stages. LLM logs help trace the calls used.
 
 ### 5. Internationalization and Timezone Settings
 
@@ -267,58 +174,24 @@ Support customization:
 
 Configure in [System Settings] → [Language & Timezone] page.
 
-## Development Roadmap
+## Implemented Capabilities
 
-- [x] Project Initialization
-- [x] Basic Pages (Welcome, Config, Novel List)
-- [x] Backend API Framework
-- [x] DeepSeek API Integration (Text Parsing)
-- [x] ComfyUI API Integration (Image/Video Generation)
-- [x] Task Queue System
-- [x] Character Library Management
-- [x] Workflow Management System
-- [x] JSON Parse Logs
-- [x] Preset Test Cases
-- [x] Multi-language Support (CN/EN/JP/KR/TW)
-- [x] Timezone Support
-- [x] Video Director (single-frame, first-last-frame, three/four-keyframe, multi-clip serial generation)
-- [x] Persistent batch shot image queue (service restart recovery and batch cancellation)
-- [x] Video Composition (shot video and multi-clip merging)
+- [x] Novel/chapter management and character, scene, and prop libraries
+- [x] Shot splitting, batch image generation, image review, and HD repaint
+- [x] Video Director, multi-reference/continuation/temporal extension, and clip inspection
+- [x] Audio generation, chapter/novel merges, nameplate previews, and covers
+- [x] Workflow/prompt management, task recovery, event notifications, and YouTube upload
+- [x] Five interface languages and timezone settings
 
 ## Usage Instructions
 
-### 1. Create Novel
-- Click [Create Novel] to create a novel
-- Or select preset test cases for quick experience
-
-### 2. AI Parse Characters, Scenes and Props
-- Click [AI Parse Characters] on novel detail page to extract character info
-- Click [AI Parse Scenes] to extract scene info
-- Click [AI Parse Props] to extract prop info
-- Support chapter range selection and incremental update
-
-### 3. Generate Character, Scene and Prop Images
-- Enter [Character Library] page, click [AI Generate All Character Images]
-- Enter [Scene Library] page, click [Generate All Scene Images]
-- Enter [Props Library] page, click [Generate All Prop Images]
-
-### 4. Edit Chapter and AI Split Shots
-- Enter [Chapter Generation] page, click [AI Split Shots] to automatically split into shots
-- Enter [Chapter Edit] page to edit chapter content, supports incremental parsing of characters, scenes and props during editing
-
-### 5. Generate Shot Images
-- Click [Generate All Shot Images] to create a persistent batch task
-- You can select only missing shots, or reuse existing AI prompts to skip LLM calls
-
-### 6. Generate Audio (Optional)
-- Click [Generate All Audio] to generate voiceover/sound effects for shots
-
-### 7. Generate Video
-- Use Video Director in [Video Generation] to plan the video mode
-- Single-frame mode reuses the primary storyboard image
-- First-last-frame mode reuses the primary storyboard as START and requires generating the END keyframe first
-- Multi-keyframe mode splits execution windows by max clip duration; each clip uses 3 or 4 keyframes and runs serially
-- Click [Merge Video] to combine all clips into a complete video
+1. **Set up services:** Start the backend and frontend, configure an LLM and ComfyUI in System Settings, and install the models/nodes needed by your workflow.
+2. **Import a novel:** Create a novel, import TXT/EPUB, or use an example; batch import or split chapters when needed.
+3. **Build asset libraries:** Extract characters, scenes, and props, then generate reference images; optionally design voices or upload reference audio.
+4. **Prepare shots:** Edit chapters, split and correct shots, generate shot images and keyframes, review image quality, and use HD repaint where needed.
+5. **Render audio/video:** Generate optional audio; choose a Video Director workflow and references, plan clips, and render or continue video.
+6. **Inspect and merge:** Review tasks, frames, and evidence in the Clip Execution Inspector; merge clips and chapters, and optionally use nameplate previews.
+7. **Deliver:** Merge the novel video, create and download a cover, and upload the result after connecting YouTube.
 
 ## Contributing
 

@@ -6,45 +6,11 @@ AI駆動の小説動画変換プラットフォーム
 
 ## プロジェクト概要
 
-NovelFlowは、小説を自動的に動画に変換するAIプラットフォームです。
+NovelFlow は小説の本文、登場人物やシーンの設定、ショット画像、音声、動画のタスクを一つの編集可能な制作フローにまとめます。各工程を確認しながら進めることも、章やショットを一括処理することもできます。
 
-**コアワークフロー：**
+**制作フロー：** TXT/EPUB またはサンプル小説を取り込む → AI で人物・シーン・小道具を抽出 → 参照画像と声を準備 → 章を編集してショットに分割 → ショット画像を生成・評価 → Video Director で Clip を計画・生成 → 章/小説の動画を結合 → カバーを作成し、必要に応じて YouTube にアップロード。
 
-```
-┌─────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  小説   │ → │AIキャラ   │ → │ AIシーン  │ → │ AI小道具  │ → │ キャラ    │
-│         │    │  解析     │    │  解析     │    │  解析     │    │ 画像生成  │
-└─────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                                    ↓
-┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  動画     │ ← │  音声     │ ← │  ショット  │ ← │ AIショット│ ← │ シーン    │
-│  生成     │    │  生成     │    │  画像生成  │    │  分割     │    │ 画像生成  │
-└───────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                        ↑
-                              ┌───────────┐    ┌───────────┐
-                              │  章       │ ← │ 小道具    │
-                              │  編集     │    │ 画像生成  │
-                              └───────────┘    └───────────┘
-```
-
-**詳細手順：**
-1. **小説インポート** - 新規作成または小説テキストのインポート（TXT、EPUB対応）
-2. **AIキャラクター解析** - キャラクター情報を自動抽出（名前、説明、外見）
-3. **AIシーン解析** - シーン情報を自動抽出（シーン名、環境説明）
-4. **AI小道具解析** - 小道具情報を自動抽出（小道具名、外見説明）
-5. **キャラクター画像生成** - 各キャラクターのAI画像を生成
-6. **シーン画像生成** - 各シーンの参照画像を生成
-7. **小道具画像生成** - 各小道具の参照画像を生成
-8. **章編集 / AIショット分割** - 章内容を編集、AIが自動的にショットに分割
-9. **ショット画像生成** - ショット説明に基づいてシーン画像を生成
-10. **音声生成** - ショットのナレーション/効果音を生成（オプション）
-11. **動画生成** - Video Director で単一フレーム、始端/終端フレーム、またはマルチキーフレームのショット動画を生成し、完全な動画に統合
-
-**主な特徴：**
-- 章回体小説の解析をサポート
-- キャラクター一貫性（複数シーンでキャラクター外見を保持）
-- シーン一貫性（複数ショットでシーン環境を保持）
-- 自動ショット生成と動画合成
+Video Director は複数参照画像からの生成、動画の続きの生成、時間アンカー付きの延長に対応します。プロンプト、タスク、キーフレーム、生成結果を保存し、確認や再試行に利用できます。
 
 ## インターフェースプレビュー
 
@@ -67,26 +33,22 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 
 ## 技術スタック
 
-- **フロントエンド**: React + TypeScript + Tailwind CSS + Vite
-- **状態管理**: Zustand（グローバル状態 + 国際化/タイムゾーン状態）
-- **バックエンド**: FastAPI + SQLAlchemy + SQLite
-- **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **動画生成**: MiniMax H3 画像-to-動画、始端/終端フレーム動画、マルチキーフレーム動画
-- **国際化**: カスタム i18n 実装（5言語対応）
+- **フロントエンド**：React、TypeScript、Tailwind CSS、Vite、Zustand
+- **バックエンド**：FastAPI、SQLAlchemy、SQLite、バックグラウンドタスク、ファイル保存
+- **AI とメディア**：設定可能な LLM、ComfyUI、FFmpeg。画像プリセットに Moss Image と Qwen Image 2.1、動画に MiniMax H3、音声に Qwen3-TTS を使用
+- **画面**：簡体字中国語、繁体字中国語、英語、日本語、韓国語とタイムゾーン設定
 
 ## 主な機能
 
-- **小説管理**: 新規作成、編集、削除をサポート、自動章回体解析
-- **キャラクター図鑑**: AI自動キャラクター解析、キャラクター画像生成と一貫性保持
-- **シーン図鑑**: AI自動シーン解析、シーン参照画像生成と環境設定をサポート
-- **ショット生成**: AI自動章分割、一括画像生成、構造化編集、状態復旧をサポート
-- **Video Director**: 単一フレーム、始端/終端フレーム、3キーフレーム、4キーフレームの動画計画に対応し、AI呼び出し結果と最終Promptを保持
-- **動画合成**: ショット動画とマルチClip出力を完全な章動画に統合
-- **ワークフロー管理**: カスタムComfyUIワークフロー、ノードマッピング設定
-- **タスクキュー**: バックグラウンド非同期タスク処理、リアルタイムタスク監視
-- **プリセットテストケース**: 「子馬の川渡り」「赤ずきん」「裸の王様」などのテストケースを内蔵
-- **多言語サポート**: 簡体字中国語、繁体字中国語、英語、日本語、韓国語インターフェース
-- **タイムゾーンサポート**: ユーザーがタイムゾーンをカスタマイズ可能、全時刻表示を指定タイムゾーンに変換
+- **小説と章**：TXT/EPUB の作成・編集・削除・取り込み、章の解析と一括取り込み/分割、サンプル小説。
+- **素材ライブラリ**：人物、シーン、小道具の抽出と参照画像の生成・管理。人物の声や参照音声も管理。
+- **ショットと画像**：AI による分割、手動編集、一括画像生成、参照画像の割り当て、キーフレーム、単一/複数画像の編集、AI 品質評価、高解像度再描画。
+- **Video Director**：複数参照画像、続きの生成、時間アンカーに対応するショットと Clip の計画。プロンプト、LLM ログ、タスク、出力を保存。
+- **Clip 実行検査**：タイムラインとフレームから生成の根拠、参照素材、観察記録を確認。
+- **音声と納品**：任意の声設計・音声生成、Clip/章/小説動画の結合、初登場の名前表示プレビュー、カバー作成、YouTube アップロード。
+- **ワークフローとプロンプト**：ComfyUI のシステム/カスタムワークフロー、ノードマッピング、インポート/エクスポート、プロンプトテンプレート。
+- **タスクと通知**：バックグラウンド処理、再試行・復旧、イベント、ページ音、Feishu/Telegram 通知。
+- **多言語と時刻**：5 言語の画面とユーザー指定タイムゾーン。
 
 ## プロジェクト構造
 
@@ -106,7 +68,7 @@ AI-NovelFlow/
 │   ├── workflows/       # ComfyUI ワークフロー設定
 │   ├── user_workflows/  # ユーザーカスタムワークフロー
 │   ├── user_story/      # 生成画像/動画保存ディレクトリ
-│   └── main.py
+│   └── run_server.py
 ├── frontend/            # React フロントエンド
 │   └── my-app/
 │       ├── src/
@@ -154,67 +116,16 @@ npm run dev
 
 ### 1. LLM API 設定
 
-複数のLLMプロバイダーをサポート：
-- **DeepSeek**（デフォルト）: https://api.deepseek.com
-- **OpenAI**: https://api.openai.com
-- **Gemini**: https://generativelanguage.googleapis.com
-- **Anthropic**: https://api.anthropic.com
-- **Azure OpenAI**: カスタムAzureエンドポイント
-
-【システム設定】ページでAPI Keyとプロキシを設定（必要に応じて）。
+システム設定には DeepSeek、OpenAI、Gemini、Anthropic、Azure OpenAI、Alibaba Cloud Bailian、Ollama、および OpenAI API 互換サービスのプリセットがあります。利用するサービスの URL、モデル、API キーを設定します。必要に応じてプロキシを設定し、プロンプト設定で制作工程ごとのテンプレートを管理できます。
 
 ### 2. ComfyUI 設定
 
-- **ComfyUI アドレス**: デフォルト http://localhost:8188
-- **ワークフロー設定**: カスタムワークフローのアップロードをサポート、ノードマッピングが必要
-  - キャラクター生成: プロンプトノード + 画像保存ノード
-  - シーン生成: プロンプトノード + 画像保存ノード + 幅/高さノード
-  - ショット画像: プロンプトノード + 画像保存ノード + 幅/高さノード
-  - 単一フレーム動画: プロンプトノード + 動画保存ノード + 参照画像ノード + 長さノード
-  - 始端/終端フレーム動画: プロンプトノード + 先頭画像ノード + 末尾画像ノード + 動画保存ノード + 長さノード
-  - 3/4キーフレーム動画: プロンプトノード + 開始参照ノード + キーフレームノード + 動画保存ノード + 長さノード
-  - キーフレーム画像: プロンプトノード + 画像保存ノード + 参照画像ノード
+- 既定のアドレスは `http://localhost:8188` です。システム設定から変更できます。
+- システムプリセットの JSON は `backend/workflows/`、登録規則とノードマッピングは `backend/app/constants/workflow.py` にあります。アップロードしたワークフローは `backend/user_workflows/` に保存されます。画面からインポート、エクスポート、選択、ノードマッピングができます。
+- 画像プリセットには Moss Image T2I の人物四面図/シーン/小道具、Qwen Image 2.1 のショット/キーフレーム/単一・複数画像編集があります。動画プリセットには MiniMax H3 の複数参照、続きの生成、時間軸延長、2 回目のサンプリング、3D latent 拡大があります。音声ワークフローには Qwen3-TTS も含まれます。
+- 実際の有効ワークフローはデータベースの選択によります。`debug/workflows/` はデバッグ用で、システムプリセットとして自動登録されません。
 
-システムワークフローは `backend/workflows/` に保存され、`backend/app/constants/workflow.py` によって登録および既定選択されます。ユーザーアップロードのワークフローは `backend/user_workflows/` に保存されます。`debug/workflows/MiniMax H3/` はデバッグとワークフロー比較専用で、システム既定としては読み込まれません。
-
-#### 2.1 モデルファイル
-
-ディレクトリは `ComfyUI/models/...` を基準とします；ComfyUI-Manager を使用している場合も、一般的にこれらのディレクトリをスキャンします。
-
-| モデルファイル名 | タイプ | 主な用途 | 使用されるワークフロー | 推奨ディレクトリ |
-|----------------|--------|---------|---------------------|----------------|
-| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 参照画像-to-動画メインモデル | 単一フレーム、始端/終端フレーム、3キーフレーム、4キーフレーム動画ワークフロー | `models/diffusion_models/` |
-| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 テキスト/ビジョンエンコード | MiniMax H3 動画ワークフロー | `models/text_encoders/` |
-| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 動画 VAE | MiniMax H3 動画ワークフロー | `models/vae/` |
-| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 音声 VAE | MiniMax H3 動画ワークフロー | `models/vae/` |
-| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 高速化 LoRA | MiniMax H3 高速ワークフロー | `models/loras/` |
-| `ae.safetensors` | VAE / AE | Z-image-turbo および一部のデフォルトキャラクターワークフローで VAE/AE として使用 | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 画像編集/ショット画像生成 | ショット画像、キーフレーム画像、既定キャラクターワークフロー | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein 画像編集/ショット画像ワークフロー | `models/vae/` |
-| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 テキストエンコード | Flux2-Klein 画像編集/ショット画像ワークフロー | `models/clip/` |
-| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 画像編集 | Qwen-Edit-2511 ショット参照ワークフロー | `models/diffusion_models/` |
-| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4ステップ高速化 | Qwen-Edit-2511 ショット参照ワークフロー | `models/loras/` |
-| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 ショット参照ワークフロー | `models/vae/` |
-| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 テキスト/ビジョンエンコード | Qwen-Edit-2511 ショット参照ワークフロー | `models/clip/` |
-| `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 単体生成 UNet | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/unet/` |
-| `qwen_3_4b.safetensors` | text encoder | Z-image-turbo テキストエンコーディング | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/clip/` |
-| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | デバッグワークフローでのローカル LLM Prompt 拡張 | `debug/workflows/MiniMax H3/` LLM デバッグワークフロー | `models/LLM/` |
-
-#### 2.2 サードパーティノードパッケージ
-
-| サードパーティノードパッケージ | GitHub リポジトリ | ワークフロー内のノード class_type |
-|---------------------------|------------------|--------------------------------|
-| **MiniMax H3** | ComfyUI MiniMax H3 ノード | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
-| **Flux2 / Qwen Image Edit** | Flux2、Qwen-Edit 対応 ComfyUI ノード | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
-| **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
-| **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
-| **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
-| **Comfyroll** | [Suzie1/ComfyUI_Comfyroll_CustomNodes](https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes) | `CR Prompt Text`, `CR Text` |
-| **FizzNodes / ConcatStringSingle** | [FizzleDorf/ComfyUI_FizzNodes](https://github.com/FizzleDorf/ComfyUI_FizzNodes) | `ConcatStringSingle` |
-| **comfyui-various / JWInteger** | [jamesWalker55/comfyui-various](https://github.com/jamesWalker55/comfyui-various) | `JWInteger` |
-| **ReservedVRAM** | [Windecay/ComfyUI-ReservedVRAM](https://github.com/Windecay/ComfyUI-ReservedVRAM) | `ReservedVRAMSetter` |
-| **Qwen3-VL-Instruct / Qwen3_VQA** | [luvenisSapiens/ComfyUI_Qwen3-VL-Instruct](https://github.com/IuvenisSapiens/ComfyUI_Qwen3-VL-Instruct) | `Qwen3_VQA` |
-| **Comfyui-zhenzhen** | [T8mars/Comfyui-zhenzhen](https://github.com/T8mars/Comfyui-zhenzhen) | `Zhenzhen_nano_banana`, `Zhenzhen API Settings` |
+**モデルとノードの入手先**：[Quark ダウンロード](https://pan.quark.cn/s/2a630b7755ed)。選択したワークフロー JSON が参照するものをインストールしてください。2026-10-23 の棚卸しには Moss Image、Qwen Image 2.1、ローカル Qwen PE 書き換えモデル、H3 の本体/VAE/LoRA/拡大モデルとプラグインが含まれます。正確なパス、プラグインのリポジトリ、有効状態は [ComfyUI 依存関係一覧](docs/COMFYUI_DEPENDENCIES.md) を参照してください。
 
 ### 3. Windows GPU 監視（オプション）
 
@@ -245,10 +156,7 @@ start.bat
 
 ### 4. プロンプトテンプレート設定
 
-カスタマイズをサポート：
-- AIキャラクター解析システムプロンプト
-- キャラクター生成プロンプトテンプレート
-- 章分割プロンプトテンプレート
+プロンプト設定ではシステムテンプレートの閲覧、独自テンプレートの作成・複製・編集・エクスポート、小説への割り当てができます。素材抽出、ショット、動画計画、画像品質評価などを対象とし、LLM ログから実際の呼び出しを追跡できます。
 
 ### 5. 国際化とタイムゾーン設定
 
@@ -266,58 +174,24 @@ start.bat
 
 【システム設定】→【言語とタイムゾーン】ページで設定。
 
-## 開発ロードマップ
+## 実装済みの制作機能
 
-- [x] プロジェクト初期化
-- [x] 基本ページ（ウェルカム、設定、小説リスト）
-- [x] バックエンド API フレームワーク
-- [x] DeepSeek API 統合（テキスト解析）
-- [x] ComfyUI API 統合（画像/動画生成）
-- [x] タスクキューシステム
-- [x] キャラクター図鑑管理
-- [x] ワークフロー管理システム
-- [x] JSON 解析ログ
-- [x] プリセットテストケース
-- [x] 多言語サポート（中/英/日/韓/繁中）
-- [x] タイムゾーンサポート
-- [x] Video Director（単一フレーム、始端/終端フレーム、3/4キーフレーム、マルチClip逐次生成）
-- [x] 永続化されたショット画像一括キュー（サービス再起動復旧と一括キャンセル対応）
-- [x] 動画合成功能（ショット動画、マルチClip統合をサポート）
+- [x] 小説・章の管理、人物/シーン/小道具の抽出と素材ライブラリ
+- [x] ショット分割、一括画像生成、画像評価と高解像度再描画
+- [x] Video Director、複数参照/続きの生成/時間軸延長、Clip 検査
+- [x] 音声生成、章/小説動画の結合、名前表示プレビューとカバー
+- [x] ワークフロー/プロンプト管理、タスク復旧、イベント通知、YouTube アップロード
+- [x] 5 言語の画面とタイムゾーン設定
 
-## 使用説明
+## 使い方
 
-### 1. 小説を新規作成
-- 【小説を作成】をクリックして小説を作成
-- またはプリセットテストケースを選択してクイック体験
-
-### 2. AI キャラクター、シーン、小道具解析
-- 小説詳細ページで【AIキャラクター解析】をクリックしてキャラクター情報を抽出
-- 【AIシーン解析】をクリックしてシーン情報を抽出
-- 【AI小道具解析】をクリックして小道具情報を抽出
-- 章範囲指定と増分更新をサポート
-
-### 3. キャラクター、シーン、小道具画像を生成
-- 【キャラクター】ページに入り、【AIですべてのキャラクター画像を生成】をクリック
-- 【シーン】ページに入り、【すべてのシーン画像を生成】をクリック
-- 【小道具】ページに入り、【すべての小道具画像を生成】をクリック
-
-### 4. 章編集とAIショット分割
-- 【章生成】ページに入り、【AIショット分割】をクリックして自動的にショットに分割
-- 【章編集】ページに入り、章内容を編集；編集中にキャラクター、シーン、小道具の増分解析をサポート
-
-### 5. ショット画像を生成
-- 【すべてのショット画像を生成】をクリックして永続化一括タスクを作成
-- 未生成ショットのみを選択、または既存AI Promptを再利用してLLM呼び出しをスキップ可能
-
-### 6. 音声を生成（オプション）
-- 【すべての音声を生成】をクリックしてショットのナレーション/効果音を生成
-
-### 7. 動画を生成
-- 【動画生成】で Video Director を使って動画モードを計画
-- 単一フレームモードはメインストーリーボード画像を再利用
-- 始端/終端フレームモードはメインストーリーボードを START として再利用し、先に END キーフレーム画像を生成
-- マルチキーフレームモードは最大Clip長で execution windows を分割し、各Clipは3または4枚のキーフレームで逐次生成
-- 【動画統合】をクリックしてすべてのクリップを完全な動画に合成
+1. **環境を準備**：バックエンドとフロントエンドを起動し、システム設定で LLM と ComfyUI を設定します。選択したワークフローのモデルとノードを導入します。
+2. **小説を取り込む**：TXT/EPUB を読み込むかサンプルを選び、必要に応じて章を一括取り込み・分割します。
+3. **素材を準備**：人物、シーン、小道具を抽出して参照画像を生成します。人物の声の設計や参照音声の登録もできます。
+4. **ショットを作る**：章を編集し、AI 分割結果を修正してショット画像とキーフレームを生成します。画像品質を確認し、必要なら高解像度で再描画します。
+5. **音声・動画を生成**：必要なら音声を生成します。Video Director でワークフローと参照画像を選び、Clip を計画して動画を生成・延長します。
+6. **確認して結合**：タスクと Clip 実行検査画面で状態、フレーム、根拠を確認し、Clip と章を結合します。名前表示プレビューも選べます。
+7. **納品**：小説動画を結合し、カバーを作成・ダウンロードします。YouTube 接続後はアップロードできます。
 
 ## コントリビューション
 
