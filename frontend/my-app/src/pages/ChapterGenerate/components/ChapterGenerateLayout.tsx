@@ -200,9 +200,13 @@ export function ChapterGenerateLayout({
   const videoStats = shots.reduce((stats, shot) => {
     const shotId = String(shot.id || '');
     const plan: any = shot.videoDirectorPlan || {};
+    const isGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+    const isQueued = pendingVideos.has(shotId);
     if (isSemanticShot(shot)) {
       const semanticStatus = getSemanticShotStatus(shot, []);
-      if (semanticStatus === 'ASSEMBLED') stats.completed.push(shot);
+      if (isGenerating) stats.generating.push(shot);
+      else if (isQueued) stats.queued.push(shot);
+      else if (semanticStatus === 'ASSEMBLED') stats.completed.push(shot);
       else if (semanticStatus === 'CLIPS_COMPLETE') stats.needsMerge.push(shot);
       else if (semanticStatus === 'FAILED') stats.failed.push(shot);
       else if (semanticStatus === 'PARTIAL' || semanticStatus === 'WAITING_REVIEW') stats.pending.push(shot);
@@ -212,8 +216,6 @@ export function ChapterGenerateLayout({
     const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
     const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
     const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);
-    const isGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
-    const isQueued = pendingVideos.has(shotId);
     const isFailed = shot.videoStatus === 'failed';
     const allClipsReady = clips.length > 0 && clips.every((clip: any) => !!(clip.video_url || clip.local_path));
     const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
