@@ -20,7 +20,7 @@ def test_mapped_second_pass_step_is_written_to_submitted_workflow(
     db_session, workflow_type, node_type, input_name, original, step,
 ):
     WorkflowService(db_session).load_default_workflows()
-    source = db_session.query(Workflow).filter(Workflow.type == workflow_type).one()
+    source = db_session.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).one()
     graph = json.loads(source.workflow_json)
     graph["999"] = {"class_type": node_type, "inputs": {input_name: original}}
     mapping = json.loads(source.node_mapping)
@@ -43,7 +43,7 @@ def test_mapped_second_pass_step_is_written_to_submitted_workflow(
 @pytest.mark.parametrize("workflow_type", ["VIDEO_CONTINUATION", "TEMPORAL_EXTEND"])
 def test_unmapped_second_pass_step_leaves_workflow_untouched(db_session, workflow_type):
     WorkflowService(db_session).load_default_workflows()
-    source = db_session.query(Workflow).filter(Workflow.type == workflow_type).one()
+    source = db_session.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).one()
     graph = json.loads(source.workflow_json)
     graph["999"] = {"class_type": "Int", "inputs": {"Number": "4"}}
     mapping = json.loads(source.node_mapping)
@@ -71,7 +71,7 @@ def test_mapped_second_pass_step_defaults_to_two():
 @pytest.mark.parametrize("step", [2, 3, 4])
 def test_multi_reference_video_applies_optional_second_pass_step(db_session, step):
     WorkflowService(db_session).load_default_workflows()
-    source = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    source = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     graph = json.loads(source.workflow_json)
     graph["999"] = {"class_type": "Int", "inputs": {"Number": "2"}}
     mapping = json.loads(source.node_mapping)
@@ -85,7 +85,7 @@ def test_multi_reference_video_applies_optional_second_pass_step(db_session, ste
 
 def test_multi_reference_video_without_second_pass_mapping_keeps_original_step(db_session):
     WorkflowService(db_session).load_default_workflows()
-    source = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    source = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     graph = json.loads(source.workflow_json)
     graph["999"] = {"class_type": "Int", "inputs": {"Number": "4"}}
 

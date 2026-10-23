@@ -111,7 +111,7 @@ def test_soft_kf_details_are_not_automatically_story_requirements(case):
 def test_existing_ref2va_binder_matches_projection_and_preserves_other_nodes(db_session,case):
     from app.models.workflow import Workflow
     from app.services.workflow_service import WorkflowService
-    WorkflowService(db_session).load_default_workflows();workflow=db_session.query(Workflow).filter(Workflow.type=='multi_reference_video').one()
+    WorkflowService(db_session).load_default_workflows();workflow=db_session.query(Workflow).filter(Workflow.type=='multi_reference_video', Workflow.is_active == True).one()
     assert policy.reference_drop_capability(workflow)['supported']
     assert not policy.reference_drop_capability(NS(type='other'))['supported']
     graph=json.loads(workflow.workflow_json);before=copy.deepcopy(graph);mapping=json.loads(workflow.node_mapping)
@@ -145,7 +145,7 @@ def test_anchor_internal_fields_never_become_final_prompt(leak):
 def test_ref2va_image_shared_with_unvalidated_node_is_not_drop_capable(db_session):
     from app.models.workflow import Workflow
     from app.services.workflow_service import WorkflowService
-    WorkflowService(db_session).load_default_workflows();w=db_session.query(Workflow).filter(Workflow.type=='multi_reference_video').one()
+    WorkflowService(db_session).load_default_workflows();w=db_session.query(Workflow).filter(Workflow.type=='multi_reference_video', Workflow.is_active == True).one()
     graph=json.loads(w.workflow_json);graph['other']={'class_type':'OtherConsumer','inputs':{'image':['137',0]}}
     assert not policy.reference_drop_capability(NS(type=w.type,workflow_json=json.dumps(graph),node_mapping=w.node_mapping))['supported']
 
@@ -154,7 +154,7 @@ def test_continuation_drop_only_changes_ordinary_pictures(db_session,family):
     from app.models.workflow import Workflow
     from app.services.workflow_service import WorkflowService
     WorkflowService(db_session).load_default_workflows()
-    w=db_session.query(Workflow).filter(Workflow.type==family).one()
+    w=db_session.query(Workflow).filter(Workflow.type==family, Workflow.is_active == True).one()
     graph=json.loads(w.workflow_json);mapping=json.loads(w.node_mapping);before=copy.deepcopy(graph)
     assert policy.reference_drop_capability(w)['supported']
     WorkflowBuilder.bind_multi_reference_video_images(graph,mapping,['identity.png','scene.png'])

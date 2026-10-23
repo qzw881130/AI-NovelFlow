@@ -13,6 +13,7 @@ def test_video_continuation_system_workflow_is_registered(db_session):
 
     workflow = db_session.query(Workflow).filter(
         Workflow.type == "VIDEO_CONTINUATION",
+        Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1",
         Workflow.is_system == True,
     ).one()
     mapping = json.loads(workflow.node_mapping)
@@ -46,7 +47,7 @@ def test_video_continuation_system_workflow_is_registered(db_session):
 def test_existing_video_continuation_is_upgraded_without_replacing_its_record(db_session):
     service = WorkflowService(db_session)
     service.load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "VIDEO_CONTINUATION").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1").one()
     original_id = workflow.id
     workflow.node_mapping = json.dumps({
         "load_video_node_id": "66", "duration_seconds_node_id": "105",
@@ -57,7 +58,7 @@ def test_existing_video_continuation_is_upgraded_without_replacing_its_record(db
     service.load_default_workflows()
 
     db_session.expire_all()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "VIDEO_CONTINUATION").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1").one()
     assert workflow.id == original_id and workflow.is_active
     assert [json.loads(workflow.node_mapping)[f"load_image_node_{index}"] for index in range(1, 10)] == [
         "69", "68", "109", "110", "111", "112", "113", "114", "115",
@@ -69,7 +70,7 @@ def test_existing_video_continuation_is_upgraded_without_replacing_its_record(db
 @pytest.mark.parametrize("count", [0, 1, 4, 9])
 def test_video_continuation_optional_reference_slots(db_session, count):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "VIDEO_CONTINUATION").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1").one()
     mapping = json.loads(workflow.node_mapping)
     graph = WorkflowBuilder().build_video_continuation_workflow(
         workflow.workflow_json, mapping, "previous.mp4", 5, "next scene", "test/continuation",
@@ -94,7 +95,7 @@ def test_video_continuation_optional_reference_slots(db_session, count):
 @pytest.mark.parametrize("count", [0, 4, 9])
 async def test_video_continuation_uploads_only_supplied_references(db_session, monkeypatch, count):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "VIDEO_CONTINUATION").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1").one()
     service = ComfyUIService()
     submitted = []
 

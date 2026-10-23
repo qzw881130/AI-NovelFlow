@@ -56,6 +56,7 @@ class WorkflowService:
         workflows_dir = self.get_workflows_dir()
 
         self._remove_retired_image_workflows()
+        self._promote_matching_user_workflows(workflows_dir)
 
         # 1. 加载默认工作流
         self._load_default_workflow_files(workflows_dir)
@@ -70,6 +71,52 @@ class WorkflowService:
 
         # 4. 确保每种类型只有一个默认激活的工作流
         self._ensure_single_active_workflow()
+
+    def _promote_matching_user_workflows(self, workflows_dir: str) -> None:
+        """Preserve selected workflow IDs, active choices, and task references."""
+        promoted = False
+        for config in EXTRA_SYSTEM_WORKFLOWS:
+            legacy_filename = config.get("legacy_user_filename")
+            if not legacy_filename:
+                continue
+
+            system_path = os.path.join(workflows_dir, config["filename"])
+            if (not os.path.isfile(system_path)
+                    or self.workflow_repo.get_by_file_path(system_path, is_system=True)):
+                continue
+
+            with open(system_path, "r", encoding="utf-8") as file:
+                system_json = file.read()
+            candidates = self.db.query(Workflow).filter(
+                Workflow.type == config["type"],
+                Workflow.name == config["name"],
+                Workflow.is_system.is_(False),
+            ).all()
+            for workflow in sorted(candidates, key=lambda item: not item.is_active):
+                if (not workflow.file_path
+                        or os.path.basename(workflow.file_path) != legacy_filename):
+                    continue
+                try:
+                    same_graph = json.loads(workflow.workflow_json) == json.loads(system_json)
+                except (TypeError, ValueError):
+                    continue
+                if (not same_graph
+                        or self._parse_json_field(workflow.node_mapping) != config["node_mapping"]):
+                    continue
+
+                workflow.file_path = system_path
+                workflow.workflow_json = system_json
+                workflow.is_system = True
+                workflow.created_by = None
+                if config.get("extension") and not workflow.extension:
+                    workflow.extension = json.dumps(config["extension"], ensure_ascii=False)
+                promoted = True
+                print(f"[Workflow] Promoted user workflow: {workflow.name}")
+                break
+        if promoted:
+            # Production sessions disable autoflush; subsequent path lookups
+            # must see the promoted rows before inserting system presets.
+            self.db.flush()
 
     def _remove_retired_image_workflows(self) -> None:
         """Remove obsolete system image presets from existing databases."""
@@ -178,7 +225,7 @@ class WorkflowService:
                     type=wf_type,
                     workflow_json=workflow_json,
                     is_system=True,
-                    is_active=True,
+                    is_active=self.workflow_repo.get_active_by_type(wf_type) is None,
                     file_path=file_path,
                     node_mapping=json.dumps(node_mapping, ensure_ascii=False) if node_mapping else None
                 )

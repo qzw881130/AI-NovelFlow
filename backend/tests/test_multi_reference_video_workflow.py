@@ -11,7 +11,7 @@ from app.services.workflow_service import WorkflowService
 
 def test_multi_reference_video_is_first_active_system_workflow(db_session):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     mapping = json.loads(workflow.node_mapping)
     graph = json.loads(workflow.workflow_json)
 
@@ -34,7 +34,7 @@ def test_multi_reference_video_is_first_active_system_workflow(db_session):
 @pytest.mark.parametrize("count", [0, 1, 4, 9])
 def test_optional_reference_images_never_use_workflow_sample_filenames(db_session, count):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     original = json.loads(workflow.workflow_json)
     graph = json.loads(workflow.workflow_json)
     mapping = json.loads(workflow.node_mapping)
@@ -59,7 +59,7 @@ def test_optional_reference_images_never_use_workflow_sample_filenames(db_sessio
 
 def test_misbound_reference_to_video_node_is_rejected(db_session):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     mapping = json.loads(workflow.node_mapping)
     mapping["reference_to_video_node_id"] = "138"
     with pytest.raises(ValueError, match="MiniMax H3 Reference to Video"):
@@ -70,7 +70,7 @@ def test_misbound_reference_to_video_node_is_rejected(db_session):
 @pytest.mark.parametrize("count", [0, 4, 9])
 async def test_multi_reference_video_uploads_only_supplied_images(db_session, monkeypatch, count):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "multi_reference_video").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "Minimax H3 多参考生视频 V20260928").one()
     service = ComfyUIService()
     queued = []
 

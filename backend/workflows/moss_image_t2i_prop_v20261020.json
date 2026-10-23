@@ -1,0 +1,272 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "moss_image_t2i",
+      "images": [
+        "18:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#9 Save Image"
+    }
+  },
+  "19": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 1,
+      "multiple": 16
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#19 Resolution Selector"
+    }
+  },
+  "25": {
+    "inputs": {
+      "prompt": "清代工笔，中国古典工笔画，上海人民美术出版社连环画风，红楼梦工笔连环画风，细腻线描，柔和设色，古典文学气质，古风电影感，妖艳氛围，洞内草亭，装饰，火把，暖色光，小妖侍立，中景，平视视角，三分法构图，温暖烛光，女妖精盛装高坐草亭，孙悟空变苍蝇飞在门楼偷听，小妖侍立，洞内火把暖光，妖艳得意，孙悟空，少年，齐天大圣，虎皮裙，金箍，毛脸雷公嘴，机智灵活，顽皮忠义，此时变为苍蝇形态，细小昆虫，飞在门楼，窥视，警惕轻蔑，前景；女妖精，青年，陷空山无底洞妖王，绿绒花比甲，云髻高盘，绣鞋金莲，妖媚多情，狠辣大胆，高坐草亭，得意欢喜，中景；画面中2人"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#25 提示词"
+    }
+  },
+  "18:17": {
+    "inputs": {
+      "value": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#17 Text (User Prompt)"
+    }
+  },
+  "18:14": {
+    "inputs": {
+      "value": "You turn a user's image idea into one detailed caption for a text-to-image model. The model learned from captions that describe finished images, so write the caption as a description of the image itself, not as instructions.\n\nKeep the request\n- Keep everything the user specified: subjects, counts, actions, relationships, medium, style, mood, colors and anything they excluded. Never contradict or drop it.\n- Fill in what they left open with concrete visual choices: setting, composition and framing, viewpoint, lighting, materials and textures, color palette, and the artistic medium.\n- Describe only what can be seen. Leave out sounds, smells, backstory and intentions.\n- Do not invent real-world facts the user did not give, such as specific dates, prices, names or specifications.\n\nText in the image\n- Quote every piece of visible text exactly, in double quotes. Keep the user's wording, language, spelling, capitalization, punctuation and line breaks; never translate it.\n- If the user asks for a designed image (poster, cover, menu, label, sign, infographic) without giving its text, write short, specific copy that fits instead of placeholders.\n- Describe where each text sits and how it looks: position, reading order, alignment, line breaks, relative size, font style, color and spacing.\n- Do not mention watermarks or artist signatures.\n\nWriting\n- Write in English, in plain prose: one to three paragraphs, usually 80 to 200 words, longer only when there is a lot of text to place.\n- Open with the medium and the main subject, then the setting and composition, then lighting, colors and finer details.\n- Give positions with words such as left, right, top, bottom, foreground and background. No coordinates, lists, headings, JSON or Markdown.\n- No quality keywords such as \"masterpiece\", \"best quality\", \"8k\" or \"highly detailed\", and no negative prompt.\n\nReply with the caption only: no title, introduction, explanation or surrounding quotes."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#14 Text (System prompt)"
+    }
+  },
+  "18:11": {
+    "inputs": {
+      "prompt": [
+        "18:17",
+        0
+      ],
+      "max_length": 4096,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 0.7,
+      "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1,
+      "sampling_mode.seed": 0,
+      "sampling_mode.presence_penalty": 0,
+      "thinking": false,
+      "use_default_template": true,
+      "mtp": "auto",
+      "clip": [
+        "18:2",
+        0
+      ],
+      "system_prompt": [
+        "18:14",
+        0
+      ]
+    },
+    "class_type": "TextGenerate",
+    "_meta": {
+      "title": "#11 Generate Text"
+    }
+  },
+  "18:1": {
+    "inputs": {
+      "unet_name": "moss_image_sft_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#1 Load Diffusion Model"
+    }
+  },
+  "18:4": {
+    "inputs": {
+      "text": [
+        "18:13",
+        0
+      ],
+      "clip": [
+        "18:2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#4 Positive Prompt"
+    }
+  },
+  "18:2": {
+    "inputs": {
+      "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#2 Load CLIP"
+    }
+  },
+  "18:7": {
+    "inputs": {
+      "seed": 528168048020246,
+      "steps": 50,
+      "cfg": 2.5,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "18:24",
+        0
+      ],
+      "positive": [
+        "18:4",
+        0
+      ],
+      "negative": [
+        "18:5",
+        0
+      ],
+      "latent_image": [
+        "18:6",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#7 KSampler"
+    }
+  },
+  "18:3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#3 Load VAE"
+    }
+  },
+  "18:13": {
+    "inputs": {
+      "source": [
+        "18:16",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "#13 Preview as Text (final prompt)"
+    }
+  },
+  "18:16": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "18:17",
+        0
+      ],
+      "on_true": [
+        "18:11",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#16 If/Else Switch"
+    }
+  },
+  "18:6": {
+    "inputs": {
+      "width": [
+        "19",
+        0
+      ],
+      "height": [
+        "19",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "#6 Empty Flux 2 Latent"
+    }
+  },
+  "18:5": {
+    "inputs": {
+      "text": "nsfw, worst quality, bad anatomy, watermark, jpeg artifact",
+      "clip": [
+        "18:2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#5 Negative Prompt (empty = reference default)"
+    }
+  },
+  "18:8": {
+    "inputs": {
+      "samples": [
+        "18:7",
+        0
+      ],
+      "vae": [
+        "18:3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#8 VAE Decode"
+    }
+  },
+  "18:15": {
+    "inputs": {
+      "double_layers": "",
+      "single_layers": "22",
+      "start_percent": 0,
+      "end_percent": 0.5,
+      "model": [
+        "18:1",
+        0
+      ]
+    },
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "_meta": {
+      "title": "#15 SkipLayerGuidanceDiTSimple"
+    }
+  },
+  "18:24": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "18:1",
+        0
+      ],
+      "on_true": [
+        "18:15",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#24 If/Else Switch"
+    }
+  }
+}

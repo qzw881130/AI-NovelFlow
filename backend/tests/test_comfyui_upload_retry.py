@@ -170,7 +170,7 @@ async def test_recovered_upload_continues_same_execution_with_one_prompt_submiss
     from app.services.comfyui.service import ComfyUIService
 
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "TEMPORAL_EXTEND", Workflow.is_system == True).one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 时序续生成 V1", Workflow.is_system == True).one()
     paths = {}
     for filename in ("previous.mp4", "ordinary.png", "anchor.png"):
         path = tmp_path / filename

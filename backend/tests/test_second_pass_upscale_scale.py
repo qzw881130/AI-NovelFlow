@@ -13,7 +13,7 @@ from app.services.workflow_service import WorkflowService
 @pytest.mark.parametrize("scale", [1.5, 2, 3, 4])
 def test_selected_scale_reaches_submitted_workflow(db_session, workflow_type, scale):
     WorkflowService(db_session).load_default_workflows()
-    source = db_session.query(Workflow).filter(Workflow.type == workflow_type).one()
+    source = db_session.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).one()
     graph = json.loads(source.workflow_json)
     graph["999"] = {"class_type": "PrimitiveFloat", "inputs": {"value": 2.0}}
     mapping = json.loads(source.node_mapping)

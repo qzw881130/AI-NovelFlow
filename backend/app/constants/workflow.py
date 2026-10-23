@@ -70,6 +70,9 @@ RETIRED_IMAGE_WORKFLOW_FILES = frozenset({
 
 # 默认工作流文件名映射（仅包含仍提供系统预设的类型）
 DEFAULT_WORKFLOWS = {
+    "character": "moss_image_t2i_character_four_view_v20261020.json",
+    "scene": "moss_image_t2i_scene_v20261020.json",
+    "prop": "moss_image_t2i_prop_v20261020.json",
     "shot_scene": "qwen_image_2_1_turbo_shot_scene_v20261018.json",
     "shot_character_scene": "qwen_image_2_1_turbo_shot_character_scene_v20261018.json",
     "shot_scene_prop": "qwen_image_2_1_turbo_shot_scene_prop_v20261018.json",
@@ -458,6 +461,125 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["multi_image_edit"],
     },
 ]
+
+
+def _promoted_workflow(filename, legacy_user_filename, wf_type, name, node_mapping, extension=None):
+    """Register a selected user workflow without changing its graph or display text."""
+    config = {
+        "filename": filename,
+        "legacy_user_filename": legacy_user_filename,
+        "type": wf_type,
+        "name": name,
+        "nameKey": f"{NAME_KEY_PREFIX}.{name}",
+        "description": name,
+        "descriptionKey": f"{DESC_KEY_PREFIX}.{name}",
+        "node_mapping": node_mapping,
+    }
+    if extension is not None:
+        config["extension"] = extension
+    return config
+
+
+_QWEN_PE_IMAGE_MAPPING = {
+    "prompt_node_id": "516",
+    "save_image_node_id": "515",
+    "width_node_id": "517",
+    "height_node_id": "518",
+}
+
+EXTRA_SYSTEM_WORKFLOWS.extend([
+    _promoted_workflow(
+        "moss_image_t2i_character_four_view_v20261020.json",
+        "moss_image_t2i四视图APIV20261020_character.json",
+        "character", "moss_image_t2i【四视图】API V20261020",
+        {"appearance_node_id": "27", "style_node_id": "26", "save_image_node_id": "9"},
+    ),
+    _promoted_workflow(
+        "moss_image_t2i_scene_v20261020.json",
+        "image_moss_image_t2i场景and道具APIV20261020_scene.json",
+        "scene", "image_moss_image_t2i（场景）API V20261020",
+        {"prompt_node_id": "25", "save_image_node_id": "9"},
+    ),
+    _promoted_workflow(
+        "moss_image_t2i_prop_v20261020.json",
+        "image_moss_image_t2i道具APIV20261020_prop.json",
+        "prop", "image_moss_image_t2i（道具）API V20261020",
+        {"prompt_node_id": "25", "save_image_node_id": "9"},
+    ),
+    _promoted_workflow(
+        "qwen_image_2_1_pe_shot_scene_v20290922.json",
+        "Qwenimage21图片编辑场景PEAPIV20290922_shot_scene.json",
+        "shot_scene", "Qwen image 2.1图片编辑 (场景) PE API V20290922",
+        {**_QWEN_PE_IMAGE_MAPPING, "scene_reference_image_node_id": "470"},
+    ),
+    _promoted_workflow(
+        "qwen_image_2_1_pe_shot_character_scene_v20260922.json",
+        "Qwenimage21图片编辑角色场景PEAPIV20260922_shot_character_scene.json",
+        "shot_character_scene", "Qwen image 2.1图片编辑 (角色+场景) PE API V20260922",
+        {**_QWEN_PE_IMAGE_MAPPING, "character_reference_image_node_id": "470", "scene_reference_image_node_id": "510"},
+    ),
+    _promoted_workflow(
+        "qwen_image_2_1_pe_shot_scene_prop_v20260922.json",
+        "Qwenimage21图片编辑场景道具PEAPIV20260922_shot_scene_prop.json",
+        "shot_scene_prop", "Qwen image 2.1图片编辑 (场景+道具) PE API V20260922",
+        {**_QWEN_PE_IMAGE_MAPPING, "scene_reference_image_node_id": "470", "prop_reference_image_node_id": "510"},
+    ),
+    _promoted_workflow(
+        "qwen_image_2_1_pe_shot_v20260922.json",
+        "Qwenimage21图片编辑角色场景道具PEAPIV20260922_shot.json",
+        "shot", "Qwen image 2.1图片编辑 (角色+场景+道具) PE API V20260922",
+        {**_QWEN_PE_IMAGE_MAPPING, "character_reference_image_node_id": "470", "scene_reference_image_node_id": "510", "custom_reference_image_node_1": "503"},
+    ),
+    _promoted_workflow(
+        "qwen_image_2_1_pe_single_image_edit_v20260922.json",
+        "Qwenimage21图片编辑单图编辑PEAPIV20260922_single_image_edit.json",
+        "single_image_edit", "Qwen image 2.1图片编辑 (单图编辑) PE API V20260922",
+        {"load_image_node_id": "470", "prompt_node_id": "516", "save_image_node_id": "515"},
+    ),
+    _promoted_workflow(
+        "h3_multi_reference_2pass_3d_upscaler_v20261021.json",
+        "NovelFlow_H3_Ref2VA_2Pass_3D_Upscaler_V1APIV20261021_multi_reference_video_1.json",
+        "multi_reference_video", "NovelFlow_H3_Ref2VA_2Pass_3D_Upscaler_V1 API V20261021",
+        {
+            **DEFAULT_WORKFLOW_NODE_MAPPINGS["multi_reference_video"],
+            "video_save_node_id": "197", "duration_seconds_node_id": "219",
+            "megapixels_value": "0.52", "max_side_node_id": None, "frame_count_node_id": None,
+            "second_pass_upscale_step_node_id": "221", "second_pass_upscale_step": "2",
+            "second_pass_upscale_scale_node_id": "230", "second_pass_upscale_scale": "2",
+        },
+        {"max_clip_duration": CLIP_MAX_DURATION, "min_reference_images": 0, "max_reference_images": 9},
+    ),
+    _promoted_workflow(
+        "h3_video_continuation_2pass_3d_upscaler_v20261021.json",
+        "NovelFlow_H3_AV_Extend_Minimal_2Pass_3D_Upscaler_V1APIV20261021_VIDEO_CONTINUATION_1.json",
+        "VIDEO_CONTINUATION", "NovelFlow_H3_AV_Extend_Minimal_2Pass_3D_Upscaler_V1 API V20261021",
+        {
+            "load_video_node_id": "66", "duration_seconds_node_id": "105",
+            "prompt_node_id": "107", "megapixels_node_id": "145", "megapixels_value": "0.52",
+            "video_save_node_id": "65", "clip_video_output_node_id": "143",
+            "reference_to_video_node_id": "55",
+            "second_pass_upscale_step_node_id": "118", "second_pass_upscale_step": "2",
+            "second_pass_upscale_scale_node_id": "119", "second_pass_upscale_scale": "2",
+            **{f"load_image_node_{index}": node_id for index, node_id in enumerate(
+                ("69", "68", "109", "110", "111", "112", "113", "114", "115"), 1)},
+        },
+        {"workflow_capability": "TEMPORAL_EXTEND"},
+    ),
+    _promoted_workflow(
+        "h3_temporal_extend_2pass_3d_upscaler_v20261021.json",
+        "NovelFlow_H3_AV_Extend_TemporalAnchor_Test_2Pass_3D_Upscaler_V1APIV20261021_TEMPORAL_EXTEND.json",
+        "TEMPORAL_EXTEND", "NovelFlow_H3_AV_Extend_TemporalAnchor_Test_2Pass_3D_Upscaler_V1 API V20261021",
+        {
+            **DEFAULT_WORKFLOW_NODE_MAPPINGS["TEMPORAL_EXTEND"],
+            "megapixels_node_id": "169", "megapixels_value": "0.52",
+            "custom_keyframes_node_id": "116", "custom_keyframes_node_ids": ["116", "151"],
+            "clip_video_output_node_id": "168",
+            "second_pass_upscale_step_node_id": "144", "second_pass_upscale_step": "2",
+            "second_pass_upscale_scale_node_id": "145", "second_pass_upscale_scale": "2",
+        },
+        {"workflow_capability": "TEMPORAL_EXTEND"},
+    ),
+])
 
 
 # ==================== 辅助函数 ====================

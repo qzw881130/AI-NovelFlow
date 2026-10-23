@@ -25,7 +25,7 @@ def test_shot_video_service_exposes_temporal_extend_compiler():
 
 def _workflow(db_session):
     WorkflowService(db_session).load_default_workflows()
-    return db_session.query(Workflow).filter(Workflow.type == "TEMPORAL_EXTEND", Workflow.is_system == True).one()
+    return db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 时序续生成 V1", Workflow.is_system == True).one()
 
 
 def test_temporal_extend_system_workflow_is_registered(db_session):
@@ -57,7 +57,7 @@ def test_existing_temporal_extend_mapping_is_upgraded_in_place(db_session):
     WorkflowService(db_session).load_default_workflows()
 
     db_session.expire_all()
-    workflow = db_session.query(Workflow).filter(Workflow.type == "TEMPORAL_EXTEND").one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 时序续生成 V1").one()
     mapping = json.loads(workflow.node_mapping)
     assert workflow.id == workflow_id and workflow.is_active
     assert mapping["reference_to_video_node_id"] == "55"
@@ -319,7 +319,7 @@ async def test_temporal_extend_returns_native_node65_without_changing_anchor_con
 @pytest.mark.asyncio
 async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatch):
     WorkflowService(db_session).load_default_workflows()
-    workflow = db_session.query(Workflow).filter(Workflow.type == 'VIDEO_CONTINUATION', Workflow.is_system == True).one()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1", Workflow.is_system == True).one()
     assert json.loads(workflow.workflow_json)['99']['inputs']=={'filenames':['65',0]}
     service = ComfyUIService()
     captured = {}

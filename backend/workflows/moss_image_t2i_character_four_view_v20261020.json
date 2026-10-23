@@ -1,0 +1,311 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "moss_image_t2i",
+      "images": [
+        "18:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#9 Save Image"
+    }
+  },
+  "19": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 1,
+      "multiple": 16
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#19 Resolution Selector"
+    }
+  },
+  "25": {
+    "inputs": {
+      "prompt": "生成一张单人物角色设定参考图（character reference sheet / character turnaround）。\n\n画面只包含同一个角色的 4个视图，严格四栏布局。\n\n从左到右只有以下四栏：\n\n第1栏：正面全身（front full-body view）。\n人物正对镜头，从头顶到脚底完整可见。\n\n第2栏：90度侧面全身（90-degree side full-body view）。\n人物严格侧对镜头，从头顶到脚底完整可见。\n\n第3栏：180度背面全身（180-degree back full-body view）。\n人物完全背对镜头，从头顶到脚底完整可见。后脑勺正对镜头，脸部完全不可见，不回头，不出现眼睛、鼻子、嘴巴等任何五官。清楚展示后脑、头饰背面、后颈、衣服背面、腰部背面、裤子背面、腿后侧和脚后跟。\n\n第4栏：大型正面头部特写（large front head portrait / head close-up）。\n\n角色头部正面面对镜头，只展示完整头部以及必要的少量颈部区域。\n\n头部必须明显放大，作为第四栏的主要视觉主体，重点清晰展示角色最具有辨识度的头部特征，例如脸型或头部轮廓、眼睛、眉毛、鼻子、嘴巴、口鼻部、耳朵、毛发、发型、头饰、角、触须、鳞片、羽毛以及其他实际存在的头部特征。\n\n画面在颈部附近自然截断，不展示肩膀、胸部、躯干、腰部、手臂、腿部或脚部。\n\n对于非人类角色，严格按照该物种真实或设定中的头部结构表现，不强行套用人类脸型和五官结构。\n\n第四栏只能是一个大型正面头部特写，不得生成半身像、上半身像或全身像。\n\n画面空间固定为：\n左侧约60%区域 = 三个等高的全身视图；\n右侧约40%区域 = 一个明显放大的正面半身肖像。\n\n左侧三个全身人物保持相同身高、相同头身比例和相同地面基准线。\n\n右侧半身肖像的头部尺寸约为左侧全身人物头部的2至3倍。\n\n整张图片总共只出现4个人物形象：\n3个完整全身 + 1个放大的半身。\n\n不要生成文字、标题、标签、编号或说明文字。\n\n四个视图必须是完全相同的角色，保持年龄、脸型、五官、肤色、发型、头饰、服装、配饰、体型和身体比例一致。\n\n白色或纯净浅色背景，专业角色设定参考图，横向宽画幅，四栏之间留有清晰间距，人物互不遮挡。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#25 四视图"
+    }
+  },
+  "26": {
+    "inputs": {
+      "prompt": "stylized 3D animation rendering with clean modeled forms and readable volumes, smooth surface shading, soft bounced light and coherent contact shadows, controlled material roughness and restrained specular highlights, selective surface detail that supports the authored designs without photorealistic texture noise, consistent three-dimensional rendering across characters, environments and props. Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only."
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#26 STYLE"
+    }
+  },
+  "27": {
+    "inputs": {
+      "prompt": "一位人类男性骗子，全身照构图，从头到脚完整可见，站姿微弓背，显得鬼祟，身高约一米六五，体型中等偏胖，腹部微凸，肤色偏红，面部圆润，右脸颊有一颗黑痣，脸型圆，额头低，颧骨宽，下颌圆，下巴有短须，眼睛为褐色圆眼，双眼皮，眼角下垂，眼神狡诈，鼻梁宽，鼻头圆，鼻翼宽，嘴唇厚，嘴角下撇，头发为棕色卷发，稀疏且有些秃顶，留着一圈短络腮胡，身穿欧洲童话式前现代民间服饰：一件深蓝色粗布长外套，肘部有补丁，内搭米色亚麻衬衫，下穿黑色宽松长裤，脚穿棕色旧皮鞋，鞋头磨损，头戴一顶棕色软帽，帽顶塌陷，脖子上挂着一串木珠项链，腰间别着一把假钥匙，保持面部比例、头身比和所有独特标记一致，禁止改变眼睛颜色、眼型、脸型、发型轮廓。\n"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#27 ⚙️ CR Prompt Text（选这个，人物形象）"
+    }
+  },
+  "28": {
+    "inputs": {
+      "text1": [
+        "25",
+        0
+      ],
+      "text2": [
+        "26",
+        0
+      ],
+      "separator": "",
+      "text3": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "ConcatTextOfUtils",
+    "_meta": {
+      "title": "#28 #-1 Concat Text"
+    }
+  },
+  "18:17": {
+    "inputs": {
+      "value": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#17 Text (User Prompt)"
+    }
+  },
+  "18:14": {
+    "inputs": {
+      "value": "You turn a user's image idea into one detailed caption for a text-to-image model. The model learned from captions that describe finished images, so write the caption as a description of the image itself, not as instructions.\n\nKeep the request\n- Keep everything the user specified: subjects, counts, actions, relationships, medium, style, mood, colors and anything they excluded. Never contradict or drop it.\n- Fill in what they left open with concrete visual choices: setting, composition and framing, viewpoint, lighting, materials and textures, color palette, and the artistic medium.\n- Describe only what can be seen. Leave out sounds, smells, backstory and intentions.\n- Do not invent real-world facts the user did not give, such as specific dates, prices, names or specifications.\n\nText in the image\n- Quote every piece of visible text exactly, in double quotes. Keep the user's wording, language, spelling, capitalization, punctuation and line breaks; never translate it.\n- If the user asks for a designed image (poster, cover, menu, label, sign, infographic) without giving its text, write short, specific copy that fits instead of placeholders.\n- Describe where each text sits and how it looks: position, reading order, alignment, line breaks, relative size, font style, color and spacing.\n- Do not mention watermarks or artist signatures.\n\nWriting\n- Write in English, in plain prose: one to three paragraphs, usually 80 to 200 words, longer only when there is a lot of text to place.\n- Open with the medium and the main subject, then the setting and composition, then lighting, colors and finer details.\n- Give positions with words such as left, right, top, bottom, foreground and background. No coordinates, lists, headings, JSON or Markdown.\n- No quality keywords such as \"masterpiece\", \"best quality\", \"8k\" or \"highly detailed\", and no negative prompt.\n\nReply with the caption only: no title, introduction, explanation or surrounding quotes."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#14 Text (System prompt)"
+    }
+  },
+  "18:11": {
+    "inputs": {
+      "prompt": [
+        "18:17",
+        0
+      ],
+      "max_length": 4096,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 0.7,
+      "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1,
+      "sampling_mode.seed": 0,
+      "sampling_mode.presence_penalty": 0,
+      "thinking": false,
+      "use_default_template": true,
+      "mtp": "auto",
+      "clip": [
+        "18:2",
+        0
+      ],
+      "system_prompt": [
+        "18:14",
+        0
+      ]
+    },
+    "class_type": "TextGenerate",
+    "_meta": {
+      "title": "#11 Generate Text"
+    }
+  },
+  "18:1": {
+    "inputs": {
+      "unet_name": "moss_image_sft_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#1 Load Diffusion Model"
+    }
+  },
+  "18:4": {
+    "inputs": {
+      "text": [
+        "18:13",
+        0
+      ],
+      "clip": [
+        "18:2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#4 Positive Prompt"
+    }
+  },
+  "18:2": {
+    "inputs": {
+      "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#2 Load CLIP"
+    }
+  },
+  "18:7": {
+    "inputs": {
+      "seed": 637684769976731,
+      "steps": 50,
+      "cfg": 2.5,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "18:24",
+        0
+      ],
+      "positive": [
+        "18:4",
+        0
+      ],
+      "negative": [
+        "18:5",
+        0
+      ],
+      "latent_image": [
+        "18:6",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#7 KSampler"
+    }
+  },
+  "18:3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#3 Load VAE"
+    }
+  },
+  "18:13": {
+    "inputs": {
+      "source": [
+        "18:16",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "#13 Preview as Text (final prompt)"
+    }
+  },
+  "18:16": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "18:17",
+        0
+      ],
+      "on_true": [
+        "18:11",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#16 If/Else Switch"
+    }
+  },
+  "18:6": {
+    "inputs": {
+      "width": [
+        "19",
+        0
+      ],
+      "height": [
+        "19",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "#6 Empty Flux 2 Latent"
+    }
+  },
+  "18:5": {
+    "inputs": {
+      "text": "nsfw, worst quality, bad anatomy, watermark, jpeg artifact",
+      "clip": [
+        "18:2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#5 Negative Prompt (empty = reference default)"
+    }
+  },
+  "18:8": {
+    "inputs": {
+      "samples": [
+        "18:7",
+        0
+      ],
+      "vae": [
+        "18:3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#8 VAE Decode"
+    }
+  },
+  "18:15": {
+    "inputs": {
+      "double_layers": "",
+      "single_layers": "22",
+      "start_percent": 0,
+      "end_percent": 0.5,
+      "model": [
+        "18:1",
+        0
+      ]
+    },
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "_meta": {
+      "title": "#15 SkipLayerGuidanceDiTSimple"
+    }
+  },
+  "18:24": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "18:1",
+        0
+      ],
+      "on_true": [
+        "18:15",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#24 If/Else Switch"
+    }
+  }
+}

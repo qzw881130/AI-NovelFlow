@@ -1,0 +1,1235 @@
+{
+  "1": {
+    "inputs": {
+      "noise_seed": 714543360189367
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#1 RandomNoise"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": [
+        "71",
+        0
+      ],
+      "conditioning": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#2 Basic Guider"
+    }
+  },
+  "3": {
+    "inputs": {
+      "noise": [
+        "1",
+        0
+      ],
+      "guider": [
+        "2",
+        0
+      ],
+      "sampler": [
+        "36",
+        0
+      ],
+      "sigmas": [
+        "70",
+        0
+      ],
+      "latent_image": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#3 Extension 1 - SamplerCustomAdvanced"
+    }
+  },
+  "23": {
+    "inputs": {
+      "context_length": [
+        "37",
+        0
+      ],
+      "audio_feather_ticks": [
+        "96",
+        0
+      ],
+      "source_fps": 24,
+      "crop": "disabled",
+      "latent": [
+        "55",
+        1
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "start_mode": [
+        "94",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "source_audio": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3StartMaskedContext",
+    "_meta": {
+      "title": "#23 H3 Start Masked Context"
+    }
+  },
+  "29": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#29 Starter Clip - Load VAE"
+    }
+  },
+  "30": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#30 Starter Clip - Load VAE"
+    }
+  },
+  "31": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#31 Starter Clip - Load CLIP"
+    }
+  },
+  "32": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#32 Starter Clip - Load Diffusion Model"
+    }
+  },
+  "36": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#36 KSamplerSelect"
+    }
+  },
+  "37": {
+    "inputs": {
+      "value": 39
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#37 Int"
+    }
+  },
+  "39": {
+    "inputs": {
+      "loop_count": 0,
+      "filename_prefix": "h3_preview/extension_01",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "62",
+        0
+      ],
+      "audio": [
+        "61",
+        0
+      ],
+      "frame_rate": 24.0
+    },
+    "class_type": "VideoCombineV2",
+    "_meta": {
+      "title": "#39 Extension 1 - VHS Video Combine"
+    }
+  },
+  "55": {
+    "inputs": {
+      "prompt": [
+        "120",
+        0
+      ],
+      "width": [
+        "170",
+        0
+      ],
+      "height": [
+        "170",
+        1
+      ],
+      "length": [
+        "126",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "31",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "142",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "141",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "143",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "137",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "138",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "140",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "135",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "136",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "139",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#55 Extension 1 - MiniMax H3 Reference to Video"
+    }
+  },
+  "56": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#56 Int"
+    }
+  },
+  "61": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#61 VAE Decode Audio"
+    }
+  },
+  "62": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#62 VAE Decode"
+    }
+  },
+  "65": {
+    "inputs": {
+      "input_count": 1,
+      "context_frames": 39,
+      "video_overlap_frames": 39,
+      "source_fps": 24,
+      "crop": "disabled",
+      "filename_prefix": "video/masked_av_extension",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": true,
+      "save_output": true,
+      "video_vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "start_mode": [
+        "94",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "source_audio": [
+        "93",
+        0
+      ],
+      "preview_gate": [
+        "98",
+        0
+      ],
+      "active_extensions": [
+        "95",
+        0
+      ],
+      "extension_1": [
+        "158",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3StreamLiveExtensionAVToVHS",
+    "_meta": {
+      "title": "#65 H3 Stream AV Extensions to VHS（合并视频输出）"
+    }
+  },
+  "66": {
+    "inputs": {
+      "video": "shot_007_clip_1_33a63436_20261021_165646.mp4",
+      "force_rate": 24,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "start_time": 0,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideoFFmpeg",
+    "_meta": {
+      "title": "#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "67": {
+    "inputs": {
+      "images": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3CropTo32",
+    "_meta": {
+      "title": "#67 H3 Crop Source To /32"
+    }
+  },
+  "70": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "56",
+        0
+      ],
+      "denoise": 1,
+      "model": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#70 BasicScheduler"
+    }
+  },
+  "71": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "72",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#71 ModelSamplingMiniMaxH3"
+    }
+  },
+  "72": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "strength_model": 0.95,
+      "model": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#72 Starter Clip - LoraLoaderModelOnly"
+    }
+  },
+  "73": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "#73 Model Attention Backend"
+    }
+  },
+  "93": {
+    "inputs": {
+      "source_fps": 24,
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "mode": [
+        "97",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "video_info": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "MiniMaxH3SourceAudioPolicy",
+    "_meta": {
+      "title": "#93 H3 Source Audio Policy"
+    }
+  },
+  "94": {
+    "inputs": {
+      "start": "Existing Video"
+    },
+    "class_type": "MiniMaxH3AVStartModeParam",
+    "_meta": {
+      "title": "#94 Start Mode — FIXED Existing Video"
+    }
+  },
+  "95": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#95 Active Extensions — FIXED 1"
+    }
+  },
+  "96": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#96 Audio Feather — FIXED 8"
+    }
+  },
+  "97": {
+    "inputs": {
+      "source_audio": "Keep source audio"
+    },
+    "class_type": "MiniMaxH3AVSourceAudioModeParam",
+    "_meta": {
+      "title": "#97 Source Audio — FIXED Keep source audio"
+    }
+  },
+  "98": {
+    "inputs": {
+      "input_count": 1,
+      "active_extensions": [
+        "95",
+        0
+      ],
+      "preview_1": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3LastActiveVHSPreviewBarrier",
+    "_meta": {
+      "title": "#98 H3 Last Active VHS Preview Barrier"
+    }
+  },
+  "99": {
+    "inputs": {
+      "filenames": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3FinalizeVHSOutput",
+    "_meta": {
+      "title": "#99 H3 Final Stream Output Sink"
+    }
+  },
+  "101": {
+    "inputs": {
+      "images": [
+        "66",
+        0
+      ],
+      "video_info": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "MiniMaxH3Validate24FPSVideo",
+    "_meta": {
+      "title": "#101 H3 Validate 24 FPS Video"
+    }
+  },
+  "102": {
+    "inputs": {
+      "audio_vae": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AudioVAECompatibility",
+    "_meta": {
+      "title": "#102 H3 Audio VAE Compatibility"
+    }
+  },
+  "116": {
+    "inputs": {
+      "keyframe_state": "{\"count\":8,\"positions\":[207,224,241,258,275,292,309,326]}",
+      "indexing": "1-based",
+      "crop": "center",
+      "+ Add keyframe": null,
+      "- Remove keyframe": null,
+      "conditioning": [
+        "55",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "latent": [
+        "55",
+        1
+      ],
+      "keyframe_image_1": [
+        "117",
+        0
+      ],
+      "keyframe_image_2": [
+        "128",
+        0
+      ],
+      "keyframe_image_3": [
+        "129",
+        0
+      ],
+      "keyframe_image_4": [
+        "130",
+        0
+      ],
+      "keyframe_image_5": [
+        "131",
+        0
+      ],
+      "keyframe_image_6": [
+        "132",
+        0
+      ],
+      "keyframe_image_7": [
+        "133",
+        0
+      ],
+      "keyframe_image_8": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3CustomKeyframes",
+    "_meta": {
+      "title": "#116 H3 Custom Keyframes — TEMPORAL ANCHOR"
+    }
+  },
+  "117": {
+    "inputs": {
+      "image": "keyframe_1_20261006_005412.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#117 KeyFrame — Load Image 1"
+    }
+  },
+  "120": {
+    "inputs": {
+      "prompt": "subject_definitions:\n<Subject 1> is 康大叔, the existing character whose stable identity is bound exclusively to <Picture 2>; recorded stable features: A broad, square face crowded with fleshy features; a dark fleshy mole beside the left nostril; thick joined eyebrows; a hard, slightly protruding contour on the right side of the jaw; and dense, short black whiskers covering the face.; the identity reference does not determine current costume, pose, or floor position.\n<Subject 2> is 花白胡子, the existing character whose stable identity is bound exclusively to <Picture 3>; recorded stable features: A conspicuous grizzled goatee, a thin grizzled queue, a naturally sparse notch above the right eyebrow, a light-brown age spot on the left cheek near the front of the ear, and a neck held slightly forward.; the identity reference does not determine current costume, pose, or floor position.\n<Subject 3> is 茶客1, the existing character whose stable identity is bound exclusively to <Picture 4>; recorded stable features: A narrow oval face, a tiny light mole beneath the left eye, a natural brow line with the right eyebrow slightly higher than the left, long fingers, and slightly slender shoulders.; the identity reference does not determine current costume, pose, or floor position.\n<Subject 4> is 茶客2, the existing character whose stable identity is bound exclusively to <Picture 5>; recorded stable features: A round face, a small light-brown mark midway along the right side of the nasal bridge, sparse straight eyebrows, a slightly protruding belly, and a thick rounded chin.; the identity reference does not determine current costume, pose, or floor position.\n\nsummary:\nA 15.2-second continuation of the current Canonical Clip, beginning with the verified Previous AV shared context.\n\nretention_analysis:\nThe verified Previous AV ending owns the current bodies, clothing, poses, floor positions, and camera context; preserve its shared opening context without replaying completed actions. Canonical visual states and transitions own subsequent action and staging.\n<Picture 1> — SCENE / Main room of the eastern-town teahouse: environment appearance only; incidental people are not additional Subjects.\n<Picture 2> — CHARACTER_IDENTITY for <Subject 1>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 3> — CHARACTER_IDENTITY for <Subject 2>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 4> — CHARACTER_IDENTITY for <Subject 3>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 5> — CHARACTER_IDENTITY for <Subject 4>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 6> — PROP / Old wooden teahouse table: prop appearance only; Canonical state owns placement and use.\n<Picture 7> — PROP / Coarse porcelain bowl: prop appearance only; Canonical state owns placement and use.\n<Picture 8> — PROP / Long-stemmed pipe: prop appearance only; Canonical state owns placement and use.\nDirector-selected Anchor arrivals use GENERATION_LOCAL_SECONDS: generated-fragment time starts at 0s, including any verified Previous AV shared prefix.\nPrevious AV shared prefix: 0–1.625s in GENERATION_LOCAL_SECONDS, already included in the 15.2s generation duration. Do not add overlap again or replay actions completed in Previous AV.\nKF4: reach its Canonical visual target at 13.4s in GENERATION_LOCAL_SECONDS; DURING D5 (8.325–14.825s).\nclip-2-KF4: reach its Canonical visual target at 13.4s in GENERATION_LOCAL_SECONDS; DURING D5 (8.325–14.825s).\n\ndetailed_description:\nPreserve the verified shared prefix through 1.625 seconds exactly as supplied, including its camera position, spatial axis, existing image, and existing audio; introduce no new narration or required state arrival within it. From its actual terminal view, continue only the unfinished movement in one continuous take. <Narrator> (S1) [D4 @ 1.625-8.125s generated-clip] narrates in voice-over, <d>[Chinese] 他们继续议论着夏瑜的死，仿佛那不过是街头一件有趣的新闻。</d> The unseen narrator begins the restrained, ironic voice-over while all four visible men remain silent. The camera continues slowly pulling back along the established axis and rises slightly at an even pace, admitting more rafters and open room around the old wooden teahouse table without cutting or crossing the axis. <Subject 1> keeps the coarse porcelain bowl steady and gradually turns only his upper body and gaze toward the inner-room entrance at background right, retaining an indifferent, unconcerned expression. <Subject 2> stays at the left side of the table with relaxed shoulders, making one slight shift of gaze among the others and a small nod. <Subject 3> remains at the left rear, subtly redistributes his seated weight, and keeps the frivolous smile. <Subject 4> stays on the right holding the long-stemmed pipe diagonally; his wrist lowers naturally a little before stabilizing toward the tabletop and the others. Nobody leaves the seat or moves any tabletop prop. Thin smoke continues spreading laterally beneath the rafters, growing lighter without disappearing. After the first voice-over utterance finishes, the same unseen narrator resumes naturally after the brief canonical gap, with no visible lip movement or invented speaker. <Narrator> (S1) [D5 @ 8.325-14.825s generated-clip] narrates in voice-over, <d>[Chinese] 没有人知道，那个被他们嘲笑的年轻人，临死前究竟在想些什么。</d> The camera maintains its smooth retreat and slight elevation as the four figures recede together into the lower middle of the widening eastern-town teahouse main room. The old wooden teahouse table becomes centered, and the spatial boundary leading to the inner room remains clearly visible at background right. Near the retained anchor arrival, the camera decelerates gently and settles into a broad medium-long shot: <Subject 1> is angled slightly toward the inner-room entrance with the bowl still in hand; <Subject 2> remains relaxed at left; <Subject 3> remains at left rear with the light-minded smile; and <Subject 4> remains at right, calmly oriented toward the table and his companions with the pipe in hand. Hold this numb, ordinary tableau through the end of the second voice-over and the short closing beat, with faint smoke lingering below the rafters.\n\noverall_soundscape:\nQuiet interior room tone in the eastern-town teahouse main room, with faint timber settling, minimal clothing rustle from the small posture adjustments, a soft bench or stool creak, and a slight handling sound as the long-stemmed pipe wrist lowers. The coarse porcelain bowl remains steady without an added clink. No music, background conversation, visible-character speech, or extra vocalization.\n\nnon_diegetic_music:\nN/A"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#120 ⚙️ CR Prompt Text（提示词）"
+    }
+  },
+  "124": {
+    "inputs": {
+      "text": "{\n    \"source_fps\": 24.0,\n    \"source_frame_count\": 243.12,\n    \"source_duration\": 10.13,\n    \"source_width\": 1728,\n    \"source_height\": 960,\n    \"loaded_fps\": 24.0,\n    \"loaded_frame_count\": 243,\n    \"loaded_duration\": 10.125,\n    \"loaded_width\": 1728,\n    \"loaded_height\": 960\n}",
+      "anything": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#124 #-1 Show Any"
+    }
+  },
+  "125": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#125 Float(时长秒)"
+    }
+  },
+  "126": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#126 Math Expression"
+    }
+  },
+  "127": {
+    "inputs": {
+      "text": "73",
+      "anything": [
+        "126",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#127 #-1 Show Any"
+    }
+  },
+  "128": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#128 KeyFrame — Load Image 2"
+    }
+  },
+  "129": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#129 KeyFrame — Load Image 3"
+    }
+  },
+  "130": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#130 KeyFrame — Load Image 4"
+    }
+  },
+  "131": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#131 KeyFrame — Load Image 5"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#132 KeyFrame — Load Image 6"
+    }
+  },
+  "133": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#133 KeyFrame — Load Image 7"
+    }
+  },
+  "134": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#134 KeyFrame — Load Image 8"
+    }
+  },
+  "135": {
+    "inputs": {
+      "image": "07_Picture 7 _ PROP_粗瓷碗_20261020_033712.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#135 Reference Image 7"
+    }
+  },
+  "136": {
+    "inputs": {
+      "image": "08_Picture 8 _ PROP_长旱烟袋_20261020_034041.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#136 Reference Image 8"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "04_Picture 4 _ CHARACTER_IDENTITY_茶客1_20261020_030313.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#137 Reference Image 4"
+    }
+  },
+  "138": {
+    "inputs": {
+      "image": "05_Picture 5 _ CHARACTER_IDENTITY_茶客2_20261020_031211.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#138 Reference Image 5"
+    }
+  },
+  "139": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#139 Reference Image 9"
+    }
+  },
+  "140": {
+    "inputs": {
+      "image": "06_Picture 6 _ PROP_茶馆旧木桌_20261020_033746.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#140 Reference Image 6"
+    }
+  },
+  "141": {
+    "inputs": {
+      "image": "02_Picture 2 _ CHARACTER_IDENTITY_康大叔_20261020_030230.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#141 Reference Image 2"
+    }
+  },
+  "142": {
+    "inputs": {
+      "image": "01_Picture 1 _ SCENE_镇东茶馆堂屋_20261020_033014.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#142 Reference Image 1"
+    }
+  },
+  "143": {
+    "inputs": {
+      "image": "03_Picture 3 _ CHARACTER_IDENTITY_花白胡子_20261020_030252.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#143 Reference Image 3"
+    }
+  },
+  "144": {
+    "inputs": {
+      "Number": "2"
+    },
+    "class_type": "Int",
+    "_meta": {
+      "title": "#144 二采放大 Step"
+    }
+  },
+  "145": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#145 二采放大 scale"
+    }
+  },
+  "146": {
+    "inputs": {
+      "noise_seed": 714543360189367
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#146 二采随机种子"
+    }
+  },
+  "147": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#147 二采 Euler"
+    }
+  },
+  "148": {
+    "inputs": {},
+    "class_type": "DisableNoise",
+    "_meta": {
+      "title": "#148 二采 Disable Noise（已在 Prepare 注噪）"
+    }
+  },
+  "149": {
+    "inputs": {
+      "av_latent": [
+        "3",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "#149 一采 Clean AV 分离"
+    }
+  },
+  "150": {
+    "inputs": {
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "mode": "scale by multiplier",
+      "mode.scale": [
+        "145",
+        0
+      ],
+      "align": 32,
+      "keep_proportion": true,
+      "device": "cuda",
+      "precision": "fp16",
+      "latent": [
+        "171",
+        0
+      ]
+    },
+    "class_type": "MinimaxH3LatentUpscaler3D",
+    "_meta": {
+      "title": "#150 MiniMax H3 3D Latent Upscaler"
+    }
+  },
+  "151": {
+    "inputs": {
+      "keyframe_state": "{\"count\":8,\"positions\":[207,224,241,258,275,292,309,326]}",
+      "indexing": "1-based",
+      "crop": "center",
+      "+ Add keyframe": null,
+      "- Remove keyframe": null,
+      "conditioning": [
+        "55",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "latent": [
+        "150",
+        0
+      ],
+      "keyframe_image_1": [
+        "117",
+        0
+      ],
+      "keyframe_image_2": [
+        "128",
+        0
+      ],
+      "keyframe_image_3": [
+        "129",
+        0
+      ],
+      "keyframe_image_4": [
+        "130",
+        0
+      ],
+      "keyframe_image_5": [
+        "131",
+        0
+      ],
+      "keyframe_image_6": [
+        "132",
+        0
+      ],
+      "keyframe_image_7": [
+        "133",
+        0
+      ],
+      "keyframe_image_8": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3CustomKeyframes",
+    "_meta": {
+      "title": "#151 二采高清锚点 · 原尺寸图片参考"
+    }
+  },
+  "152": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#152 二采独立 LoRA"
+    }
+  },
+  "153": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "152",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#153 二采 Sigma Shift"
+    }
+  },
+  "154": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "126",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#154 二采原生模型 / 预览"
+    }
+  },
+  "155": {
+    "inputs": {
+      "steps": [
+        "144",
+        0
+      ],
+      "denoise": 0.5,
+      "rho": 7,
+      "shape": "karras",
+      "reference_steps": 6,
+      "base_scheduler": "simple",
+      "model": [
+        "154",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3Pass2StaggeredScheduler",
+    "_meta": {
+      "title": "#155 二采 Staggered Scheduler"
+    }
+  },
+  "156": {
+    "inputs": {
+      "upscaled_video": [
+        "150",
+        0
+      ],
+      "source_audio": [
+        "149",
+        1
+      ],
+      "model": [
+        "154",
+        0
+      ],
+      "noise": [
+        "146",
+        0
+      ],
+      "sigmas": [
+        "155",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainPass2Prepare",
+    "_meta": {
+      "title": "#156 二采 AV 准备（视频注噪 / 音频锁定）"
+    }
+  },
+  "157": {
+    "inputs": {
+      "model": [
+        "154",
+        0
+      ],
+      "conditioning": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#157 二采 Basic Guider"
+    }
+  },
+  "158": {
+    "inputs": {
+      "noise": [
+        "148",
+        0
+      ],
+      "guider": [
+        "157",
+        0
+      ],
+      "sampler": [
+        "147",
+        0
+      ],
+      "sigmas": [
+        "155",
+        0
+      ],
+      "latent_image": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#158 二采 Sampler"
+    }
+  },
+  "159": {
+    "inputs": {
+      "samples": [
+        "158",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#159 二采 VAE Decode"
+    }
+  },
+  "162": {
+    "inputs": {
+      "image": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "#162 高清片段尺寸 / 帧数"
+    }
+  },
+  "163": {
+    "inputs": {
+      "text": "1728",
+      "anything": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#163 高清宽度"
+    }
+  },
+  "164": {
+    "inputs": {
+      "text": "960",
+      "anything": [
+        "162",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#164 高清高度"
+    }
+  },
+  "165": {
+    "inputs": {
+      "text": "73",
+      "anything": [
+        "162",
+        2
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#165 高清帧数"
+    }
+  },
+  "166": {
+    "inputs": {
+      "audio": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "#166 原始音频预览"
+    }
+  },
+  "168": {
+    "inputs": {
+      "loop_count": 0,
+      "filename_prefix": "video/H3_AV_Extend_TemporalAnchor_3D",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "159",
+        0
+      ],
+      "audio": [
+        "61",
+        0
+      ],
+      "frame_rate": 24.0
+    },
+    "class_type": "VideoCombineV2",
+    "_meta": {
+      "title": "#168 #-1 Video Combine（片断视频输出）"
+    }
+  },
+  "169": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#169 Megapixels"
+    }
+  },
+  "170": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "169",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#170 Resolution Selector (Size)"
+    }
+  },
+  "171": {
+    "inputs": {
+      "empty_cache": true,
+      "gc_collect": true,
+      "unload_all_models": true,
+      "any_input": [
+        "149",
+        0
+      ]
+    },
+    "class_type": "VRAM_Debug",
+    "_meta": {
+      "title": "#171 放大前卸载模型"
+    }
+  }
+}

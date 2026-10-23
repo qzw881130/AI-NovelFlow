@@ -1,0 +1,279 @@
+{
+  "470": {
+    "inputs": {
+      "image": "shot_002_21f62052_characters.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#470 Load Image （合并角色图）"
+    }
+  },
+  "477": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#477 Load Diffusion Model"
+    }
+  },
+  "478": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#478 Load CLIP"
+    }
+  },
+  "479": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#479 Load VAE"
+    }
+  },
+  "480": {
+    "inputs": {
+      "width": [
+        "517",
+        0
+      ],
+      "height": [
+        "518",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "#480 Empty Latent Image"
+    }
+  },
+  "481": {
+    "inputs": {
+      "samples": [
+        "482",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#481 VAE Decode"
+    }
+  },
+  "482": {
+    "inputs": {
+      "seed": 999,
+      "steps": 50,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "484",
+        0
+      ],
+      "positive": [
+        "485",
+        0
+      ],
+      "negative": [
+        "485",
+        1
+      ],
+      "latent_image": [
+        "483",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#482 KSampler"
+    }
+  },
+  "483": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "485",
+        2
+      ],
+      "on_true": [
+        "480",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#483 If/Else Switch"
+    }
+  },
+  "484": {
+    "inputs": {
+      "device": "auto",
+      "dtype": "default",
+      "model": [
+        "477",
+        0
+      ]
+    },
+    "class_type": "QwenImage21Cache",
+    "_meta": {
+      "title": "#484 Qwen Image 2.1 Cache"
+    }
+  },
+  "485": {
+    "inputs": {
+      "prompt": [
+        "519",
+        0
+      ],
+      "negative_prompt": "",
+      "resolution": 1280,
+      "clip": [
+        "478",
+        0
+      ],
+      "images.image_1": [
+        "470",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ],
+      "images.image_12": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "#485 Text Encode Qwen Image 2.1"
+    }
+  },
+  "494": {
+    "inputs": {
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "481",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "#494 Save Image (Advanced)"
+    }
+  },
+  "501": {
+    "inputs": {
+      "text": "{\n    \"task\": \"edit\",\n    \"rewritten_prompt\": \"参考<image1>中百姓1与百姓2两组角色身份以及<image2>的街道环境结构，生成一个两角色在街道市集交谈的静态动漫画面。百姓1的身份严格继承<image1>中百姓1参考：黑色短发青年男性、黝黑面部、灰褐色粗布圆领短袖上衣、腰间系麻绳腰带、棕色短裤、草鞋；百姓2的身份严格继承<image1>中百姓2参考：黑色长发编成一条长辫垂于肩侧、带雀斑的中年女性面部、蓝色交领宽袖长袍、颈部缠绕蓝色围巾、棕色布鞋、小耳环；两角色不得交换身份，不得把百姓1的脸、发型、服装、体型给百姓2，也不得反向置换。环境沿用<image2>的石砌两侧建筑、红瓦屋顶、穹顶塔楼与鹅卵石街道的结构、时代材质与总体视觉，表现为正午日光下的街道市集，街道两侧木制摊位与布幡清晰可见；不得从<image2>引入任何人物、额外剧情道具或剧情主体。摄影机位于街道中央、机位平视、朝画面右侧拍摄，中景构图。画面只出现百姓1与百姓2共2名可见人物，禁止第3人、路人、背景群众、侍从、士兵、模糊人影、人物剪影、镜中人物、反射人物、画像人物或类人形装饰。百姓1位于画面左前景、在百姓2之前，面朝画面右前方，身体侧向百姓2，视线朝向百姓2，单手抬起靠近嘴边，嘴唇呈微启低语口型，保持低语的单一静态姿态。百姓2位于画面左前景、在百姓1之后，面朝画面左前方，身体侧向百姓1，视线朝向百姓1，头低垂呈点头状态，保持微微点头的单一静态姿态，嘴部自然闭合不做夸张说话口型。画面只表现这单一静态瞬间，百姓1与百姓2在街道市集侧身相对交谈，不表现走入、坐下、转头、抬手后又放下等连续过程。风格为anime style，high quality，detailed，professional artwork，电影级构图，正午明亮日光从上方洒落，真实一致的人体尺度，正确透视，自然遮挡，合理景深，细节清晰，角色与场景统一。禁止额外手指或肢体、融合脸、重复人物、多余人物、身份串图、现代物品、文字、字幕、logo、水印、UI、边框、拼贴画、角色设定四视图、多时间状态同屏，禁止把<image1>角色合并图的排版或展示站位复制到最终画面。\",\n    \"wh_ratio\": \"3:2\",\n    \"ratio_follow\": \"\",\n    \"model_wh_ratio\": \"3:2\",\n    \"model_ratio_follow\": \"\",\n    \"selected_aspect_ratio\": \"auto\",\n    \"output_language\": \"zh\",\n    \"transparent_rgba\": false,\n    \"image_dimensions\": [\n        [\n            1118,\n            1526\n        ],\n        [\n            1088,\n            704\n        ]\n    ],\n    \"image_input_ports\": [\n        \"image_1\",\n        \"image_2\"\n    ],\n    \"image_fingerprints\": [\n        \"f9b28dcd7ccfe37e5a17d9cbdd45c9a940e6ecca9ee9dbaf6fdc3c409526563e\",\n        \"1fa1e175e1f4485006098ccbc570914359d57f1800934f28db4bcaed22e5d952\"\n    ],\n    \"model\": \"Qwen-Image-2.1-PE-I2I.Q4_K_M.gguf\",\n    \"mmproj\": \"Qwen-Image-2.1-PE-I2I.mmproj-bf16.gguf\",\n    \"system_prompt_sha256\": \"a78075973b7cf2bc699170449fc24ba264c45fb34538f8b4e266a20d1d3e387b\",\n    \"elapsed_seconds\": 31.05,\n    \"seed\": 42,\n    \"finish_reason\": \"stop\",\n    \"usage\": {\n        \"completion_tokens\": 5262,\n        \"prompt_tokens\": 7458,\n        \"total_tokens\": 12720,\n        \"prompt_tokens_details\": {\n            \"cached_tokens\": 0\n        }\n    },\n    \"format_retries\": 0,\n    \"first_format_error\": null,\n    \"truncation_retry\": false,\n    \"normalized_single_image_tags\": 0,\n    \"removed_background_sentences\": 0,\n    \"normalized_background_phrases\": 0,\n    \"normalized_margin_phrases\": 0,\n    \"translation_fallback\": false,\n    \"translation_usage\": null\n}",
+      "anything": [
+        "519",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#501 Show Any"
+    }
+  },
+  "510": {
+    "inputs": {
+      "image": "街道_20260921_100053.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#510 Load Image（场景）"
+    }
+  },
+  "515": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "494",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#515 Save Image"
+    }
+  },
+  "516": {
+    "inputs": {
+      "prompt": "<Picture 1> 是当前 Shot 的角色合并参考图，其中包含百姓1、百姓2的正式身份与稳定外观参考。分别保持百姓1、百姓2各自对应的面部、发型、年龄感、体型比例、平民布衣、配饰与稳定身份特征；不得交换身份，不得把百姓1的脸、发型、服装、体型给百姓2，也不得反向置换。该合并图仅用于角色外观锁定，不作为最终画面的站位、姿态、背景或构图模板。\n\n<Picture 2> 是“街道”的正式场景参考图，仅用于环境结构、建筑/地貌、空间、时代材质与总体视觉参考；不得引入参考图中的人物、额外剧情道具或剧情主体。\n\n最终画面只表现一个静态瞬间：正午明亮日光从上方洒落，正式场景为“街道”，呈现为街道市集环境，街道两侧木制摊位与布幡清晰可见；摄影机位于街道中央、机位平视、朝画面右侧拍摄，中景构图。画面左前景为百姓1与百姓2，百姓1更靠前，百姓2稍靠后于百姓1。只出现百姓1、百姓2，共 2 名可见人物；禁止第 3 人。不得出现路人、背景群众、侍从、士兵、模糊人影、人物剪影、镜中人物、反射人物、画像人物或类人形装饰。\n\n百姓1位于画面左前景，面朝画面右前方，身体侧向百姓2，视线朝向百姓2，单手抬起靠近嘴边，保持低语的单一静态姿态；身穿平民布衣，身份特征严格继承 <Picture 1> 中“百姓1”对应参考，不得与百姓2交换身份或服装。百姓1可呈嘴唇微启的低语静态口型，但画面中不得出现任何台词文字、对白气泡或字幕。\n\n百姓2位于画面左前景、稍靠后于百姓1，面朝画面左前方，身体侧向百姓1，视线朝向百姓1，头微微低垂，保持微微点头的单一静态姿态；身穿平民布衣，身份特征严格继承 <Picture 1> 中“百姓2”对应参考，不得与百姓1交换身份或服装。百姓2保持沉默的静态表情，嘴部自然闭合，不做夸张说话口型。\n\n静态动作：百姓1与百姓2在街道市集并肩而立，侧身相对交谈；百姓1抬手靠近嘴边，正对百姓2低语；百姓2微微点头。该画面只表现这一个单一时间切片，不表现走入、坐下、转头、抬手后又放下等连续过程，不把后续动作提前画入，不将多时间状态同屏。\n\n场景与道具：环境与 <Picture 2> 保持环境结构、时代材质和总体视觉一致，表现为正午日光下的街道市集，两侧木制摊位与布幡清晰可见；不得从 <Picture 2> 引入任何人物、额外剧情道具或剧情主体。当前 Shot 无道具参考图，shot.props 为空，不得添加剧情关键道具、武器、专属物品或未列物体；木制摊位与布幡仅作为场景环境，不作为角色道具。不得声称任何道具继承道具参考图。\n\n风格与质量：anime style, high quality, detailed, professional artwork，电影级构图，正午明亮日光，真实一致的人体尺度，正确透视，自然遮挡，合理景深，细节清晰，角色与场景统一。禁止额外手指或肢体、融合脸、重复人物、多余人物、身份串图、现代物品、文字、字幕、logo、水印、UI、边框、拼贴画、角色设定四视图、多时间状态同屏，禁止把角色合并图的排版或展示站位复制到最终画面。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#516 #-1 ⚙️ CR Prompt Text(提示词)"
+    }
+  },
+  "517": {
+    "inputs": {
+      "value": 2016
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#517 #-1 Int 宽度"
+    }
+  },
+  "518": {
+    "inputs": {
+      "value": 1152
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#518 #-1 Int 高度"
+    }
+  },
+  "519": {
+    "inputs": {
+      "user_prompt": [
+        "516",
+        0
+      ],
+      "task": "edit",
+      "aspect_ratio": "auto",
+      "output_language": "auto",
+      "transparent_rgba": false,
+      "t2i_model": "pe_t2i_heretic-Q4_K_M.gguf",
+      "edit_model": "Qwen-Image-2.1-PE-I2I.Q4_K_M.gguf",
+      "vision_model": "Auto",
+      "model_lifetime": "after_run",
+      "seed": 42,
+      "image_1": [
+        "470",
+        0
+      ],
+      "image_2": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "QwenPERewriteT8",
+    "_meta": {
+      "title": "#519 Qwen Image 2.1 PE Rewrite T8"
+    }
+  },
+  "521": {
+    "inputs": {},
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#521 #-1 Show Any"
+    }
+  }
+}
