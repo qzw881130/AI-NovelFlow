@@ -45,7 +45,7 @@ def test_comfyui_timeout_defaults_to_60_minutes_without_overwriting_saved_choice
     assert config.get_settings().COMFYUI_TIMEOUT == 900
 
 
-@pytest.mark.parametrize('timeout', [2700, 3600])
+@pytest.mark.parametrize('timeout', [2700, 3600, 7200])
 def test_long_comfyui_timeout_persists_and_reloads(client, db_session, timeout):
     response = client.post('/api/config/', json={'comfyUITimeout': timeout})
     assert response.status_code == 200, response.text

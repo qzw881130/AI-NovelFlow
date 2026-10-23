@@ -284,8 +284,8 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             updates["comfyui_host"] = config.comfyUIHost
 
         if config.comfyUITimeout is not None:
-            if config.comfyUITimeout not in {900, 1200, 1800, 2700, 3600}:
-                raise HTTPException(status_code=400, detail="ComfyUI 超时时间必须是 15、20、30、45 或 60 分钟")
+            if config.comfyUITimeout not in {900, 1200, 1800, 2700, 3600, 7200}:
+                raise HTTPException(status_code=400, detail="ComfyUI 超时时间必须是 15、20、30、45、60 或 120 分钟")
             db_config.comfyui_timeout = config.comfyUITimeout
             updates["comfyui_timeout"] = config.comfyUITimeout
 
