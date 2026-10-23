@@ -11,7 +11,7 @@ export default {
     showFirstAppearanceNames: '주인공 첫 등장 이름표 미리보기',
     showFirstAppearanceNamesDesc: '캐릭터 라이브러리에서 직접 지정한 주인공의 첫 등장에만 빨간 세로 이름표 미리보기를 만듭니다. 위치와 시간은 자동으로 정합니다. 자동 승인이 꺼져 있으면 작업 목록에서 확인한 뒤 챕터 완성본에 적용합니다. 원본 Shot 및 Clip 영상은 변경하지 않습니다.',
     autoApproveFirstAppearanceNames: '이름표 미리보기 자동 승인',
-    autoApproveFirstAppearanceNamesDesc: '챕터 영상 병합 후 이름표 미리보기가 성공하면 완성본에 자동 적용합니다. 위치 판별이나 미리보기 생성이 실패하면 원본 병합 영상을 사용합니다. 기본값은 꺼짐입니다.',
+    autoApproveFirstAppearanceNamesDesc: '챕터 영상 병합 후 이름표 미리보기가 성공하면 완성본에 자동 적용합니다. 위치 판별이나 미리보기 생성이 실패하면 원본 병합 영상을 사용합니다. 기본값은 켜짐입니다.',
     title: '시스템 설정',
     subtitle: 'LLM, 프록시 및 ComfyUI 설정',
     llmConfig: 'LLM 구성',

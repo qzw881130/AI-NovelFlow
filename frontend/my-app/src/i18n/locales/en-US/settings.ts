@@ -30,7 +30,7 @@ export default {
     showFirstAppearanceNames: 'Preview protagonist names on first appearance',
     showFirstAppearanceNamesDesc: 'Create red vertical nameplate previews only for manually selected protagonists at their first appearance in the novel. The program locates the person and timing. When auto approval is off, approve the preview in Tasks before using it in the chapter video. Raw Shot and Clip videos stay unchanged.',
     autoApproveFirstAppearanceNames: 'Automatically approve nameplate previews',
-    autoApproveFirstAppearanceNamesDesc: 'When merging finishes and a nameplate preview succeeds, use it in the chapter video automatically. If positioning or preview generation fails, keep the raw merged video. Off by default.',
+    autoApproveFirstAppearanceNamesDesc: 'When merging finishes and a nameplate preview succeeds, use it in the chapter video automatically. If positioning or preview generation fails, keep the raw merged video. On by default.',
     imageQualityReview: 'Image Quality Review',
     testConnection: 'Test Connection',
     connectionSuccess: 'Connection successful',

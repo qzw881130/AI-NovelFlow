@@ -19,11 +19,11 @@ class SystemConfig(Base):
     llm_max_tokens = Column(Integer, default=393216, nullable=True)  # 最大token数
     llm_temperature = Column(String, nullable=True)  # 温度参数（字符串类型，支持范围0.0-2.0）
     llm_timeout = Column(Integer, default=1800, nullable=True)  # 请求超时（秒）
-    auto_image_review_enabled = Column(Boolean, default=False, nullable=False)
+    auto_image_review_enabled = Column(Boolean, default=True, nullable=False)
     auto_image_review_enabled_at = Column(DateTime(timezone=True), nullable=True)
     video_prompt_language = Column(String, default="en", nullable=False)
-    show_first_appearance_names = Column(Boolean, default=False, nullable=False)
-    auto_approve_first_appearance_names = Column(Boolean, default=False, nullable=False)
+    show_first_appearance_names = Column(Boolean, default=True, nullable=False)
+    auto_approve_first_appearance_names = Column(Boolean, default=True, nullable=False)
     generation_quality_policy = Column(Text, default="{}", nullable=False)
     cover_production = Column(String, default="旺仔有声小说", nullable=False)
     

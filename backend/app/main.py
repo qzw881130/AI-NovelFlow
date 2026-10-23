@@ -160,7 +160,7 @@ def ensure_schema_updates():
 
             config_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(system_configs)"))]
             if "auto_approve_first_appearance_names" not in config_columns:
-                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             if "generation_quality_policy" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
 
@@ -250,7 +250,7 @@ def ensure_schema_updates():
             result = conn.execute(text("PRAGMA table_info(system_configs)"))
             config_columns = [row[1] for row in result.fetchall()]
             if "auto_image_review_enabled" not in config_columns:
-                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 0"))
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 1"))
             if "auto_image_review_enabled_at" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
             if "seed" not in task_columns:

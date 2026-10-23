@@ -13,7 +13,7 @@ export default {
     showFirstAppearanceNames: '主角首次出鏡姓名牌預覽',
     showFirstAppearanceNamesDesc: '合併章回影片時，僅為角色庫中手動指定的主角產生首次出鏡紅色豎牌預覽。程式自動定位人物與時間；關閉自動通過時，需在任務列表預覽確認後才用於章回成片。原始 Shot 與 Clip 影片不變。',
     autoApproveFirstAppearanceNames: '自動通過姓名牌預覽',
-    autoApproveFirstAppearanceNamesDesc: '開啟後，合併影片並成功產生姓名牌預覽時，自動將預覽用於章回成片；定位或預覽產生失敗時仍使用原始合併影片。預設關閉。',
+    autoApproveFirstAppearanceNamesDesc: '開啟後，合併影片並成功產生姓名牌預覽時，自動將預覽用於章回成片；定位或預覽產生失敗時仍使用原始合併影片。預設開啟。',
     imageQualityReview: '圖片品質評審',
     autoImageReview: '生成圖片後自動 AI 評審',
     autoImageReviewDesc: '圖片生成成功後，後台自動呼叫 AI 進行品質評審。評審結果獨立記錄，不影響圖片生成狀態，不會自動觸發重繪，也不會阻斷影片生成。',

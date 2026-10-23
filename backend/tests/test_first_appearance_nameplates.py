@@ -72,17 +72,22 @@ def test_multi_person_shot_uses_reference_matching_instead_of_local_hog():
 
 def test_config_defaults_and_can_toggle(client):
     initial = client.get("/api/config/").json()["data"]
-    assert initial["showFirstAppearanceNames"] is False
-    assert initial["autoApproveFirstAppearanceNames"] is False
+    assert initial["showFirstAppearanceNames"] is True
+    assert initial["autoApproveFirstAppearanceNames"] is True
+    assert client.post("/api/config/", json={
+        "showFirstAppearanceNames": False,
+        "autoApproveFirstAppearanceNames": False,
+    }).status_code == 200
+    updated = client.get("/api/config/").json()["data"]
+    assert updated["showFirstAppearanceNames"] is False
+    assert updated["autoApproveFirstAppearanceNames"] is False
     assert client.post("/api/config/", json={
         "showFirstAppearanceNames": True,
         "autoApproveFirstAppearanceNames": True,
     }).status_code == 200
-    updated = client.get("/api/config/").json()["data"]
-    assert updated["showFirstAppearanceNames"] is True
-    assert updated["autoApproveFirstAppearanceNames"] is True
-    assert client.post("/api/config/", json={"autoApproveFirstAppearanceNames": False}).status_code == 200
-    assert client.get("/api/config/").json()["data"]["autoApproveFirstAppearanceNames"] is False
+    restored = client.get("/api/config/").json()["data"]
+    assert restored["showFirstAppearanceNames"] is True
+    assert restored["autoApproveFirstAppearanceNames"] is True
 
 
 def test_protagonist_can_be_selected_and_cleared(client, db_session):

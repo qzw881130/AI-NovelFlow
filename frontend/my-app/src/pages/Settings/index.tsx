@@ -84,10 +84,10 @@ export default function Settings() {
             llmMaxTokens: config.llmMaxTokens || DEFAULT_CONFIG.llmMaxTokens,
             llmTemperature: config.llmTemperature,
             llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
-            autoImageReviewEnabled: config.autoImageReviewEnabled ?? false,
+            autoImageReviewEnabled: config.autoImageReviewEnabled ?? true,
             videoPromptLanguage: config.videoPromptLanguage ?? 'en',
-            showFirstAppearanceNames: config.showFirstAppearanceNames ?? false,
-            autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? false,
+            showFirstAppearanceNames: config.showFirstAppearanceNames ?? true,
+            autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? true,
             generationQualityPolicy: config.generationQualityPolicy ?? {},
             coverProduction: config.coverProduction ?? '旺仔有声小说',
             proxy: config.proxyEnabled !== undefined ? {
@@ -133,12 +133,12 @@ export default function Settings() {
         };
       } else if (activeTab === 'generationQuality') {
         payload = {
-          autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false,
+          autoImageReviewEnabled: formData.autoImageReviewEnabled ?? true,
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
-          showFirstAppearanceNames: formData.showFirstAppearanceNames ?? false,
+          showFirstAppearanceNames: formData.showFirstAppearanceNames ?? true,
           generationQualityPolicy: formData.generationQualityPolicy ?? {},
           ...(autoApproveNameplateAvailable ? {
-            autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? false,
+            autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? true,
           } : {}),
         };
       } else if (activeTab === 'content') {
@@ -325,17 +325,17 @@ export default function Settings() {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, videoPromptLanguage }));
                 }}
-                enabled={formData.autoImageReviewEnabled ?? false}
+                enabled={formData.autoImageReviewEnabled ?? true}
                 onChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, autoImageReviewEnabled: enabled }));
                 }}
-                showFirstAppearanceNames={formData.showFirstAppearanceNames ?? false}
+                showFirstAppearanceNames={formData.showFirstAppearanceNames ?? true}
                 onShowFirstAppearanceNamesChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, showFirstAppearanceNames: enabled }));
                 }}
-                autoApproveFirstAppearanceNames={formData.autoApproveFirstAppearanceNames ?? false}
+                autoApproveFirstAppearanceNames={formData.autoApproveFirstAppearanceNames ?? true}
                 onAutoApproveFirstAppearanceNamesChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, autoApproveFirstAppearanceNames: enabled }));

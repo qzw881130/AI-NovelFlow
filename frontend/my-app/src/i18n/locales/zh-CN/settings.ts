@@ -30,7 +30,7 @@ export default {
     showFirstAppearanceNames: '主角首次出镜姓名牌预览',
     showFirstAppearanceNamesDesc: '合并章节视频时，仅为角色库中手动指定的主角生成首次出镜红色竖牌预览。程序自动定位人物和出现时间；关闭自动通过时，需在任务列表预览确认后才用于章回成片。原始 Shot 与 Clip 视频不变。',
     autoApproveFirstAppearanceNames: '自动通过姓名牌预览',
-    autoApproveFirstAppearanceNamesDesc: '开启后，合并视频并成功生成姓名牌预览时，自动将预览用于章回成片；定位或预览生成失败时仍使用原始合并视频。默认关闭。',
+    autoApproveFirstAppearanceNamesDesc: '开启后，合并视频并成功生成姓名牌预览时，自动将预览用于章回成片；定位或预览生成失败时仍使用原始合并视频。默认开启。',
     imageQualityReview: '图片质量评审',
     testConnection: '测试连接',
     connectionSuccess: '连接成功',

@@ -81,16 +81,16 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 3600"))
             db.commit()
         if "auto_image_review_enabled" not in columns:
-            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 1"))
             db.commit()
         if "auto_image_review_enabled_at" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
             db.commit()
         if "show_first_appearance_names" not in columns:
-            db.execute(text("ALTER TABLE system_configs ADD COLUMN show_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN show_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             db.commit()
         if "auto_approve_first_appearance_names" not in columns:
-            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 0"))
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             db.commit()
         if "generation_quality_policy" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
@@ -101,10 +101,13 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
     if not config:
-        config = SystemConfigModel(id="default")
+        config = SystemConfigModel(id="default", auto_image_review_enabled_at=datetime.now(timezone.utc))
         db.add(config)
         db.commit()
         db.refresh(config)
+    elif config.auto_image_review_enabled and config.auto_image_review_enabled_at is None:
+        config.auto_image_review_enabled_at = datetime.now(timezone.utc)
+        db.commit()
     if "system_configs" in inspector.get_table_names() and migrate_youtube_proxy and "youtube_configs" in inspector.get_table_names():
         legacy = db.execute(text("SELECT proxy_enabled, proxy_url FROM youtube_configs WHERE id='default'")).first()
         if legacy:

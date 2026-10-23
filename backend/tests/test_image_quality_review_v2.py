@@ -206,6 +206,10 @@ def test_manual_review_independent_of_switch_even_for_paused_pending_review(db_s
 
 def test_config_api_persistence_default_partial_update_and_worker_refresh(client, db_session):
     from datetime import datetime
+    assert client.get('/api/config/').json()['data']['autoImageReviewEnabled'] is True
+    default_config = db_session.get(SystemConfig, 'default')
+    assert default_config.auto_image_review_enabled_at is not None
+    assert client.post('/api/config/',json={'autoImageReviewEnabled':False}).status_code == 200
     assert client.get('/api/config/').json()['data']['autoImageReviewEnabled'] is False
     assert client.post('/api/config/',json={'autoImageReviewEnabled':True}).status_code == 200
     db_session.expire_all()
