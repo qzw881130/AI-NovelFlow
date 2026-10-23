@@ -2832,12 +2832,14 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
         "dialogue_assignment": next_clip.get("dialogue_assignment") or [],
         "temporal_anchor_ids": next_clip.get("temporal_anchor_ids") or [],
     }
+    chapter_number = db.query(Chapter.number).filter(Chapter.id == completed_task.chapter_id).scalar()
+    chapter_prefix = f"章回{chapter_number} · " if chapter_number is not None else ""
     next_task = Task(
         type="shot_video",
         execution_scope="CLIP",
         clip_index=int(next_clip.get("clip_index") or 0),
         status="pending",
-        name=f"生成视频 Clip: 镜{shot.index} · C{next_clip.get('clip_index')}",
+        name=f"生成视频 Clip: {chapter_prefix}镜{shot.index} · C{next_clip.get('clip_index')}",
         description=f"自动生成 Shot {shot.index} 的下一 Clip",
         novel_id=completed_task.novel_id,
         chapter_id=completed_task.chapter_id,

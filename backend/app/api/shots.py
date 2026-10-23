@@ -3007,7 +3007,7 @@ async def generate_video_director_clip(
         workflow_name=workflow.name,
         shot_id=shot.id,
     )
-    task.name = f"重新生成视频 Clip: 镜{shot.index} · C{window_index}"
+    task.name = f"重新生成视频 Clip: 章回{chapter.number} · 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 重新生成 Clip {window_index}"
     db = shot_repo.db
     task.metadata_json = json.dumps({
@@ -3249,7 +3249,7 @@ async def _execute_phase_b_semantic_clip(
         workflow_name=workflow.name,
         shot_id=shot.id,
     )
-    task.name = f"{'实验候选' if candidate else '生成视频 Clip'}: 镜{shot.index} · C{window_index}"
+    task.name = f"{'实验候选' if candidate else '生成视频 Clip'}: 章回{chapter.number} · 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成 Clip {window_index}"
     metadata = {
         "execution_scope": "CLIP",
@@ -3380,6 +3380,7 @@ async def _regenerate_semantic_video_director_clip(
         workflow_name=workflow.name,
         shot_id=shot.id,
     )
+    task.name = f"重新生成视频 Clip: 章回{chapter.number} · 镜{shot.index} · C{window_index}"
     metadata = {
         "execution_scope": "CLIP",
         "clip_id": f"{shot.id}:clip:{window_index}",
