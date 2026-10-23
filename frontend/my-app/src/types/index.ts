@@ -351,6 +351,7 @@ export interface Task {
   currentStep?: string;
   resultUrl?: string;
   nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;
+  shotImageQuality?: { generation_count: number; review_count: number; retry_count: number; status?: string | null } | null;
   errorMessage?: string;
   workflowId?: string;
   comfyuiError?: ApiTask['comfyuiError'];

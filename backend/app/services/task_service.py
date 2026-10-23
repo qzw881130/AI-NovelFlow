@@ -1522,6 +1522,32 @@ class TaskService:
                 "autoApproved": bool(metadata.get("nameplate_auto_approved")),
             }
 
+        def shot_image_quality_summary(task: Task):
+            if task.type != "shot_image":
+                return None
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except (TypeError, ValueError):
+                return None
+            if not isinstance(metadata, dict):
+                return None
+            quality = metadata.get("shot_image_quality")
+            if not isinstance(quality, dict):
+                return None
+            attempts = quality.get("attempts")
+            attempts = attempts if isinstance(attempts, list) else []
+            generation_count = quality.get("generation_count") or 0
+            failed_reviews = sum(
+                1 for attempt in attempts
+                if isinstance(attempt, dict) and attempt.get("verdict") == "FAIL"
+            )
+            return {
+                "generation_count": generation_count,
+                "review_count": len(attempts),
+                "retry_count": min(failed_reviews, max(0, generation_count - 1)),
+                "status": quality.get("status"),
+            }
+
         def clip_execution_metadata(task: Task):
             try:
                 metadata = json.loads(task.metadata_json or "{}")
@@ -1620,6 +1646,7 @@ class TaskService:
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
                 "nameplatePreview": nameplate_preview(t),
+                "shotImageQuality": shot_image_quality_summary(t),
                 "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
                 "comfyuiError": task_comfyui_error(t),

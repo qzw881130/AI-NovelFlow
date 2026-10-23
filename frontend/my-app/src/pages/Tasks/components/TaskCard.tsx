@@ -644,7 +644,18 @@ export function TaskCard({
             {task.sourceTaskId && <span className="mr-2 font-mono">Source: {task.sourceTaskId}</span>}
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
-            {elapsedSeconds !== null && ` · 耗时: ${formatElapsedDuration(elapsedSeconds)}`}
+            {elapsedSeconds !== null && (
+              <span title={task.type === 'shot_image' ? '从开始处理到最终审核结束，包含提示词生成、每次 ComfyUI 生图和 AI 审核' : undefined}>
+                {' · '}{task.type === 'shot_image' ? '总耗时' : '耗时'}: {formatElapsedDuration(elapsedSeconds)}
+              </span>
+            )}
+            {task.type === 'shot_image' && task.shotImageQuality && task.shotImageQuality.generation_count > 0 && (
+              <span>
+                {' · '}生图 {task.shotImageQuality.generation_count} 次
+                {task.shotImageQuality.retry_count > 0 && `（自动重试 ${task.shotImageQuality.retry_count} 次）`}
+                {' · '}AI 审核 {task.shotImageQuality.review_count} 次
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
