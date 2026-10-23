@@ -6,42 +6,11 @@ AI 驅動的小說轉視訊平台
 
 ## 專案概述
 
-NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
+NovelFlow 把小說文字、角色與場景設定、分鏡圖片、音訊和影片任務串成可編輯的製作流程。可以逐步人工確認，也可以批次處理章回與分鏡。
 
-**核心工作流程：**
+**製作流程：** 匯入 TXT/EPUB 或範例小說 → AI 解析角色、場景、道具 → 建立參考圖與音色 → 編輯章回並拆分分鏡 → 生成及評審分鏡圖 → Video Director 規劃與執行 Clip → 合併章回/小說影片 → 製作封面並視需要上傳 YouTube。
 
-```
-┌─────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│   小說   │ → │ AI解析角色 │ → │ AI解析場景 │ → │ AI解析道具 │ → │ 生成角色圖 │
-└─────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                                    ↓
-┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  生成視訊  │ ← │  生成音訊  │ ← │ 生成分鏡圖 │ ← │ AI拆分分鏡 │ ← │ 生成場景圖 │
-└───────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                        ↑
-                              ┌───────────┐    ┌───────────┐
-                              │ 編輯章節  │ ← │ 生成道具圖 │
-                              └───────────┘    └───────────┘
-```
-
-**詳細步驟：**
-1. **匯入小說** - 新建或匯入小說文本（支援TXT、EPUB格式）
-2. **AI解析角色** - 自動提取角色資訊（名稱、描述、外貌特徵）
-3. **AI解析場景** - 自動提取場景資訊（場景名稱、環境描述）
-4. **AI解析道具** - 自動提取道具資訊（道具名稱、外觀描述）
-5. **生成角色圖** - 為每個角色生成 AI 人設圖
-6. **生成場景圖** - 為每個場景生成參考圖
-7. **生成道具圖** - 為每個道具生成參考圖
-8. **編輯章節 / AI拆分分鏡** - 編輯章節內容，AI自動拆分為分鏡
-9. **生成分鏡圖片** - 根據分鏡描述生成場景圖片
-10. **生成音訊** - 為分鏡生成配音/音效（可選）
-11. **生成視訊** - 使用 Video Director 生成單幀、首尾幀或多關鍵幀分鏡視訊，並合併為完整視訊
-
-**主要特性：**
-- 支持章回體小說解析
-- 角色一致性保持（角色形象在多場景中保持一致）
-- 場景一致性保持（場景環境在多鏡頭中保持一致）
-- 自動分鏡生成和視訊合成
+Video Director 支援多參考圖生影片、影片續生成與時間錨點時序續生成。提示詞、任務、關鍵影格和成果都會保存，方便檢查與重試。
 
 ## 界面預覽
 
@@ -64,26 +33,22 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 
 ## 技術棧
 
-- **前端**: React + TypeScript + Tailwind CSS + Vite
-- **狀態管理**: Zustand（全局狀態 + 國際化/時區狀態）
-- **後端**: FastAPI + SQLAlchemy + SQLite
-- **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **視訊生成**: MiniMax H3 圖生視訊、首尾幀視訊、多關鍵幀視訊
-- **國際化**: 自定義 i18n 實現（5 語言支持）
+- **前端**：React、TypeScript、Tailwind CSS、Vite、Zustand
+- **後端**：FastAPI、SQLAlchemy、SQLite、背景任務與檔案儲存
+- **AI 與媒體**：可設定的 LLM 服務、ComfyUI、FFmpeg；Moss Image 與 Qwen Image 2.1 圖片預設、MiniMax H3 影片預設、Qwen3-TTS 音訊預設
+- **介面**：簡體中文、繁體中文、英文、日文、韓文及可設定時區
 
 ## 主要功能
 
-- **小說管理**: 支持新建、編輯、刪除小說，自動章回體解析
-- **角色庫**: AI 自動解析角色，支持角色形象生成和一致性保持
-- **場景庫**: AI 自動解析場景，支持場景參考圖生成和環境設定
-- **分鏡生成**: AI 自動拆分章節為分鏡，支持批量生成圖片、結構化編輯和狀態恢復
-- **Video Director**: 支持單幀、首尾幀、三關鍵幀、四關鍵幀視訊規劃，保留每次 AI 調用結果和最終 Prompt
-- **視訊合成**: 支持將分鏡視訊和多 Clip 片段合併為完整章節視訊
-- **工作流管理**: 支持自定義 ComfyUI 工作流，節點映射配置
-- **任務隊列**: 後台異步任務處理，支持任務狀態實時監控
-- **預設測試用例**: 內置《小馬過河》《小紅帽》《皇帝的新裝》等測試用例
-- **多語言支持**: 支持簡體中文、繁體中文、英文、日文、韓文介面
-- **時區支持**: 用戶可自定義時區，所有時間顯示按指定時區轉換
+- **小說與章回**：建立、編輯、刪除及匯入 TXT/EPUB；章回解析、批次匯入/拆分、內建範例。
+- **素材庫**：按小說或章回解析角色、場景、道具；產生與管理參考圖、角色音色和參考音訊。
+- **分鏡與圖片**：AI 拆分、人工編輯、批次生圖、參考圖綁定、關鍵影格、單圖/多圖編輯、AI 圖片品質評審與高清重繪。
+- **Video Director**：規劃分鏡與 Clip，支援多參考圖、續生成和時間錨點；保存提示詞、LLM 日誌、任務與成果。
+- **Clip 執行檢查**：按時間軸與影格查看生成證據、來源素材及觀察紀錄。
+- **音訊與交付**：可選的音色設計與語音生成；合併 Clip、章回和小說影片，預覽首次出鏡姓名牌、製作封面及上傳 YouTube。
+- **工作流程與提示詞**：管理 ComfyUI 系統/自訂工作流程、節點映射、匯入/匯出與提示詞範本。
+- **任務與通知**：背景佇列、重試與恢復；業務事件、頁面提示音及飛書/Telegram 通知。
+- **多語言與時區**：五種介面語言，依使用者時區顯示時間。
 
 ## 專案結構
 
@@ -103,7 +68,7 @@ AI-NovelFlow/
 │   ├── workflows/       # ComfyUI 工作流配置
 │   ├── user_workflows/  # 用戶自定義工作流
 │   ├── user_story/      # 生成的圖片/視訊存儲目錄
-│   └── main.py
+│   └── run_server.py
 ├── frontend/            # React 前端
 │   └── my-app/
 │       ├── src/
@@ -151,67 +116,16 @@ npm run dev
 
 ### 1. LLM API 配置
 
-支持多種 LLM 提供商：
-- **DeepSeek**（預設）: https://api.deepseek.com
-- **OpenAI**: https://api.openai.com
-- **Gemini**: https://generativelanguage.googleapis.com
-- **Anthropic**: https://api.anthropic.com
-- **Azure OpenAI**: 自定義 Azure 端點
-
-在【系統配置】頁面設置 API Key 和代理（如需）。
+【系統設定】提供 DeepSeek、OpenAI、Gemini、Anthropic、Azure OpenAI、阿里雲百煉、Ollama 與相容 OpenAI API 的自訂服務預設。依所選服務填入 API 位址、模型及金鑰；Ollama 等本地服務可依實際設定使用。也可設定代理，並在【提示詞設定】管理製作階段的範本。
 
 ### 2. ComfyUI 配置
 
-- **ComfyUI 地址**: 預設 http://localhost:8188
-- **工作流配置**: 支持上傳自定義工作流，需配置節點映射
-  - 人設生成: 提示詞節點 + 圖片保存節點
-  - 場景生成: 提示詞節點 + 圖片保存節點 + 寬高節點
-  - 分鏡生圖: 提示詞節點 + 圖片保存節點 + 寬高節點
-  - 單幀生視訊: 提示詞節點 + 視訊保存節點 + 參考圖節點 + 時長節點
-  - 首尾幀生視訊: 提示詞節點 + 首幀圖節點 + 尾幀圖節點 + 視訊保存節點 + 時長節點
-  - 三/四關鍵幀生視訊: 提示詞節點 + 起始參考圖節點 + 關鍵幀節點 + 視訊保存節點 + 時長節點
-  - 關鍵幀生圖: 提示詞節點 + 圖片保存節點 + 參考圖節點
+- 預設位址：`http://localhost:8188`，可在【系統設定】修改。
+- 系統預設 JSON 位於 `backend/workflows/`，註冊規則與節點映射見 `backend/app/constants/workflow.py`；上傳的工作流程位於 `backend/user_workflows/`。介面可匯入、匯出、切換工作流程並設定提示詞、參考圖、時長和輸出節點。
+- 圖片預設涵蓋 Moss Image T2I 角色四視圖/場景/道具，以及 Qwen Image 2.1 分鏡、關鍵影格、單圖與多圖編輯。影片預設涵蓋 MiniMax H3 多參考圖、影片續生成、時序續生成、第二遍採樣與 3D latent 放大。音訊工作流程另有 Qwen3-TTS。
+- 實際啟用項取決於資料庫設定；`debug/workflows/` 為除錯範例，不會自動註冊為系統預設。
 
-系統工作流位於 `backend/workflows/`，應用啟動時按 `backend/app/constants/workflow.py` 註冊和選擇預設工作流。`backend/user_workflows/` 存放用戶上傳工作流。`debug/workflows/MiniMax H3/` 僅用於調試和工作流對照，不作為系統預設工作流載入。
-
-#### 2.1 模型文件
-
-目錄以 `ComfyUI/models/...` 為基準；如果你用的是 ComfyUI-Manager，一般也按這些目錄掃描。
-
-| 模型文件名 | 類型 | 主要用途 | 出現的工作流 | 建議目錄 |
-|-----------|------|---------|-------------|---------|
-| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 參考圖生視訊主模型 | 單幀、首尾幀、三關鍵幀、四關鍵幀視訊工作流 | `models/diffusion_models/` |
-| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 文本/視覺編碼 | MiniMax H3 視訊工作流 | `models/text_encoders/` |
-| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 視訊 VAE | MiniMax H3 視訊工作流 | `models/vae/` |
-| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 音訊 VAE | MiniMax H3 視訊工作流 | `models/vae/` |
-| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 加速 LoRA | MiniMax H3 加速工作流 | `models/loras/` |
-| `ae.safetensors` | VAE / AE | 在 Z-image-turbo 及部分預設人設流程裡作為 VAE/AE | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 圖像編輯/分鏡生圖 UNet | 分鏡圖、關鍵幀圖、人設預設流程 | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 的 VAE | Flux2-Klein 圖像編輯/分鏡生圖工作流 | `models/vae/` |
-| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 文本編碼 | Flux2-Klein 圖像編輯/分鏡生圖工作流 | `models/clip/` |
-| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 圖像編輯 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/diffusion_models/` |
-| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4 步加速 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/loras/` |
-| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 分鏡參考圖工作流 | `models/vae/` |
-| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 文本/視覺編碼 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/clip/` |
-| `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 單圖生成 UNet | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/unet/` |
-| `qwen_3_4b.safetensors` | text encoder | Z-image-turbo 文本編碼 | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/clip/` |
-| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | 調試工作流中的本地 LLM Prompt 擴寫 | `debug/workflows/MiniMax H3/` LLM 調試工作流 | `models/LLM/` |
-
-#### 2.2 第三方節點包
-
-| 第三方節點包 | GitHub 倉庫 | 工作流中命中的節點 class_type |
-|-------------|------------|------------------------------|
-| **MiniMax H3** | ComfyUI MiniMax H3 節點 | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
-| **Flux2 / Qwen Image Edit** | 對應 Flux2、Qwen-Edit ComfyUI 節點 | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
-| **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
-| **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
-| **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
-| **Comfyroll** | [Suzie1/ComfyUI_Comfyroll_CustomNodes](https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes) | `CR Prompt Text`, `CR Text` |
-| **FizzNodes / ConcatStringSingle** | [FizzleDorf/ComfyUI_FizzNodes](https://github.com/FizzleDorf/ComfyUI_FizzNodes) | `ConcatStringSingle` |
-| **comfyui-various / JWInteger** | [jamesWalker55/comfyui-various](https://github.com/jamesWalker55/comfyui-various) | `JWInteger` |
-| **ReservedVRAM** | [Windecay/ComfyUI-ReservedVRAM](https://github.com/Windecay/ComfyUI-ReservedVRAM) | `ReservedVRAMSetter` |
-| **Qwen3-VL-Instruct / Qwen3_VQA** | [luvenisSapiens/ComfyUI_Qwen3-VL-Instruct](https://github.com/IuvenisSapiens/ComfyUI_Qwen3-VL-Instruct) | `Qwen3_VQA` |
-| **Comfyui-zhenzhen** | [T8mars/Comfyui-zhenzhen](https://github.com/T8mars/Comfyui-zhenzhen) | `Zhenzhen_nano_banana`, `Zhenzhen API Settings` |
+**模型與節點下載**：[夸克網盤](https://pan.quark.cn/s/2a630b7755ed)。只需安裝所選工作流程 JSON 引用的模型與節點。2026-10-23 的盤點涵蓋 Moss Image、Qwen Image 2.1、本地 Qwen PE 重寫模型，以及 H3 主模型/VAE/LoRA/放大模型和外掛。精確路徑、外掛儲存庫與啟用狀態見 [ComfyUI 工作流程依賴清單](docs/COMFYUI_DEPENDENCIES.md)。
 
 ### 3. Windows GPU 監控（可選）
 
@@ -242,10 +156,7 @@ start.bat
 
 ### 4. 提示詞模板配置
 
-支持自定義：
-- AI 解析角色系統提示詞
-- 角色生成提示詞模板
-- 章節拆分提示詞模板
+可在【提示詞設定】查看系統範本，建立、複製、編輯、匯出自訂範本並綁定小說。範本涵蓋素材解析、分鏡、影片規劃、圖片品質評審等流程；LLM 日誌可追溯實際呼叫。
 
 ### 5. 國際化與時區設置
 
@@ -263,58 +174,24 @@ start.bat
 
 在【系統配置】→【語言與時區】頁面進行設置。
 
-## 開發路線圖
+## 已實作的製作功能
 
-- [x] 專案初始化
-- [x] 基礎頁面（歡迎、配置、小說列表）
-- [x] 後端 API 框架
-- [x] DeepSeek API 集成（文本解析）
-- [x] ComfyUI API 集成（生圖/生視訊）
-- [x] 任務隊列系統
-- [x] 角色庫管理
-- [x] 工作流管理系統
-- [x] JSON 解析日誌
-- [x] 預設測試用例
-- [x] 多語言支持（中/英/日/韓/繁中）
-- [x] 時區支持
-- [x] Video Director（支持單幀、首尾幀、三/四關鍵幀、多 Clip 串行生成）
-- [x] 持久化分鏡圖批量隊列（支持服務重啟恢復和批量取消）
-- [x] 視訊合成功能（支持分鏡視訊、多 Clip 片段合併）
+- [x] 小說與章回管理、角色/場景/道具解析及素材庫
+- [x] 分鏡拆分、批次生圖、圖片評審及高清重繪
+- [x] Video Director、多參考圖/續生成/時序續生成與 Clip 檢查
+- [x] 音訊生成、章回/小說影片合併、姓名牌預覽與封面
+- [x] 工作流程/提示詞管理、任務恢復、事件通知與 YouTube 上傳
+- [x] 五語言介面與時區設定
 
 ## 使用說明
 
-### 1. 新建小說
-- 點擊【新建小說】創建小說
-- 或選擇預設測試用例快速體驗
-
-### 2. AI 解析角色、場景和道具
-- 在小說詳情頁點擊【AI解析角色】提取角色資訊
-- 點擊【AI解析場景】提取場景資訊
-- 點擊【AI解析道具】提取道具資訊
-- 支援指定章節範圍解析，支援增量更新
-
-### 3. 生成角色、場景和道具形象
-- 進入【角色庫】頁面，點擊【AI 生成所有角色形象】
-- 進入【場景庫】頁面，點擊【生成所有場景圖】
-- 進入【道具庫】頁面，點擊【生成所有道具圖】
-
-### 4. 編輯章節與 AI 拆分分鏡
-- 進入【章節生成】頁面，點擊【AI 拆分分鏡】自動拆分為分鏡
-- 進入【章節編輯】頁面編輯章節內容，且編輯時支援增量更新解析角色、場景和道具
-
-### 5. 生成分鏡圖片
-- 點擊【生成全部分鏡圖】創建持久化批量任務
-- 可選擇只生成待生成分鏡，或復用已有 AI 提示詞跳過 LLM
-
-### 6. 生成音訊（可選）
-- 點擊【生成全部音訊】為分鏡生成配音/音效
-
-### 7. 生成視訊
-- 在【視訊生成】中使用 Video Director 規劃視訊模式
-- 單幀模式復用主分鏡圖生成視訊
-- 首尾幀模式復用主分鏡圖作為 START，並先生成 END 關鍵幀圖
-- 多關鍵幀模式按最大片段時長拆分 execution windows，每個 Clip 使用 3 或 4 個關鍵幀串行生成
-- 點擊【合併視訊】將所有片段合成為完整視訊
+1. **準備環境**：啟動後端與前端，在【系統設定】填入 LLM 與 ComfyUI 位址；安裝所選工作流程的模型和節點。
+2. **匯入小說**：建立小說、匯入 TXT/EPUB 或選用範例；需要時批次匯入或拆分章回。
+3. **建立素材庫**：解析角色、場景、道具並生成參考圖；可設計角色音色或上傳參考音訊。
+4. **製作分鏡**：編輯章回，AI 拆分並修正分鏡；生成分鏡圖與關鍵影格、查看圖片評審，必要時高清重繪。
+5. **生成音影片**：按需生成音訊；在 Video Director 選擇工作流程與參考圖，規劃 Clip 並生成或續生成影片。
+6. **檢查與合成**：在任務列表及 Clip 執行檢查器查看狀態、影格與證據；合併 Clip 和章回，按需使用姓名牌預覽。
+7. **交付**：合併小說影片、製作及下載封面；連接 YouTube 後可上傳成片。
 
 ## 貢獻指南
 
