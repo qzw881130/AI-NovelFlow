@@ -50,6 +50,7 @@ export interface NovelVideoCover {
   title: string;
   author: string;
   production: string;
+  createdAt?: string | null;
 }
 
 export interface YoutubeUpload {

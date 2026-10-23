@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, RefreshCw, X } from 'lucide-react';
-import type { NovelVideoMergeHistory } from '../../../api/novels';
+import type { CoverTextStyle, NovelVideoMergeHistory } from '../../../api/novels';
 import { youtubeApi, type YoutubePlaylist, type YoutubeSettings } from '../../../api/youtube';
 import { toast } from '../../../stores/toastStore';
 
@@ -10,23 +10,34 @@ const requireData = <T,>(response: { success: boolean; data?: T; message?: strin
   if (!response.success || !response.data) throw new Error(response.detail || response.message || fallback);
   return response.data;
 };
+const PLAYLIST_STORAGE_KEY = 'novelflow-youtube-last-playlist-id';
+const coverStyleNames: Record<CoverTextStyle, string> = {
+  classic: '经典居中', cinematic: '文学电影', editorial: '左下纪实', vintage: '朱砂旧书',
+};
+const lastPlaylistId = () => {
+  try { return window.localStorage.getItem(PLAYLIST_STORAGE_KEY) || ''; }
+  catch { return ''; }
+};
 
 export function YoutubeUploadModal({ novelId, novelTitle, item, onClose, onUploaded }: {
   novelId: string; novelTitle: string; item: NovelVideoMergeHistory;
   onClose: () => void; onUploaded: () => void;
 }) {
-  const cover = item.covers?.find(value => value.aspectRatio === '16:9' && value.status === 'completed' && value.imageUrl);
+  const covers = (item.covers?.length ? item.covers : item.cover ? [item.cover] : [])
+    .filter(value => value.aspectRatio === '16:9' && value.status === 'completed' && value.imageUrl);
+  const [selectedCoverId, setSelectedCoverId] = useState(covers[0]?.id || '');
+  const cover = covers.find(value => value.id === selectedCoverId) || covers[0];
   const [settings, setSettings] = useState<YoutubeSettings | null>(null);
   const [tab, setTab] = useState<'upload' | 'settings'>('upload');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [redirectUri, setRedirectUri] = useState('');
   const [defaultTags, setDefaultTags] = useState('');
-  const [title, setTitle] = useState(`${novelTitle} · ${item.chapters.map(c => `第${c.number}章`).join('、')}`.slice(0, 100));
+  const [title, setTitle] = useState(novelTitle.slice(0, 100));
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [privacyStatus, setPrivacyStatus] = useState<'private' | 'unlisted' | 'public'>('private');
-  const [playlistId, setPlaylistId] = useState('');
+  const [playlistId, setPlaylistId] = useState(lastPlaylistId);
   const [playlists, setPlaylists] = useState<YoutubePlaylist[]>([]);
   const [busy, setBusy] = useState(false);
   const [playlistsBusy, setPlaylistsBusy] = useState(false);
@@ -56,10 +67,21 @@ export function YoutubeUploadModal({ novelId, novelTitle, item, onClose, onUploa
   const loadPlaylists = async () => {
     setPlaylistsBusy(true);
     try {
-      setPlaylists(requireData(await youtubeApi.playlists(), '读取播放列表失败'));
+      const available = requireData(await youtubeApi.playlists(), '读取播放列表失败');
+      setPlaylists(available);
+      setPlaylistId(previous => !previous || available.some(list => list.id === previous) ? previous : '');
+      const stored = lastPlaylistId();
+      if (stored && !available.some(list => list.id === stored)) {
+        try { window.localStorage.removeItem(PLAYLIST_STORAGE_KEY); } catch { /* Storage may be disabled. */ }
+      }
     } catch (error) {
       toast.error(errorText(error));
     } finally { setPlaylistsBusy(false); }
+  };
+
+  const selectPlaylist = (id: string) => {
+    setPlaylistId(id);
+    try { window.localStorage.setItem(PLAYLIST_STORAGE_KEY, id); } catch { /* Storage may be disabled. */ }
   };
 
   useEffect(() => {
@@ -154,11 +176,18 @@ export function YoutubeUploadModal({ novelId, novelTitle, item, onClose, onUploa
             <label className="block">标签（用逗号分隔）<input value={tags} onChange={event => setTags(event.target.value)} className="mt-1 w-full rounded border p-2" /></label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">保存或发布<select value={privacyStatus} onChange={event => setPrivacyStatus(event.target.value as typeof privacyStatus)} className="mt-1 w-full rounded border p-2"><option value="private">私人</option><option value="unlisted">不公开列出</option><option value="public">公开</option></select></label>
-              <label className="block">播放列表 <button type="button" onClick={() => void loadPlaylists()} disabled={playlistsBusy || !settings?.connected} title="刷新播放列表" className="ml-2 align-middle text-blue-600"><RefreshCw className={`h-4 w-4 ${playlistsBusy ? 'animate-spin' : ''}`} /></button><select value={playlistId} onChange={event => setPlaylistId(event.target.value)} className="mt-1 w-full rounded border p-2"><option value="">不加入播放列表</option>{playlists.map(list => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
+              <label className="block">播放列表 <button type="button" onClick={() => void loadPlaylists()} disabled={playlistsBusy || !settings?.connected} title="刷新播放列表" className="ml-2 align-middle text-blue-600"><RefreshCw className={`h-4 w-4 ${playlistsBusy ? 'animate-spin' : ''}`} /></button><select value={playlistId} onChange={event => selectPlaylist(event.target.value)} className="mt-1 w-full rounded border p-2"><option value="">不加入播放列表</option>{playlists.map(list => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
             </div>
             <div className="rounded-lg border p-3">
               <div className="font-medium">视频封面 · 16:9</div>
-              {cover?.imageUrl ? <img src={cover.imageUrl} alt="已生成的 16:9 视频封面" className="mt-2 max-h-52 w-full rounded bg-gray-900 object-contain" /> : <p className="mt-2 text-amber-700">请先在“播放 / 封面”中生成 16:9 封面。</p>}
+              {covers.length > 1 && <div className="mt-2 grid grid-cols-2 gap-2">
+                {covers.map(option => <button key={option.id} type="button" onClick={() => setSelectedCoverId(option.id)} aria-pressed={cover?.id === option.id}
+                  className={`rounded border p-1.5 text-left ${cover?.id === option.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:border-blue-300'}`}>
+                  <img src={option.imageUrl || ''} alt="" className="aspect-video w-full rounded object-cover" />
+                  <span className="mt-1 block truncate text-xs">{coverStyleNames[option.textStyle || 'classic']}{option.createdAt ? ` · ${new Date(option.createdAt).toLocaleString('zh-CN')}` : ''}</span>
+                </button>)}
+              </div>}
+              {cover?.imageUrl ? <div className="mt-2 aspect-video w-full overflow-hidden rounded bg-gray-900"><img src={cover.imageUrl} alt="选中的 16:9 视频封面预览" className="h-full w-full object-cover" /></div> : <p className="mt-2 text-amber-700">请先在“播放 / 封面”中生成 16:9 封面。</p>}
               <p className="mt-2 text-xs text-gray-500">视频包含 AI 生成内容；上传时会向 YouTube 标记合成媒体。此合并视频暂无独立 SRT 字幕。</p>
             </div>
             <button type="button" disabled={busy || !settings?.connected || !cover} onClick={() => void submit()} className="btn-primary inline-flex items-center px-4 py-2">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}上传</button>

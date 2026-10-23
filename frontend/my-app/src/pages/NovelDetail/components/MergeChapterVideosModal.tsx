@@ -99,8 +99,8 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
     || activeCovers.some(cover => cover.aspectRatio === ratio)
     || (currentCover?.status === 'failed' && currentCover.aspectRatio === ratio));
   const visibleCoverRatio = coverTabs.includes(selectedCoverRatio) ? selectedCoverRatio : coverTabs[0];
-  const visibleSavedCover = savedCovers.find(cover => cover.aspectRatio === visibleCoverRatio);
-  const visibleActiveCover = activeCovers.find(cover => cover.aspectRatio === visibleCoverRatio);
+  const visibleSavedCovers = savedCovers.filter(cover => cover.aspectRatio === visibleCoverRatio);
+  const visibleActiveCovers = activeCovers.filter(cover => cover.aspectRatio === visibleCoverRatio);
   const visibleFailedCover = currentCover?.status === 'failed' && currentCover.aspectRatio === visibleCoverRatio ? currentCover : null;
 
   useEffect(() => {
@@ -166,7 +166,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
   const submitCover = async () => {
     if (!currentPlayingItem) return;
     if (!coverTitle.trim() || !coverAuthor.trim() || !coverProduction.trim()) {
-      toast.error('请填写封面标题、原作者和制作');
+      toast.error('请填写封面标题、原　著和制作');
       return;
     }
     setGeneratingCover(true);
@@ -462,8 +462,8 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                     <label className="block text-sm font-medium text-gray-800">标题
                       <input value={coverTitle} maxLength={100} onChange={event => setCoverTitle(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="小说名" />
                     </label>
-                    <label className="block text-sm font-medium text-gray-800">原作者
-                      <input value={coverAuthor} maxLength={100} onChange={event => setCoverAuthor(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="原作者" />
+                    <label className="block text-sm font-medium text-gray-800">原　著
+                      <input value={coverAuthor} maxLength={100} onChange={event => setCoverAuthor(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="原　著" />
                     </label>
                     <label className="block text-sm font-medium text-gray-800">制作
                       <input value={coverProduction} maxLength={80} onChange={event => setCoverProduction(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal" placeholder="制作单位" />
@@ -475,14 +475,14 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                     {generatingCover
                       ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />}
                     {generatingCover ? '提交中...' : activeCovers.some(cover => cover.aspectRatio === aspectRatio)
-                      ? '再提交该比例封面' : savedCovers.some(cover => cover.aspectRatio === aspectRatio) ? '重新生成该比例封面' : '生成视频封面'}
+                      ? '再提交该比例封面' : savedCovers.some(cover => cover.aspectRatio === aspectRatio) ? '新增该比例封面' : '生成视频封面'}
                   </button>
                 </div>
               </div>
               <aside className="flex flex-col border-t bg-gray-50 p-5 lg:border-t-0">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h4 className="font-medium text-gray-900">视频封面</h4>
-                  {savedCovers.length > 0 && <span className="text-xs text-gray-500">已保存 {savedCovers.length} 种比例</span>}
+                  {savedCovers.length > 0 && <span className="text-xs text-gray-500">已保存 {savedCovers.length} 张封面</span>}
                 </div>
                 {coverTabs.length > 0 && <div role="tablist" aria-label="视频封面比例" className="mb-3 flex flex-wrap gap-2">
                   {coverTabs.map(ratio => <button key={ratio} type="button" role="tab"
@@ -499,33 +499,35 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                       tabs?.[next]?.focus();
                     }}
                     className={`rounded-md border px-3 py-1.5 text-sm ${visibleCoverRatio === ratio ? 'border-blue-500 bg-blue-50 font-medium text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                    {ratio}{activeCovers.some(cover => cover.aspectRatio === ratio) && <Loader2 className="ml-1 inline h-3 w-3 animate-spin" />}
+                    {ratio}{savedCovers.filter(cover => cover.aspectRatio === ratio).length > 0 && ` (${savedCovers.filter(cover => cover.aspectRatio === ratio).length})`}{activeCovers.some(cover => cover.aspectRatio === ratio) && <Loader2 className="ml-1 inline h-3 w-3 animate-spin" />}
                   </button>)}
                 </div>}
                 <div id="selected-video-cover" role="tabpanel" aria-label={visibleCoverRatio ? `${visibleCoverRatio} 视频封面` : '视频封面'}>
-                {visibleActiveCover && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />{visibleActiveCover.currentStep || (visibleActiveCover.status === 'pending' ? '等待生成...' : '正在生成封面...')}
+                {visibleActiveCovers.map(cover => (
+                  <div key={cover.id} className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />{coverStyleName(cover.textStyle)} · {cover.currentStep || (cover.status === 'pending' ? '等待生成...' : '正在生成封面...')}
                   </div>
-                )}
+                ))}
                 {visibleFailedCover && (
                   <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                     {visibleFailedCover.errorMessage || '封面生成失败，请重试'}
                   </div>
                 )}
-                {visibleSavedCover ? (
-                  <div className="min-h-0 rounded-lg border border-gray-200 bg-white p-2">
+                {visibleSavedCovers.length > 0 ? (
+                  <div className="space-y-3">
+                  {visibleSavedCovers.map(cover => <div key={cover.id} className="min-h-0 rounded-lg border border-gray-200 bg-white p-2">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-500">文字款式：{coverStyleName(visibleSavedCover.textStyle)}</span>
-                      <a href={novelApi.videoCoverDownloadUrl(novelId, currentPlayingItem.id, visibleSavedCover.id)}
+                      <span className="min-w-0 text-xs text-gray-500">{coverStyleName(cover.textStyle)}<span className="block">{formatDate(cover.createdAt)}</span></span>
+                      <a href={novelApi.videoCoverDownloadUrl(novelId, currentPlayingItem.id, cover.id)}
                         className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"><Download className="h-3.5 w-3.5" />下载</a>
                     </div>
-                    {visibleSavedCover.imageUrl && <button type="button" onClick={() => setPreviewCover(visibleSavedCover)} aria-label={`放大预览 ${visibleSavedCover.aspectRatio} 视频封面`}
+                    {cover.imageUrl && <button type="button" onClick={() => setPreviewCover(cover)} aria-label={`放大预览 ${cover.aspectRatio} ${coverStyleName(cover.textStyle)}视频封面`}
                       className="w-full cursor-zoom-in rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
-                      <img src={visibleSavedCover.imageUrl} alt={`${visibleSavedCover.title} ${visibleSavedCover.aspectRatio} 视频封面`} className="max-h-[55vh] w-full rounded-lg bg-gray-900 object-contain hover:opacity-90" />
+                      <img src={cover.imageUrl} alt={`${cover.title} ${cover.aspectRatio} ${coverStyleName(cover.textStyle)}视频封面`} className="max-h-[55vh] w-full rounded-lg bg-gray-900 object-contain hover:opacity-90" />
                     </button>}
+                  </div>)}
                   </div>
-                ) : !visibleActiveCover && !visibleFailedCover ? (
+                ) : visibleActiveCovers.length === 0 && !visibleFailedCover ? (
                   <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-center text-sm text-gray-500">
                     <ImageIcon className="mb-3 h-8 w-8 text-gray-400" />选好视频帧后生成封面
                   </div>

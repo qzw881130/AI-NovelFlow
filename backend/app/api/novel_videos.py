@@ -18,7 +18,7 @@ from app.repositories.chapter_repository import ChapterRepository
 from app.repositories.workflow import WorkflowRepository
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.novel_video_merge_service import format_novel_video_merge, run_novel_video_merge_task
-from app.services.novel_video_cover_service import COVER_SIZES, enqueue_novel_video_cover_task, format_novel_video_cover
+from app.services.novel_video_cover_service import COVER_SIZES, COVER_TEXT_STYLES, enqueue_novel_video_cover_task, format_novel_video_cover
 from app.services.youtube_upload_service import format_upload
 from app.services.task_service import TaskService
 from app.services.file_storage import file_storage
@@ -133,7 +133,7 @@ def list_novel_video_merges(
     for upload in uploads:
         latest_uploads.setdefault(upload.parent_task_id, upload)
     latest_covers = {}
-    completed_covers_by_ratio = {}
+    completed_covers_by_merge = {}
     active_covers_by_merge = {}
     for cover in covers:
         latest_covers.setdefault(cover.parent_task_id, cover)
@@ -143,18 +143,12 @@ def list_novel_video_merges(
             formatted = format_novel_video_cover(cover)
             ratio = formatted.get("aspectRatio") if formatted else None
             if ratio in COVER_SIZES:
-                by_ratio = completed_covers_by_ratio.setdefault(cover.parent_task_id, {})
-                previous = by_ratio.get(ratio)
-                if previous is None or (cover.completed_at or cover.created_at, cover.id) > (
-                    previous.completed_at or previous.created_at, previous.id
-                ):
-                    by_ratio[ratio] = cover
+                completed_covers_by_merge.setdefault(cover.parent_task_id, []).append(formatted)
     return {"success": True, "data": [
         {
             **format_novel_video_merge(task),
             "cover": format_novel_video_cover(latest_covers.get(task.id)),
-            "covers": [format_novel_video_cover(completed_covers_by_ratio[task.id][ratio])
-                       for ratio in COVER_SIZES if ratio in completed_covers_by_ratio.get(task.id, {})],
+            "covers": completed_covers_by_merge.get(task.id, []),
             "activeCovers": active_covers_by_merge.get(task.id, []),
             "youtubeUpload": format_upload(latest_uploads.get(task.id)),
         }
@@ -188,7 +182,7 @@ async def create_novel_video_cover(novel_id: str, task_id: str, request: Generat
     author = (request.author if request.author is not None else novel.author or "").strip()
     production = (request.production if request.production is not None else config.cover_production or "旺仔有声小说").strip()
     if not title or not author or not production:
-        raise HTTPException(status_code=400, detail="封面标题、原作者和制作均不能为空")
+        raise HTTPException(status_code=400, detail="封面标题、原　著和制作均不能为空")
     cover = Task(
         type="novel_video_cover", status="pending", progress=0,
         created_at=datetime.utcnow(),
@@ -228,9 +222,14 @@ def download_novel_video_cover(novel_id: str, task_id: str, cover_id: str | None
     if not path or not path.is_relative_to(file_storage.base_dir.resolve()) or not path.is_file():
         raise HTTPException(status_code=404, detail="视频封面文件不存在")
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", (novel.title or "").strip()).strip(". ")[:180] or "小说"
-    ratio = json.loads(cover.metadata_json or "{}").get("aspect_ratio")
+    metadata = json.loads(cover.metadata_json or "{}")
+    ratio = metadata.get("aspect_ratio")
     ratio_suffix = f"-{ratio.replace(':', 'x')}" if cover_id and ratio in COVER_SIZES else ""
-    return FileResponse(path, media_type="image/png", filename=f"{title}-视频封面{ratio_suffix}.png")
+    style = metadata.get("text_style", "classic")
+    if style not in COVER_TEXT_STYLES:
+        style = "classic"
+    style_suffix = f"-{style}-{cover.id}" if cover_id else ""
+    return FileResponse(path, media_type="image/png", filename=f"{title}-视频封面{ratio_suffix}{style_suffix}.png")
 
 
 @router.get("/novels/{novel_id}/video-merges/{task_id}/download")

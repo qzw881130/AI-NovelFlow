@@ -61,6 +61,39 @@ def _draw_lines(draw: ImageDraw.ImageDraw, lines: list[str], font: ImageFont.Ima
         draw.text((line_x, line_y), line, font=font, fill=color)
 
 
+def _draw_credits(draw: ImageDraw.ImageDraw, author: str, production: str, serif: bool,
+                  preferred_size: int, x: float, y: float, width: float, height: float,
+                  align: str, color: tuple[int, ...], shadow: bool) -> None:
+    details = [("原　著", author), ("制　作", production)]
+    for size in range(preferred_size, 7, -1):
+        font = _font(size, serif)
+        label_width = max(draw.textlength(label, font=font) for label, _ in details)
+        colon_width = draw.textlength("：", font=font)
+        gap = round(size * 0.12)
+        value_width = width - label_width - colon_width - gap
+        if value_width <= 0:
+            continue
+        value_lines = [_wrap(draw, value, font, value_width) for _, value in details]
+        step = round(size * 1.25)
+        total_height = (sum(len(lines) for lines in value_lines) + 0.2 * (len(details) - 1)) * step
+        if total_height <= height:
+            break
+    else:
+        raise ValueError("封面署名过长，无法放入所选款式")
+
+    widest_value = max(draw.textlength(line, font=font) for lines in value_lines for line in lines)
+    block_width = label_width + colon_width + gap + widest_value
+    label_x = x if align == "left" else x + width - block_width if align == "right" else x + (width - block_width) / 2
+    colon_x = label_x + label_width
+    value_x = colon_x + colon_width + gap
+    current_y = y
+    for (label, _), lines in zip(details, value_lines):
+        _draw_lines(draw, [label], font, step, label_x, current_y, 0, "left", color, shadow)
+        _draw_lines(draw, ["："], font, step, colon_x, current_y, 0, "left", color, shadow)
+        _draw_lines(draw, lines, font, step, value_x, current_y, 0, "left", color, shadow)
+        current_y += (len(lines) + 0.2) * step
+
+
 def _shade(canvas: Image.Image, style: str, group: str) -> Image.Image:
     width, height = canvas.size
     overlay = Image.new("RGBA", canvas.size)
@@ -111,9 +144,9 @@ def draw_styled_cover(canvas: Image.Image, title: str, author: str, production: 
         title_size = round(short * (0.20 if group == "wide" else 0.17))
     elif style == "vintage":
         if group == "wide":
-            x, y, box_width, title_height = width * 0.48, height * 0.11, width * 0.21, height * 0.23
+            x, y, box_width, title_height = width * 0.48, height * 0.18, width * 0.21, height * 0.23
         else:
-            x, y, box_width, title_height = width * 0.13, height * (0.09 if group == "square" else 0.12), width * 0.74, height * 0.18
+            x, y, box_width, title_height = width * 0.13, height * (0.17 if group == "square" else 0.20), width * 0.74, height * 0.18
         align = "center"
         title_color, credit_color, serif = (169, 83, 64, 255), (238, 223, 198, 255), True
         title_size = round(short * (0.16 if group == "wide" else 0.15))
@@ -134,7 +167,6 @@ def draw_styled_cover(canvas: Image.Image, title: str, author: str, production: 
             draw.line((round(line_x), top, round(line_x), bottom), fill=accent,
                       width=max(1, round(width * 0.001)))
 
-    credits = [f"原作者：{author}", f"制作：{production}"]
     if style == "vintage":
         credit_x = width * (0.61 if group == "wide" else 0.10)
         credit_width = width * (0.32 if group == "wide" else 0.80)
@@ -143,13 +175,9 @@ def draw_styled_cover(canvas: Image.Image, title: str, author: str, production: 
     else:
         credit_x, credit_width, credit_align = x, box_width, align
         credit_y = y + len(title_lines) * title_step + height * 0.025
-    credit_font, credit_lines, credit_step = _fit(
-        draw, credits, serif, round(short * 0.033), credit_width, height * 0.97 - credit_y)
-    current_y = credit_y
-    for lines in credit_lines:
-        _draw_lines(draw, lines, credit_font, credit_step, credit_x, current_y,
-                    credit_width, credit_align, credit_color, shadow=style != "vintage")
-        current_y += (len(lines) + 0.2) * credit_step
+    _draw_credits(draw, author, production, serif, round(short * 0.033), credit_x, credit_y,
+                  credit_width, height * 0.97 - credit_y, credit_align, credit_color,
+                  shadow=style != "vintage")
 
     if style == "editorial":
         rule_y = round(credit_y - height * 0.015)

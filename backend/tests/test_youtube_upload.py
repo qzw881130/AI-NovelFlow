@@ -42,9 +42,12 @@ def test_upload_requires_existing_16x9_cover_and_snapshots_it(client, db_session
     wide = Task(type="novel_video_cover", status="completed", novel_id=novel.id,
                 parent_task_id=merge.id, name="16:9", result_url="/api/files/16x9.png",
                 metadata_json=json.dumps({"aspect_ratio": "16:9"}))
-    db_session.add(wide)
+    newer_wide = Task(type="novel_video_cover", status="completed", novel_id=novel.id,
+                      parent_task_id=merge.id, name="16:9 newer", result_url="/api/files/16x9-newer.png",
+                      metadata_json=json.dumps({"aspect_ratio": "16:9", "text_style": "vintage"}))
+    db_session.add_all([wide, newer_wide])
     db_session.commit()
-    response = client.post(endpoint, json=payload)
+    response = client.post(endpoint, json={**payload, "coverId": wide.id})
     assert response.status_code == 200, response.text
     upload = db_session.query(Task).filter(Task.type == "youtube_upload").one()
     assert queued == [upload.id]

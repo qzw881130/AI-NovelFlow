@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 
 import pytest
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw
 
 from app.models.novel import Novel
 from app.models.task import Task
@@ -102,6 +102,36 @@ def test_cover_draws_exact_output_ratio_and_updates_int_nodes(tmp_path):
     assert workflow["3"]["inputs"] == {"Number": "1152"}
 
 
+@pytest.mark.parametrize("text_style", ["classic", "cinematic", "editorial", "vintage"])
+def test_cover_credits_use_full_width_labels_and_aligned_columns(tmp_path, monkeypatch, text_style):
+    source = Image.new("RGB", (64, 64), "#406080")
+    buffer = io.BytesIO()
+    source.save(buffer, format="PNG")
+    drawn_text = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def record_text(draw, xy, text, *args, **kwargs):
+        if kwargs.get("fill") not in {(0, 0, 0, 135), (0, 0, 0, 150)}:
+            drawn_text.append((str(text), xy))
+        return original_text(draw, xy, text, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", record_text)
+    _draw_cover(buffer.getvalue(), tmp_path / f"{text_style}.png", COVER_SIZES["3:4"],
+                "药", "鲁迅", "旺仔有声小说", text_style)
+    assert not any("原作者" in text for text, _ in drawn_text)
+    labels = {text: xy for text, xy in drawn_text if text in {"原　著", "制　作"}}
+    assert labels.keys() == {"原　著", "制　作"}
+    assert labels["原　著"][0] == labels["制　作"][0]
+    assert labels["原　著"][1] < labels["制　作"][1]
+    colons = [xy for text, xy in drawn_text if text == "："]
+    assert len(colons) == 2 and colons[0][0] == colons[1][0]
+    values = {text: xy for text, xy in drawn_text if text in {"鲁迅", "旺仔有声小说"}}
+    assert values["鲁迅"][0] == values["旺仔有声小说"][0]
+    if text_style == "vintage":
+        title_y = next(xy[1] for text, xy in drawn_text if text == "药")
+        assert title_y >= COVER_SIZES["3:4"][1] * 0.19
+
+
 @pytest.mark.parametrize("aspect_ratio", list(COVER_SIZES))
 @pytest.mark.parametrize("text_style", ["cinematic", "editorial", "vintage"])
 def test_cover_text_styles_render_in_each_ratio(tmp_path, aspect_ratio, text_style):
@@ -144,7 +174,7 @@ def test_cover_download_and_content_setting(client, db_session, monkeypatch, tmp
     assert client.get("/api/config/").json()["data"]["coverProduction"] == "测试制作方"
 
 
-def test_merge_history_keeps_latest_successful_cover_for_each_ratio(client, db_session, monkeypatch, tmp_path):
+def test_merge_history_keeps_all_successful_covers_for_each_ratio(client, db_session, monkeypatch, tmp_path):
     novel = Novel(title="药", author="鲁迅")
     db_session.add(novel)
     db_session.flush()
@@ -154,19 +184,19 @@ def test_merge_history_keeps_latest_successful_cover_for_each_ratio(client, db_s
     db_session.flush()
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-    def add_cover(ratio, status, index):
+    def add_cover(ratio, status, index, style="classic"):
         cover = Task(type="novel_video_cover", status=status, novel_id=novel.id,
                      parent_task_id=merge.id, name="视频封面",
                      result_url=f"/api/files/cover-{index}.png" if status == "completed" else None,
-                     metadata_json=json.dumps({"aspect_ratio": ratio}),
+                     metadata_json=json.dumps({"aspect_ratio": ratio, "text_style": style}),
                      created_at=base_time + timedelta(minutes=index))
         db_session.add(cover)
         db_session.flush()
         return cover
 
-    old_landscape = add_cover("16:9", "completed", 1)
-    portrait = add_cover("9:16", "completed", 2)
-    new_landscape = add_cover("16:9", "completed", 3)
+    old_landscape = add_cover("16:9", "completed", 1, "classic")
+    portrait = add_cover("9:16", "completed", 2, "editorial")
+    new_landscape = add_cover("16:9", "completed", 3, "cinematic")
     new_landscape.created_at = old_landscape.created_at
     old_landscape.completed_at = base_time + timedelta(minutes=2)
     new_landscape.completed_at = base_time + timedelta(minutes=3)
@@ -177,30 +207,32 @@ def test_merge_history_keeps_latest_successful_cover_for_each_ratio(client, db_s
     history = client.get(f"/api/novels/{novel.id}/video-merges").json()["data"][0]
     assert history["cover"]["id"] == pending_square.id
     assert [cover["id"] for cover in history["activeCovers"]] == [pending_square.id]
-    assert {cover["aspectRatio"]: cover["id"] for cover in history["covers"]} == {
-        "16:9": new_landscape.id, "9:16": portrait.id,
+    assert {(cover["aspectRatio"], cover["textStyle"], cover["id"]) for cover in history["covers"]} == {
+        ("16:9", "classic", old_landscape.id),
+        ("16:9", "cinematic", new_landscape.id),
+        ("9:16", "editorial", portrait.id),
     }
-    assert old_landscape.id not in [cover["id"] for cover in history["covers"]]
 
     image_paths = {}
-    for cover in (portrait, new_landscape):
+    for cover in (old_landscape, portrait, new_landscape):
         path = tmp_path / f"{cover.id}.png"
         path.write_bytes(cover.id.encode())
         image_paths[cover.result_url] = str(path)
     monkeypatch.setattr("app.api.novel_videos.url_to_local_path", image_paths.get)
     monkeypatch.setattr("app.api.novel_videos.file_storage.base_dir", tmp_path)
-    for cover in (portrait, new_landscape):
+    for cover in (old_landscape, portrait, new_landscape):
         response = client.get(f"/api/novels/{novel.id}/video-merges/{merge.id}/cover/download?cover_id={cover.id}")
         assert response.status_code == 200
         assert response.content == cover.id.encode()
         assert unquote(response.headers["content-disposition"]).endswith(
-            f"药-视频封面-{json.loads(cover.metadata_json)['aspect_ratio'].replace(':', 'x')}.png")
+            f"药-视频封面-{json.loads(cover.metadata_json)['aspect_ratio'].replace(':', 'x')}-{json.loads(cover.metadata_json)['text_style']}-{cover.id}.png")
 
     pending_square.status = "completed"
     pending_square.result_url = "/api/files/cover-square.png"
     db_session.commit()
     history = client.get(f"/api/novels/{novel.id}/video-merges").json()["data"][0]
     assert {cover["aspectRatio"] for cover in history["covers"]} == {"16:9", "9:16", "1:1"}
+    assert len(history["covers"]) == 4
 
 
 @pytest.mark.parametrize("aspect_ratio,expected_size", [("1:1", (1024, 1024)), ("3:4", (864, 1152))])

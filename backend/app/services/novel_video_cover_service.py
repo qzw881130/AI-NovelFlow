@@ -131,7 +131,7 @@ def _draw_cover(image_bytes: bytes, destination: Path, size: tuple[int, int], ti
             lines.append(current)
         return lines
 
-    details = [("原作者", author), ("制　作", production)]
+    details = [("原　著", author), ("制　作", production)]
     detail_size = max(22, round(min(width, height) * 0.035))
     detail_font = load_chinese_font(detail_size)
     label_width = max(draw.textlength(label, font=detail_font) for label, _ in details)
