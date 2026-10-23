@@ -85,7 +85,10 @@ export default function Tasks() {
     const shotMatch = task.name.match(/生成分镜(图|视频|图片):\s*(.+)/);
     if (shotMatch) {
       const type = shotMatch[1] === '视频' ? 'shotVideo' : 'shotImage';
-      return t(`tasks.taskNames.${type}`, { name: convertShotName(shotMatch[2]) });
+      const name = task.type === 'shot_image' && task.chapterNumber != null && /^镜\s*\d+$/.test(shotMatch[2].trim())
+        ? `章回${task.chapterNumber} · ${shotMatch[2].trim()}`
+        : shotMatch[2];
+      return t(`tasks.taskNames.${type}`, { name: convertShotName(name) });
     }
     const transMatch = task.name.match(/生成转场视频:\s*分镜\s*(\d+)\s*→\s*分镜\s*(\d+)/);
     if (transMatch) return t('tasks.taskNames.transitionVideo', { from: transMatch[1], to: transMatch[2] });

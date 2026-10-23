@@ -238,6 +238,7 @@ class TaskRepository:
         chapter_id: str,
         shot_index: int,
         chapter_title: str,
+        chapter_number: int,
         workflow_id: str,
         workflow_name: str,
         shot_id: str = None
@@ -245,7 +246,7 @@ class TaskRepository:
         """创建分镜图片生成任务"""
         task = Task(
             type="shot_image",
-            name=f"生成分镜图: 镜{shot_index}",
+            name=f"生成分镜图: 章回{chapter_number} · 镜{shot_index}",
             description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 生成图片",
             novel_id=novel_id,
             chapter_id=chapter_id,

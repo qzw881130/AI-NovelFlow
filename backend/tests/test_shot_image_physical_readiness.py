@@ -171,6 +171,29 @@ def test_zero_reference_batch_rejected_before_parent_or_child_task_creation(clie
     assert db_session.query(Task).filter(Task.type.in_(["shot_image", "shot_image_batch"])).count() == 0
 
 
+def test_batch_shot_image_task_name_includes_chapter_number(client, db_session):
+    novel, chapter, shot = _create_shot_fixture(db_session)
+    chapter.number = 7
+    shot.index = 7
+    db_session.commit()
+    _add_resources(db_session, novel, scene_image=True)
+
+    with (
+        patch("app.api.shots.url_to_local_path", side_effect=lambda value: value if value else None),
+        patch("app.repositories.workflow_repository.WorkflowRepository.get_active_by_type", return_value=_workflow()),
+        patch("app.api.shots.TaskService.validate_workflow_node_mapping", return_value=(True, "")),
+        patch("app.api.shots.enqueue_shot_image_batch_task"),
+    ):
+        response = client.post(
+            f"/api/novels/{novel.id}/chapters/{chapter.id}/shot-images/batch",
+            json={"shot_ids": [shot.id]},
+        )
+
+    assert response.status_code == 200
+    child = db_session.query(Task).filter_by(type="shot_image", shot_id=shot.id).one()
+    assert child.name == "生成分镜图: 章回7 · 镜7"
+
+
 def test_current_task_failure_projects_failed_shot_and_retains_task_identity(db_session):
     novel, chapter, shot = _create_shot_fixture(db_session)
     task = Task(

@@ -676,6 +676,7 @@ class TestShotImageGeneration:
         assert data["success"] is True
         assert "taskId" in data["data"]
         assert data["data"]["status"] == "pending"
+        assert db_session.get(Task, data["data"]["taskId"]).name == "生成分镜图: 章回1 · 镜1"
 
     def test_shot_image_status_tracking(self, client, db_session):
         """
