@@ -78,7 +78,7 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN video_prompt_language VARCHAR NOT NULL DEFAULT 'en'"))
             db.commit()
         if "comfyui_timeout" not in columns:
-            db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 900"))
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 3600"))
             db.commit()
         if "auto_image_review_enabled" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 0"))
@@ -149,7 +149,7 @@ async def get_config(db: Session = Depends(get_db)):
             "youtubeProxyUrl": config.youtube_proxy_url or "",
             # ComfyUI 配置
             "comfyUIHost": config.comfyui_host,
-            "comfyUITimeout": config.comfyui_timeout or 900,
+            "comfyUITimeout": config.comfyui_timeout or 3600,
             "systemStatusSource": config.system_status_source or "comfyui",
             # 输出配置
             "outputResolution": config.output_resolution,
@@ -193,7 +193,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "youtube_proxy_enabled": bool(config.youtube_proxy_enabled),
             "youtube_proxy_url": config.youtube_proxy_url or "",
             "comfyui_host": config.comfyui_host,
-            "comfyui_timeout": config.comfyui_timeout or 900,
+            "comfyui_timeout": config.comfyui_timeout or 3600,
             "system_status_source": config.system_status_source or "comfyui",
             "output_resolution": config.output_resolution,
             "output_frame_rate": config.output_frame_rate,
@@ -477,7 +477,7 @@ def init_system_config(db: Session) -> None:
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,
         "comfyui_host": config.comfyui_host,
-        "comfyui_timeout": config.comfyui_timeout or 900,
+        "comfyui_timeout": config.comfyui_timeout or 3600,
         "system_status_source": config.system_status_source or "comfyui",
         "output_resolution": config.output_resolution,
         "output_frame_rate": config.output_frame_rate,

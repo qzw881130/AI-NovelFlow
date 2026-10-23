@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     
     # ComfyUI
     COMFYUI_HOST: str = "http://127.0.0.1:8188"
-    COMFYUI_TIMEOUT: int = 900
+    COMFYUI_TIMEOUT: int = 3600
     # Process-only maintenance option; does not disable generation or change saved config.
     COMFYUI_MONITOR_ENABLED: bool = True
     SYSTEM_STATUS_SOURCE: str = "comfyui"
@@ -113,7 +113,7 @@ def reload_settings_from_db(db_config: dict) -> None:
         _settings_instance.COMFYUI_HOST = db_config["comfyui_host"].strip().rstrip("/")
         _comfyui_configured_url = _settings_instance.COMFYUI_HOST
     if db_config.get("comfyui_timeout") is not None:
-        _settings_instance.COMFYUI_TIMEOUT = int(db_config["comfyui_timeout"] or 900)
+        _settings_instance.COMFYUI_TIMEOUT = int(db_config["comfyui_timeout"] or 3600)
     if db_config.get("system_status_source"):
         _settings_instance.SYSTEM_STATUS_SOURCE = db_config["system_status_source"]
     
@@ -172,7 +172,7 @@ def initialize_product_comfyui_config(db=None) -> dict:
         parsed = urlsplit(endpoint)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise RuntimeError("COMFYUI_CONFIG_NOT_INITIALIZED: product ComfyUI endpoint is invalid")
-        reload_settings_from_db({"comfyui_host": endpoint, "comfyui_timeout": row[1] or 900})
+        reload_settings_from_db({"comfyui_host": endpoint, "comfyui_timeout": row[1] or 3600})
         return comfyui_runtime_configuration()
     except Exception:
         _comfyui_configured_url = None

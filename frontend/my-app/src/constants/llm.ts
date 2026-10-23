@@ -34,7 +34,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   coverProduction: '旺仔有声小说',
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
-  comfyUITimeout: 900,
+  comfyUITimeout: 3600,
   systemStatusSource: 'comfyui',
   outputResolution: '1920x1080',
   outputFrameRate: 24,

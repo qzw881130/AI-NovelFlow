@@ -30,6 +30,21 @@ def configure(db, endpoint='http://192.168.50.1:8288'):
     db.commit()
 
 
+def test_comfyui_timeout_defaults_to_60_minutes_without_overwriting_saved_choice(client, db_session):
+    response = client.get('/api/config/')
+    assert response.status_code == 200, response.text
+    assert response.json()['data']['comfyUITimeout'] == 3600
+    assert db_session.query(SystemConfig).filter_by(id='default').one().comfyui_timeout == 3600
+    config.initialize_product_comfyui_config(db_session)
+    assert config.get_settings().COMFYUI_TIMEOUT == 3600
+
+    response = client.post('/api/config/', json={'comfyUITimeout': 900})
+    assert response.status_code == 200, response.text
+    assert client.get('/api/config/').json()['data']['comfyUITimeout'] == 900
+    config.initialize_product_comfyui_config(db_session)
+    assert config.get_settings().COMFYUI_TIMEOUT == 900
+
+
 @pytest.mark.parametrize('timeout', [2700, 3600])
 def test_long_comfyui_timeout_persists_and_reloads(client, db_session, timeout):
     response = client.post('/api/config/', json={'comfyUITimeout': timeout})

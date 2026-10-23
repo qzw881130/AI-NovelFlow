@@ -821,7 +821,7 @@ class TaskService:
 
         queue_info = await self.comfyui_service.get_queue_info()
         now = datetime.utcnow()
-        comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 900) or 900)
+        comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 3600) or 3600)
         llm_timeout = int(getattr(get_settings(), "LLM_TIMEOUT", 300) or 300)
         updated_count = 0
 
