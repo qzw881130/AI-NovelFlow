@@ -999,6 +999,7 @@ async def _prepare_and_enqueue_shot_image_generation(
         chapter_id=chapter_id,
         shot_index=shot_index,
         chapter_title=chapter_title,
+        chapter_number=chapter.number,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
         shot_id=resolved_shot_id,
@@ -1330,7 +1331,7 @@ async def generate_shot_images_batch(
         workflow = item["workflow"]
         task = Task(
             type="shot_image",
-            name=f"生成分镜图: 镜{shot.index}",
+            name=f"生成分镜图: 章回{chapter.number} · 镜{shot.index}",
             description=f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成图片",
             novel_id=novel_id,
             chapter_id=chapter_id,
