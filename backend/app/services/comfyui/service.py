@@ -4,10 +4,15 @@ ComfyUI 服务
 高级业务方法，组合客户端和工作流构建器
 """
 import inspect
+import json
+import random
 from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
 from .workflows import WorkflowBuilder
+from .errors import with_error_stage
+from app.core.config import get_settings
+from app.utils.workflow_seed import randomize_prompt_rewrite_seeds, synchronize_prompt_rewrite_seeds
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -17,9 +22,16 @@ from app.utils.workflow_disconnect import (
 class ComfyUIService:
     """ComfyUI 服务封装"""
     
-    def __init__(self, base_url: str = None):
-        self.client = ComfyUIClient()
+    def __init__(self, base_url: str = None, *, runtime_mode: str = "product", db=None):
+        self.client = (ComfyUIClient.for_product_runtime(db) if runtime_mode == "product"
+                       else ComfyUIClient(runtime_mode=runtime_mode, base_url=base_url))
+        if base_url is not None and runtime_mode == "product":
+            raise ValueError("Use canonical product config, or explicitly select standalone mode")
         self.builder = WorkflowBuilder()
+
+    @staticmethod
+    def _error_fields(result):
+        return {"comfyui_error": result["comfyui_error"]} if result and result.get("comfyui_error") else {}
 
     @staticmethod
     def _notify_prompt_queued(callback, prompt_id: str, workflow: Dict[str, Any]) -> None:
@@ -38,6 +50,51 @@ class ComfyUIService:
                 callback(prompt_id)
         except (TypeError, ValueError):
             callback(prompt_id)
+
+    @staticmethod
+    def _randomize_prompt_rewrite_seeds(workflow: Dict[str, Any]) -> bool:
+        """Keep Qwen PE and sampler seeds equal on a format-failure retry."""
+        return randomize_prompt_rewrite_seeds(workflow)
+
+    async def retry_prompt_rewrite_format_failure(
+        self,
+        result: Dict[str, Any],
+        workflow: Dict[str, Any],
+        save_image_node_id: Optional[str],
+        on_prompt_queued=None,
+    ) -> Dict[str, Any]:
+        """Retry an image workflow once when Qwen PE returns malformed output."""
+        if not isinstance(result, dict):
+            return result
+        error_message = str(result.get("message") or "")
+        if result.get("success") or not (
+            "format validation" in error_message.lower()
+            or "thinking block" in error_message.lower()
+        ):
+            return result
+        if not self._randomize_prompt_rewrite_seeds(workflow):
+            return result
+
+        queue_result = await self.client.queue_prompt(workflow)
+        retry_prompt_id = queue_result.get("prompt_id") if queue_result.get("success") else None
+        if not retry_prompt_id:
+            return result
+
+        self._notify_prompt_queued(on_prompt_queued, retry_prompt_id, workflow)
+        retry_result = await self.client.wait_for_result(
+            retry_prompt_id,
+            workflow,
+            save_image_node_id,
+            timeout=7200,
+        )
+        return {
+            **self._error_fields(retry_result),
+            "success": retry_result.get("success") if retry_result else False,
+            "image_url": retry_result.get("image_url") if retry_result else None,
+            "message": str(retry_result.get("message") or "") if retry_result else "",
+            "submitted_workflow": workflow,
+            "prompt_id": retry_prompt_id,
+        }
     
     @property
     def base_url(self) -> str:
@@ -72,6 +129,7 @@ class ComfyUIService:
     ) -> Dict[str, Any]:
         """生成角色人设图"""
         try:
+            on_prompt_queued = kwargs.pop("on_prompt_queued", None)
             workflow = kwargs.get('workflow') or self.builder.build_character_workflow(
                 prompt=prompt,
                 workflow_json=workflow_json,
@@ -82,26 +140,36 @@ class ComfyUIService:
                 **{k: v for k, v in kwargs.items() if k != 'workflow'}
             )
             
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):
                 return {
-                    "success": False,
+                    **queue_result,
                     "message": queue_result.get("error", "提交任务失败")
                 }
             
             prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             save_image_node_id = node_mapping.get("save_image_node_id") if node_mapping else None
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
             )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
+            )
             
             return {
+                **self._error_fields(result),
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message", "生成成功" if (result and result.get("success")) else "生成失败")) if result else "生成失败",
-                "submitted_workflow": workflow
+                "submitted_workflow": workflow,
+                "prompt_id": result.get("prompt_id") or prompt_id,
             }
             
         except Exception as e:
@@ -154,14 +222,15 @@ class ComfyUIService:
 
             upload_result = await self.client.upload_image(image_path)
             if not upload_result.get("success"):
-                return {"success": False, "message": upload_result.get("message", "图片上传失败")}
+                return with_error_stage(upload_result, "IMAGE_UPLOAD")
 
             workflow[load_image_node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
             self.builder._set_prompt(workflow, prompt_node_id, prompt)
 
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             if not queue_result.get("success"):
-                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+                return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
 
             prompt_id = queue_result.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
@@ -172,13 +241,20 @@ class ComfyUIService:
                 save_image_node_id,
                 timeout=7200,
             )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
+            )
 
             return {
+                **self._error_fields(result),
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message", "编辑成功" if (result and result.get("success")) else "编辑失败")) if result else "编辑失败",
                 "submitted_workflow": workflow,
-                "prompt_id": prompt_id,
+                "prompt_id": result.get("prompt_id") or prompt_id,
             }
         except Exception as e:
             print(f"[ComfyUI] Edit image failed: {e}")
@@ -238,10 +314,11 @@ class ComfyUIService:
                         print(f"[ComfyUI] Set reference to LoadImage node {node_id}: {filename}")
             
             # 提交任务
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):
-                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+                return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
@@ -249,13 +326,20 @@ class ComfyUIService:
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
             )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
+            )
             
             return {
+                **self._error_fields(result),
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message")) if result and result.get("message") else "",
                 "submitted_workflow": workflow,
-                "prompt_id": prompt_id
+                "prompt_id": result.get("prompt_id") or prompt_id
             }
             
         except Exception as e:
@@ -280,7 +364,10 @@ class ComfyUIService:
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
         keyframe_paths: Optional[List[str]] = None,
-        on_prompt_queued=None
+        reference_image_paths: Optional[List[str]] = None,
+        strict_reference_image: bool = False,
+        on_prompt_queued=None,
+        before_submit=None,
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)
 
@@ -304,25 +391,56 @@ class ComfyUIService:
                 prop_appearances=prop_appearances
             )
 
+            if strict_reference_image:
+                if not character_reference_path:
+                    return {"success": False, "message": "SINGLE_FRAME semantic Clip 缺少 Shot Image"}
+                load_image_nodes = self.builder.prepare_strict_reference_image(workflow)
+                if not load_image_nodes:
+                    return {"success": False, "message": "SINGLE_FRAME semantic Clip workflow 缺少 LoadImage 节点"}
+
             reference_image_node_id = node_mapping.get("reference_image_node_id", "12")
 
-            # 上传参考图片
-            if character_reference_path:
+            # 多参考视频按实际传入图片数量绑定；未传图时断开系统 JSON 中的示例图。
+            if node_mapping.get("load_image_node_1"):
+                paths = reference_image_paths or []
+                if len(paths) > 9:
+                    return {"success": False, "message": "多参考生视频最多支持 9 张参考图"}
+                filenames = []
+                for path in paths:
+                    upload_result = await self.client.upload_image(path)
+                    if not upload_result.get("success"):
+                        return with_error_stage(upload_result, "ORDINARY_REFERENCE_UPLOAD")
+                    filenames.append(upload_result["filename"])
+                self.builder.bind_multi_reference_video_images(workflow, node_mapping, filenames)
+            # 上传现有单帧/多关键帧工作流的起始参考图
+            elif character_reference_path:
                 upload_result = await self.client.upload_image(character_reference_path)
 
                 if upload_result.get("success"):
                     uploaded_filename = upload_result.get("filename")
 
-                    if reference_image_node_id in workflow:
-                        workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
+                    if str(reference_image_node_id) in workflow and workflow[str(reference_image_node_id)].get("class_type") == "LoadImage":
+                        workflow[str(reference_image_node_id)]["inputs"]["image"] = uploaded_filename
                     else:
-                        # 自动查找 LoadImage 节点
-                        for node_id, node in workflow.items():
-                            if node.get("class_type") == "LoadImage":
-                                workflow[node_id]["inputs"]["image"] = uploaded_filename
-                                break
+                        load_image_ids = self.builder.prepare_strict_reference_image(workflow, uploaded_filename) if strict_reference_image else [
+                            str(node_id) for node_id, node in workflow.items()
+                            if node.get("class_type") == "LoadImage"
+                        ]
+                        targets = load_image_ids if strict_reference_image else load_image_ids[:1]
+                        for node_id in targets:
+                            workflow[node_id].setdefault("inputs", {})["image"] = uploaded_filename
                 else:
-                    return {"success": False, "message": f"图片上传失败: {upload_result.get('message')}"}
+                    return with_error_stage(upload_result, "START_IMAGE_UPLOAD")
+            elif strict_reference_image:
+                return {"success": False, "message": "SINGLE_FRAME semantic Clip 的 Shot Image 上传失败"}
+
+            if strict_reference_image and not any(
+                node.get("class_type") == "LoadImage"
+                and node.get("inputs", {}).get("image")
+                for node in workflow.values()
+                if isinstance(node, dict)
+            ):
+                return {"success": False, "message": "Shot Image 未注入 semantic Clip workflow"}
 
             # 上传参考音频并注入工作流
             if reference_audio_path:
@@ -394,11 +512,15 @@ class ComfyUIService:
                         disconnect_reference_chain(workflow, node_id_str)
                         print(f"[ComfyUI] Disconnected {kf_key} {node_id_str} - no image uploaded")
 
+            # Optional contract check after actual upload/binding, before POST.
+            if before_submit:
+                before_submit(workflow, {"reference_filenames": filenames if node_mapping.get("load_image_node_1") else [],
+                                         "temporal_filenames": []})
             # 提交任务
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):
-                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+                return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
@@ -409,6 +531,8 @@ class ComfyUIService:
             )
             video_url = result.get("video_url") or result.get("image_url")
             return {
+                **self._error_fields(result),
+                "comfyui_history": result.get("comfyui_history"),
                 "success": result.get("success") if result else False,
                 "video_url": video_url,
                 "message": str(result.get("message")) if result and result.get("message") else "",
@@ -419,6 +543,82 @@ class ComfyUIService:
         except Exception as e:
             print(f"[ComfyUI] Generate shot video failed: {e}")
             return {"success": False, "message": f"生成失败: {str(e)}"}
+
+    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None, require_native_output=False, before_submit=None):
+        try:
+            workflow_json = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+            upload = await self.client.upload_video(previous_video_path)
+            if not upload.get("success"):
+                return with_error_stage(upload, "PREVIOUS_AV_UPLOAD", upload.get("message") or "Previous AV 上传失败")
+            paths = reference_image_paths or []
+            if len(paths) > 9:
+                return {"success": False, "message": "续生成最多支持 9 张参考图"}
+            reference_filenames = []
+            for path in paths:
+                uploaded = await self.client.upload_image(path)
+                if not uploaded.get("success"):
+                    return with_error_stage(uploaded, "ORDINARY_REFERENCE_UPLOAD", f"参考图上传失败: {uploaded.get('message')}")
+                reference_filenames.append(uploaded["filename"])
+            if capability == "TEMPORAL_EXTEND":
+                uploaded_anchors = []
+                for anchor in anchors or []:
+                    anchor_path = anchor.get("image_path") or anchor.get("image")
+                    if anchor_path and not str(anchor_path).startswith("http"):
+                        upload_anchor = await self.client.upload_image(anchor_path)
+                        if not upload_anchor.get("success"):
+                            return with_error_stage(upload_anchor, "TEMPORAL_ANCHOR_UPLOAD", f"Temporal Anchor 上传失败: {upload_anchor.get('message')}")
+                        anchor = {**anchor, "image": upload_anchor.get("filename")}
+                    uploaded_anchors.append(anchor)
+                workflow = self.builder.build_temporal_extend_workflow(
+                    workflow_json, node_mapping, upload["filename"], duration_seconds, uploaded_anchors,
+                    filename_prefix, prompt, reference_image_filenames=reference_filenames,
+                )
+                # Temporal Extend is stored as a ComfyUI UI graph; /prompt
+                # requires the API graph representation.
+                workflow = self.builder.convert_ui_to_api(workflow)
+            else:
+                workflow = self.builder.build_video_continuation_workflow(
+                    workflow_json,
+                    node_mapping,
+                    upload["filename"],
+                    duration_seconds,
+                    prompt,
+                    filename_prefix,
+                    reference_image_filenames=reference_filenames,
+                )
+            # The configured output is the only workflow interface we rely on.
+            # ComfyUI owns the internal sampler, upscale and finalizer graph.
+            native_output = require_native_output or capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+            result_node_id = str(node_mapping.get("video_save_node_id") or "")
+            if not result_node_id or result_node_id not in workflow:
+                return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
+            if before_submit:
+                before_submit(workflow, {"reference_filenames": reference_filenames,
+                                         "previous_filename": upload["filename"],
+                                         "temporal_filenames": [a["image"] for a in uploaded_anchors] if capability == "TEMPORAL_EXTEND" else []})
+            queued = await self.client.queue_prompt(workflow)
+            if not queued.get("success"):
+                return {**queued, "message": queued.get("error") or "续生成任务提交失败"}
+            prompt_id = queued.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
+            # The native output is the cumulative AV used for the next Clip.
+            # The configured Clip output is saved separately for playback.
+            result = await self.client.wait_for_result(
+                prompt_id,
+                workflow,
+                result_node_id,
+                timeout=int(get_settings().COMFYUI_TIMEOUT),
+                strict_output_node=native_output,
+            )
+            if native_output:
+                if not result.get("success") or not result.get("video_url"):
+                    return {**result, "success": False,
+                            "message": f"NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE: {result.get('message') or 'configured output missing'}",
+                            "prompt_id": prompt_id, "submitted_workflow": workflow}
+                result = {**result, "physical_output_role": "NATIVE_CONTINUITY_OUTPUT", "output_node_id": result_node_id}
+            return {**result, "prompt_id": prompt_id, "submitted_workflow": workflow}
+        except Exception as exc:
+            return {"success": False, "message": str(exc)}
     
     async def generate_transition_video_with_workflow(
         self,
@@ -447,12 +647,12 @@ class ComfyUIService:
             # 上传首帧图片
             first_upload = await self.client.upload_image(first_image_path)
             if not first_upload.get("success"):
-                return {"success": False, "message": f"首帧图片上传失败: {first_upload.get('message')}"}
+                return with_error_stage(first_upload, "START_IMAGE_UPLOAD")
             
             # 上传尾帧图片
             last_upload = await self.client.upload_image(last_image_path)
             if not last_upload.get("success"):
-                return {"success": False, "message": f"尾帧图片上传失败: {last_upload.get('message')}"}
+                return with_error_stage(last_upload, "END_IMAGE_UPLOAD")
             
             # 设置图片节点
             if first_image_node_id in workflow:
@@ -479,7 +679,7 @@ class ComfyUIService:
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):
-                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+                return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
@@ -490,6 +690,7 @@ class ComfyUIService:
             
             video_url = result.get("video_url") or result.get("image_url")
             return {
+                **self._error_fields(result),
                 "success": result.get("success") if result else False,
                 "video_url": video_url,
                 "message": str(result.get("message")) if result and result.get("message") else "",
@@ -572,7 +773,7 @@ class ComfyUIService:
 
             if not queue_result.get("success"):
                 return {
-                    "success": False,
+                    **queue_result,
                     "message": queue_result.get("error", "提交任务失败")
                 }
 
@@ -584,6 +785,7 @@ class ComfyUIService:
             )
 
             return {
+                **self._error_fields(result),
                 "success": result.get("success") if result else False,
                 "audio_url": result.get("audio_url") if result else None,
                 "message": str(result.get("message")) if result and result.get("message") else "生成失败",

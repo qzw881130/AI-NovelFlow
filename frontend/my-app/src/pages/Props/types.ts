@@ -7,13 +7,6 @@ export interface PropWithNovel extends Prop {
   novelName?: string;
 }
 
-export interface PropPrompt {
-  prompt: string;
-  templateName: string;
-  templateId?: string;
-  isSystem?: boolean;
-}
-
 export interface PreviewImageState {
   isOpen: boolean;
   url: string | null;

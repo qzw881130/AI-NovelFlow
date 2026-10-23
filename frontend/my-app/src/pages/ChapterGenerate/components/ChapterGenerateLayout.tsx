@@ -19,6 +19,7 @@ import { shotsApi } from '../../../api/shots';
 import type { Chapter } from '../../../types';
 import { toast } from '../../../stores/toastStore';
 import { DIALOGUE_WARNING_STYLES, getDialogueDurationWarningStats } from '../../../utils';
+import { getSemanticShotStatus, isSemanticShot } from '../../../utils/semanticBatch';
 
 // 布局组件
 import { ThreeColumnLayout } from './ThreeColumnLayout';
@@ -32,6 +33,7 @@ import { ShotSplitTab } from './ShotSplitTab';
 import { AudioGenTab } from './AudioGenTab';
 import { ShotImageGenTab } from './ShotImageGenTab';
 import { VideoGenTab } from './VideoGenTab';
+import { HdRepaintTab } from './HdRepaintTab';
 import { ShotImageList } from './ShotImageList';
 
 interface ChapterGenerateLayoutProps {
@@ -71,11 +73,28 @@ interface ChapterGenerateLayoutProps {
   getSceneImage?: (name: string) => string | null;
   /** 获取道具图片方法 */
   getPropImage?: (name: string) => string | null;
-  /** 章节资源管理弹窗打开回调 */
-  onResourcesManageClick?: () => void;
   /** 图片点击查看大图回调 */
   onImageClick?: (url: string) => void;
 }
+
+const TAB_HASH_KEYS = ['shot_split', 'shot_image', 'audio_gen', 'video_gen', 'hd_repaint'] as const;
+
+const parseTabHash = (): number | null => {
+  const value = new URLSearchParams(window.location.hash.slice(1)).get('tab');
+  const index = TAB_HASH_KEYS.findIndex((key) => key === value);
+  return index >= 0 ? index : null;
+};
+
+const parseShotHash = (): number | null => {
+  const hash = window.location.hash.slice(1).trim();
+  const value = new URLSearchParams(hash).get('shot') || hash.match(/^(?:shot-?|s)?(\d+)$/i)?.[1];
+  if (!value || !/^\d+$/.test(value)) return null;
+  const index = Number(value);
+  return Number.isSafeInteger(index) && index > 0 ? index : null;
+};
+
+const chapterGenerateHash = (tab: number, shotIndex: number) =>
+  `#tab=${TAB_HASH_KEYS[tab] || TAB_HASH_KEYS[0]}&shot=${shotIndex}`;
 
 export function ChapterGenerateLayout({
   chapter: propChapter,
@@ -96,7 +115,6 @@ export function ChapterGenerateLayout({
   getCharacterImage,
   getSceneImage,
   getPropImage,
-  onResourcesManageClick,
   onImageClick,
 }: ChapterGenerateLayoutProps) {
   const { t } = useTranslation();
@@ -108,6 +126,7 @@ export function ChapterGenerateLayout({
   const [openVideoStatsKey, setOpenVideoStatsKey] = useState<string | null>(null);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
+  const pendingTabHashIndexRef = useRef<number | null>(null);
 
   // 使用选择器正确订阅 store 状态
   const storeParsedData = useChapterGenerateStore((state) => state.parsedData);
@@ -155,6 +174,8 @@ export function ChapterGenerateLayout({
 
   // 获取分镜列表（统一使用 store.shots）
   const shots = storeShots;
+  // 页面外层保留了 24px 底部内边距；导航栏固定在视口底部，预留区需扣除这段距离。
+  const bottomNavSpacerHeight = shots.length === 0 ? 'h-[6.5rem]' : bottomNavCollapsed ? 'h-4' : 'h-[9.5rem]';
   const currentShotById = currentShotId ? shots.find((shot) => shot.id === currentShotId) : undefined;
   const currentShot = currentShotById || shots[currentShotIndex - 1];
   const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
@@ -179,10 +200,22 @@ export function ChapterGenerateLayout({
   const videoStats = shots.reduce((stats, shot) => {
     const shotId = String(shot.id || '');
     const plan: any = shot.videoDirectorPlan || {};
+    const isGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+    const isQueued = pendingVideos.has(shotId);
+    if (isSemanticShot(shot)) {
+      const semanticStatus = getSemanticShotStatus(shot, []);
+      if (isGenerating) stats.generating.push(shot);
+      else if (isQueued) stats.queued.push(shot);
+      else if (semanticStatus === 'ASSEMBLED') stats.completed.push(shot);
+      else if (semanticStatus === 'CLIPS_COMPLETE') stats.needsMerge.push(shot);
+      else if (semanticStatus === 'FAILED') stats.failed.push(shot);
+      else if (semanticStatus === 'PARTIAL' || semanticStatus === 'WAITING_REVIEW') stats.pending.push(shot);
+      else stats.pending.push(shot);
+      return stats;
+    }
     const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
     const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
     const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);
-    const isGenerating = generatingVideos.has(shotId) || pendingVideos.has(shotId) || shot.videoStatus === 'generating' || shot.videoStatus === 'pending';
     const isFailed = shot.videoStatus === 'failed';
     const allClipsReady = clips.length > 0 && clips.every((clip: any) => !!(clip.video_url || clip.local_path));
     const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
@@ -190,28 +223,30 @@ export function ChapterGenerateLayout({
     const needsMerge = mode === 'MULTI_KEYFRAME' && allClipsReady && (!hasShotVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
 
     if (isGenerating) stats.generating.push(shot);
+    else if (isQueued) stats.queued.push(shot);
     else if (needsMerge) stats.needsMerge.push(shot);
     else if (hasShotVideo) stats.completed.push(shot);
     else if (isFailed) stats.failed.push(shot);
-    else stats.incomplete.push(shot);
+    else stats.pending.push(shot);
     return stats;
-  }, { completed: [] as any[], generating: [] as any[], failed: [] as any[], needsMerge: [] as any[], incomplete: [] as any[] });
+  }, { completed: [] as any[], generating: [] as any[], queued: [] as any[], failed: [] as any[], needsMerge: [] as any[], pending: [] as any[] });
 
   const renderVideoGenerationStats = () => {
     if (currentTab !== 3 || shots.length === 0) return null;
     const items = [
       ['completed', '已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
       ['generating', '生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
+      ['queued', '队列中', videoStats.queued, 'border-purple-100 bg-purple-50 text-purple-700'],
       ['needsMerge', '待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
       ['failed', '失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
-      ['incomplete', '未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+      ['pending', '待生成', videoStats.pending, 'border-gray-200 bg-gray-50 text-gray-600'],
     ] as const;
 
     return (
-      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
-        <span className="font-medium text-gray-700">视频生成结果</span>
+      <div role="group" aria-label="视频生成结果" data-testid="video-generation-stats" className="relative flex min-w-0 max-w-full flex-wrap items-center gap-1 text-xs">
+        <span className="sr-only">视频生成结果</span>
         {items.map(([key, label, shotItems, className]) => (
-          <span key={key} className="relative inline-flex">
+          <span key={key} className="inline-flex">
             <button
               type="button"
               onClick={() => setOpenVideoStatsKey(openVideoStatsKey === key ? null : key)}
@@ -220,7 +255,7 @@ export function ChapterGenerateLayout({
               {label} {shotItems.length}
             </button>
             {openVideoStatsKey === key && (
-            <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
+            <span className="absolute right-0 top-full z-[90] w-64 max-w-full pt-2">
               <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
                 <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
                 {shotItems.length > 0 ? (
@@ -253,12 +288,12 @@ export function ChapterGenerateLayout({
   const renderQueueStats = () => {
     if (!hasQueueStats) return null;
     return (
-      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+      <div role="group" aria-label="任务队列统计" className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 text-xs text-gray-600">
         <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-blue-700">
-          生成分镜图：待处理 {pendingShots.size} 个
+          生成分镜图：队列中 {pendingShots.size} 个
         </span>
         <span className="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-purple-700">
-          生成视频：待处理 {pendingVideos.size} 个
+          生成视频：队列中 {pendingVideos.size} 个
         </span>
       </div>
     );
@@ -328,31 +363,38 @@ export function ChapterGenerateLayout({
     const content = currentShot?.video_description || '';
     if (!content) return;
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Copy command was rejected');
+      }
       toast.success('已复制视频描述');
-    } catch {
+    } catch (error) {
+      console.error('复制视频描述失败:', error);
       toast.error('复制视频描述失败');
     }
   };
 
   const goToChapter = (chapterId?: string) => {
     if (!id || !chapterId) return;
-    navigate(`/novels/${id}/chapters/${chapterId}/generate`);
+    navigate(`/novels/${id}/chapters/${chapterId}/generate${chapterGenerateHash(currentTab, 1)}`);
   };
 
-  const parseShotHash = () => {
-    const hash = window.location.hash.replace(/^#/, '').trim();
-    const match = hash.match(/^(?:shot-?|s)?(\d+)$/i);
-    if (!match) return null;
-    const index = Number(match[1]);
-    return Number.isFinite(index) && index > 0 ? index : null;
-  };
-
-  const updateShotHash = (index: number) => {
+  const updateChapterHash = (tab: number, index: number) => {
     if (!index) return;
-    const nextHash = `#shot-${index}`;
+    const nextHash = chapterGenerateHash(tab, index);
     if (window.location.hash === nextHash) return;
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${nextHash}`);
   };
 
   const renderChapterContent = () => {
@@ -393,8 +435,12 @@ export function ChapterGenerateLayout({
   useEffect(() => {
     if (id && cid) {
       loadWorkflowState(id, cid);
+      const eventQuery = new URLSearchParams(window.location.search);
+      const requestedTab = parseTabHash() ?? (eventQuery.get('tab') === 'video' ? 3 : null);
+      pendingTabHashIndexRef.current = requestedTab;
+      if (requestedTab !== null) setCurrentTab(requestedTab);
     }
-  }, [id, cid, loadWorkflowState]);
+  }, [id, cid, loadWorkflowState, setCurrentTab]);
 
   useEffect(() => {
     if (!id) return;
@@ -417,7 +463,7 @@ export function ChapterGenerateLayout({
   }, [cid]);
 
   useEffect(() => {
-    if (shots.length === 0) return;
+    if (shots.length === 0 || shots.some((shot) => shot.chapterId !== cid)) return;
     if (!initialShotHashAppliedRef.current) {
       initialShotHashAppliedRef.current = true;
       const hashShotIndex = parseShotHash();
@@ -441,15 +487,23 @@ export function ChapterGenerateLayout({
   }, [shots, currentShotId, currentShotIndex, setCurrentShot]);
 
   useEffect(() => {
-    if (!currentShotIndex || shots.length === 0) return;
+    if (!currentShotIndex || shots.length === 0 || shots.some((shot) => shot.chapterId !== cid)) return;
     const pendingShotHashIndex = pendingShotHashIndexRef.current;
     if (pendingShotHashIndex && currentShotIndex !== pendingShotHashIndex) return;
     if (pendingShotHashIndex === currentShotIndex) pendingShotHashIndexRef.current = null;
-    updateShotHash(currentShotIndex);
-  }, [currentShotIndex, shots.length]);
+    const pendingTabHashIndex = pendingTabHashIndexRef.current;
+    if (pendingTabHashIndex !== null && currentTab !== pendingTabHashIndex) return;
+    pendingTabHashIndexRef.current = null;
+    updateChapterHash(currentTab, currentShotIndex);
+  }, [cid, currentTab, currentShotIndex, shots]);
 
   useEffect(() => {
     const handleHashChange = () => {
+      const hashTabIndex = parseTabHash();
+      if (hashTabIndex !== null) {
+        pendingTabHashIndexRef.current = hashTabIndex;
+        setCurrentTab(hashTabIndex);
+      }
       const hashShotIndex = parseShotHash();
       if (!hashShotIndex || hashShotIndex > shots.length) return;
       const shot = shots[hashShotIndex - 1];
@@ -460,10 +514,10 @@ export function ChapterGenerateLayout({
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [shots, setCurrentShot]);
+  }, [shots, setCurrentShot, setCurrentTab]);
 
   const renderChapterSwitch = () => (
-    <div className="flex items-center gap-2 flex-shrink-0">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <button
         type="button"
         onClick={() => goToChapter(previousChapter?.id)}
@@ -474,6 +528,20 @@ export function ChapterGenerateLayout({
         <ChevronLeft className="h-4 w-4 flex-shrink-0" />
         上一回
       </button>
+      <select
+        aria-label="跳转章回"
+        value={currentChapterIndex >= 0 ? cid : ''}
+        onChange={(event) => goToChapter(event.target.value)}
+        disabled={sortedChapters.length === 0}
+        className="w-48 max-w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      >
+        {currentChapterIndex < 0 && <option value="">选择章回</option>}
+        {sortedChapters.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.number}. {item.title}
+          </option>
+        ))}
+      </select>
       <button
         type="button"
         onClick={() => goToChapter(nextChapter?.id)}
@@ -513,6 +581,7 @@ export function ChapterGenerateLayout({
         // 音频生成 Tab 有自己的三栏布局，左侧栏显示空
         return null;
       case 3: // 视频生成
+      case 4: // 高清重绘
         return (
           <ShotImageList
             shots={shots}
@@ -581,6 +650,14 @@ export function ChapterGenerateLayout({
             shots={shots}
           />
         );
+      case 4: // 高清重绘
+        return (
+          <HdRepaintTab
+            novelId={id || ''}
+            chapterId={cid || ''}
+            shots={shots}
+          />
+        );
       default:
         return <div className="p-4 text-gray-500">请选择一个阶段</div>;
     }
@@ -627,9 +704,9 @@ export function ChapterGenerateLayout({
     return (
       <div className="h-full min-h-0 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
+        <div data-testid="chapter-header" className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex min-w-0 flex-1 basis-80 items-center gap-4">
               <Link
                 to={`/novels/${id}`}
                 className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
@@ -643,29 +720,18 @@ export function ChapterGenerateLayout({
                 <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
+              {renderQueueStats()}
+              <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
               {renderChapterSwitch()}
-              {/* 章节资源管理按钮 */}
-              <button
-                onClick={onResourcesManageClick}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                title="管理本章节使用的角色、场景、道具"
-              >
-                <span>📦</span>
-                章节资源
-              </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* TabNavigation */}
         <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute right-0 top-1">
-              {renderQueueStats()}
-            </div>
-          </div>
+          <TabNavigation />
         </div>
 
         {/* AudioGenTab 完全接管 */}
@@ -690,17 +756,19 @@ export function ChapterGenerateLayout({
         />
 
         {/* 为底部导航预留空间 */}
-        <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
+        <div className={bottomNavSpacerHeight} />
       </div>
     );
   }
 
+  const headerContextStats = renderDialogueWarningStats();
+
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+      <div data-testid="chapter-header" className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 basis-80 items-center gap-4">
             <Link
               to={`/novels/${id}`}
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
@@ -714,32 +782,24 @@ export function ChapterGenerateLayout({
                 <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex min-w-0 max-w-full flex-1 basis-[34rem] flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {renderQueueStats()}
+            {renderVideoGenerationStats()}
+            <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {renderChapterSwitch()}
-            {/* 章节资源管理按钮 */}
-            <button
-              onClick={onResourcesManageClick}
-              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-              title="管理本章节使用的角色、场景、道具"
-            >
-              <span>📦</span>
-              章节资源
-            </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* TabNavigation */}
-      <div className="relative z-[120] flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
-            {renderDialogueWarningStats() || renderVideoGenerationStats()}
-            </div>
-            <div className="absolute right-0 top-1">
-              {renderQueueStats()}
+      <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
+        <TabNavigation />
+        {headerContextStats && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">{headerContextStats}</div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 三栏布局 */}
@@ -767,7 +827,7 @@ export function ChapterGenerateLayout({
       />
 
       {/* 为底部导航预留空间 */}
-      <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
+      <div className={bottomNavSpacerHeight} />
     </div>
   );
 }

@@ -1,0 +1,585 @@
+"""Resolve citations to actual text without rewriting model output or judging AV quality.
+
+Alignment is deliberately narrow: exact text, ordered tokens, or unique long
+literal anchors in one canonical source. It is NOT fuzzy semantic equivalence.
+Resolved misquotes keep a semantic-review flag; ambiguous locations and
+polarity/participant changes remain blocked.
+"""
+import hashlib
+import re
+import copy
+from difflib import SequenceMatcher
+
+TOKEN = re.compile(r'<(?:Subject|Picture)\s+\d+>|\w+(?:[’\']\w+)*', re.UNICODE)
+POLARITY = {'no', 'not', 'never', 'without', 'instead', 'cannot', "can't", "doesn't", "isn't"}
+
+
+def character_name(text):
+    return re.split(r'[,，.;；。:：\n]', text, maxsplit=1)[0].strip()
+
+
+def resolve_authority(authority, supplied_echo):
+    """Canonical/manifest IDs own execution; an LLM echo is only audit metadata.
+
+    Normalize historical Chinese name parsing in a separate view. Never repair
+    an explicit conflicting Subject assignment or mutate the saved model output.
+    """
+    resolved = copy.deepcopy(authority)
+    resolved['subject_bindings'] = {k: character_name(v) for k, v in authority['subject_bindings'].items()}
+    manifest_valid = True
+    for ref in resolved.get('reference_bindings', []):
+        if ref.get('type') != 'CHARACTER_IDENTITY':
+            continue
+        expected = next((s for s, name in resolved['subject_bindings'].items()
+                         if name == ref.get('source_name')), None)
+        if expected and ref.get('subject') is None:
+            ref['subject'] = expected
+        elif expected and ref.get('subject') != expected:
+            manifest_valid = False
+        if not ref.get('subject'):
+            manifest_valid = False
+    differences = []
+    def diff(original, echo, path):
+        if isinstance(original, dict) and isinstance(echo, dict):
+            for key in sorted(set(original) | set(echo)):
+                diff(original.get(key), echo.get(key), path + '.' + key)
+        elif isinstance(original, list) and isinstance(echo, list) and len(original) == len(echo):
+            for i, (a, b) in enumerate(zip(original, echo)):
+                diff(a, b, f'{path}[{i}]')
+        elif original != echo:
+            differences.append({'path': path, 'canonical_value': original, 'echo_value': echo})
+    diff(authority, supplied_echo, 'authority_echo')
+    return {
+        'source': 'CANONICAL_INPUT_AND_REFERENCE_MANIFEST', 'authority': resolved,
+        'echo_status': 'AUTHORITY_ECHO_MISMATCH' if differences else 'EXACT',
+        'echo_differences': differences, 'manifest_subject_consistent': manifest_valid,
+        'model_output_modified': False,
+    }
+
+
+def resolve_excerpt(text, supplied):
+    result = {'supplied_excerpt': supplied, 'excerpt': None, 'start': None, 'end': None,
+              'status': 'UNRESOLVED', 'method': None, 'mismatch': True,
+              'scope_sha256': hashlib.sha256(text.encode()).hexdigest()}
+    if not isinstance(supplied, str) or not supplied.strip():
+        return result
+    exact = list(re.finditer(re.escape(supplied), text))
+    result['locations'] = [{'start': m.start(), 'end': m.end()} for m in exact]
+    if len(exact) == 1:
+        m = exact[0]
+        return {**result, 'excerpt': m[0], 'start': m.start(), 'end': m.end(),
+                'status': 'RESOLVED', 'method': 'EXACT', 'mismatch': False}
+    if exact:
+        return {**result, 'status': 'AMBIGUOUS'}
+    tokens = list(TOKEN.finditer(text));wanted = [m[0].casefold() for m in TOKEN.finditer(supplied)]
+    if not wanted:
+        return result
+    candidates = []
+    for start, token in enumerate(tokens):
+        if token[0].casefold() != wanted[0]:
+            continue
+        cursor = start;extra = []
+        for word in wanted:
+            while cursor < len(tokens) and tokens[cursor][0].casefold() != word:
+                extra.append(tokens[cursor][0].casefold());cursor += 1
+            if cursor == len(tokens):
+                break
+            cursor += 1
+        else:
+            begin,end=tokens[start].start(),tokens[cursor-1].end()
+            # CJK clauses can be one token each; permit a short omitted clause
+            # even when the quote has only a few tokens. Still require every
+            # supplied token in order and one unique bounded source span.
+            if '\n\n' in text[begin:end] or len(extra) > min(12, max(2, len(wanted)//4)):
+                continue
+            if any(t in POLARITY or t.startswith('<') or t.isdigit()
+                   or re.search(r'不|没|无|禁止|而非|改为', t) for t in extra):
+                continue
+            # Include adjacent terminal punctuation, but never synthesize text.
+            while end < len(text) and text[end] in '.,;:!?。！？':
+                end += 1
+            candidates.append((begin,end))
+    if len(candidates) == 1:
+        start,end=candidates[0]
+        return {**result, 'excerpt': text[start:end], 'start': start, 'end': end,
+                'status': 'RESOLVED', 'method': 'TOKEN_SUPERSEQUENCE'}
+    return {**result, 'status': 'AMBIGUOUS' if candidates else 'UNRESOLVED'}
+
+
+def resolve_canonical_excerpt(text, requirement, authority):
+    """Resolve repeated event clauses using canonical ownership, not equality alone.
+
+    All exact locations survive. A CVR can select explicit event IDs, or explicitly
+    cover all of a named speaker's utterances. Unscoped repeated prose remains
+    ambiguous; this is not a general natural-language semantic equivalence test.
+    """
+    result = resolve_excerpt(text, requirement.get('source_excerpt'))
+    locations = result.get('locations') or []
+    if not locations:
+        if result['status'] == 'UNRESOLVED':
+            ellipsis = _resolve_explicit_ellipsis(text, requirement, authority, result)
+            if ellipsis is not None:
+                return ellipsis
+            terminal = _resolve_terminal_quote(text, requirement, authority, result)
+            if terminal is not None:
+                return terminal
+            fragments = _resolve_canonical_fragments(text, requirement, authority, result)
+            if fragments['status'] == 'UNRESOLVED' and fragments.get('reason') == 'MISSING_WHOLE_FRAGMENT':
+                anchored = _resolve_anchored_canonical_citation(text, requirement, authority, fragments)
+                if anchored is not None:
+                    return anchored
+            return fragments
+        return result
+    events = {e['id']: e for e in authority.get('dialogue_events', [])}
+    # Only top-level source headings delimit ownership; an excerpt must stay
+    # entirely within an actual canonical dialogue block, never a later section.
+    headings = list(re.finditer(r'(?m)^([A-Za-z_][\w]*):[ \t]*$', text))
+    owned = []
+    invalid_event = False
+    for location in locations:
+        owner = None
+        for i, h in enumerate(headings):
+            end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+            if h.end() <= location['start'] < location['end'] <= end and re.fullmatch(r'D\d+', h[1]):
+                event = events.get(h[1]);block = text[h.end():end]
+                speaker = re.search(r'(?m)^\s*speaker:\s*(<Subject \d+>)\s*$', block)
+                dialogue = re.search(r'(?m)^\s*exact_dialogue:[ \t]*([^\n]+)', block)
+                if (event and speaker and dialogue and speaker[1] == event['speaker']
+                        and dialogue[1].rstrip() == event['exact_dialogue']):
+                    owner = {'event_id': event['id'], 'speaker': event['speaker']}
+                else:
+                    invalid_event = True
+                break
+        owned.append({**location, **(owner or {}), 'selected': False})
+    result['locations'] = owned
+    if invalid_event:
+        return {**result, 'excerpt': None, 'start': None, 'end': None,
+                'status': 'OWNERSHIP_CONFLICT', 'mismatch': True}
+    if not all('event_id' in loc for loc in owned):
+        if result['status'] == 'AMBIGUOUS':
+            collective = _resolve_collective_motion_locations(text, requirement, authority, result, headings)
+            if collective is not None:
+                return collective
+        return result  # Never promote unknown repeated source scopes.
+    description = str(requirement.get('requirement') or '')
+    subjects = set(re.findall(r'<Subject \d+>', description))
+    quoted_subjects = set(re.findall(r'<Subject \d+>', str(requirement.get('source_excerpt') or '')))
+    requested = set(re.findall(r'\bD\d+\b', description))
+    matched = {loc['event_id'] for loc in owned}
+    owners = {loc['speaker'] for loc in owned if not requested or loc['event_id'] in requested}
+    # Explicit actor and event identity must agree with the immutable canonical
+    # records even when a string is an exact match.
+    invalid = (len(subjects) != 1 or subjects != owners
+               or (quoted_subjects and quoted_subjects != owners)
+               or (requested and not requested <= matched))
+    if invalid:
+        return {**result, 'excerpt': None, 'start': None, 'end': None,
+                'status': 'OWNERSHIP_CONFLICT', 'mismatch': True}
+    if not requested and len(locations) > 1:
+        aggregate = re.search(r'\ball\s+(?:(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
+                              r'(?:utterances|lines|dialogue events)\b', description, re.I)
+        expected = {e['id'] for e in events.values() if e['speaker'] in subjects}
+        if not aggregate or matched != expected:
+            return result
+        count = aggregate[1]
+        if count:
+            words = ['one','two','three','four','five','six','seven','eight','nine','ten']
+            count = int(count) if count.isdigit() else words.index(count.lower()) + 1
+            if count != len(expected):
+                return {**result, 'excerpt': None, 'start': None, 'end': None,
+                        'status': 'OWNERSHIP_CONFLICT', 'mismatch': True}
+        requested = expected
+    elif not requested:
+        requested = matched
+    for loc in owned:
+        loc['selected'] = loc['event_id'] in requested
+    selected = [loc for loc in owned if loc['selected']]
+    return {**result, 'excerpt': text[selected[0]['start']:selected[0]['end']],
+            'start': selected[0]['start'] if len(selected) == 1 else None,
+            'end': selected[0]['end'] if len(selected) == 1 else None,
+            'status': 'RESOLVED', 'method': 'CANONICAL_EVENT_LOCATIONS', 'mismatch': False,
+            'event_ids': [loc['event_id'] for loc in selected]}
+
+
+def _resolve_collective_motion_locations(text, requirement, authority, result, headings):
+    """Locate an identical complete motion rule explicitly asserted for all Subjects.
+
+    Every canonical actor must own one matching row in the same motion_ownership
+    section. This resolves provenance only; it does not prove the CVR's prose.
+    """
+    description = str(requirement.get('requirement') or '')
+    aggregate = re.search(r'\ball\s+(?:(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?subjects\b', description, re.I)
+    if not aggregate or re.search(r'\b(?:except|excluding|other than)\b', description, re.I):
+        return None
+    bindings = authority.get('subject_bindings', {})
+    expected = set(bindings)
+    explicit = set(re.findall(r'<Subject \d+>', description))
+    if not expected or (explicit and explicit != expected):
+        return None
+    count = aggregate[1]
+    if count:
+        words = ['one','two','three','four','five','six','seven','eight','nine','ten']
+        if (int(count) if count.isdigit() else words.index(count.lower()) + 1) != len(expected):
+            return None
+    scopes = [(h.end(), headings[i + 1].start() if i + 1 < len(headings) else len(text))
+              for i,h in enumerate(headings) if h[1] == 'motion_ownership']
+    if len(scopes) != 1:
+        return None
+    begin, end = scopes[0]
+    supplied = requirement['source_excerpt']
+    rows = list(re.finditer(r'(?m)^(<Subject \d+>)[ \t]+—[ \t]+([^:\n]+):[ \t]+([^\n]+)$', text[begin:end]))
+    if len(rows) != len(expected) or {r[1] for r in rows} != expected:
+        return None
+    owned = []
+    for row in rows:
+        if (row[2].strip() != character_name(bindings[row[1]])
+                or row[3].strip().rstrip('.') != supplied.strip().rstrip('.')):
+            return None
+        start = begin + row.start(3)
+        owned.append({'start':start, 'end':start + len(supplied),
+                      'subject':row[1], 'section':'motion_ownership', 'selected':True})
+    # Preserve every exact match; an identical quote in another scope cannot
+    # silently acquire the all-Subjects ownership of these rows.
+    if {(x['start'],x['end']) for x in owned} != {(x['start'],x['end']) for x in result['locations']}:
+        return None
+    return {**result, 'excerpt':text[owned[0]['start']:owned[0]['end']],
+            'start':None, 'end':None, 'locations':owned, 'status':'RESOLVED',
+            'method':'CANONICAL_SUBJECT_LOCATIONS', 'mismatch':False,
+            'subject_ids':[x['subject'] for x in owned], 'semantic_review_required':True}
+
+
+def _resolve_terminal_quote(text, requirement, authority, result):
+    """A misplaced final full stop, not arbitrary sub-clauses or fuzzy matching.
+
+    The ENTIRE supplied quote minus that one mark must exist contiguously at a
+    sentence boundary. Retain the actual same-actor, positive continuation in
+    resolved evidence; never discard a negation or invent a unique occurrence.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    if not quote.endswith('。') or len(quote) < 24:
+        return None
+    literal = quote[:-1]
+    matches = list(re.finditer(re.escape(literal), text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    if match.start() and text[match.start()-1] not in '。；;\n':
+        return None
+    tail = re.match(r'(?:并|且)[^。；;\n]{1,100}[。；;]', text[match.end():])
+    if not tail or re.search(r'不|没|无|禁止|而非|改为|另一个|另一名', tail[0]):
+        return None
+    bindings = authority.get('subject_bindings', {})
+    def actors(value):
+        return {s for s,n in bindings.items() if character_name(n) and character_name(n) in value}
+    requested = {'<Subject '+n+'>' for n in re.findall(r'<?Subject (\d+)>?', str(requirement.get('requirement') or ''))}
+    quoted = actors(literal)
+    if not quoted or requested != quoted or not actors(tail[0]) <= quoted:
+        return None
+    end = match.end() + len(tail[0])
+    span = {'start':match.start(), 'end':match.end(), 'excerpt':literal, 'selected':True}
+    return {**result, 'status':'RESOLVED', 'method':'CANONICAL_TERMINAL_PUNCTUATION',
+            'excerpt':text[match.start():end], 'start':match.start(), 'end':end,
+            'locations':[span], 'resolved_spans':[span], 'mismatch':True,
+            'semantic_review_required':True}
+
+
+def _resolve_explicit_ellipsis(text, requirement, authority, result):
+    """Resolve explicit ellipsis quotes to ordered literal spans, not keywords.
+
+    Short actor labels may precede an omitted positive posture description only
+    within the same actor-led clause. Original excerpts remain unchanged.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    if not re.search(r'…|\.{3,}', quote):
+        return None
+    bindings = {s: character_name(n) for s,n in authority.get('subject_bindings', {}).items()}
+    def participants(value):
+        ids = set(re.findall(r'<Subject \d+>', value))
+        for m in re.finditer(r'\bSubjects?\s+(\d+(?:\s*(?:,|and)\s*\d+)*)', value):
+            ids.update('<Subject '+n+'>' for n in re.findall(r'\d+', m[1]))
+        ids.update(s for s,n in bindings.items() if n and n in value)
+        return ids
+    requested = participants(str(requirement.get('requirement') or ''))
+    fragments = [f.strip() for f in re.split(r'…+|\.{3,}|[;；。!?！？\n]', quote) if f.strip()]
+    quoted = participants(quote)
+    if not requested or not quoted or not quoted <= requested or len(fragments) < 2:
+        return {**result, 'reason':'ELLIPSIS_PARTICIPANTS', 'status':'OWNERSHIP_CONFLICT'}
+    actors = set(bindings.values()) | set(bindings)
+    boundary = '，,;；。.!！?？\n:：'
+    groups = []
+    for i,f in enumerate(fragments):
+        label = f in actors
+        if len(f) < 6 and not label:
+            return {**result, 'reason':'ELLIPSIS_SHORT_FRAGMENT'}
+        matches = []
+        for m in re.finditer(re.escape(f), text):
+            left = text[:m.start()].rstrip(' \t-');right = text[m.end():].lstrip(' \t')
+            # A temporal connector may sit between the clause boundary and a
+            # quoted action. Keep the literal action, ordered spans and actor
+            # ownership checks below; this does not accept paraphrased text.
+            left_ok = (not left or left[-1] in boundary
+                       or (not label and left.endswith(('并', '，随后', ',随后'))))
+            right_ok = label or not right or right[0] in boundary
+            if left_ok and right_ok:
+                matches.append({'fragment_index':i,'start':m.start(),'end':m.end(),'excerpt':m[0],'selected':False})
+        groups.append(matches)
+    locations = [m for group in groups for m in group]
+    failure = {**result,'locations':locations,'fragments':fragments}
+    if not all(groups):return {**failure,'reason':'MISSING_ELLIPSIS_FRAGMENT'}
+    paths = [[]]
+    for group in groups:
+        next_paths = []
+        for path in paths:
+            for loc in group:
+                if path and path[-1]['end'] > loc['start']:continue
+                if path and path[-1]['excerpt'] in actors:
+                    gap = text[path[-1]['end']:loc['start']]
+                    # Do not let an actor label borrow another actor's action.
+                    if re.search(r'[;；。\n]|不|没|禁止|而非|并非|[,，:：]\s*(?:随后\s*)?(?:' +
+                                 '|'.join(re.escape(n) for n in actors) + ')', gap):continue
+                next_paths.append(path+[loc])
+        paths = next_paths
+        if len(paths)>128:return {**failure,'status':'AMBIGUOUS','reason':'MULTIPLE_ELLIPSIS_PATHS'}
+    if len(paths)!=1:return {**failure,'status':'AMBIGUOUS' if paths else 'UNRESOLVED','reason':'ELLIPSIS_ORDER_OR_OWNER'}
+    chosen=paths[0];start,end=chosen[0]['start'],chosen[-1]['end'];enclosing=text[start:end]
+    if re.search(r'(?m)^\s*(?:D\d+|dialogue_timeline|subject_definitions|motion_ownership):',enclosing):
+        return {**failure,'status':'OWNERSHIP_CONFLICT','reason':'SOURCE_SECTION_BOUNDARY'}
+    for loc in chosen:loc['selected']=True
+    return {**failure,'status':'RESOLVED','method':'CANONICAL_EXPLICIT_ELLIPSIS',
+            'excerpt':enclosing,'start':start,'end':end,'mismatch':True,
+            'resolved_spans':[dict(loc) for loc in chosen],'semantic_review_required':True}
+
+
+def _resolve_canonical_fragments(text, requirement, authority, result):
+    """Exact whole clauses in one source, in order; never search for keywords.
+
+    This conservative fallback handles omitted intervening prose, not paraphrase.
+    Structured event/section boundaries and implicit pronoun ownership need review.
+    The enclosing excerpt is real source text, including omissions; resolved_spans
+    separately identify what the model actually quoted. Neither proves semantics.
+    """
+    supplied = requirement.get('source_excerpt')
+    if not isinstance(supplied, str):
+        return result
+    fragments = [m[0].strip() for m in re.finditer(r'[^;；。.!！?？\n]+', supplied) if m[0].strip()]
+    if len(fragments) < 2:
+        return result
+    boundary = ';；。.!！?？\n:：'
+
+    def subjects(value):
+        found = set(re.findall(r'<Subject \d+>', value))
+        for subject, name in authority.get('subject_bindings', {}).items():
+            name = character_name(name)
+            if name and re.search(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'(?![A-Za-z0-9_])', value):
+                found.add(subject)
+        return found
+
+    requested = subjects(str(requirement.get('requirement') or ''))
+    quoted = set().union(*(subjects(f) for f in fragments))
+    groups = []
+    for index, fragment in enumerate(fragments):
+        matches = []
+        for m in re.finditer(re.escape(fragment), text):
+            left = text[:m.start()].rstrip(' \t\r')
+            right = text[m.end():].lstrip(' \t\r')
+            # Reject arbitrary substring hits, including omission of negation,
+            # an actor prefix or the remainder of a clause.
+            if (left and left[-1] not in boundary) or (right and right[0] not in boundary):
+                continue
+            matches.append({'fragment_index': index, 'start': m.start(), 'end': m.end(),
+                            'excerpt': m[0], 'selected': False})
+        groups.append(matches)
+    locations = [loc for group in groups for loc in group]
+    result = {**result, 'excerpt': None, 'start': None, 'end': None,
+              'status': 'UNRESOLVED', 'method': None, 'mismatch': True,
+              'fragments': fragments, 'locations': locations}
+    if not all(groups):
+        return {**result, 'reason': 'MISSING_WHOLE_FRAGMENT'}
+    if not requested or not quoted or not quoted <= requested:
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'FRAGMENT_PARTICIPANTS'}
+    # A pronoun-only clause cannot acquire a new owner merely by being spliced
+    # after another actor's clause. Keep unsupported implicit attribution blocked.
+    if any(not subjects(f) and re.match(r'(?i)^(?:he|she|they|his|her|their)\b|^[他她它]', f) for f in fragments):
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'IMPLICIT_FRAGMENT_OWNER'}
+    # Keep all exact occurrences. Resolve only a unique ordered path; repeated
+    # clauses with multiple valid positions remain ambiguous, never pick first.
+    paths = [[]]
+    for group in groups:
+        paths = [path + [loc] for path in paths for loc in group
+                 if not path or path[-1]['end'] <= loc['start']]
+        if len(paths) > 128:
+            return {**result, 'status': 'AMBIGUOUS', 'reason': 'MULTIPLE_FRAGMENT_PATHS'}
+    if len(paths) != 1:
+        return {**result, 'status': 'AMBIGUOUS' if paths else 'UNRESOLVED',
+                'reason': 'MULTIPLE_FRAGMENT_PATHS' if paths else 'FRAGMENT_ORDER'}
+    selected = paths[0]
+    start, end = selected[0]['start'], selected[-1]['end']
+    paragraph_start = text.rfind('\n\n', 0, start) + 2
+    enclosing = text[start:end]
+    # Do not combine dialogue events, authority sections, or separate paragraphs.
+    if '\n\n' in enclosing or re.search(r'(?m)^\s*[A-Za-z_][\w]*:[ \t]*$', text[max(0, paragraph_start - 2):end]):
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'SOURCE_SECTION_BOUNDARY'}
+    for loc in selected:
+        # A colon can introduce an actor-owned clause. Never strip that actor.
+        prefix = re.split(r'[;；。.!！?？\n]', text[:loc['start']])[-1]
+        if not subjects(loc['excerpt']) and subjects(prefix) - requested:
+            return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'SOURCE_CLAUSE_OWNER'}
+        loc['selected'] = True
+    return {**result, 'excerpt': enclosing, 'start': start, 'end': end,
+            'status': 'RESOLVED', 'method': 'CANONICAL_ORDERED_SPANS', 'mismatch': True,
+            'resolved_spans': [dict(loc) for loc in selected],
+            'semantic_review_required': True}
+
+
+def _resolve_anchored_canonical_citation(text, requirement, authority, result):
+    """Locate a misquoted multi-clause citation from long, unique literal anchors.
+
+    This only resolves *where* the model appears to cite. It keeps the supplied
+    quote and mismatch for audit; prompt semantics remain subject to the other
+    authority checks and human review. A short or repeated anchor is not enough.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    clauses = [part.strip() for part in re.split(r'[;；。.!！?？\n]', quote) if part.strip()]
+    if len(clauses) < 2 or not text:
+        return None
+    bindings = {s: character_name(n) for s, n in authority.get('subject_bindings', {}).items()}
+    # A numbered actor outside the bound cast cannot be inferred from a nearby
+    # valid camera/action anchor.
+    if any(token not in bindings for token in re.findall(r'<Subject \d+>', quote)):
+        return None
+    for name in bindings.values():
+        stem = re.sub(r'\d+$', '', name)
+        if stem != name and any(candidate not in bindings.values()
+                                for candidate in re.findall(re.escape(stem) + r'\d+', quote)):
+            return None
+    mentioned = {s for s, name in bindings.items() if name and name in quote}
+    requested = {s for s, name in bindings.items()
+                 if s in str(requirement.get('requirement') or '') or (name and name in str(requirement.get('requirement') or ''))}
+    if mentioned and (not requested or not mentioned <= requested):
+        return None
+    if re.search(r'不|没|无|禁止|而非|改为|并非|另一个|另一名', quote):
+        return None
+    spans = []
+    for index, clause in enumerate(clauses):
+        matches = [block for block in SequenceMatcher(None, clause, text, autojunk=False).get_matching_blocks()
+                   if block.size >= 12]
+        if len(matches) != 1:
+            return None
+        block = matches[0]
+        anchor = clause[block.a:block.a + block.size]
+        occurrences = list(re.finditer(re.escape(anchor), text))
+        if len(occurrences) != 1:
+            return None
+        match = occurrences[0]
+        if spans and match.start() < spans[-1]['end']:
+            return None
+        spans.append({'fragment_index': index, 'start': match.start(), 'end': match.end(),
+                      'excerpt': match[0], 'selected': True})
+    start, end = spans[0]['start'], spans[-1]['end']
+    terminal = re.search(r'[。.!！?？\n]', text[end:])
+    if terminal and terminal.start() <= 100:
+        end += terminal.end()
+    if '\n\n' in text[start:end] or end - start > 240:
+        return None
+    if re.search(r'(?m)^\s*[A-Za-z_][\w]*:[ \t]*$', text[start:end]):
+        return None
+    # Most of the supplied quote must be literal canonical text, even though
+    # short connecting phrases may be wrong. Never infer from a few keywords.
+    matched = sum(block.size for block in SequenceMatcher(None, quote, text[start:end], autojunk=False).get_matching_blocks())
+    if matched / len(quote) < 0.7:
+        return None
+    return {**result, 'status': 'RESOLVED', 'method': 'CANONICAL_UNIQUE_CITATION_ANCHORS',
+            'excerpt': text[start:end], 'start': start, 'end': end,
+            'locations': spans, 'resolved_spans': [dict(span) for span in spans],
+            'mismatch': True, 'semantic_review_required': True,
+            'reason': 'UNIQUE_LITERAL_ANCHORS;SUPPLIED_QUOTE_NOT_CANONICAL'}
+
+
+def resolve_output_evidence(prompt, output, authority):
+    from app.services.h3_native_prompt import sections, dialogue_events
+    detail=sections(prompt).get('detailed_description', '');spoken=dialogue_events(prompt)
+    policy=authority.get('anchor_policy') or {}
+    sources={s['id']:s['text'] for s in policy.get('canonical_visual_sources', [])}
+    # Director visual anchors are immutable authority too. A KF citation may
+    # quote its catalog description even when it is not a Transition source.
+    sources.update({a['anchor_id']:a['visual_reference_description']
+                    for a in policy.get('catalog', [])
+                    if a.get('anchor_id') not in sources and a.get('visual_reference_description')})
+    # This catalog is assembled for the executing Clip. Never look in the Shot's
+    # other transitions, the LLM input as a whole, or historical Clip records.
+    clip_scopes={s['id']:(s.get('clip_scope') or {}).get('execution_scope')
+                 for s in policy.get('canonical_visual_sources', [])
+                 if isinstance(s,dict) and s.get('id') in sources
+                 and isinstance(s.get('clip_scope'),dict)}
+
+    def source_evidence(requirement):
+        declared=requirement.get('source_id')
+        quote=requirement.get('source_excerpt')
+        original=resolve_canonical_excerpt(sources.get(declared,''),requirement,authority)
+        entry={**original,'declared_source_id':declared,
+               'resolved_source_id':declared if original['status']=='RESOLVED' else None,
+               'source_excerpt':quote,
+               'resolution_status':'DECLARED_SOURCE' if original['status']=='RESOLVED' else original['status'],
+               'mismatch_reason':original.get('reason') if original['status']!='RESOLVED' else None}
+        # A missing/unknown declared ID, ambiguous citation, or ownership
+        # conflict is not a provenance typo that can be safely reassigned.
+        if declared not in sources or original['status']!='UNRESOLVED' or not isinstance(quote,str) or not quote.strip():
+            return entry
+        candidates=[]
+        for source_id,text in sources.items():
+            if source_id==declared or not isinstance(text,str):
+                continue
+            found=resolve_canonical_excerpt(text,requirement,authority)
+            if found['status']=='RESOLVED' and found['method'] in {'EXACT','CANONICAL_EVENT_LOCATIONS'} and not found['mismatch']:
+                candidates.append((source_id,found,'DECLARED_SOURCE_ID_MISMATCH'))
+        for source_id,text in clip_scopes.items():
+            if not isinstance(text,str):
+                continue
+            found=resolve_excerpt(text,quote)
+            if found['status']=='RESOLVED' and found['method']=='EXACT':
+                candidates.append((source_id+'.clip_scope.execution_scope',found,
+                                   'EXECUTION_SCOPE_QUOTED_AS_CANONICAL_SOURCE'))
+        if len(candidates)!=1:
+            if candidates:
+                entry.update(resolution_status='AMBIGUOUS_AUTHORIZED_SOURCE',
+                             mismatch_reason='MULTIPLE_AUTHORIZED_SOURCE_MATCHES')
+            return entry
+        resolved_id,found,reason=candidates[0]
+        return {**entry,**found,'declared_source_id':declared,
+                'resolved_source_id':resolved_id,'source_excerpt':quote,
+                'resolution_status':'AUTHORIZED_SOURCE_REATTRIBUTED',
+                'mismatch_reason':reason,'declared_status':original['status'],
+                'declared_reason':original.get('reason'),'mismatch':True}
+    entries={}
+    def add(path, text, supplied, scope):
+        entries[path]={**resolve_excerpt(text,supplied), 'scope':scope}
+    for i,r in enumerate(output.get('canonical_visual_requirements') or []):
+        if not isinstance(r,dict):continue
+        source_entry=source_evidence(r)
+        resolved_id=source_entry.get('resolved_source_id') or r.get('source_id')
+        entries[f'requirements.{i}.source'] = {
+            **source_entry,
+            'scope': ('clip_scope:' if isinstance(resolved_id,str) and
+                      resolved_id.endswith('.clip_scope.execution_scope') else 'canonical_source:') + str(resolved_id)}
+        add(f'requirements.{i}.prompt',prompt,r.get('prompt_excerpt'),'optimized_prompt')
+    timeline=output.get('av_timeline') or {}
+    for i,a in enumerate(timeline.get('anchors') or []):
+        if not isinstance(a,dict) or a.get('decision')=='DROP':continue
+        add(f'anchors.{i}.prompt',detail,a.get('prompt_excerpt'),'detailed_description')
+        add(f'anchors.{i}.relation',detail,(a.get('arrival_relation') or {}).get('prompt_excerpt'),'detailed_description')
+    for i,h in enumerate(timeline.get('handoffs') or []):
+        if not isinstance(h,dict):continue
+        index=next((j for j,e in enumerate(timeline.get('dialogue_events') or []) if e.get('id')==h.get('to')),None)
+        if index is None or index>=len(spoken):continue
+        for key,value in (h.get('prompt_evidence') or {}).items():
+            target=index-1 if key=='existing_view_excerpt' else index
+            add(f'handoffs.{i}.{key}',spoken[target]['prelude'],value,f'dialogue_prelude:{target}')
+    return {'version':1,'prompt_sha256':hashlib.sha256(prompt.encode()).hexdigest(),
+            'entries':entries,'mismatches':[path for path,e in entries.items() if e['mismatch']],
+            'unresolved':[path for path,e in entries.items() if e['status']!='RESOLVED'],
+            'semantic_review_required':[path for path,e in entries.items() if e.get('semantic_review_required')],
+            'scope':'Text provenance only; resolved text is not proof of arbitrary semantic equivalence.'}
+
+
+def excerpt(evidence, path):
+    return evidence['entries'].get(path, {}).get('excerpt')

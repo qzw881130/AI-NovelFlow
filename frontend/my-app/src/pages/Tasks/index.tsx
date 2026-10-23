@@ -6,16 +6,24 @@ import { useTasksState } from './hooks/useTasksState';
 import { ImagePreviewModal, VideoPreviewModal } from './components/PreviewModals';
 import { WorkflowViewModal } from './components/WorkflowViewModal';
 import { TaskCard } from './components/TaskCard';
+import { ImageReviewModal } from './components/ImageReviewModal';
 import type { Task } from '../../types';
+import { getCanonicalClipTaskDescription } from './taskExecutionDisplay';
 
 export default function Tasks() {
   const { t, i18n } = useTranslation();
   const [pageSize, setPageSize] = useState(30);
   const [currentPage, setCurrentPage] = useState(1);
+  const [reviewTask, setReviewTask] = useState<Task | null>(null);
   const {
     isLoading,
     filter,
     setFilter,
+    typeFilter,
+    setTypeFilter,
+    total,
+    totalPages,
+    taskTypes,
     refreshing,
     expandedErrors,
     viewingWorkflow,
@@ -43,17 +51,13 @@ export default function Tasks() {
     setPreviewVideo,
     setViewingWorkflow,
     setWorkflowData,
-  } = useTasksState();
+  } = useTasksState({ page: currentPage, pageSize });
 
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
-  const paginatedTasks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTasks.slice(start, start + pageSize);
-  }, [filteredTasks, currentPage, pageSize]);
+  const paginatedTasks = filteredTasks;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, pageSize]);
+  }, [filter, typeFilter, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -65,6 +69,15 @@ export default function Tasks() {
   };
 
   const getTaskDisplayName = (task: Task): string => {
+    if (task.type === 'shot_video' && task.chapterNumber != null) {
+      const oldClipName = task.name.match(/^((?:重新)?生成视频 Clip|实验候选):\s*镜(\d+)\s*·\s*C(\d+)$/);
+      if (oldClipName) {
+        return `${oldClipName[1]}: 章回${task.chapterNumber} · 镜${oldClipName[2]} · C${oldClipName[3]}`;
+      }
+    }
+    if (task.type === 'novel_video') {
+      return task.name.replace(/^合并小说章回视频(?=\s*[:：]|$)/, '合并小说视频');
+    }
     const charMatch = task.name.match(/生成角色形象:\s*(.+)/);
     if (charMatch) return t('tasks.taskNames.characterPortrait', { name: charMatch[1] });
     const editImageMatch = task.name.match(/编辑(角色|场景|道具)图片:\s*(.+)/);
@@ -80,6 +93,8 @@ export default function Tasks() {
   };
 
   const getTaskDisplayDescription = (task: Task): string => {
+    const canonicalDescription = getCanonicalClipTaskDescription(task);
+    if (canonicalDescription !== null) return canonicalDescription;
     if (!task.description) return '';
     const charMatch = task.description.match(/为角色\s*['"](.+)['"]\s*生成人设图/);
     if (charMatch) return t('tasks.taskDescriptions.characterPortrait', { name: charMatch[1] });
@@ -101,14 +116,39 @@ export default function Tasks() {
   const getTaskTypeName = (type: Task['type']) => {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
+      'character_voice': t('tasks.types.characterVoice', { defaultValue: '音色设计' }),
+      'character_audio': t('tasks.types.characterAudio', { defaultValue: '角色音频' }),
+      'narrator_audio': t('tasks.types.narratorAudio', { defaultValue: '旁白音频' }),
+      'scene_image': t('tasks.types.sceneImage'),
+      'prop_image': t('tasks.types.propImage', { defaultValue: '道具图片' }),
       'shot_image': t('tasks.types.shotImage'),
+      'shot_image_batch': t('tasks.types.shotImageBatch', { defaultValue: '批量分镜图片' }),
+      'keyframe_image': t('tasks.types.keyframeImage', { defaultValue: '关键帧图片' }),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
+      'shot_export': 'Shot 生产包导出',
+      'shot_video_batch': t('tasks.types.shotVideoBatch', { defaultValue: '批量分镜视频' }),
+      'shot_video_hd': t('tasks.types.shotVideoHd', { defaultValue: '高清重绘' }),
+      'shot_video_hd_batch': t('tasks.types.shotVideoHdBatch', { defaultValue: '批量高清重绘' }),
       'chapter_video': t('tasks.types.chapterVideo'),
+      'chapter_ai_split_batch': '批量 AI 拆分章回',
+      'chapter_ai_split': 'AI 拆分章回',
+      'novel_video': t('tasks.types.novelVideo', { defaultValue: '合并小说视频' }),
+      'novel_video_cover': '视频封面',
+      'youtube_upload': t('tasks.types.youtubeUpload', { defaultValue: '上传 YouTube' }),
       'transition_video': t('tasks.types.transitionVideo'),
     };
     return names[type] || type;
   };
+
+  const taskTypeOptions = useMemo(() => {
+    const supportedTypes: Task['type'][] = [
+      'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
+      'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
+      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'chapter_ai_split_batch', 'chapter_ai_split', 'novel_video', 'novel_video_cover', 'youtube_upload', 'shot_export',
+    ];
+    return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));
+  }, [taskTypes]);
 
   const getWorkflowDisplayName = (task: Task): string => {
     if (!task.workflowName) return '';
@@ -194,7 +234,7 @@ export default function Tasks() {
 
       <ComfyUIStatus />
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 sm:gap-4">
         {[
           { key: 'all', label: t('tasks.allTasks'), color: 'bg-gray-100' },
           { key: 'pending', label: t('tasks.pending'), color: 'bg-yellow-100 text-yellow-800' },
@@ -217,9 +257,23 @@ export default function Tasks() {
       </div>
 
       <div className="card">
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">{t('tasks.taskList')}</h2>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex min-w-0 flex-wrap items-center gap-3 text-sm text-gray-600">
+            <div className="flex min-w-0 items-center gap-2">
+              <label htmlFor="task-type-filter" className="whitespace-nowrap">{t('tasks.taskType')}</label>
+              <select
+                id="task-type-filter"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                className="min-h-10 min-w-0 max-w-[240px] rounded-lg border border-gray-300 bg-white px-3 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="all">{t('tasks.allTypes', { defaultValue: '全部类型' })}</option>
+                {taskTypeOptions.map(type => (
+                  <option key={type} value={type}>{getTaskTypeName(type as Task['type'])}</option>
+                ))}
+              </select>
+            </div>
             <span>每页</span>
             <select
               value={pageSize}
@@ -231,7 +285,7 @@ export default function Tasks() {
               ))}
             </select>
             <span>条</span>
-            <span className="text-gray-400">共 {filteredTasks.length} 条</span>
+            <span className="text-gray-400">共 {total} 条</span>
           </div>
         </div>
         {isLoading ? (
@@ -242,7 +296,7 @@ export default function Tasks() {
           <div className="text-center py-12">
             <ListTodo className="mx-auto h-12 w-12 text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">{t('tasks.noTasks')}</h3>
-            <p className="mt-1 text-sm text-gray-500">{filter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
+            <p className="mt-1 text-sm text-gray-500">{filter === 'all' && typeFilter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
           </div>
         ) : (
           <>
@@ -256,11 +310,13 @@ export default function Tasks() {
                   onDelete={handleDelete}
                   onRetry={handleRetry}
                   onViewWorkflow={handleViewWorkflow}
+                  onImageReview={setReviewTask}
                   onViewClipWorkflow={handleViewClipWorkflow}
                   onToggleError={toggleErrorDetail}
                   onPreviewImage={openImagePreview}
                   onPreviewImages={openImageGallery}
                   onPreviewVideo={setPreviewVideo}
+                  onNameplateApproved={handleRefresh}
                   fetchImageInfo={fetchImageInfo}
                   getTaskDisplayName={getTaskDisplayName}
                   getTaskDisplayDescription={getTaskDisplayDescription}
@@ -307,8 +363,10 @@ export default function Tasks() {
         loadingWorkflow={loadingWorkflow}
         onClose={() => { setViewingWorkflow(null); setWorkflowData(null); }}
         onPreviewImages={openImageGallery}
+        onPreviewVideo={setPreviewVideo}
         convertShotName={convertShotName}
       />
+      {reviewTask && <ImageReviewModal task={reviewTask} onClose={() => setReviewTask(null)} />}
       {previewImage && (
         <ImagePreviewModal
           imageUrl={previewImage}

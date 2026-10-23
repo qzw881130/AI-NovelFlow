@@ -9,6 +9,7 @@
  */
 
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useChapterGenerateStore, useDataSlice } from '../stores';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -757,8 +758,8 @@ export function ShotSplitTab({
       </div>
 
       {/* 拆分确认对话框 */}
-      {showSplitConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {showSplitConfirm && createPortal((
+        <div className="fixed inset-0 z-[300] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -788,11 +789,11 @@ export function ShotSplitTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* 导入确认对话框 */}
-      {showImportConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {showImportConfirm && createPortal((
+        <div className="fixed inset-0 z-[300] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -824,11 +825,11 @@ export function ShotSplitTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* 结构数据编辑弹窗 */}
-      {showStructureEditor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {showStructureEditor && createPortal((
+        <div className="fixed inset-0 z-[300] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
@@ -941,11 +942,11 @@ export function ShotSplitTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* 删除确认对话框 */}
-      {showDeleteConfirm && deleteShotInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {showDeleteConfirm && deleteShotInfo && createPortal((
+        <div className="fixed inset-0 z-[300] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
@@ -982,7 +983,7 @@ export function ShotSplitTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }

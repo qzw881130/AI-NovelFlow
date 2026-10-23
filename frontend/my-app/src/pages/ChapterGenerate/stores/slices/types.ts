@@ -63,10 +63,13 @@ export interface AudioWarning {
 
 // 关键帧任务
 export interface KeyframeTask {
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  canonicalImageProvenance?: import('../../../../api/shots').CanonicalImageProvenance | null;
   shotId: string;
   frameIndex: number;
   taskId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'queued' | 'processing' | 'running' | 'completed' | 'failed' | 'cancelled';
 }
 
 // 参考音频合并任务
@@ -106,6 +109,12 @@ export interface TransitionWorkflow {
 export interface DataSliceState {
   // 章节数据
   chapter: Chapter | null;
+  chapterMergeStatus: {
+    needsMerge: boolean;
+    reason: 'not_merged' | 'shot_video_newer' | null;
+    shotCount: number;
+    newerShotCount: number;
+  } | null;
   novel: Novel | null;
   parsedData: ParsedData | null;
   editableJson: string;
@@ -240,6 +249,7 @@ export interface ChapterActionsState {
 export interface WorkflowSliceState {
   /** 当前 Tab 索引 (0-3) */
   currentTab: number;
+  hdTargetMegapixels: number;
 
   /** 各 Tab 的完成状态 */
   tabProgress: Record<number, boolean>;
@@ -292,12 +302,13 @@ export interface ChapterGenerateStore
     ShotNavigatorSliceState {
   // ========== Data Actions ==========
   fetchNovel: (novelId: string) => Promise<void>;
-  fetchChapter: (novelId: string, chapterId: string) => Promise<void>;
+  fetchChapter: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
+  fetchChapterMergeStatus: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
   fetchCharacters: (novelId: string) => Promise<void>;
   fetchScenes: (novelId: string) => Promise<void>;
   fetchProps: (novelId: string) => Promise<void>;
   fetchShots: (novelId: string, chapterId: string) => Promise<void>;
-  fetchShotsWithReturn: (novelId: string, chapterId: string) => Promise<Shot[]>;
+  fetchShotsWithReturn: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<Shot[]>;
   setParsedData: (data: ParsedData | null) => void;
   setEditableJson: (json: string) => void;
   setShots: (shots: Shot[]) => void;
@@ -323,7 +334,7 @@ export interface ChapterGenerateStore
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Video Generation Actions ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { optimizeH3Prompt?: boolean; preflightAutoRepair?: boolean; skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
   setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
@@ -371,8 +382,8 @@ export interface ChapterGenerateStore
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
-  checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
-  fetchActiveTasks: (chapterId: string) => Promise<void>;
+  checkKeyframeTaskStatus: (chapterId: string, novelId?: string) => Promise<void>;
+  fetchActiveTasks: (chapterId: string, novelId?: string) => Promise<void>;
 
   // ========== UI Actions ==========
   setActiveTab: (tab: UiSliceState['activeTab']) => void;
@@ -401,6 +412,7 @@ export interface ChapterGenerateStore
 
   // ========== Workflow Actions ==========
   setCurrentTab: (index: number) => void;
+  setHdTargetMegapixels: (value: number) => void;
   markTabComplete: (tabIndex: number) => void;
   resetTabProgress: () => void;
   saveWorkflowState: () => void;

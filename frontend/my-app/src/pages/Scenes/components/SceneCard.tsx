@@ -3,17 +3,17 @@
  */
 import { Loader2, MapPin, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
-import type { Scene, PromptTemplate } from '../../../types';
-import type { ScenePrompt } from '../types';
+import type { Scene } from '../../../types';
+import type { CurrentImageQuality } from '../../../api/imageReviews';
+import { LibraryImageReview } from '../../../components/LibraryImageReview';
 
 interface SceneCardProps {
   scene: Scene;
+  imageQuality?: CurrentImageQuality;
   highlightedId: string | null;
   generatingId: string | null;
   generatingSettingId: string | null;
   uploadingId: string | null;
-  scenePrompt?: ScenePrompt;
-  templateDisplayName: string;
   onDelete: (id: string) => void;
   onEdit: (scene: Scene) => void;
   onGenerateImage: (scene: Scene) => void;
@@ -25,12 +25,11 @@ interface SceneCardProps {
 
 export function SceneCard({
   scene,
+  imageQuality,
   highlightedId,
   generatingId,
   generatingSettingId,
   uploadingId,
-  scenePrompt,
-  templateDisplayName,
   onDelete,
   onEdit,
   onGenerateImage,
@@ -51,12 +50,12 @@ export function SceneCard({
       }`}
     >
       {/* Scene Image */}
-      <div className="relative aspect-video bg-gray-100 w-full">
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
         {scene.imageUrl ? (
           <img
             src={scene.imageUrl}
             alt={scene.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(scene.imageUrl!, scene.name, scene.id)}
           />
         ) : (
@@ -156,6 +155,7 @@ export function SceneCard({
         <h3 className="text-lg font-semibold text-gray-900 truncate">
           {scene.name}
         </h3>
+        {scene.imageUrl && <LibraryImageReview quality={imageQuality} name={`场景图：${scene.name}`} />}
         
         {/* 场景描述 */}
         {scene.description && (
@@ -197,18 +197,6 @@ export function SceneCard({
           </div>
         )}
 
-        {/* 生成提示词 */}
-        {scenePrompt && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-gray-400">{t('scenes.promptLabel')}</p>
-              <span className="text-xs text-gray-400">{templateDisplayName}</span>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
-              {scenePrompt.prompt}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

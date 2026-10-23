@@ -4,11 +4,16 @@ Ollama 提供商
 支持 Ollama 本地模型服务。
 """
 import httpx
+import asyncio
 import os
 import re
 import time
 from typing import Dict, Any, Optional, List
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import attach_image_inputs
+from ..metrics import normalize_metrics
+from ..cancellation import LLMCallTerminated
+from ..http_retry import post_llm_request
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -83,7 +88,9 @@ class OllamaProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        shot_id: str = None,
+        character_id: str = None,
+        images: list | None = None,
     ) -> LLMResponse:
         """
         发送对话请求
@@ -108,6 +115,7 @@ class OllamaProvider(BaseLLMProvider):
         body = self._build_request_body(
             system_prompt, user_content, temperature, max_tokens, response_format
         )
+        body = attach_image_inputs(body, self.config.provider, images)
 
         # Ollama 不需要代理
         old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -128,6 +136,7 @@ class OllamaProvider(BaseLLMProvider):
             payload=body,
             proxy_url=None,
             timeout_seconds=timeout,
+            image_metadata=[{k: v for k, v in item.items() if k != "url"} for item in images or []],
         )
 
         log_id = None
@@ -142,15 +151,14 @@ class OllamaProvider(BaseLLMProvider):
                     task_type=task_type,
                     novel_id=novel_id,
                     chapter_id=chapter_id,
+                    shot_id=shot_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
-                response = await client.post(
-                    endpoint,
-                    headers=headers,
-                    json=body,
-                    timeout=timeout
+                self.last_log_id = log_id
+                response = await post_llm_request(
+                    client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
                 )
 
             # 恢复环境变量
@@ -168,12 +176,14 @@ class OllamaProvider(BaseLLMProvider):
             if response.status_code == 200:
                 data = response.json()
                 content = self._parse_response(data)
+                metrics = normalize_metrics(self.config.provider, data, duration)
 
                 update_llm_log(
                     log_id=log_id,
                     response=content,
                     status="success",
                     duration=duration,
+                    metrics=metrics,
                 )
 
                 return LLMResponse(
@@ -196,6 +206,14 @@ class OllamaProvider(BaseLLMProvider):
                     error=error_msg,
                     duration=duration
                 )
+        except LLMCallTerminated:
+            raise
+        except asyncio.CancelledError:
+            try:
+                update_llm_log(log_id, status="error", error_message="LLM 请求已中断")
+            except LLMCallTerminated:
+                pass
+            raise
         except Exception as e:
             import traceback
             error_type = type(e).__name__
@@ -227,6 +245,11 @@ class OllamaProvider(BaseLLMProvider):
                 error=error_msg,
                 duration=duration
             )
+        finally:
+            for key, value in (("HTTP_PROXY", old_http_proxy), ("HTTPS_PROXY", old_https_proxy),
+                               ("http_proxy", old_http_proxy_lower), ("https_proxy", old_https_proxy_lower)):
+                if value is not None:
+                    os.environ[key] = value
 
     async def get_models(self) -> List[str]:
         """

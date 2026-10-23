@@ -6,10 +6,13 @@ import type { Workflow, AvailableNodes } from '../types';
 
 interface MappingForm {
   promptNodeId: string;
+  appearanceNodeId?: string;
+  styleNodeId?: string;
   saveImageNodeId: string;
   widthNodeId: string;
   heightNodeId: string;
   videoSaveNodeId: string;
+  clipVideoOutputNodeId?: string;
   maxSideNodeId: string;
   megapixelsNodeId: string;
   megapixelsValue: string;
@@ -21,6 +24,8 @@ interface MappingForm {
   sceneReferenceImageNodeId: string;
   propReferenceImageNodeId: string;
   customReferenceImageNodes: string[];
+  multiImageNodeIds?: string[];
+  referenceToVideoNodeId?: string;
   // 音色设计相关节点
   voicePromptNodeId: string;
   refTextNodeId: string;
@@ -33,6 +38,14 @@ interface MappingForm {
   keyframeNodes: string[];
   // 时长秒数节点（视频生成工作流）
   durationSecondsNodeId: string;
+  loadVideoNodeId?: string;
+  scaleNodeId?: string;
+  scaleValue?: string;
+  customKeyframesNodeIds?: string[];
+  secondPassUpscaleStepNodeId?: string;
+  secondPassUpscaleStep?: string;
+  secondPassUpscaleScaleNodeId?: string;
+  secondPassUpscaleScale?: string;
 }
 
 interface MappingModalProps {
@@ -46,6 +59,7 @@ const MEGAPIXEL_OPTIONS = [
   { value: '0.3', output: '736x416' },
   { value: '0.4', output: '864x480' },
   { value: '0.5', output: '960x544' },
+  { value: '0.52', output: '960x544' },
   { value: '0.6', output: '1056x608' },
   { value: '0.7', output: '1152x640' },
   { value: '0.8', output: '1216x672' },
@@ -58,24 +72,30 @@ const MEGAPIXEL_OPTIONS = [
   { value: '2.0', output: '1920x1088' },
 ];
 
-const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video'].includes(type || '');
+const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video', 'multi_reference_video'].includes(type || '');
 const isFirstLastVideoType = (type?: string) => ['transition', 'first_last_video'].includes(type || '');
 const isShotImageType = (type?: string) => ['shot', 'shot_scene', 'shot_character_scene', 'shot_scene_prop'].includes(type || '');
 const getRequiredKeyframeCount = (type?: string) => {
   if (type === 'three_frame_video') return 2;
   if (type === 'four_frame_video') return 3;
+  if (type === 'multi_reference_video') return 8;
   return 0;
 };
-const isMultiFrameVideoType = (type?: string) => ['three_frame_video', 'four_frame_video'].includes(type || '');
+const isMultiFrameVideoType = (type?: string) => ['three_frame_video', 'four_frame_video', 'multi_reference_video'].includes(type || '');
+const mappedUpscaleValue = (nodeId: unknown, value: unknown, allowed: string[]) =>
+  nodeId ? (allowed.includes(String(value)) ? String(value) : '2') : '';
 
 export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps) {
   const { t } = useTranslation();
   const [mappingForm, setMappingForm] = useState<MappingForm>({
     promptNodeId: '',
+    appearanceNodeId: '',
+    styleNodeId: '',
     saveImageNodeId: '',
     widthNodeId: '',
     heightNodeId: '',
     videoSaveNodeId: '',
+    clipVideoOutputNodeId: '',
     maxSideNodeId: '',
     megapixelsNodeId: '',
     megapixelsValue: '0.4',
@@ -87,6 +107,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     sceneReferenceImageNodeId: '',
     propReferenceImageNodeId: '',
     customReferenceImageNodes: [],
+    multiImageNodeIds: Array(9).fill(''),
+    referenceToVideoNodeId: '',
     voicePromptNodeId: '',
     refTextNodeId: '',
     saveAudioNodeId: '',
@@ -94,22 +116,36 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     textNodeId: '',
     emotionPromptNodeId: '',
     keyframeNodes: [],
-    durationSecondsNodeId: ''
+    durationSecondsNodeId: '',
+    loadVideoNodeId: '',
+    scaleNodeId: '',
+    scaleValue: '2x',
+    customKeyframesNodeIds: [''],
+    secondPassUpscaleStepNodeId: '',
+    secondPassUpscaleStep: '',
+    secondPassUpscaleScaleNodeId: '',
+    secondPassUpscaleScale: '',
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
     saveImage: [],
     easyInt: [],
+    secondPassStepNodes: [],
+    secondPassScaleNodes: [],
     easyFloat: [],
     crPromptText: [],
-    vhsVideoCombine: [],
+    videoCombine: [],
+    h3VideoOutputs: [],
     saveVideo: [],
     loadImage: [],
     qwen3TtsVoiceDesign: [],
     saveAudio: [],
     loadAudio: [],
     qwen3TtsVoiceClone: [],
-    previewAudio: []
+    previewAudio: [],
+    loadVideo: [],
+    customKeyframes: [],
+    referenceToVideo: [],
   });
   const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
@@ -131,16 +167,27 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         
         if (workflowJson) {
           try {
-            const workflowObj = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
+            const rawWorkflow = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
+            const workflowObj = Array.isArray(rawWorkflow?.nodes)
+              ? Object.fromEntries(rawWorkflow.nodes.map((node: any) => [String(node.id), {
+                  ...node,
+                  class_type: node.type,
+                  inputs: node.widgets_values_named || {},
+                  _meta: { title: node.title || node.type },
+                }]))
+              : rawWorkflow;
             
             setWorkflowJsonData(workflowObj);
             
             const clipTextEncode: string[] = [];
             const saveImage: string[] = [];
             const easyInt: string[] = [];
+            const secondPassStepNodes: string[] = [];
+            const secondPassScaleNodes: string[] = [];
             const easyFloat: string[] = [];
             const crPromptText: string[] = [];
-            const vhsVideoCombine: string[] = [];
+            const videoCombine: string[] = [];
+            const h3VideoOutputs: string[] = [];
             const saveVideo: string[] = [];
             const loadImage: string[] = [];
             const qwen3TtsVoiceDesign: string[] = [];
@@ -148,15 +195,29 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const loadAudio: string[] = [];
             const qwen3TtsVoiceClone: string[] = [];
             const previewAudio: string[] = [];
+            const loadVideo: string[] = [];
+            const customKeyframes: string[] = [];
+            const referenceToVideo: string[] = [];
 
             for (const [nodeId, node] of Object.entries(workflowObj)) {
               if (typeof node === 'object' && node !== null) {
                 const classType = (node as any).class_type || '';
                 const metaTitle = (node as any)._meta?.title || '';
 
+                if (['INTConstant', 'easy int', 'Int'].includes(classType)) {
+                  secondPassStepNodes.push(`${nodeId} (${metaTitle || classType})`);
+                }
+                const scaleInputs = (node as any).inputs || {};
+                const hasScaleInput = ['value', 'Number'].some(key =>
+                  Object.prototype.hasOwnProperty.call(scaleInputs, key) && !Array.isArray(scaleInputs[key]));
+                if (['PrimitiveFloat', 'Float', 'easy float', 'JWFloat', 'FloatConstant'].includes(classType)
+                    && (hasScaleInput || (Array.isArray(rawWorkflow?.nodes) && Array.isArray((node as any).widgets_values)))) {
+                  secondPassScaleNodes.push(`${nodeId} (${metaTitle || classType})`);
+                }
+
                 if (classType === 'CLIPTextEncode' || classType === 'CR Text' || isStringValueNode(classType, metaTitle, (node as any).inputs)) {
                   clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
-                } else if (classType === 'SaveImage') {
+                } else if (isImageSaveNode(classType)) {
                   saveImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'easy int' || classType === 'JWInteger' || classType === 'INTConstant') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
@@ -164,12 +225,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   easyFloat.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'CR Prompt Text') {
                   crPromptText.push(`${nodeId} (${metaTitle || classType})`);
-                } else if (classType === 'VHS_VideoCombine') {
-                  vhsVideoCombine.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'VHS_VideoCombine' || classType === 'VideoCombineV2') {
+                  videoCombine.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3StreamLiveExtensionAVToVHS') {
+                  h3VideoOutputs.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveVideo') {
                   saveVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'LoadImage') {
                   loadImage.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'LoadVideo' || classType === 'VHS_LoadVideoFFmpeg') {
+                  loadVideo.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3CustomKeyframes') {
+                  customKeyframes.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3ReferenceToVideo') {
+                  referenceToVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'TDQwen3TTSVoiceDesign') {
                   qwen3TtsVoiceDesign.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveAudio') {
@@ -184,7 +253,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, secondPassScaleNodes, easyFloat, crPromptText, videoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
+            const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
             // 提取自定义参考图节点
             const customReferenceImageNodes: string[] = [];
@@ -202,7 +273,53 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               keyframeNodes.push(nodeId);
             }
 
-            if (isSingleFrameVideoType(wf.type)) {
+            if (wf.type === 'TEMPORAL_EXTEND') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                promptNodeId: mapping.prompt_node_id || '',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: String(mapping.megapixels_value ?? '0.4'),
+                keyframeNodes: Array.from({ length: 8 }, (_, index) => mapping[`keyframe_node_${index + 1}`] || ''),
+                customKeyframesNodeIds: Array.isArray(mapping.custom_keyframes_node_ids) && mapping.custom_keyframes_node_ids.length
+                  ? mapping.custom_keyframes_node_ids.map(String)
+                  : [mapping.custom_keyframes_node_id || ''],
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
+                videoSaveNodeId: mapping.video_save_node_id || '',
+                clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
+                secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
+                secondPassUpscaleStep: mappedUpscaleValue(mapping.second_pass_upscale_step_node_id, mapping.second_pass_upscale_step, ['2', '3', '4']),
+                secondPassUpscaleScaleNodeId: mapping.second_pass_upscale_scale_node_id || '',
+                secondPassUpscaleScale: mappedUpscaleValue(mapping.second_pass_upscale_scale_node_id, mapping.second_pass_upscale_scale, ['1.5', '2', '3', '4']),
+              });
+            } else if (wf.type === 'VIDEO_CONTINUATION') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                promptNodeId: mapping.prompt_node_id || '',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: String(mapping.megapixels_value ?? '0.4'),
+                videoSaveNodeId: mapping.video_save_node_id || '',
+                clipVideoOutputNodeId: mapping.clip_video_output_node_id || '',
+                multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                secondPassUpscaleStepNodeId: mapping.second_pass_upscale_step_node_id || '',
+                secondPassUpscaleStep: mappedUpscaleValue(mapping.second_pass_upscale_step_node_id, mapping.second_pass_upscale_step, ['2', '3', '4']),
+                secondPassUpscaleScaleNodeId: mapping.second_pass_upscale_scale_node_id || '',
+                secondPassUpscaleScale: mappedUpscaleValue(mapping.second_pass_upscale_scale_node_id, mapping.second_pass_upscale_scale, ['1.5', '2', '3', '4']),
+              });
+            } else if (wf.type === 'video_upscale') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                scaleNodeId: mapping.scale_node_id || '',
+                scaleValue: mapping.scale_value || '2x',
+                videoSaveNodeId: mapping.video_save_node_id || '',
+              });
+            } else if (isSingleFrameVideoType(wf.type)) {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: '',
@@ -212,7 +329,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 maxSideNodeId: mapping.max_side_node_id || '',
                 megapixelsNodeId: mapping.megapixels_node_id || '',
                 megapixelsValue: mapping.megapixels_value || '0.4',
-                referenceImageNodeId: mapping.reference_image_node_id || '',
+                referenceImageNodeId: wf.type === 'multi_reference_video' ? mapping.load_image_node_1 || '' : mapping.reference_image_node_id || '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: '',
                 lastImageNodeId: '',
@@ -223,11 +340,18 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 voicePromptNodeId: '',
                 refTextNodeId: '',
                 saveAudioNodeId: '',
-                referenceAudioNodeId: mapping.reference_audio_node_id || '',
+                referenceAudioNodeId: wf.type === 'multi_reference_video' ? '' : mapping.reference_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes,
-                durationSecondsNodeId: mapping.duration_seconds_node_id || ''
+                keyframeNodes: wf.type === 'multi_reference_video'
+                  ? Array.from({ length: 8 }, (_, index) => mapping[`load_image_node_${index + 2}`] || '')
+                  : keyframeNodes,
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                secondPassUpscaleStepNodeId: wf.type === 'multi_reference_video' ? mapping.second_pass_upscale_step_node_id || '' : '',
+                secondPassUpscaleStep: wf.type === 'multi_reference_video' ? mappedUpscaleValue(mapping.second_pass_upscale_step_node_id, mapping.second_pass_upscale_step, ['2', '3', '4']) : '',
+                secondPassUpscaleScaleNodeId: wf.type === 'multi_reference_video' ? mapping.second_pass_upscale_scale_node_id || '' : '',
+                secondPassUpscaleScale: wf.type === 'multi_reference_video' ? mappedUpscaleValue(mapping.second_pass_upscale_scale_node_id, mapping.second_pass_upscale_scale, ['1.5', '2', '3', '4']) : '',
               });
             } else if (isFirstLastVideoType(wf.type)) {
               setMappingForm({
@@ -255,6 +379,18 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
                 durationSecondsNodeId: mapping.duration_seconds_node_id || ''
+              });
+            } else if (wf.type === 'multi_image_edit') {
+              setMappingForm({
+                ...mappingForm,
+                promptNodeId: mapping.prompt_node_id || '',
+                saveImageNodeId: mapping.save_image_node_id || '',
+                widthNodeId: mapping.width_node_id || '',
+                heightNodeId: mapping.height_node_id || '',
+                multiImageNodeIds: Array.from(
+                  { length: 9 },
+                  (_, index) => mapping[`load_image_node_${index + 1}`] || ''
+                ),
               });
             } else if (isShotImageType(wf.type)) {
               setMappingForm({
@@ -395,6 +531,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             } else {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
+                appearanceNodeId: mapping.appearance_node_id || (wf.type === 'character' ? inferredAppearanceNodeId : ''),
+                styleNodeId: mapping.style_node_id || (wf.type === 'character' ? inferredStyleNodeId : ''),
                 saveImageNodeId: mapping.save_image_node_id || '',
                 widthNodeId: '',
                 heightNodeId: '',
@@ -437,9 +575,81 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     
     setSavingMapping(true);
     try {
-      let nodeMapping: Record<string, string | null> = {};
+      let nodeMapping: Record<string, string | string[] | null> = {};
+      if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION'].includes(workflow.type)
+          && mappingForm.clipVideoOutputNodeId
+          && mappingForm.clipVideoOutputNodeId === mappingForm.videoSaveNodeId) {
+        toast.error('片断视频输出节点和合并视频输出节点不能选择同一个节点');
+        setSavingMapping(false);
+        return;
+      }
+      if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION', 'multi_reference_video'].includes(workflow.type)) {
+        const referenceNodes = workflow.type === 'multi_reference_video'
+          ? [mappingForm.referenceImageNodeId, ...mappingForm.keyframeNodes.slice(0, 8)]
+          : (mappingForm.multiImageNodeIds || []).slice(0, 9);
+        if (!mappingForm.referenceToVideoNodeId || referenceNodes.length !== 9 ||
+            referenceNodes.some(nodeId => !nodeId) || new Set(referenceNodes).size !== 9) {
+          toast.error('需要映射 MiniMax H3 Reference to Video 及 9 个不同的参考图片 LoadImage 节点');
+          setSavingMapping(false);
+          return;
+        }
+      }
       
-      if (isSingleFrameVideoType(workflow.type)) {
+      if (workflow.type === 'TEMPORAL_EXTEND') {
+        const customNodeIds = (mappingForm.customKeyframesNodeIds || []).filter(Boolean);
+        if (!customNodeIds.length || new Set(customNodeIds).size !== customNodeIds.length) {
+          toast.error('请选择至少一个关键帧控制节点，且不能重复选择');
+          setSavingMapping(false);
+          return;
+        }
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
+          prompt_node_id: mappingForm.promptNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
+          custom_keyframes_node_id: customNodeIds[0],
+          custom_keyframes_node_ids: customNodeIds,
+          reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+          clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
+          second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+          second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+          second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+          second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
+        };
+        Array.from({ length: 8 }).forEach((_, index) => {
+          nodeMapping[`keyframe_node_${index + 1}`] = mappingForm.keyframeNodes[index] || null;
+        });
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
+        });
+      } else if (workflow.type === 'VIDEO_CONTINUATION') {
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
+          prompt_node_id: mappingForm.promptNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+          clip_video_output_node_id: mappingForm.clipVideoOutputNodeId || null,
+          reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
+          second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+          second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+          second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+          second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
+        };
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
+        });
+      } else if (workflow.type === 'video_upscale') {
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          scale_node_id: mappingForm.scaleNodeId || null,
+          scale_value: mappingForm.scaleValue || '2x',
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+        };
+      } else if (isSingleFrameVideoType(workflow.type)) {
         const hasMaxSide = Boolean(mappingForm.maxSideNodeId);
         const hasMegapixels = Boolean(mappingForm.megapixelsNodeId);
         if (hasMaxSide === hasMegapixels) {
@@ -447,10 +657,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           setSavingMapping(false);
           return;
         }
+        if (workflow.type === 'multi_reference_video') {
+          const imageNodes = [mappingForm.referenceImageNodeId, ...mappingForm.keyframeNodes.slice(0, 8)];
+          if (imageNodes.some(nodeId => !nodeId) || new Set(imageNodes).size !== 9) {
+            toast.error('多参考生视频必须映射 9 个不同的 LoadImage 节点');
+            setSavingMapping(false);
+            return;
+          }
+        }
         const requiredKeyframeCount = getRequiredKeyframeCount(workflow.type);
         const hasRequiredKeyframes = Array.from({ length: requiredKeyframeCount }).every((_, index) => Boolean(mappingForm.keyframeNodes[index]));
         if (!hasRequiredKeyframes) {
-          toast.error(workflow.type === 'three_frame_video' ? '三帧生视频必须配置参考图片节点 2 和 3' : '四帧生视频必须配置参考图片节点 2、3 和 4');
+          toast.error(workflow.type === 'multi_reference_video'
+            ? '多参考生视频需要映射全部 9 个 LoadImage 节点（生成时可只使用 0～9 张）'
+            : workflow.type === 'three_frame_video' ? '三帧生视频必须配置参考图片节点 2 和 3' : '四帧生视频必须配置参考图片节点 2、3 和 4');
           setSavingMapping(false);
           return;
         }
@@ -458,18 +678,31 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
+          ...(workflow.type === 'multi_reference_video' ? { reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null } : {}),
+          ...(workflow.type === 'multi_reference_video' ? {
+            second_pass_upscale_step_node_id: mappingForm.secondPassUpscaleStepNodeId || null,
+            second_pass_upscale_step: mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : null,
+            second_pass_upscale_scale_node_id: mappingForm.secondPassUpscaleScaleNodeId || null,
+            second_pass_upscale_scale: mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : null,
+          } : {}),
           max_side_node_id: mappingForm.maxSideNodeId || null,
           megapixels_node_id: mappingForm.megapixelsNodeId || null,
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
-          reference_image_node_id: mappingForm.referenceImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
-          reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null
         };
-        // 添加关键帧节点
-        mappingForm.keyframeNodes.forEach((nodeId, index) => {
-          nodeMapping[`keyframe_node_${index + 1}`] = nodeId || null;
-        });
+        if (workflow.type === 'multi_reference_video') {
+          nodeMapping.load_image_node_1 = mappingForm.referenceImageNodeId || null;
+          Array.from({ length: 8 }).forEach((_, index) => {
+            nodeMapping[`load_image_node_${index + 2}`] = mappingForm.keyframeNodes[index] || null;
+          });
+        } else {
+          nodeMapping.reference_image_node_id = mappingForm.referenceImageNodeId || null;
+          nodeMapping.reference_audio_node_id = mappingForm.referenceAudioNodeId || null;
+          mappingForm.keyframeNodes.forEach((nodeId, index) => {
+            nodeMapping[`keyframe_node_${index + 1}`] = nodeId || null;
+          });
+        }
       } else if (isFirstLastVideoType(workflow.type)) {
         const hasFrameCount = Boolean(mappingForm.frameCountNodeId);
         const hasDurationSeconds = Boolean(mappingForm.durationSecondsNodeId);
@@ -489,6 +722,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
+      } else if (workflow.type === 'multi_image_edit') {
+        nodeMapping = {
+          prompt_node_id: mappingForm.promptNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null,
+          width_node_id: mappingForm.widthNodeId || null,
+          height_node_id: mappingForm.heightNodeId || null,
+        };
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
+        });
       } else if (isShotImageType(workflow.type)) {
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
@@ -529,6 +772,12 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null
         };
+      } else if (workflow.type === 'character') {
+        nodeMapping = {
+          appearance_node_id: mappingForm.appearanceNodeId || null,
+          style_node_id: mappingForm.styleNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null
+        };
       } else {
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
@@ -563,7 +812,29 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
   };
 
   const handleNodeSelect = (value: string, field: keyof MappingForm) => {
-    setMappingForm({ ...mappingForm, [field]: value });
+    setMappingForm(current => ({
+      ...current,
+      [field]: value,
+      ...(field === 'secondPassUpscaleStepNodeId'
+        ? { secondPassUpscaleStep: value ? current.secondPassUpscaleStep || '2' : '' } : {}),
+      ...(field === 'secondPassUpscaleScaleNodeId'
+        ? { secondPassUpscaleScale: value ? current.secondPassUpscaleScale || '2' : '' } : {}),
+    }));
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleCustomKeyframesNodeSelect = (value: string, index: number) => {
+    setMappingForm(current => ({
+      ...current,
+      customKeyframesNodeIds: (current.customKeyframesNodeIds || ['']).map((nodeId, itemIndex) => itemIndex === index ? value : nodeId),
+    }));
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleMultiImageNodeSelect = (value: string, index: number) => {
+    const nextNodeIds = Array.from({ length: 9 }, (_, itemIndex) => mappingForm.multiImageNodeIds?.[itemIndex] || '');
+    nextNodeIds[index] = value;
+    setMappingForm({ ...mappingForm, multiImageNodeIds: nextNodeIds });
     if (value) setSelectedNodeId(value);
   };
 
@@ -661,17 +932,102 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     if (value) setSelectedNodeId(value);
   };
 
+  const secondPassStepFields = (
+    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+      <NodeSelectField
+        label="二采放大Step配置（可选）"
+        nodeTypeHint="INTConstant, easy int, Int"
+        value={mappingForm.secondPassUpscaleStepNodeId || ''}
+        options={availableNodes.secondPassStepNodes}
+        onChange={(v) => handleNodeSelect(v, 'secondPassUpscaleStepNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">二采放大Step（可选）</label>
+        <select
+          value={mappingForm.secondPassUpscaleStepNodeId ? mappingForm.secondPassUpscaleStep || '2' : ''}
+          onChange={(event) => setMappingForm({ ...mappingForm, secondPassUpscaleStep: event.target.value })}
+          disabled={!mappingForm.secondPassUpscaleStepNodeId}
+          className="input-field disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          <option value="" disabled>请先选择 Step 配置节点</option>
+          {[2, 3, 4].map(step => <option key={step} value={step}>{step}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+
+  const secondPassScaleFields = (
+    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+      <NodeSelectField
+        label="二采放大scale 配置（可选）"
+        nodeTypeHint="PrimitiveFloat, Float, easy float, JWFloat, FloatConstant"
+        value={mappingForm.secondPassUpscaleScaleNodeId || ''}
+        options={availableNodes.secondPassScaleNodes}
+        onChange={(v) => handleNodeSelect(v, 'secondPassUpscaleScaleNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">二采放大scale（可选）</label>
+        <select
+          value={mappingForm.secondPassUpscaleScaleNodeId ? mappingForm.secondPassUpscaleScale || '2' : ''}
+          onChange={(event) => setMappingForm({ ...mappingForm, secondPassUpscaleScale: event.target.value })}
+          disabled={!mappingForm.secondPassUpscaleScaleNodeId}
+          className="input-field disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          <option value="" disabled>请先选择 scale 配置节点</option>
+          {['1.5', '2', '3', '4'].map(scale => <option key={scale} value={scale}>{scale}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+
+  const continuationMegapixelsFields = (
+    <div>
+      <NodeSelectField
+        label="Megapixels 节点"
+        nodeTypeHint="Float, easy float, JWFloat, FloatConstant"
+        value={mappingForm.megapixelsNodeId}
+        options={availableNodes.easyFloat}
+        onChange={(value) => handleNodeSelect(value, 'megapixelsNodeId')}
+        onFocus={handleNodeFocus}
+        t={t}
+      />
+      {mappingForm.megapixelsNodeId && (
+        <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Megapixels</label>
+            <select
+              value={mappingForm.megapixelsValue}
+              onChange={(event) => setMappingForm({ ...mappingForm, megapixelsValue: event.target.value })}
+              className="input-field"
+            >
+              {MEGAPIXEL_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.value}</option>
+              ))}
+            </select>
+          </div>
+          <div className="text-sm text-gray-600 pb-2 whitespace-nowrap">
+            output: {MEGAPIXEL_OPTIONS.find(option => option.value === mappingForm.megapixelsValue)?.output || '864x480'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (!workflow) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <h3 className="text-lg font-medium mb-4">
+      <div className={`bg-white rounded-lg p-6 w-full max-h-[90vh] overflow-hidden flex flex-col ${workflow.type === 'TEMPORAL_EXTEND' ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        <h3 className="text-lg font-medium mb-4 shrink-0">
           {t('systemSettings.workflow.nodeMapping')} - {workflow.name}
         </h3>
-        <div className="flex gap-4 flex-1 min-h-0">
+        <div className={`gap-4 flex-1 min-h-0 ${workflow.type === 'TEMPORAL_EXTEND' ? 'flex flex-col lg:flex-row' : 'flex'}`}>
           {/* 左侧: 选中节点的 JSON 数据显示 */}
-          <div className="w-1/2 border rounded-lg overflow-hidden flex flex-col">
+          <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'h-36 w-full lg:h-auto lg:w-[32%]' : 'w-1/2'} border rounded-lg overflow-hidden flex flex-col`}>
             <div className="bg-gray-50 px-3 py-2 border-b text-sm font-medium text-gray-700">
               {selectedNodeId ? `Node: ${selectedNodeId}` : t('systemSettings.workflow.selectNodeToView')}
             </div>
@@ -687,14 +1043,61 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           </div>
           
           {/* 右侧: 映射表单 */}
-          <div className="w-1/2 overflow-y-auto">
-            <form onSubmit={handleSaveMapping} className="space-y-4">
+          <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'w-full lg:w-[68%]' : 'w-1/2'} min-h-0 overflow-y-auto`}>
+            <form id="node-mapping-form" onSubmit={handleSaveMapping} className="space-y-4">
               {/* 根据工作流类型显示不同的映射字段 */}
               {(workflow.type === 'character' || workflow.type === 'scene' || workflow.type === 'prop') && (
                 <>
+                  {workflow.type !== 'character' && (
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.promptInputNode')}
+                      nodeTypeHint="CLIPTextEncode, CR Text"
+                      value={mappingForm.promptNodeId}
+                      options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                      onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                  )}
+                  {workflow.type === 'character' && (
+                    <>
+                      <NodeSelectField
+                        label="人物外貌节点"
+                        nodeTypeHint="CR Prompt Text（人物形象 / Appearance）"
+                        value={mappingForm.appearanceNodeId || ''}
+                        options={availableNodes.crPromptText}
+                        onChange={(v) => handleNodeSelect(v, 'appearanceNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                      <NodeSelectField
+                        label="风格节点"
+                        nodeTypeHint="CR Prompt Text（STYLE）"
+                        value={mappingForm.styleNodeId || ''}
+                        options={availableNodes.crPromptText}
+                        onChange={(v) => handleNodeSelect(v, 'styleNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    </>
+                  )}
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.imageSaveNode')}
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
+                    value={mappingForm.saveImageNodeId}
+                    options={availableNodes.saveImage}
+                    onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'multi_image_edit' && (
+                <>
                   <NodeSelectField
                     label={t('systemSettings.workflow.promptInputNode')}
-                    nodeTypeHint="CLIPTextEncode, CR Text"
+                    nodeTypeHint="CLIPTextEncode, CR Text, CR Prompt Text"
                     value={mappingForm.promptNodeId}
                     options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
                     onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
@@ -703,13 +1106,47 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  <div className="grid grid-cols-2 gap-4">
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.widthNode')}
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
+                      value={mappingForm.widthNodeId}
+                      options={availableNodes.easyInt}
+                      onChange={(v) => handleNodeSelect(v, 'widthNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.heightNode')}
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
+                      value={mappingForm.heightNodeId}
+                      options={availableNodes.easyInt}
+                      onChange={(v) => handleNodeSelect(v, 'heightNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 9 }).map((_, index) => (
+                      <NodeSelectField
+                        key={index}
+                        label={t('systemSettings.workflow.loadImageNumber', { number: index + 1 })}
+                        nodeTypeHint="LoadImage"
+                        value={mappingForm.multiImageNodeIds?.[index] || ''}
+                        options={availableNodes.loadImage}
+                        onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
 
@@ -726,7 +1163,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -826,6 +1263,251 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 </>
               )}
 
+              {workflow.type === 'TEMPORAL_EXTEND' && (
+                <>
+                  <NodeSelectField
+                    label="加载视频节点"
+                    nodeTypeHint="VHS_LoadVideoFFmpeg"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="时长节点"
+                    nodeTypeHint="PrimitiveFloat"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={availableNodes.easyFloat}
+                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Prompt Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                    <section className="min-w-0 space-y-2 rounded-lg border border-gray-200 p-3">
+                      <div className="text-sm font-medium text-gray-700">关键帧 1～8</div>
+                      {Array.from({ length: 8 }, (_, index) => (
+                        <NodeSelectField
+                          key={index}
+                          label={`关键帧 ${index + 1}`}
+                          nodeTypeHint="LoadImage"
+                          value={mappingForm.keyframeNodes[index] || ''}
+                          options={availableNodes.loadImage}
+                          onChange={(v) => handleKeyframeNodeChange(v, index)}
+                          onFocus={handleNodeFocus}
+                          t={t}
+                        />
+                      ))}
+                    </section>
+                    <section className="min-w-0 space-y-2 rounded-lg border border-gray-200 p-3">
+                      <div className="text-sm font-medium text-gray-700">参考图片节点 1～9</div>
+                      <p className="text-xs text-gray-500">独立于关键帧；生成时可使用 0～9 张参考图。</p>
+                      {Array.from({ length: 9 }, (_, index) => (
+                        <NodeSelectField
+                          key={index}
+                          label={`参考图片节点${index + 1} (LoadImage)`}
+                          nodeTypeHint="LoadImage"
+                          value={mappingForm.multiImageNodeIds?.[index] || ''}
+                          options={availableNodes.loadImage}
+                          onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                          onFocus={handleNodeFocus}
+                          t={t}
+                        />
+                      ))}
+                    </section>
+                  </div>
+                  <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="space-y-2">
+                    {(mappingForm.customKeyframesNodeIds || ['']).map((nodeId, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1">
+                          <NodeSelectField
+                            label={`关键帧控制节点 ${index + 1}`}
+                            nodeTypeHint="MiniMaxH3CustomKeyframes"
+                            value={nodeId}
+                            options={availableNodes.customKeyframes}
+                            onChange={(value) => handleCustomKeyframesNodeSelect(value, index)}
+                            onFocus={handleNodeFocus}
+                            t={t}
+                          />
+                        </div>
+                        {index > 0 && (
+                          <button type="button" className="btn-secondary" onClick={() => setMappingForm(current => ({
+                            ...current,
+                            customKeyframesNodeIds: (current.customKeyframesNodeIds || ['']).filter((_, itemIndex) => itemIndex !== index),
+                          }))}>移除</button>
+                        )}
+                      </div>
+                    ))}
+                    {(mappingForm.customKeyframesNodeIds || ['']).length < availableNodes.customKeyframes.length && (
+                      <button type="button" className="text-sm text-blue-600 hover:text-blue-700" onClick={() => setMappingForm(current => ({
+                        ...current,
+                        customKeyframesNodeIds: [...(current.customKeyframesNodeIds || ['']), ''],
+                      }))}>+ 添加关键帧控制节点</button>
+                    )}
+                  </div>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.clipVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, MiniMaxH3StreamLiveExtensionAVToVHS, SaveVideo"
+                    value={mappingForm.clipVideoOutputNodeId || ''}
+                    options={[...availableNodes.videoCombine, ...availableNodes.h3VideoOutputs, ...availableNodes.saveVideo]}
+                    onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.mergedVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    value={mappingForm.videoSaveNodeId}
+                    options={[...availableNodes.videoCombine, ...availableNodes.h3VideoOutputs]}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  {continuationMegapixelsFields}
+                  {secondPassStepFields}
+                  {secondPassScaleFields}
+                </>
+              )}
+
+              {workflow.type === 'VIDEO_CONTINUATION' && (
+                <>
+                  <NodeSelectField
+                    label="加载视频节点"
+                    nodeTypeHint="VHS_LoadVideoFFmpeg"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="时长节点"
+                    nodeTypeHint="PrimitiveFloat"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={availableNodes.easyFloat}
+                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Prompt Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">映射 9 个 LoadImage 槽位；每次生成可使用 0～9 张参考图。</p>
+                    {Array.from({ length: 9 }, (_, index) => (
+                      <NodeSelectField
+                        key={index}
+                        label={`参考图片节点${index + 1} (LoadImage)`}
+                        nodeTypeHint="LoadImage"
+                        value={mappingForm.multiImageNodeIds?.[index] || ''}
+                        options={availableNodes.loadImage}
+                        onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                  <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.clipVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, MiniMaxH3StreamLiveExtensionAVToVHS, SaveVideo"
+                    value={mappingForm.clipVideoOutputNodeId || ''}
+                    options={[...availableNodes.videoCombine, ...availableNodes.h3VideoOutputs, ...availableNodes.saveVideo]}
+                    onChange={(v) => handleNodeSelect(v, 'clipVideoOutputNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.mergedVideoOutputNode')}
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, MiniMaxH3StreamLiveExtensionAVToVHS"
+                    value={mappingForm.videoSaveNodeId}
+                    options={[...availableNodes.videoCombine, ...availableNodes.h3VideoOutputs]}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  {continuationMegapixelsFields}
+                  {secondPassStepFields}
+                  {secondPassScaleFields}
+                </>
+              )}
+
+              {workflow.type === 'video_upscale' && (
+                <>
+                  <NodeSelectField
+                    label="Load Video 节点"
+                    nodeTypeHint="LoadVideo"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="Scale 节点"
+                    nodeTypeHint="CR Text (Scale 2x 4x 8x)"
+                    value={mappingForm.scaleNodeId || ''}
+                    options={availableNodes.clipTextEncode}
+                    onChange={(v) => handleNodeSelect(v, 'scaleNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Scale</label>
+                    <select
+                      value={mappingForm.scaleValue || '2x'}
+                      onChange={(event) => setMappingForm({ ...mappingForm, scaleValue: event.target.value })}
+                      className="input-field"
+                    >
+                      <option value="2x">2x</option>
+                      <option value="4x">4x</option>
+                      <option value="8x">8x</option>
+                    </select>
+                  </div>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.videoSaveNode')}
+                    nodeTypeHint="SaveVideo"
+                    value={mappingForm.videoSaveNodeId}
+                    options={availableNodes.saveVideo}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
               {isSingleFrameVideoType(workflow.type) && (
                 <>
                   <NodeSelectField
@@ -839,9 +1521,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine, SaveVideo"
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, SaveVideo"
                     value={mappingForm.videoSaveNodeId}
-                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.saveVideo]}
+                    options={[...availableNodes.videoCombine, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -898,7 +1580,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   {getRequiredKeyframeCount(workflow.type) > 0 && (
                     <div className="mt-4">
                       <p className="text-xs text-gray-500 mb-2">
-                        {workflow.type === 'three_frame_video' ? '三帧生视频需要 3 个参考图片 LoadImage 节点。' : '四帧生视频需要 4 个参考图片 LoadImage 节点。'}
+                        {workflow.type === 'multi_reference_video'
+                          ? '映射 9 个 LoadImage 槽位；每次生成可使用 0～9 张参考图。'
+                          : workflow.type === 'three_frame_video' ? '三帧生视频需要 3 个参考图片 LoadImage 节点。' : '四帧生视频需要 4 个参考图片 LoadImage 节点。'}
                       </p>
                       {Array.from({ length: getRequiredKeyframeCount(workflow.type) }).map((_, index) => (
                         <div key={index} className="mb-2">
@@ -933,7 +1617,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
-                  <NodeSelectField
+                  {workflow.type !== 'multi_reference_video' && <NodeSelectField
                     label={t('systemSettings.workflow.referenceAudioNode')}
                     nodeTypeHint="LoadAudio"
                     value={mappingForm.referenceAudioNodeId}
@@ -941,7 +1625,18 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onChange={(v) => handleNodeSelect(v, 'referenceAudioNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
-                  />
+                  />}
+                  {workflow.type === 'multi_reference_video' && <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />}
+                  {workflow.type === 'multi_reference_video' && secondPassStepFields}
+                  {workflow.type === 'multi_reference_video' && secondPassScaleFields}
 
                   {/* 额外关键帧节点配置 */}
                   {workflow.type === 'video' && <div className="mt-4">
@@ -1015,9 +1710,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine, SaveVideo"
+                    nodeTypeHint="VHS_VideoCombine, VideoCombineV2, SaveVideo"
                     value={mappingForm.videoSaveNodeId}
-                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.saveVideo]}
+                    options={[...availableNodes.videoCombine, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -1160,7 +1855,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -1201,7 +1896,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -1211,24 +1906,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 </>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn-secondary"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingMapping}
-                  className="btn-primary"
-                >
-                  {savingMapping ? t('common.loading') : t('common.save')}
-                </button>
-              </div>
             </form>
           </div>
+        </div>
+        <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 pt-4 mt-4">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            {t('common.cancel')}
+          </button>
+          <button type="submit" form="node-mapping-form" disabled={savingMapping} className="btn-primary">
+            {savingMapping ? t('common.loading') : t('common.save')}
+          </button>
         </div>
       </div>
     </div>
@@ -1279,6 +1966,10 @@ function isFloatValueNode(classType: string, metaTitle: string, inputs: Record<s
     titleLower.includes('megapixels') ||
     titleLower.includes('duration')
   );
+}
+
+function isImageSaveNode(classType: string) {
+  return classType === 'SaveImage' || classType === 'SaveImageAdvanced';
 }
 
 function isStringValueNode(classType: string, metaTitle: string, inputs: Record<string, any> = {}) {

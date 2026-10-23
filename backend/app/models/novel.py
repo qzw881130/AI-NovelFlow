@@ -19,10 +19,15 @@ class Novel(Base):
     description = Column(Text, default="")
     cover = Column(String, nullable=True)
     status = Column(String, default="pending", index=True)  # 状态过滤
+    is_archived = Column(Boolean, default=False, server_default="0", nullable=False, index=True)
     chapter_count = Column(Integer, default=0)
     is_preset = Column(Boolean, default=False, index=True)  # 预设过滤
     
     # 提示词模板关联（每种类型可选择不同模板）
+    story_world_context_prompt_template_id = Column(String, nullable=True)  # 故事世界上下文推荐提示词模板
+    story_world_context = Column(Text, nullable=True)  # 已确认的故事世界上下文 JSON
+    story_world_context_locked = Column(Boolean, default=False)  # 是否已由用户确认锁定
+    story_world_context_updated_at = Column(DateTime(timezone=True), nullable=True)
     style_prompt_template_id = Column(String, nullable=True)  # 风格提示词模板
     character_parse_prompt_template_id = Column(String, nullable=True)  # 角色解析提示词模板
     scene_parse_prompt_template_id = Column(String, nullable=True)  # 场景解析提示词模板
@@ -30,16 +35,21 @@ class Novel(Base):
     prompt_template_id = Column(String, nullable=True, index=True)  # 角色生成提示词模板（兼容旧字段名）
     scene_prompt_template_id = Column(String, nullable=True)  # 场景生成提示词模板
     prop_prompt_template_id = Column(String, nullable=True)  # 道具生成提示词模板
+    scene_setting_prompt_template_id = Column(String, nullable=True)
+    prop_appearance_prompt_template_id = Column(String, nullable=True)
     chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
     keyframe_description_prompt_template_id = Column(String, nullable=True)  # 关键帧描述提示词模板
     shot_image_prompt_template_id = Column(String, nullable=True)  # 主分镜图提示词模板
-    video_mode_recommender_prompt_template_id = Column(String, nullable=True)  # 视频模式推荐提示词模板
     keyframe_planner_prompt_template_id = Column(String, nullable=True)  # 关键帧规划提示词模板
     keyframe_image_prompt_template_id = Column(String, nullable=True)  # 关键帧生图提示词模板
+    temporal_reference_selector_prompt_template_id = Column(String, nullable=True)
+    image_quality_review_prompt_template_id = Column(String, nullable=True)
     keyframe_transition_prompt_template_id = Column(String, nullable=True)  # 关键帧过渡规划提示词模板
-    h3_single_frame_prompt_template_id = Column(String, nullable=True)  # H3 单帧视频提示词模板
-    h3_first_last_frame_prompt_template_id = Column(String, nullable=True)  # H3 首尾帧视频提示词模板
+    clip_execution_planner_prompt_template_id = Column(String, nullable=True)
     h3_multi_keyframe_prompt_template_id = Column(String, nullable=True)  # H3 多关键帧视频提示词模板
+    h3_multi_keyframe_director_phase_b_template_id = Column(String, nullable=True)  # H3 Phase B 单阶段导演视频提示词模板
+    h3_execution_optimizer_prompt_template_id = Column(String, nullable=True)  # H3 执行提示词优化模板
+    h3_preflight_repair_prompt_template_id = Column(String, nullable=True)  # H3 Preflight 自动修复模板
     
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -67,6 +77,7 @@ class Chapter(Base):
     shot_videos = Column(Text, nullable=True)
     transition_videos = Column(Text, nullable=True)
     final_video = Column(String, nullable=True)
+    hd_final_video = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -86,6 +97,8 @@ class Character(Base):
     name = Column(String, nullable=False, index=True)  # 名称查询
     description = Column(Text, default="")
     appearance = Column(Text, default="")
+    stable_identity_features = Column(Text, nullable=True)
+    stable_identity_source = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
 
     # 音色相关
@@ -94,6 +107,7 @@ class Character(Base):
 
     # 旁白角色标识
     is_narrator = Column(Boolean, default=False, index=True)  # 是否为旁白角色
+    is_protagonist = Column(Boolean, default=False, nullable=False)  # 用户手动指定的主角
 
     # 章节范围信息
     start_chapter = Column(Integer, nullable=True)
@@ -159,6 +173,7 @@ class Prop(Base):
     name = Column(String, nullable=False, index=True)  # 道具名称
     description = Column(Text, default="")  # 道具描述
     appearance = Column(Text, default="")  # 道具外观描述（用于生成参考图）
+    existence = Column(String, default="REAL", nullable=False, index=True)  # REAL / FICTIONAL_OR_NONEXISTENT
     image_url = Column(String, nullable=True)  # 参考图URL
     
     # 章节范围信息

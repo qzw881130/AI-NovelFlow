@@ -21,7 +21,7 @@ def disconnect_reference_chain(
 
     匹配规则：
     - latent、pixels：精确匹配
-    - image：支持 image 或 image 后跟数字（如 image1, image2, image_1）
+    - image：支持 image、image 后跟数字及 Qwen 的 images.image_1 等动态输入
 
     Args:
         workflow: 工作流字典
@@ -63,6 +63,9 @@ def disconnect_reference_chain(
 
                         # 精确匹配 latent 和 pixels
                         if input_name_lower in EXACT_MATCH_TYPES:
+                            should_disconnect = True
+                        # Qwen Image 2.1 的动态参考图输入为 images.image_1 等。
+                        elif input_name_lower.startswith("images.image_") and input_name_lower[13:].isdigit():
                             should_disconnect = True
                         # image 类型：支持 image 或 image 后跟数字（如 image1, image2, image_1）
                         elif input_name_lower == "image":

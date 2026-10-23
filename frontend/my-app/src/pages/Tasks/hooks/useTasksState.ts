@@ -1,16 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useSerialPolling } from '../../../hooks/useSerialPolling';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
+import { shotsApi } from '../../../api/shots';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
-import type { TaskFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
+import type { TaskFilter, TaskTypeFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
 
-export function useTasksState() {
+export function useTasksState({ page = 1, pageSize = 30 } = {}) {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<TaskFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TaskTypeFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [taskTypes, setTaskTypes] = useState<string[]>([]);
+  const [stats, setStats] = useState<TaskStats>({ all: 0, pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0 });
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [viewingWorkflow, setViewingWorkflow] = useState<Task | null>(null);
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
@@ -79,25 +86,26 @@ export function useTasksState() {
     }
   };
 
-  const fetchTasks = useCallback(async () => {
-    try {
-      const data = await taskApi.fetchList(1000);
-      if (data.success && data.data) {
-        setTasks(data.data as unknown as Task[]);
-      }
-    } catch (error) {
-      console.error('获取任务失败:', error);
-    } finally {
+  const fetchPage = useCallback((signal: AbortSignal) =>
+    taskApi.fetchPage(page, pageSize, filter, typeFilter, signal), [page, pageSize, filter, typeFilter]);
+
+  const fetchTasks = useSerialPolling({
+    fetch: fetchPage,
+    intervalMs: 3000,
+    onSuccess: result => {
+      if (!result.success || !result.data) throw new Error(result.message || '获取任务失败');
+      setTasks(result.data.items as unknown as Task[]);
+      setTotal(result.data.total);
+      setTotalPages(Math.max(1, result.data.total_pages));
+      setStats(result.data.stats);
+      setTaskTypes(result.data.types);
+    },
+    onError: error => console.error('获取任务失败:', error),
+    onSettled: () => {
       setIsLoading(false);
       setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
-    return () => clearInterval(interval);
-  }, [fetchTasks]);
+    },
+  });
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -112,7 +120,8 @@ export function useTasksState() {
         toast.error(result.message || result.detail || t('common.deleteFailed'));
         return;
       }
-      setTasks(tasks.filter(t => t.id !== taskId));
+      setTasks(current => current.filter(t => t.id !== taskId));
+      void fetchTasks();
       toast.success(result.message || '任务已删除');
     } catch (error) {
       console.error('删除失败:', error);
@@ -207,26 +216,29 @@ export function useTasksState() {
 
   const handleRetry = async (taskId: string) => {
     try {
+      const task = tasks.find(item => item.id === taskId);
+      if (task?.type === 'shot_video_batch') {
+        if (!task.novelId || !task.chapterId) throw new Error('批次缺少小说或章节信息，无法恢复');
+        const result = await shotsApi.resumeVideosBatch(task.novelId, task.chapterId, taskId);
+        toast.success(`已恢复 ${result.data.resumedShotIds.length} 个未完成的 Shot`);
+        fetchTasks();
+        return;
+      }
       const data = await taskApi.retry(taskId);
       if (data.success) {
         toast.success(t('tasks.taskRestarted'));
         fetchTasks();
+      } else {
+        const detail = (data as { detail?: unknown }).detail;
+        toast.error(typeof detail === 'string' ? detail : data.message || t('common.error'));
       }
     } catch (error) {
       console.error('重试失败:', error);
+      toast.error(error instanceof Error ? error.message : t('common.error'));
     }
   };
 
-  const stats: TaskStats = {
-    all: tasks.length,
-    pending: tasks.filter(t => t.status === 'pending').length,
-    running: tasks.filter(t => t.status === 'running').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    failed: tasks.filter(t => t.status === 'failed').length,
-    cancelled: tasks.filter(t => t.status === 'cancelled').length,
-  };
-
-  const filteredTasks = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
+  const filteredTasks = tasks;
 
   return {
     // State
@@ -234,6 +246,8 @@ export function useTasksState() {
     isLoading,
     filter,
     setFilter,
+    typeFilter,
+    setTypeFilter,
     refreshing,
     expandedErrors,
     viewingWorkflow,
@@ -245,6 +259,9 @@ export function useTasksState() {
     previewVideo,
     imageInfo,
     stats,
+    total,
+    totalPages,
+    taskTypes,
     filteredTasks,
     // Actions
     fetchTasks,

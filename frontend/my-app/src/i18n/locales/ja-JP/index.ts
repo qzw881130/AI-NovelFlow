@@ -9,7 +9,6 @@ import props from './props';
 import tasks from './tasks';
 import settings from './settings';
 import logs from './logs';
-import testCases from './testCases';
 import chapters from './chapters';
 import misc from './misc';
 
@@ -24,7 +23,6 @@ export default {
   ...tasks,
   ...settings,
   ...logs,
-  ...testCases,
   ...chapters,
   ...misc,
 };

@@ -8,13 +8,12 @@ from app.core.config import get_settings
 NOVEL_PROMPT_COLUMNS = [
     "keyframe_description_prompt_template_id",
     "shot_image_prompt_template_id",
-    "video_mode_recommender_prompt_template_id",
     "keyframe_planner_prompt_template_id",
     "keyframe_image_prompt_template_id",
     "keyframe_transition_prompt_template_id",
-    "h3_single_frame_prompt_template_id",
-    "h3_first_last_frame_prompt_template_id",
     "h3_multi_keyframe_prompt_template_id",
+    "h3_execution_optimizer_prompt_template_id",
+    "h3_preflight_repair_prompt_template_id",
 ]
 
 

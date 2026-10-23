@@ -5,6 +5,7 @@ import { ToastContainer } from './components/Toast';
 import { useToastStore } from './stores/toastStore';
 import { useConfigStore } from './stores/configStore';
 import ErrorBoundary from './components/ErrorBoundary';
+import NotificationSoundListener from './components/NotificationSoundListener';
 import { STORAGE_KEYS } from './constants';
 
 // 懒加载页面组件 - 代码分割优化
@@ -18,10 +19,14 @@ const Characters = lazy(() => import('./pages/Characters'));
 const Scenes = lazy(() => import('./pages/Scenes'));
 const Props = lazy(() => import('./pages/Props'));
 const Tasks = lazy(() => import('./pages/Tasks'));
-const TestCases = lazy(() => import('./pages/TestCases'));
+const Events = lazy(() => import('./pages/Events'));
+const Examples = lazy(() => import('./pages/Examples'));
 const PromptConfig = lazy(() => import('./pages/PromptConfig'));
 const UIConfig = lazy(() => import('./pages/UIConfig'));
 const LLMLogs = lazy(() => import('./pages/LLMLogs'));
+const ClipExecutionInspector = lazy(() => import('./pages/ClipExecutionInspector'));
+const TelegramNotificationsHelp = lazy(() => import('./pages/Help/TelegramNotifications'));
+const FeishuNotificationsHelp = lazy(() => import('./pages/Help/FeishuNotifications'));
 
 /**
  * 加载中占位组件
@@ -45,7 +50,7 @@ function LazyPage({ children }: { children: React.ReactNode }) {
   );
 }
 
-function App() {
+function Application() {
   const { toasts, removeToast } = useToastStore();
   const { loadConfig } = useConfigStore();
 
@@ -61,6 +66,7 @@ function App() {
 
   return (
     <>
+      <NotificationSoundListener />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/welcome" replace />} />
@@ -81,15 +87,26 @@ function App() {
           <Route path="scenes" element={<LazyPage><Scenes /></LazyPage>} />
           <Route path="props" element={<LazyPage><Props /></LazyPage>} />
           <Route path="tasks" element={<LazyPage><Tasks /></LazyPage>} />
-          <Route path="test-cases" element={<LazyPage><TestCases /></LazyPage>} />
+          <Route path="events" element={<LazyPage><Events /></LazyPage>} />
+          <Route path="examples" element={<LazyPage><Examples /></LazyPage>} />
+          <Route path="test-cases" element={<Navigate to="/examples" replace />} />
           <Route path="prompt-config" element={<LazyPage><PromptConfig /></LazyPage>} />
           <Route path="ui-config" element={<LazyPage><UIConfig /></LazyPage>} />
           <Route path="llm-logs" element={<LazyPage><LLMLogs /></LazyPage>} />
+          <Route path="clip-execution-inspector/:taskId" element={<LazyPage><ErrorBoundary><ClipExecutionInspector /></ErrorBoundary></LazyPage>} />
         </Route>
       </Routes>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   );
+}
+
+function App() {
+  return <Routes>
+    <Route path="/help/telegram-notifications" element={<LazyPage><TelegramNotificationsHelp /></LazyPage>} />
+    <Route path="/help/feishu-notifications" element={<LazyPage><FeishuNotificationsHelp /></LazyPage>} />
+    <Route path="*" element={<Application />} />
+  </Routes>;
 }
 
 export default App;

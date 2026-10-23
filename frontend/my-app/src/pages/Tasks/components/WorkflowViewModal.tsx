@@ -1,9 +1,14 @@
-import { Copy, Download, Loader2, X } from 'lucide-react';
+import { CandidateResultSummary } from './CandidateResultSummary';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Download, Loader2, Play, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import JSONEditor from '../../../components/JSONEditor';
 import type { Task } from '../../../types';
 import type { WorkflowData } from '../types';
+import { taskApi } from '../../../api/tasks';
+
+const WorkflowGraphView = lazy(() => import('../../../components/WorkflowGraphView'));
 
 interface WorkflowViewModalProps {
   viewingWorkflow: Task | null;
@@ -11,6 +16,7 @@ interface WorkflowViewModalProps {
   loadingWorkflow: boolean;
   onClose: () => void;
   onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
+  onPreviewVideo: (url: string) => void;
   convertShotName: (name: string) => string;
 }
 
@@ -20,9 +26,19 @@ export function WorkflowViewModal({
   loadingWorkflow,
   onClose,
   onPreviewImages,
+  onPreviewVideo,
   convertShotName,
 }: WorkflowViewModalProps) {
   const { t } = useTranslation();
+  const [showBoundParameters, setShowBoundParameters] = useState(false);
+  const [showOnlyMappedNodes, setShowOnlyMappedNodes] = useState(true);
+  const [workflowView, setWorkflowView] = useState<'graph' | 'json'>('graph');
+
+  useEffect(() => {
+    setShowBoundParameters(false);
+    setShowOnlyMappedNodes(true);
+    setWorkflowView('graph');
+  }, [viewingWorkflow?.id, viewingWorkflow?.name, workflowData]);
 
   if (!viewingWorkflow) return null;
 
@@ -42,6 +58,7 @@ export function WorkflowViewModal({
       case 'shot_image':
         return t('tasks.taskNames.shotImage', { name: localizedName });
       case 'shot_video':
+      case 'shot_video_hd':
         return t('tasks.taskNames.shotVideo', { name: localizedName });
       case 'transition_video':
         return t('tasks.taskNames.transitionVideo', { from: localizedName, to: '' });
@@ -64,14 +81,14 @@ export function WorkflowViewModal({
     URL.revokeObjectURL(url);
   };
 
-  const copyPrompt = async () => {
-    if (!workflowData?.prompt) return;
+  const copyText = async (content: string) => {
+    if (!content) return;
     try {
       if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(workflowData.prompt);
+        await navigator.clipboard.writeText(content);
       } else {
         const textarea = document.createElement('textarea');
-        textarea.value = workflowData.prompt;
+        textarea.value = content;
         textarea.style.position = 'fixed';
         textarea.style.left = '-9999px';
         document.body.appendChild(textarea);
@@ -87,9 +104,60 @@ export function WorkflowViewModal({
     }
   };
 
+  const promptItems = workflowData?.promptItems || [];
+  const promptCharacterCount = promptItems.length > 0
+    ? promptItems.reduce((total, item) => total + Array.from(item.content || '').length, 0)
+    : Array.from(workflowData?.prompt || '').length;
+  const executionDuration = workflowData?.executionDuration || viewingWorkflow.clipExecution;
+  const referenceImages = workflowData?.referenceImages ?? viewingWorkflow.referenceImages ?? [];
+  const referenceVideo = workflowData?.referenceVideo || undefined;
+  const hasReferences = referenceImages.length > 0 || Boolean(referenceVideo);
+  const archiveButton = (
+    <button
+      type="button"
+      onClick={() => taskApi.downloadWorkflowArchive(viewingWorkflow.id, workflowData?.windowIndex)}
+      disabled={!workflowData?.workflow || loadingWorkflow}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Download className="h-4 w-4" />
+      {t('tasks.downloadWorkflowArchive')}
+    </button>
+  );
+  const workflowObject = typeof workflowData?.workflow === 'string'
+    ? (() => {
+        try { return JSON.parse(workflowData.workflow); } catch { return null; }
+      })()
+    : workflowData?.workflow;
+  const allBoundNodes = workflowObject && typeof workflowObject === 'object'
+    ? (Array.isArray(workflowObject.nodes)
+        ? workflowObject.nodes.map((node: any) => [String(node.id), node]).filter(([, node]: any) => node?.inputs)
+        : Object.entries(workflowObject).filter(([, node]: any) => node?.inputs))
+      .map(([id, node]: any) => {
+        const inputs = { ...node.inputs };
+        if (node.class_type === 'CR Prompt Text') {
+          delete inputs.prompt;
+          delete inputs.text;
+        }
+        return {
+          id,
+          title: node._meta?.title || node.title || node.class_type || node.type || `Node ${id}`,
+          inputs: Object.entries(inputs),
+        };
+      })
+      .filter((node: any) => node.inputs.length > 0)
+    : [];
+  const mappedNodeIds = new Set(
+    Object.values(workflowData?.nodeMapping || {})
+      .filter((nodeId): nodeId is string | number => typeof nodeId === 'string' || typeof nodeId === 'number')
+      .map(String),
+  );
+  const boundNodes = showOnlyMappedNodes
+    ? allBoundNodes.filter((node: any) => mappedNodeIds.has(node.id))
+    : allBoundNodes;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className={`bg-white rounded-lg w-full ${workflowView === 'graph' ? 'max-w-7xl' : 'max-w-4xl'} max-h-[90vh] flex flex-col overflow-hidden`}>
         <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 bg-white">
           <h3 className="text-lg font-semibold text-gray-900">
             {t('tasks.workflowDetails')}
@@ -101,21 +169,35 @@ export function WorkflowViewModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          <CandidateResultSummary task={viewingWorkflow} onPreviewVideo={onPreviewVideo} />
           {loadingWorkflow ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
             </div>
           ) : workflowData ? (
             <div className="space-y-4">
-              {!!viewingWorkflow.referenceImages?.length && (
+              {workflowData.seed != null && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  Seed: <span className="font-mono font-medium">{workflowData.seed}</span>
+                </div>
+              )}
+              {executionDuration?.effective_duration != null && <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+                原始时长：{executionDuration.original_duration}s · #14 优化时长：{executionDuration.optimized_duration ?? '—'}s · 实际生成参数时长：{executionDuration.effective_duration}s · 来源：{executionDuration.duration_source}
+              </p>}
+              {hasReferences && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.referenceImages')}</h4>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-medium text-gray-700">
+                      {referenceImages.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
+                    </h4>
+                    {archiveButton}
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {viewingWorkflow.referenceImages.map((image, index) => (
+                    {referenceImages.map((image, index) => (
                       <button
                         key={`${image.url}-${index}`}
                         type="button"
-                        onClick={() => onPreviewImages(viewingWorkflow.referenceImages || [], index)}
+                        onClick={() => onPreviewImages(referenceImages, index)}
                         className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow"
                         title={image.label || t('tasks.referenceImage')}
                       >
@@ -132,48 +214,144 @@ export function WorkflowViewModal({
                         <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                       </button>
                     ))}
+                    {referenceVideo && (
+                      <button
+                        type="button"
+                        onClick={() => onPreviewVideo(referenceVideo)}
+                        className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-black"
+                        title={t('tasks.referenceVideo')}
+                      >
+                        <video src={referenceVideo} muted preload="metadata" className="h-full w-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          <Play className="h-6 w-6 fill-current" />
+                        </span>
+                        <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-xs text-white">
+                          {t('tasks.referenceVideo')}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium text-gray-700">{t('tasks.generationPrompt')}</h4>
-                  <button
-                    type="button"
-                    onClick={copyPrompt}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
-                    title={t('common.copy')}
-                    aria-label={t('common.copy')}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
+                  <h4 className="text-sm font-medium text-gray-700">
+                    {t('tasks.generationPrompt')}{promptItems.length > 0 ? `（${promptItems.length} 项）` : ''}
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      {t('tasks.promptCharacterCount', { count: promptCharacterCount })}
+                    </span>
+                  </h4>
+                  {promptItems.length === 0 && (
+                    <button type="button" onClick={() => void copyText(workflowData.prompt)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50" title={t('common.copy')} aria-label={t('common.copy')}>
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
-                  <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
-                </div>
+                {promptItems.length > 0 ? (
+                  <div className="space-y-3">
+                    {promptItems.map((item) => (
+                      <div key={`${item.nodeId}-${item.role}`} className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-3 py-2">
+                          <div className="min-w-0">
+                            <span className="text-sm font-medium text-gray-800">{item.label}</span>
+                            <span className="ml-2 text-xs text-gray-400">Node {item.nodeId} · {item.nodeTitle}</span>
+                          </div>
+                          <button type="button" onClick={() => void copyText(item.content)} className="shrink-0 rounded p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title={`复制${item.label}`}>
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words p-3 font-mono text-sm text-gray-600">{item.content}</pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
+                    <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
+                  </div>
+                )}
               </div>
+              {boundNodes.length > 0 && (
+                <section className="overflow-hidden rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between gap-3 bg-gray-50 px-3 py-2.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="text-sm font-medium text-gray-700">{t('tasks.boundWorkflowParameters', { count: boundNodes.reduce((total: number, node: any) => total + node.inputs.length, 0) })}</span>
+                      <label className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={showOnlyMappedNodes}
+                          onChange={(event) => setShowOnlyMappedNodes(event.target.checked)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {t('tasks.showOnlyMappedNodes')}
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBoundParameters(value => !value)}
+                      aria-expanded={showBoundParameters}
+                      aria-label={showBoundParameters ? t('common.collapse') : t('common.expand')}
+                      className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-200"
+                    >
+                      {showBoundParameters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {showBoundParameters && (
+                    <div className="max-h-96 space-y-2 overflow-y-auto p-3">
+                      {showOnlyMappedNodes && mappedNodeIds.size === 0 && (
+                        <p className="px-1 text-xs text-amber-700">{t('tasks.noMappedNodes')}</p>
+                      )}
+                      {boundNodes.map((node: any) => (
+                        <details key={node.id} className="rounded-md border border-gray-200" open={boundNodes.length <= 8}>
+                          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-700">
+                            <span className="mr-2 font-mono text-gray-400">#{node.id}</span>{node.title}
+                          </summary>
+                          <dl className="divide-y divide-gray-100 border-t border-gray-100">
+                            {node.inputs.map(([name, value]: [string, unknown]) => (
+                              <div key={name} className="grid grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] gap-3 px-3 py-2 text-xs">
+                                <dt className="break-all font-mono text-gray-500">{name}</dt>
+                                <dd className="break-all font-mono text-gray-700">{typeof value === 'string' ? value : JSON.stringify(value)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </details>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
               {workflowData.workflow && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium text-gray-700">{t('tasks.workflowJSON')}</h4>
-                    <button
-                      type="button"
-                      onClick={downloadWorkflowJson}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
-                      title="下载工作流 JSON"
-                      aria-label="下载工作流 JSON"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
+                    <div className="flex rounded-lg border border-gray-200 p-0.5" role="tablist" aria-label={t('tasks.workflowDetails')}>
+                      <button type="button" role="tab" aria-selected={workflowView === 'graph'} onClick={() => setWorkflowView('graph')} className={`rounded-md px-3 py-1.5 text-sm ${workflowView === 'graph' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {t('tasks.workflowGraph')}
+                      </button>
+                      <button type="button" role="tab" aria-selected={workflowView === 'json'} onClick={() => setWorkflowView('json')} className={`rounded-md px-3 py-1.5 text-sm ${workflowView === 'json' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {t('tasks.workflowJSON')}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!hasReferences && archiveButton}
+                      <button
+                        type="button"
+                        onClick={downloadWorkflowJson}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
+                        title="下载工作流 JSON"
+                        aria-label="下载工作流 JSON"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <JSONEditor
-                      value={workflowJsonText}
-                      onChange={() => {}}
-                      readOnly={true}
-                      height="50vh"
-                    />
-                  </div>
+                  {workflowView === 'graph' ? (
+                    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">{t('common.loading')}</div>}>
+                      <WorkflowGraphView workflow={workflowData.workflow} nodeMapping={workflowData.nodeMapping} />
+                    </Suspense>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <JSONEditor value={workflowJsonText} onChange={() => {}} readOnly={true} height="50vh" />
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex justify-end pt-4">

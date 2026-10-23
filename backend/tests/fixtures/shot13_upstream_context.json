@@ -1,0 +1,1974 @@
+{
+  "provenance": {
+    "source_directory": "/Volumes/Data/tmp/h3_phase_b_shot13_upstream_execution_20261015",
+    "source_sha256": {
+      "before_shot.json": "c67b1049af3524a2dcbb8f57e7e7daedcc16ef279fcc1504131e7cefd80adcba",
+      "after_planning_shot.json": "d5029d6bb075a14900efd9275343c54cd59c76026af55b7ac74069c31e15e707",
+      "new_llm_logs.json": "879bb124035d44c366cfdf583aef63f6c763c754403a1ccd2bf4f113a5abd930"
+    },
+    "note": "Saved real input/output, not a new LLM response; projection tests only."
+  },
+  "shot": {
+    "id": "2a13f96a-b92b-4cc0-8d53-8fa8069981d6",
+    "chapter_id": "6ad4afd6-f37b-419f-9a1c-0e3e4ec47d1e",
+    "index": 13,
+    "description": "Scene: 夜间的大臣府书房由书房蜡烛照明，桌面区域被暖光集中照亮；中全景，机位从桌侧拍向老大臣与刚进入的仆人。画面可见人物严格限定为老大臣、仆人1，共2名。\nCharacters:\n- 老大臣: 位于画面右侧桌前，严格继承正式参考资产身份，身体朝向桌面，手边放着朝会文件，抬眼看向仆人1。\n- 仆人1: 位于画面左侧书房入口内，身体朝向老大臣，双手恭敬托着皇帝命令文书。\nAction: 仆人1站在书房入口内，将皇帝命令文书递向桌前的老大臣。",
+    "video_description": "从当前静态首帧状态继续，仆人1走到桌前，将皇帝命令文书交给老大臣。老大臣接过并读完，露出期待笑容，围绕次日查看神奇布料的任务向仆人1确认。仆人1恭敬回答并脱口表达信心，老大臣抬头追问，仆人1意识到失言后迅速低头解释。老大臣不再回应，重新拿起朝会文件；仆人1沉默退出书房。摄影机缓慢推近独处的老大臣，他尝试阅读数行却无法集中精神，书房蜡烛的火焰轻轻摇晃。老大臣低声重复关于愚蠢与职位资格的条件，逐渐放下朝会文件，脸上的期待转为凝重。镜头在他沉默凝视桌面的状态中结束。只有老大臣与仆人1按照dialogues顺序发声，不增加其他人物语音；保留纸张、脚步与轻微环境声，不生成字幕或画面文字。",
+    "characters": "[\"老大臣\", \"仆人1\"]",
+    "scene": "大臣府书房",
+    "props": "[\"朝会文件\", \"皇帝命令文书\", \"书房蜡烛\"]",
+    "duration": 76,
+    "continuity_mode": "CONTINUOUS_TAKE",
+    "dialogues": "[{\"order\": 1, \"character_name\": \"老大臣\", \"text\": \"陛下让我去查看那块神奇的布？\", \"emotion_prompt\": \"惊喜确认\"}, {\"order\": 2, \"character_name\": \"仆人1\", \"text\": \"是的，大人。\", \"emotion_prompt\": \"恭敬肯定\"}, {\"order\": 3, \"character_name\": \"老大臣\", \"text\": \"明天一早？\", \"emotion_prompt\": \"确认时间\"}, {\"order\": 4, \"character_name\": \"仆人1\", \"text\": \"是。\", \"emotion_prompt\": \"简短恭敬\"}, {\"order\": 5, \"character_name\": \"老大臣\", \"text\": \"很好。\", \"emotion_prompt\": \"满意期待\"}, {\"order\": 6, \"character_name\": \"老大臣\", \"text\": \"我倒真想看看，究竟是什么样的布，能让整个王宫议论这么多天。\", \"emotion_prompt\": \"好奇自信\"}, {\"order\": 7, \"character_name\": \"仆人1\", \"text\": \"大人一定看得见。\", \"emotion_prompt\": \"讨好笃定\"}, {\"order\": 8, \"character_name\": \"老大臣\", \"text\": \"为什么？\", \"emotion_prompt\": \"敏感追问\"}, {\"order\": 9, \"character_name\": \"仆人1\", \"text\": \"因为……因为大人一向是王国里最有智慧的人。\", \"emotion_prompt\": \"慌张补救\"}, {\"order\": 10, \"character_name\": \"老大臣\", \"text\": \"只有愚蠢的人……\", \"emotion_prompt\": \"低声忧虑\"}, {\"order\": 11, \"character_name\": \"老大臣\", \"text\": \"或者不配担任自己职位的人……\", \"emotion_prompt\": \"凝重恐惧\"}]"
+  },
+  "raw_08": {
+    "shot_duration": 32,
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0,
+        "role": "START",
+        "description": null,
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 2.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，桌面与两人被书房蜡烛的暖光照亮；摄影机仍从桌侧保持连续的中全景。\nCharacters:\n- 老大臣: 位于画面右侧桌前，身体转向仆人1，双手持有皇帝命令文书，视线落在文书上。\n- 仆人1: 位于桌前左侧，面向老大臣，双手收回身前，保持恭敬站姿。\nAction: 皇帝命令文书已转移到老大臣手中，朝会文件仍放在桌面一侧。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 3,
+        "time_seconds": 8.1,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿原有桌侧方向缓慢推近，桌面暖光保持稳定。\nCharacters:\n- 老大臣: 将皇帝命令文书稍稍放低，抬眼望向仆人1，眉眼舒展，脸上显出期待的笑容。\n- 仆人1: 站在桌前左侧，身体朝向老大臣，双手恭敬置于身前。\nAction: 皇帝命令文书仍由老大臣持有，朝会文件保持在桌面上。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 17.2,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，连续推近形成较紧的双人构图，烛光集中在老大臣的脸与桌面文书上。\nCharacters:\n- 老大臣: 笑意消失，头部微抬，目光锐利地锁定仆人1，持文书的手停在桌沿上方。\n- 仆人1: 仍在桌前左侧，肩背略显僵硬，视线与老大臣短暂相对。\nAction: 两人隔着桌角形成紧张的视线关系，桌上朝会文件尚未移动。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 5,
+        "time_seconds": 21.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿同一方向继续缓慢靠近，构图重心逐渐移向桌前的老大臣。\nCharacters:\n- 老大臣: 神情收紧，视线从仆人1移向桌面，一只手已按在朝会文件上，皇帝命令文书放在近旁。\n- 仆人1: 低着头，双手拘谨地收在身前，身体稍向书房入口方向侧转。\nAction: 朝会文件仍平放在桌上，老大臣的手掌压住文件上缘；仆人1已形成退向入口的身体朝向。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 6,
+        "time_seconds": 25.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，书房入口处空无一人；摄影机保持原轴线推至老大臣的中景，桌面烛光成为画面主要光源。\nCharacters:\n- 老大臣: 独自坐在桌前，双手拿起朝会文件，目光停在纸页上，眉头紧锁，姿态僵硬而心神不宁。\nAction: 皇帝命令文书留在桌面一侧，朝会文件展开在老大臣手中，书房蜡烛的火焰轻微偏斜。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 7,
+        "time_seconds": 32,
+        "role": "END",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿原有轨迹停在独处的老大臣近中景；暖色烛光笼罩桌面，书房入口保持空寂，烛焰轻轻摇晃。\nCharacters:\n- 老大臣: 将朝会文件放回桌面，双手停在文件两侧，肩背微沉，垂眼凝视桌面，脸上只剩凝重与隐约恐惧。\nAction: 朝会文件平放在老大臣面前，皇帝命令文书留在旁侧，两份文书均静止在烛光中。",
+        "timed_visual_target": false
+      }
+    ],
+    "visual_attention": {
+      "windows": [
+        {
+          "start_time_seconds": 0,
+          "end_time_seconds": 2.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 2.5,
+          "end_time_seconds": 14.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 14.5,
+          "end_time_seconds": 15.3,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ],
+            "to": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 15.3,
+          "end_time_seconds": 16.7,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 16.7,
+          "end_time_seconds": 17.2,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ],
+            "to": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 17.2,
+          "end_time_seconds": 17.85,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 17.85,
+          "end_time_seconds": 21.8,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ]
+        },
+        {
+          "start_time_seconds": 21.8,
+          "end_time_seconds": 22.55,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ],
+            "to": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 22.55,
+          "end_time_seconds": 25.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ]
+        },
+        {
+          "start_time_seconds": 25.5,
+          "end_time_seconds": 32,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        }
+      ]
+    }
+  },
+  "saved_plan": {
+    "canonical_visual_plan": true,
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 2.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，桌面与两人被书房蜡烛的暖光照亮；摄影机仍从桌侧保持连续的中全景。\nCharacters:\n- 老大臣: 位于画面右侧桌前，身体转向仆人1，双手持有皇帝命令文书，视线落在文书上。\n- 仆人1: 位于桌前左侧，面向老大臣，双手收回身前，保持恭敬站姿。\nAction: 皇帝命令文书已转移到老大臣手中，朝会文件仍放在桌面一侧。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 3,
+        "time_seconds": 8.1,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿原有桌侧方向缓慢推近，桌面暖光保持稳定。\nCharacters:\n- 老大臣: 将皇帝命令文书稍稍放低，抬眼望向仆人1，眉眼舒展，脸上显出期待的笑容。\n- 仆人1: 站在桌前左侧，身体朝向老大臣，双手恭敬置于身前。\nAction: 皇帝命令文书仍由老大臣持有，朝会文件保持在桌面上。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 17.2,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，连续推近形成较紧的双人构图，烛光集中在老大臣的脸与桌面文书上。\nCharacters:\n- 老大臣: 笑意消失，头部微抬，目光锐利地锁定仆人1，持文书的手停在桌沿上方。\n- 仆人1: 仍在桌前左侧，肩背略显僵硬，视线与老大臣短暂相对。\nAction: 两人隔着桌角形成紧张的视线关系，桌上朝会文件尚未移动。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 5,
+        "time_seconds": 21.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿同一方向继续缓慢靠近，构图重心逐渐移向桌前的老大臣。\nCharacters:\n- 老大臣: 神情收紧，视线从仆人1移向桌面，一只手已按在朝会文件上，皇帝命令文书放在近旁。\n- 仆人1: 低着头，双手拘谨地收在身前，身体稍向书房入口方向侧转。\nAction: 朝会文件仍平放在桌上，老大臣的手掌压住文件上缘；仆人1已形成退向入口的身体朝向。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 6,
+        "time_seconds": 25.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 夜间的大臣府书房，书房入口处空无一人；摄影机保持原轴线推至老大臣的中景，桌面烛光成为画面主要光源。\nCharacters:\n- 老大臣: 独自坐在桌前，双手拿起朝会文件，目光停在纸页上，眉头紧锁，姿态僵硬而心神不宁。\nAction: 皇帝命令文书留在桌面一侧，朝会文件展开在老大臣手中，书房蜡烛的火焰轻微偏斜。",
+        "timed_visual_target": true
+      },
+      {
+        "index": 7,
+        "time_seconds": 32.0,
+        "role": "END",
+        "description": "Scene: 夜间的大臣府书房，摄影机沿原有轨迹停在独处的老大臣近中景；暖色烛光笼罩桌面，书房入口保持空寂，烛焰轻轻摇晃。\nCharacters:\n- 老大臣: 将朝会文件放回桌面，双手停在文件两侧，肩背微沉，垂眼凝视桌面，脸上只剩凝重与隐约恐惧。\nAction: 朝会文件平放在老大臣面前，皇帝命令文书留在旁侧，两份文书均静止在烛光中。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 2.5,
+        "transition_description": "在同一桌侧中全景内，仆人1于桌前左侧朝画面右侧的老大臣递近皇帝命令文书，老大臣在桌前右侧转身面向仆人1并以双手接住文书；交接完成后，仆人1将双手收回身前，保持恭敬站姿，老大臣把文书稳持在双手之间并将视线落向文书。朝会文件始终留在桌面一侧，书房蜡烛及其暖光保持连续稳定。摄影机不切换机位，以桌侧中全景稳定维持两人的共同主体关系，仅作轻微连续构图补偿；至2.5秒时停在老大臣位于画面右侧、双手持皇帝命令文书并低头注视，仆人1位于左侧面向老大臣、双手收于身前的状态。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 2.5,
+        "end_time": 8.1,
+        "transition_description": "老大臣保持在画面右侧桌前，先继续垂眼看着双手所持的皇帝命令文书，随后将文书平稳地稍稍放低，同时逐渐抬起视线转向桌前左侧的仆人1；他的眉眼随之舒展，表情自然过渡为期待的笑容。仆人1始终位于桌前左侧，身体朝向老大臣，双手恭敬置于身前，仅保持轻微自然呼吸与稳定站姿。朝会文件留在桌面一侧不动，皇帝命令文书全程由老大臣持有，蜡烛暖光与室内环境连续稳定。摄影机从原有桌侧中全景机位沿原方向缓慢、平稳推近，不改变两人的左右关系，以老大臣为主要视觉重心，同时保留仆人1及桌面关系可读；最终停在老大臣已稍稍放低文书、抬眼望向仆人1并显出期待笑容，仆人1仍恭敬站立的状态。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 8.1,
+        "end_time": 17.2,
+        "transition_description": "摄影机沿既有桌侧轴线不间断地缓慢推近。8.1至14.5秒，老大臣保持在桌后原位，目光落在桌前左侧的仆人1身上；他脸上的期待笑意逐渐收敛，眉眼缓慢转为冷峻，头部微微抬起，同时将持有皇帝命令文书的手平稳降至桌沿上方并停住。仆人1仍站在桌前左侧，双手恭敬置于身前，仅出现轻微呼吸与重心收紧，不改变位置。14.5至15.3秒，摄影机在持续推近中向左做极轻微构图补偿，使两人的视线连线和仆人1的反应逐渐清晰；仆人1抬起视线，与老大臣短暂相对，肩背开始僵硬。15.3至16.7秒，镜头保持稳定推进并让仆人1的紧张姿态更易辨认，老大臣仍在桌后以锐利目光锁定他，文书保持悬停在桌沿上方。16.7至17.2秒，构图自然回归两人的对峙关系，形成较紧的双人画面：老大臣笑意完全消失、头部微抬、目光锐利，仆人1留在桌前左侧并肩背僵硬，两人隔着桌角短暂对视。皇帝命令文书始终由老大臣持有，桌上朝会文件全程不动；书房烛光保持连续稳定，并随构图收紧集中呈现在老大臣脸部与桌面文书上。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 17.2,
+        "end_time": 21.8,
+        "transition_description": "摄影机从原有较紧双人构图沿同一轴线持续缓慢推进，不切镜、不跳轴。起初老大臣仍以锐利目光锁定仆人1，持文书的手悬停在桌沿上方；随后他收紧神情，将文书平稳放到朝会文件近旁，视线随之落向桌面，再把一只手移到朝会文件上缘并压住，文件本身保持平放、不被推移。17.85秒后，仆人1的反应保持为主要视觉关注：他避开对视，缓慢低下头，将双手拘谨地收拢在身前，同时从桌前左侧轻微转动肩身，朝书房入口方向形成准备退离的朝向，但不继续迈步。老大臣的落手动作保留在双人关系中作为次要动态，不因动作被提升为独占焦点。摄影机继续稳定靠近，并作极轻微构图补偿，使仆人1的低头与侧转仍清晰可读，同时让画面重心逐渐靠向桌前的老大臣。最终停在老大臣垂眼按住朝会文件上缘、皇帝命令文书置于近旁，仆人1低头收手并侧身朝向入口的连续状态。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 21.8,
+        "end_time": 25.5,
+        "transition_description": "同一镜头内，摄影机沿既有轴线持续缓慢推进。开始时短暂保留老大臣与仆人1的关系构图：仆人1维持低头和双手收于身前的拘谨姿态，沿身体已经侧转的方向退向书房入口；老大臣仍坐在桌前，目光落向桌面，按住朝会文件上缘的手暂不移开。随着仆人1接近入口，画面关注自然转向老大臣，摄影机不跟随仆人1，而是继续稳定靠近桌前，使仆人1在背景中退出入口并离开画面。老大臣保持坐姿，先以按住文件的手稳住纸页，再用另一只手托起文件，随后双手将朝会文件从桌面拿起并展开，视线始终收束在纸页上，眉头逐渐锁紧，身体变得僵硬。皇帝命令文书全程留在桌面一侧，不被移动；书房蜡烛持续照亮桌面，火焰逐渐呈轻微偏斜。最终摄影机在原轴线上推至老大臣的中景并稳定下来，入口处空无一人，老大臣独自坐在桌前，双手持展开的朝会文件，目光停在纸页上，桌面烛光成为主要光源。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 25.5,
+        "end_time": 32.0,
+        "transition_description": "老大臣保持坐在桌前，紧锁眉头凝视手中的朝会文件，随后双手将文件从身前缓慢下移，朝桌面正前方平稳放下；纸页接触桌面后，他略微整理手势，使文件平放在自己面前，再将双手停在文件两侧。随着动作结束，他的肩背逐渐下沉，视线由纸页落向桌面，僵硬不安的神情收束为凝重与隐约恐惧。皇帝命令文书始终静置在桌面一侧，仆人1不进入画面，书房入口持续空寂；书房蜡烛仅有轻微摇晃，暖光连续笼罩两份文书。摄影机沿原有轴线从中景极缓慢推进至老大臣近中景，不切镜、不跳轴，也不改变主体关系，最终停在老大臣垂眼、双手分置于朝会文件两侧的静止状态。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "老大臣",
+        "text": "陛下让我去查看那块神奇的布？",
+        "start_time": 1.0,
+        "end_time": 4.25,
+        "duration": 3.25,
+        "estimated_speech_duration": 3.25,
+        "min_required_duration": 3.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "惊喜确认"
+      },
+      {
+        "id": "D2",
+        "speaker": "仆人1",
+        "text": "是的，大人。",
+        "start_time": 4.45,
+        "end_time": 5.45,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬肯定"
+      },
+      {
+        "id": "D3",
+        "speaker": "老大臣",
+        "text": "明天一早？",
+        "start_time": 5.65,
+        "end_time": 6.65,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "确认时间"
+      },
+      {
+        "id": "D4",
+        "speaker": "仆人1",
+        "text": "是。",
+        "start_time": 6.85,
+        "end_time": 7.35,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "简短恭敬"
+      },
+      {
+        "id": "D5",
+        "speaker": "老大臣",
+        "text": "很好。",
+        "start_time": 7.55,
+        "end_time": 8.05,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "满意期待"
+      },
+      {
+        "id": "D6",
+        "speaker": "老大臣",
+        "text": "我倒真想看看，究竟是什么样的布，能让整个王宫议论这么多天。",
+        "start_time": 8.25,
+        "end_time": 14.75,
+        "duration": 6.5,
+        "estimated_speech_duration": 6.5,
+        "min_required_duration": 6.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "好奇自信"
+      },
+      {
+        "id": "D7",
+        "speaker": "仆人1",
+        "text": "大人一定看得见。",
+        "start_time": 14.95,
+        "end_time": 16.7,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "讨好笃定"
+      },
+      {
+        "id": "D8",
+        "speaker": "老大臣",
+        "text": "为什么？",
+        "start_time": 16.9,
+        "end_time": 17.65,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "敏感追问"
+      },
+      {
+        "id": "D9",
+        "speaker": "仆人1",
+        "text": "因为……因为大人一向是王国里最有智慧的人。",
+        "start_time": 17.85,
+        "end_time": 22.35,
+        "duration": 4.5,
+        "estimated_speech_duration": 4.5,
+        "min_required_duration": 4.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "慌张补救"
+      },
+      {
+        "id": "D10",
+        "speaker": "老大臣",
+        "text": "只有愚蠢的人……",
+        "start_time": 22.55,
+        "end_time": 24.05,
+        "duration": 1.5,
+        "estimated_speech_duration": 1.5,
+        "min_required_duration": 1.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "低声忧虑"
+      },
+      {
+        "id": "D11",
+        "speaker": "老大臣",
+        "text": "或者不配担任自己职位的人……",
+        "start_time": 24.25,
+        "end_time": 27.25,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "凝重恐惧"
+      }
+    ],
+    "dialogue_timeline_status": {
+      "status": "ok",
+      "estimated_speech_duration": 24.25,
+      "dialogue_gap_duration": 2.0,
+      "lead_in_duration": 1.0,
+      "overflow_seconds": 0.0
+    },
+    "visual_attention": {
+      "version": 1,
+      "time_base": "SHOT_SECONDS",
+      "character_catalog": [
+        {
+          "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+          "character_name": "老大臣"
+        },
+        {
+          "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "character_name": "仆人1"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 2.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 2.5,
+          "end_time_seconds": 14.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 14.5,
+          "end_time_seconds": 15.3,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ],
+            "to": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 15.3,
+          "end_time_seconds": 16.7,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 16.7,
+          "end_time_seconds": 17.2,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ],
+            "to": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 17.2,
+          "end_time_seconds": 17.85,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 17.85,
+          "end_time_seconds": 21.8,
+          "primary_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ]
+        },
+        {
+          "start_time_seconds": 21.8,
+          "end_time_seconds": 22.55,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91",
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            ],
+            "to": [
+              "7a34f991-4797-4dd6-a326-43039022cd91"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 22.55,
+          "end_time_seconds": 25.5,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": [
+            "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+          ]
+        },
+        {
+          "start_time_seconds": 25.5,
+          "end_time_seconds": 32.0,
+          "primary_subjects": [
+            "7a34f991-4797-4dd6-a326-43039022cd91"
+          ],
+          "background_motion_subjects": []
+        }
+      ]
+    },
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 14.75,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "The boundary follows completion of D6 in the 14.75–14.95 speech gap, keeping the initial document handoff, the minister’s developing expectation, and the long D5–D6 speaker run together while separating the ensuing reaction handoff. An earlier split would either interrupt D6 or fragment the uninterrupted push-in and expression change without improving the neighboring Clip. D1, D3, D5, and D6 have full planned primary support; D6 also carries a legitimate handoff toward the servant. D2 and D4 are fully time-covered but the resolved servant is not listed in their attention windows, so downstream participation support is appropriate within the existing shared composition. Planned metadata does not establish actual visibility or readability.",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": [
+            {
+              "dialogue_id": "D2",
+              "intent": "SUPPORT_SPEAKER_PARTICIPATION",
+              "target_character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            },
+            {
+              "dialogue_id": "D4",
+              "intent": "SUPPORT_SPEAKER_PARTICIPATION",
+              "target_character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b"
+            }
+          ]
+        },
+        "planned_duration": 14.75,
+        "execution_status": "PLANNED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          1,
+          2,
+          3
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 14.75
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "陛下让我去查看那块神奇的布？",
+            "emotion_prompt": "惊喜确认",
+            "estimated_duration": 3.25,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 4.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "仆人1",
+            "text": "是的，大人。",
+            "emotion_prompt": "恭敬肯定",
+            "estimated_duration": 1.0,
+            "source_order": 2,
+            "start_time": 4.45,
+            "end_time": 5.45,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "明天一早？",
+            "emotion_prompt": "确认时间",
+            "estimated_duration": 1.0,
+            "source_order": 3,
+            "start_time": 5.65,
+            "end_time": 6.65,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "仆人1",
+            "text": "是。",
+            "emotion_prompt": "简短恭敬",
+            "estimated_duration": 0.5,
+            "source_order": 4,
+            "start_time": 6.85,
+            "end_time": 7.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "很好。",
+            "emotion_prompt": "满意期待",
+            "estimated_duration": 0.5,
+            "source_order": 5,
+            "start_time": 7.55,
+            "end_time": 8.05,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "我倒真想看看，究竟是什么样的布，能让整个王宫议论这么多天。",
+            "emotion_prompt": "好奇自信",
+            "estimated_duration": 6.5,
+            "source_order": 6,
+            "start_time": 8.25,
+            "end_time": 14.75,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "623b36464e5c7d2805c49a8ddc622c2c11c10127ff228aa56176d53b01b76371",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "intended_window": {
+                "start": 1.0,
+                "end": 4.25
+              }
+            },
+            {
+              "dialogue_id": "D2",
+              "intended_window": {
+                "start": 4.45,
+                "end": 5.45
+              }
+            },
+            {
+              "dialogue_id": "D3",
+              "intended_window": {
+                "start": 5.65,
+                "end": 6.65
+              }
+            },
+            {
+              "dialogue_id": "D4",
+              "intended_window": {
+                "start": 6.85,
+                "end": 7.35
+              }
+            },
+            {
+              "dialogue_id": "D5",
+              "intended_window": {
+                "start": 7.55,
+                "end": 8.05
+              }
+            },
+            {
+              "dialogue_id": "D6",
+              "intended_window": {
+                "start": 8.25,
+                "end": 14.75
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 14.75,
+          "fixed_dialogue_duration": 12.75,
+          "overlap_duration": 0.0,
+          "minimum_execution_duration": 12.75,
+          "workflow_budget": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": false,
+          "reason": null,
+          "reason_missing": false,
+          "status": "WITHIN_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[0]",
+                    "interval": {
+                      "start": 1.0,
+                      "end": 2.5
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 2.5,
+                      "end": 4.25
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [
+                  "KF2"
+                ],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 4.45,
+                      "end": 5.45
+                    },
+                    "roles": [
+                      "not_listed"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D3",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 5.65,
+                      "end": 6.65
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D4",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 6.85,
+                      "end": 7.35
+                    },
+                    "roles": [
+                      "not_listed"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D5",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 7.55,
+                      "end": 8.05
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D6",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 8.25,
+                      "end": 14.5
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 14.5,
+                      "end": 14.75
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "from"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 6.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF3",
+                "inside_state_ids": [],
+                "after_state_id": "KF4",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "after",
+                    "scope": "shot_context",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        }
+      },
+      {
+        "clip_index": 2,
+        "start_time": 14.75,
+        "end_time": 32.0,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 1,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF6"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF3",
+          "transition_to_state_id": "KF4",
+          "premise_preserved": true
+        },
+        "reason": "This 17.25-second Clip exceeds the 15-second preference but remains below the 20-second story ceiling and preserves one uninterrupted visual progression: the existing push-in and tightening confrontation continue through the servant’s retreat and exit, then into the minister lifting, studying, and finally lowering the court document. Adding a third Clip after D9 or D11 would cut across the authored retreat, document handling, or continuous camera advance and add continuation cost without a clear whole-sequence benefit; the post-dialogue portion adds the distinct final document-placement and emotional outcome rather than padding a finished hold. CONTINUOUS is required because the opening lies inside the KF3-to-KF4 transition and must inherit the exact table-side axis, left-right blocking, ongoing push-in, held-document position, and developing confrontation from the prior ending. KF3 was established before the boundary, and its outgoing transition preserves the two-person table relationship, facing, props, camera axis, and ongoing action phase through the opening, so no new opening composition is required. KF6 is selected because the servant’s completed exit, the newly empty entrance, the single-subject medium composition, and the minister holding the opened court document form a material timed arrangement not supplied by the inherited two-person premise alone. D7 and D8 have full primary support through legitimate reciprocal handoffs; D9 has primary servant support with the minister as background motion before its handoff; D10 and D11 have full primary minister support while the servant recedes and then leaves the planned composition. These close handoffs add execution attention but do not indicate missing participation or justify fragmenting the continuous action; actual visibility and readability remain unknown.",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "planned_duration": 17.25,
+        "execution_status": "PLANNED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "carry_in_state_index": 3,
+        "dialogue_scope": {
+          "start_time": 14.75,
+          "end_time": 32.0
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-2-KF6"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D7",
+            "segment_index": 1,
+            "speaker": "仆人1",
+            "text": "大人一定看得见。",
+            "emotion_prompt": "讨好笃定",
+            "estimated_duration": 1.75,
+            "source_order": 7,
+            "start_time": 14.95,
+            "end_time": 16.7,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D8",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "为什么？",
+            "emotion_prompt": "敏感追问",
+            "estimated_duration": 0.75,
+            "source_order": 8,
+            "start_time": 16.9,
+            "end_time": 17.65,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D9",
+            "segment_index": 1,
+            "speaker": "仆人1",
+            "text": "因为……因为大人一向是王国里最有智慧的人。",
+            "emotion_prompt": "慌张补救",
+            "estimated_duration": 4.5,
+            "source_order": 9,
+            "start_time": 17.85,
+            "end_time": 22.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D10",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "只有愚蠢的人……",
+            "emotion_prompt": "低声忧虑",
+            "estimated_duration": 1.5,
+            "source_order": 10,
+            "start_time": 22.55,
+            "end_time": 24.05,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D11",
+            "segment_index": 1,
+            "speaker": "老大臣",
+            "text": "或者不配担任自己职位的人……",
+            "emotion_prompt": "凝重恐惧",
+            "estimated_duration": 3.0,
+            "source_order": 11,
+            "start_time": 24.25,
+            "end_time": 27.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "623b36464e5c7d2805c49a8ddc622c2c11c10127ff228aa56176d53b01b76371",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D7",
+              "intended_window": {
+                "start": 0.2,
+                "end": 1.95
+              }
+            },
+            {
+              "dialogue_id": "D8",
+              "intended_window": {
+                "start": 2.15,
+                "end": 2.9
+              }
+            },
+            {
+              "dialogue_id": "D9",
+              "intended_window": {
+                "start": 3.1,
+                "end": 7.6
+              }
+            },
+            {
+              "dialogue_id": "D10",
+              "intended_window": {
+                "start": 7.8,
+                "end": 9.3
+              }
+            },
+            {
+              "dialogue_id": "D11",
+              "intended_window": {
+                "start": 9.5,
+                "end": 12.5
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "duration_planning": {
+          "preferred_max_duration": 15.0,
+          "effective_max_duration": 20.0,
+          "planned_story_duration": 17.25,
+          "fixed_dialogue_duration": 11.5,
+          "overlap_duration": null,
+          "minimum_execution_duration": null,
+          "workflow_budget": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "exceeds_preferred": true,
+          "reason": "This 17.25-second Clip exceeds the 15-second preference but remains below the 20-second story ceiling and preserves one uninterrupted visual progression: the existing push-in and tightening confrontation continue through the servant’s retreat and exit, then into the minister lifting, studying, and finally lowering the court document. Adding a third Clip after D9 or D11 would cut across the authored retreat, document handling, or continuous camera advance and add continuation cost without a clear whole-sequence benefit; the post-dialogue portion adds the distinct final document-placement and emotional outcome rather than padding a finished hold. CONTINUOUS is required because the opening lies inside the KF3-to-KF4 transition and must inherit the exact table-side axis, left-right blocking, ongoing push-in, held-document position, and developing confrontation from the prior ending. KF3 was established before the boundary, and its outgoing transition preserves the two-person table relationship, facing, props, camera axis, and ongoing action phase through the opening, so no new opening composition is required. KF6 is selected because the servant’s completed exit, the newly empty entrance, the single-subject medium composition, and the minister holding the opened court document form a material timed arrangement not supplied by the inherited two-person premise alone. D7 and D8 have full primary support through legitimate reciprocal handoffs; D9 has primary servant support with the minister as background motion before its handoff; D10 and D11 have full primary minister support while the servant recedes and then leaves the planned composition. These close handoffs add execution attention but do not indicate missing participation or justify fragmenting the continuous action; actual visibility and readability remain unknown.",
+          "reason_missing": false,
+          "status": "ABOVE_PREFERRED",
+          "scope": "PLANNING_ONLY; no execution-time shift or fixed camera surcharge"
+        },
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D7",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 0.2,
+                      "end": 0.55
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[3]",
+                    "interval": {
+                      "start": 0.55,
+                      "end": 1.95
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF3",
+                "inside_state_ids": [],
+                "after_state_id": "KF4",
+                "nearest_state_ids": [
+                  "KF4"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 8.8,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D8",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[4]",
+                    "interval": {
+                      "start": 2.15,
+                      "end": 2.45
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[5]",
+                    "interval": {
+                      "start": 2.45,
+                      "end": 2.9
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 0.75,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF3",
+                "inside_state_ids": [
+                  "KF4"
+                ],
+                "after_state_id": "KF5",
+                "nearest_state_ids": [
+                  "KF4"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "before",
+                    "scope": "carry_in",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 7.85,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D9",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[6]",
+                    "interval": {
+                      "start": 3.1,
+                      "end": 7.05
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[7]",
+                    "interval": {
+                      "start": 7.05,
+                      "end": 7.6
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "from"
+                    ]
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 4.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF4",
+                "inside_state_ids": [
+                  "KF5"
+                ],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF4",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "absent_from_planned_membership",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 3.15,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D10",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[8]",
+                    "interval": {
+                      "start": 7.8,
+                      "end": 9.3
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [],
+                "after_state_id": "KF6",
+                "nearest_state_ids": [
+                  "KF5"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "after",
+                    "distance_seconds": 1.45,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D11",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "7a34f991-4797-4dd6-a326-43039022cd91",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[8]",
+                    "interval": {
+                      "start": 9.5,
+                      "end": 10.75
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  },
+                  {
+                    "window_id": "visual_attention.windows[9]",
+                    "interval": {
+                      "start": 10.75,
+                      "end": 12.5
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF5",
+                "inside_state_ids": [
+                  "KF6"
+                ],
+                "after_state_id": "KF7",
+                "nearest_state_ids": [
+                  "KF6"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF5",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF6",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF7",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": [
+                  {
+                    "reference_id": "clip-2-KF6",
+                    "reference_type": "TEMPORAL_ANCHOR",
+                    "source_state_id": "KF6",
+                    "slot": null,
+                    "time_relationship": "inside",
+                    "distance_seconds": 0,
+                    "nearest": true
+                  }
+                ]
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        }
+      }
+    ],
+    "clip_plan_revision": 1,
+    "clip_plan_validation": {
+      "passed": true,
+      "findings": [
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 1 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 2 has a non-rounded planned duration."
+        }
+      ],
+      "blocking": [],
+      "review_required": [],
+      "warnings": [
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 1 has a non-rounded planned duration."
+        },
+        {
+          "code": "NATURAL_DURATION_ROUNDING",
+          "severity": "WARNING",
+          "message": "Clip 2 has a non-rounded planned duration."
+        }
+      ],
+      "dialogue_ownership": {
+        "passed": true,
+        "findings": [],
+        "source_dialogue_count": 11,
+        "assigned_segment_count": 11
+      },
+      "duration_planning_policy": {
+        "preferred_max_duration": 15.0,
+        "preferred_max_is_soft": true,
+        "approval_mode": "AUTO_APPROVE",
+        "min_story_clip_duration": 4.0,
+        "max_story_clip_duration": 20.0,
+        "execution_budgets": {
+          "GENERATE": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "EXTEND": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          },
+          "TEMPORAL_EXTEND": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "VIDEO_CONTINUATION": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          }
+        }
+      },
+      "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+      "composition_contract": "EARLY_COMPOSITION_V2"
+    }
+  },
+  "saved_10_calls": [
+    {
+      "log_id": "85117922-114b-492e-a705-af67a9fcb40a",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 1,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 1,\n    \"role\": \"START\",\n    \"time_seconds\": 0.0,\n    \"description\": \"\"\n  },\n  \"to_keyframe\": {\n    \"index\": 2,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 2.5,\n    \"description\": \"Scene: 夜间的大臣府书房，桌面与两人被书房蜡烛的暖光照亮；摄影机仍从桌侧保持连续的中全景。\\nCharacters:\\n- 老大臣: 位于画面右侧桌前，身体转向仆人1，双手持有皇帝命令文书，视线落在文书上。\\n- 仆人1: 位于桌前左侧，面向老大臣，双手收回身前，保持恭敬站姿。\\nAction: 皇帝命令文书已转移到老大臣手中，朝会文件仍放在桌面一侧。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 0.0,\n        \"end_time_seconds\": 2.5,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\",\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 0,\n        \"source_start_time_seconds\": 0.0,\n        \"source_end_time_seconds\": 2.5\n      }\n    ],\n    \"clip_start_seconds\": 0.0,\n    \"clip_end_seconds\": 2.5\n  }\n}",
+      "response": "{\"segment_index\":1,\"from_keyframe_index\":1,\"to_keyframe_index\":2,\"start_time\":0.0,\"end_time\":2.5,\"transition_description\":\"在同一桌侧中全景内，仆人1于桌前左侧朝画面右侧的老大臣递近皇帝命令文书，老大臣在桌前右侧转身面向仆人1并以双手接住文书；交接完成后，仆人1将双手收回身前，保持恭敬站姿，老大臣把文书稳持在双手之间并将视线落向文书。朝会文件始终留在桌面一侧，书房蜡烛及其暖光保持连续稳定。摄影机不切换机位，以桌侧中全景稳定维持两人的共同主体关系，仅作轻微连续构图补偿；至2.5秒时停在老大臣位于画面右侧、双手持皇帝命令文书并低头注视，仆人1位于左侧面向老大臣、双手收于身前的状态。\"}"
+    },
+    {
+      "log_id": "09d1094c-2239-412d-b20a-8f2616ed0d1e",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 2,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 2,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 2.5,\n    \"description\": \"Scene: 夜间的大臣府书房，桌面与两人被书房蜡烛的暖光照亮；摄影机仍从桌侧保持连续的中全景。\\nCharacters:\\n- 老大臣: 位于画面右侧桌前，身体转向仆人1，双手持有皇帝命令文书，视线落在文书上。\\n- 仆人1: 位于桌前左侧，面向老大臣，双手收回身前，保持恭敬站姿。\\nAction: 皇帝命令文书已转移到老大臣手中，朝会文件仍放在桌面一侧。\"\n  },\n  \"to_keyframe\": {\n    \"index\": 3,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 8.1,\n    \"description\": \"Scene: 夜间的大臣府书房，摄影机沿原有桌侧方向缓慢推近，桌面暖光保持稳定。\\nCharacters:\\n- 老大臣: 将皇帝命令文书稍稍放低，抬眼望向仆人1，眉眼舒展，脸上显出期待的笑容。\\n- 仆人1: 站在桌前左侧，身体朝向老大臣，双手恭敬置于身前。\\nAction: 皇帝命令文书仍由老大臣持有，朝会文件保持在桌面上。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 2.5,\n        \"end_time_seconds\": 8.1,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 1,\n        \"source_start_time_seconds\": 2.5,\n        \"source_end_time_seconds\": 14.5\n      }\n    ],\n    \"clip_start_seconds\": 2.5,\n    \"clip_end_seconds\": 8.1\n  }\n}",
+      "response": "{\"segment_index\":2,\"from_keyframe_index\":2,\"to_keyframe_index\":3,\"start_time\":2.5,\"end_time\":8.1,\"transition_description\":\"老大臣保持在画面右侧桌前，先继续垂眼看着双手所持的皇帝命令文书，随后将文书平稳地稍稍放低，同时逐渐抬起视线转向桌前左侧的仆人1；他的眉眼随之舒展，表情自然过渡为期待的笑容。仆人1始终位于桌前左侧，身体朝向老大臣，双手恭敬置于身前，仅保持轻微自然呼吸与稳定站姿。朝会文件留在桌面一侧不动，皇帝命令文书全程由老大臣持有，蜡烛暖光与室内环境连续稳定。摄影机从原有桌侧中全景机位沿原方向缓慢、平稳推近，不改变两人的左右关系，以老大臣为主要视觉重心，同时保留仆人1及桌面关系可读；最终停在老大臣已稍稍放低文书、抬眼望向仆人1并显出期待笑容，仆人1仍恭敬站立的状态。\"}"
+    },
+    {
+      "log_id": "1e6b62fa-6b99-4146-ba09-c3cb4ec23ad9",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 3,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 3,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 8.1,\n    \"description\": \"Scene: 夜间的大臣府书房，摄影机沿原有桌侧方向缓慢推近，桌面暖光保持稳定。\\nCharacters:\\n- 老大臣: 将皇帝命令文书稍稍放低，抬眼望向仆人1，眉眼舒展，脸上显出期待的笑容。\\n- 仆人1: 站在桌前左侧，身体朝向老大臣，双手恭敬置于身前。\\nAction: 皇帝命令文书仍由老大臣持有，朝会文件保持在桌面上。\"\n  },\n  \"to_keyframe\": {\n    \"index\": 4,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 17.2,\n    \"description\": \"Scene: 夜间的大臣府书房，连续推近形成较紧的双人构图，烛光集中在老大臣的脸与桌面文书上。\\nCharacters:\\n- 老大臣: 笑意消失，头部微抬，目光锐利地锁定仆人1，持文书的手停在桌沿上方。\\n- 仆人1: 仍在桌前左侧，肩背略显僵硬，视线与老大臣短暂相对。\\nAction: 两人隔着桌角形成紧张的视线关系，桌上朝会文件尚未移动。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 8.1,\n        \"end_time_seconds\": 14.5,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 1,\n        \"source_start_time_seconds\": 2.5,\n        \"source_end_time_seconds\": 14.5\n      },\n      {\n        \"start_time_seconds\": 14.5,\n        \"end_time_seconds\": 15.3,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\",\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [],\n        \"handoff\": {\n          \"from\": [\n            \"7a34f991-4797-4dd6-a326-43039022cd91\"\n          ],\n          \"to\": [\n            \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n          ]\n        },\n        \"source_window_index\": 2,\n        \"source_start_time_seconds\": 14.5,\n        \"source_end_time_seconds\": 15.3,\n        \"handoff_progress\": {\n          \"start\": 0.0,\n          \"end\": 1.0\n        }\n      },\n      {\n        \"start_time_seconds\": 15.3,\n        \"end_time_seconds\": 16.7,\n        \"primary_subjects\": [\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 3,\n        \"source_start_time_seconds\": 15.3,\n        \"source_end_time_seconds\": 16.7\n      },\n      {\n        \"start_time_seconds\": 16.7,\n        \"end_time_seconds\": 17.2,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\",\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [],\n        \"handoff\": {\n          \"from\": [\n            \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n          ],\n          \"to\": [\n            \"7a34f991-4797-4dd6-a326-43039022cd91\"\n          ]\n        },\n        \"source_window_index\": 4,\n        \"source_start_time_seconds\": 16.7,\n        \"source_end_time_seconds\": 17.2,\n        \"handoff_progress\": {\n          \"start\": 0.0,\n          \"end\": 1.0\n        }\n      }\n    ],\n    \"clip_start_seconds\": 8.1,\n    \"clip_end_seconds\": 17.2\n  }\n}",
+      "response": "{\n  \"segment_index\": 3,\n  \"from_keyframe_index\": 3,\n  \"to_keyframe_index\": 4,\n  \"start_time\": 8.1,\n  \"end_time\": 17.2,\n  \"transition_description\": \"摄影机沿既有桌侧轴线不间断地缓慢推近。8.1至14.5秒，老大臣保持在桌后原位，目光落在桌前左侧的仆人1身上；他脸上的期待笑意逐渐收敛，眉眼缓慢转为冷峻，头部微微抬起，同时将持有皇帝命令文书的手平稳降至桌沿上方并停住。仆人1仍站在桌前左侧，双手恭敬置于身前，仅出现轻微呼吸与重心收紧，不改变位置。14.5至15.3秒，摄影机在持续推近中向左做极轻微构图补偿，使两人的视线连线和仆人1的反应逐渐清晰；仆人1抬起视线，与老大臣短暂相对，肩背开始僵硬。15.3至16.7秒，镜头保持稳定推进并让仆人1的紧张姿态更易辨认，老大臣仍在桌后以锐利目光锁定他，文书保持悬停在桌沿上方。16.7至17.2秒，构图自然回归两人的对峙关系，形成较紧的双人画面：老大臣笑意完全消失、头部微抬、目光锐利，仆人1留在桌前左侧并肩背僵硬，两人隔着桌角短暂对视。皇帝命令文书始终由老大臣持有，桌上朝会文件全程不动；书房烛光保持连续稳定，并随构图收紧集中呈现在老大臣脸部与桌面文书上。\"\n}"
+    },
+    {
+      "log_id": "e42da707-e6fb-424f-809f-f9ee28eeb364",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 4,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 4,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 17.2,\n    \"description\": \"Scene: 夜间的大臣府书房，连续推近形成较紧的双人构图，烛光集中在老大臣的脸与桌面文书上。\\nCharacters:\\n- 老大臣: 笑意消失，头部微抬，目光锐利地锁定仆人1，持文书的手停在桌沿上方。\\n- 仆人1: 仍在桌前左侧，肩背略显僵硬，视线与老大臣短暂相对。\\nAction: 两人隔着桌角形成紧张的视线关系，桌上朝会文件尚未移动。\"\n  },\n  \"to_keyframe\": {\n    \"index\": 5,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 21.8,\n    \"description\": \"Scene: 夜间的大臣府书房，摄影机沿同一方向继续缓慢靠近，构图重心逐渐移向桌前的老大臣。\\nCharacters:\\n- 老大臣: 神情收紧，视线从仆人1移向桌面，一只手已按在朝会文件上，皇帝命令文书放在近旁。\\n- 仆人1: 低着头，双手拘谨地收在身前，身体稍向书房入口方向侧转。\\nAction: 朝会文件仍平放在桌上，老大臣的手掌压住文件上缘；仆人1已形成退向入口的身体朝向。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 17.2,\n        \"end_time_seconds\": 17.85,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 5,\n        \"source_start_time_seconds\": 17.2,\n        \"source_end_time_seconds\": 17.85\n      },\n      {\n        \"start_time_seconds\": 17.85,\n        \"end_time_seconds\": 21.8,\n        \"primary_subjects\": [\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"source_window_index\": 6,\n        \"source_start_time_seconds\": 17.85,\n        \"source_end_time_seconds\": 21.8\n      }\n    ],\n    \"clip_start_seconds\": 17.2,\n    \"clip_end_seconds\": 21.8\n  }\n}",
+      "response": "{\n  \"segment_index\": 4,\n  \"from_keyframe_index\": 4,\n  \"to_keyframe_index\": 5,\n  \"start_time\": 17.2,\n  \"end_time\": 21.8,\n  \"transition_description\": \"摄影机从原有较紧双人构图沿同一轴线持续缓慢推进，不切镜、不跳轴。起初老大臣仍以锐利目光锁定仆人1，持文书的手悬停在桌沿上方；随后他收紧神情，将文书平稳放到朝会文件近旁，视线随之落向桌面，再把一只手移到朝会文件上缘并压住，文件本身保持平放、不被推移。17.85秒后，仆人1的反应保持为主要视觉关注：他避开对视，缓慢低下头，将双手拘谨地收拢在身前，同时从桌前左侧轻微转动肩身，朝书房入口方向形成准备退离的朝向，但不继续迈步。老大臣的落手动作保留在双人关系中作为次要动态，不因动作被提升为独占焦点。摄影机继续稳定靠近，并作极轻微构图补偿，使仆人1的低头与侧转仍清晰可读，同时让画面重心逐渐靠向桌前的老大臣。最终停在老大臣垂眼按住朝会文件上缘、皇帝命令文书置于近旁，仆人1低头收手并侧身朝向入口的连续状态。\"\n}"
+    },
+    {
+      "log_id": "c6dc2f2a-8a6b-458f-84ac-5415d3e6afb8",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 5,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 5,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 21.8,\n    \"description\": \"Scene: 夜间的大臣府书房，摄影机沿同一方向继续缓慢靠近，构图重心逐渐移向桌前的老大臣。\\nCharacters:\\n- 老大臣: 神情收紧，视线从仆人1移向桌面，一只手已按在朝会文件上，皇帝命令文书放在近旁。\\n- 仆人1: 低着头，双手拘谨地收在身前，身体稍向书房入口方向侧转。\\nAction: 朝会文件仍平放在桌上，老大臣的手掌压住文件上缘；仆人1已形成退向入口的身体朝向。\"\n  },\n  \"to_keyframe\": {\n    \"index\": 6,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 25.5,\n    \"description\": \"Scene: 夜间的大臣府书房，书房入口处空无一人；摄影机保持原轴线推至老大臣的中景，桌面烛光成为画面主要光源。\\nCharacters:\\n- 老大臣: 独自坐在桌前，双手拿起朝会文件，目光停在纸页上，眉头紧锁，姿态僵硬而心神不宁。\\nAction: 皇帝命令文书留在桌面一侧，朝会文件展开在老大臣手中，书房蜡烛的火焰轻微偏斜。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 21.8,\n        \"end_time_seconds\": 22.55,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\",\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"background_motion_subjects\": [],\n        \"handoff\": {\n          \"from\": [\n            \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n          ],\n          \"to\": [\n            \"7a34f991-4797-4dd6-a326-43039022cd91\"\n          ]\n        },\n        \"source_window_index\": 7,\n        \"source_start_time_seconds\": 21.8,\n        \"source_end_time_seconds\": 22.55,\n        \"handoff_progress\": {\n          \"start\": 0.0,\n          \"end\": 1.0\n        }\n      },\n      {\n        \"start_time_seconds\": 22.55,\n        \"end_time_seconds\": 25.5,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"background_motion_subjects\": [\n          \"60b4bad6-6252-43fe-9234-5e1d192aee1b\"\n        ],\n        \"source_window_index\": 8,\n        \"source_start_time_seconds\": 22.55,\n        \"source_end_time_seconds\": 25.5\n      }\n    ],\n    \"clip_start_seconds\": 21.8,\n    \"clip_end_seconds\": 25.5\n  }\n}",
+      "response": "{\n  \"segment_index\": 5,\n  \"from_keyframe_index\": 5,\n  \"to_keyframe_index\": 6,\n  \"start_time\": 21.8,\n  \"end_time\": 25.5,\n  \"transition_description\": \"同一镜头内，摄影机沿既有轴线持续缓慢推进。开始时短暂保留老大臣与仆人1的关系构图：仆人1维持低头和双手收于身前的拘谨姿态，沿身体已经侧转的方向退向书房入口；老大臣仍坐在桌前，目光落向桌面，按住朝会文件上缘的手暂不移开。随着仆人1接近入口，画面关注自然转向老大臣，摄影机不跟随仆人1，而是继续稳定靠近桌前，使仆人1在背景中退出入口并离开画面。老大臣保持坐姿，先以按住文件的手稳住纸页，再用另一只手托起文件，随后双手将朝会文件从桌面拿起并展开，视线始终收束在纸页上，眉头逐渐锁紧，身体变得僵硬。皇帝命令文书全程留在桌面一侧，不被移动；书房蜡烛持续照亮桌面，火焰逐渐呈轻微偏斜。最终摄影机在原轴线上推至老大臣的中景并稳定下来，入口处空无一人，老大臣独自坐在桌前，双手持展开的朝会文件，目光停在纸页上，桌面烛光成为主要光源。\"\n}"
+    },
+    {
+      "log_id": "1db9c2a8-e479-4964-a561-476a80d5a4bf",
+      "user_content": "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n{\n  \"shot\": {\n    \"id\": \"2a13f96a-b92b-4cc0-8d53-8fa8069981d6\",\n    \"index\": 13,\n    \"characters\": [\n      \"老大臣\",\n      \"仆人1\"\n    ],\n    \"scene\": \"大臣府书房\",\n    \"props\": [\n      \"朝会文件\",\n      \"皇帝命令文书\",\n      \"书房蜡烛\"\n    ],\n    \"duration\": 32,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\"\n  },\n  \"segment_index\": 6,\n  \"continuity_requirements\": {\n    \"mode\": \"CONTINUOUS_TAKE\",\n    \"label\": \"一镜到底（禁止切镜）\",\n    \"meaning\": \"This is a shot-level editing constraint, not a video generation mode.\",\n    \"requirements\": [\n      \"The entire Shot must read as one uninterrupted continuous take.\",\n      \"No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.\",\n      \"Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.\",\n      \"If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.\",\n      \"Keyframes must be states along one continuous camera path, not independent compositions.\",\n      \"Transitions must describe physically plausible movement from one keyframe to the next.\"\n    ]\n  },\n  \"from_keyframe\": {\n    \"index\": 6,\n    \"role\": \"INTERMEDIATE\",\n    \"time_seconds\": 25.5,\n    \"description\": \"Scene: 夜间的大臣府书房，书房入口处空无一人；摄影机保持原轴线推至老大臣的中景，桌面烛光成为画面主要光源。\\nCharacters:\\n- 老大臣: 独自坐在桌前，双手拿起朝会文件，目光停在纸页上，眉头紧锁，姿态僵硬而心神不宁。\\nAction: 皇帝命令文书留在桌面一侧，朝会文件展开在老大臣手中，书房蜡烛的火焰轻微偏斜。\"\n  },\n  \"to_keyframe\": {\n    \"index\": 7,\n    \"role\": \"END\",\n    \"time_seconds\": 32.0,\n    \"description\": \"Scene: 夜间的大臣府书房，摄影机沿原有轨迹停在独处的老大臣近中景；暖色烛光笼罩桌面，书房入口保持空寂，烛焰轻轻摇晃。\\nCharacters:\\n- 老大臣: 将朝会文件放回桌面，双手停在文件两侧，肩背微沉，垂眼凝视桌面，脸上只剩凝重与隐约恐惧。\\nAction: 朝会文件平放在老大臣面前，皇帝命令文书留在旁侧，两份文书均静止在烛光中。\"\n  },\n  \"visual_attention\": {\n    \"version\": 1,\n    \"projection_version\": 1,\n    \"time_base\": \"SHOT_SECONDS\",\n    \"status\": \"VALID\",\n    \"findings\": [],\n    \"character_catalog\": [\n      {\n        \"character_id\": \"7a34f991-4797-4dd6-a326-43039022cd91\",\n        \"character_name\": \"老大臣\"\n      },\n      {\n        \"character_id\": \"60b4bad6-6252-43fe-9234-5e1d192aee1b\",\n        \"character_name\": \"仆人1\"\n      }\n    ],\n    \"windows\": [\n      {\n        \"start_time_seconds\": 25.5,\n        \"end_time_seconds\": 32.0,\n        \"primary_subjects\": [\n          \"7a34f991-4797-4dd6-a326-43039022cd91\"\n        ],\n        \"background_motion_subjects\": [],\n        \"source_window_index\": 9,\n        \"source_start_time_seconds\": 25.5,\n        \"source_end_time_seconds\": 32.0\n      }\n    ],\n    \"clip_start_seconds\": 25.5,\n    \"clip_end_seconds\": 32.0\n  }\n}",
+      "response": "{\n  \"segment_index\": 6,\n  \"from_keyframe_index\": 6,\n  \"to_keyframe_index\": 7,\n  \"start_time\": 25.5,\n  \"end_time\": 32.0,\n  \"transition_description\": \"老大臣保持坐在桌前，紧锁眉头凝视手中的朝会文件，随后双手将文件从身前缓慢下移，朝桌面正前方平稳放下；纸页接触桌面后，他略微整理手势，使文件平放在自己面前，再将双手停在文件两侧。随着动作结束，他的肩背逐渐下沉，视线由纸页落向桌面，僵硬不安的神情收束为凝重与隐约恐惧。皇帝命令文书始终静置在桌面一侧，仆人1不进入画面，书房入口持续空寂；书房蜡烛仅有轻微摇晃，暖光连续笼罩两份文书。摄影机沿原有轴线从中景极缓慢推进至老大臣近中景，不切镜、不跳轴，也不改变主体关系，最终停在老大臣垂眼、双手分置于朝会文件两侧的静止状态。\"\n}"
+    }
+  ]
+}

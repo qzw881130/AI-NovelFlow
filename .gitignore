@@ -70,9 +70,14 @@ Thumbs.db
 output/
 downloads/
 uploads/
+*.zip
 
 # Local docs
+docs/*/
+*.md
+*.yaml
 v2-doc/
+docs-v2/
 
 # Runtime files
 uvicorn.log

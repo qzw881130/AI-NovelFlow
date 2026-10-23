@@ -4,17 +4,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Loader2, MapPin, Image, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import type { Scene, Novel, PromptTemplate } from '../../types';
+import type { Scene, Novel } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { sceneApi } from '../../api/scenes';
-import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, SceneCard } from './components';
 import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG } from './constants';
-import type { ScenePrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import { useLibraryImageQuality } from '../../hooks/useLibraryImageQuality';
 
 export default function Scenes() {
   const { t } = useTranslation();
@@ -44,9 +44,7 @@ export default function Scenes() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadSceneId, setCurrentUploadSceneId] = useState<string | null>(null);
-  const [scenePrompts, setScenePrompts] = useState<Record<string, ScenePrompt>>({});
   const [generatingSettingId, setGeneratingSettingId] = useState<string | null>(null);
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -67,27 +65,7 @@ export default function Scenes() {
   useEffect(() => {
     fetchScenes();
     fetchNovels();
-    fetchPromptTemplates();
   }, [selectedNovel]);
-  
-  const fetchPromptTemplates = async () => {
-    try {
-      const data = await promptTemplateApi.fetchList('character');
-      if (data.success && data.data) {
-        setPromptTemplates(data.data);
-      }
-    } catch (error) {
-      console.error('加载提示词模板失败:', error);
-    }
-  };
-  
-  const getTemplateDisplayName = (template: PromptTemplate | undefined): string => {
-    if (!template) return t('novels.default');
-    if (template.isSystem) {
-      return t(`promptConfig.templateNames.${template.name}`, { defaultValue: template.name });
-    }
-    return template.name;
-  };
 
   useEffect(() => {
     if (highlightedId && scenes.length > 0) {
@@ -111,10 +89,6 @@ export default function Scenes() {
       const data = await sceneApi.fetchList(selectedNovel);
       if (data.success) {
         setScenes(data.data || []);
-        const sceneList = data.data || [];
-        for (const scene of sceneList) {
-          fetchScenePrompt(scene.id);
-        }
       }
     } catch (error) {
       console.error('获取场景失败:', error);
@@ -144,25 +118,6 @@ export default function Scenes() {
       }
     } catch (error) {
       console.error('获取小说失败:', error);
-    }
-  };
-  
-  const fetchScenePrompt = async (sceneId: string) => {
-    try {
-      const data = await sceneApi.fetchPrompt(sceneId);
-      if (data.success) {
-        setScenePrompts(prev => ({
-          ...prev,
-          [sceneId]: {
-            prompt: data.data!.prompt,
-            templateName: data.data!.templateName,
-            templateId: data.data!.templateId,
-            isSystem: data.data!.isSystem
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('获取场景提示词失败:', error);
     }
   };
   
@@ -593,6 +548,9 @@ export default function Scenes() {
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) && matchesStatusFilter(s));
+  const { getQuality } = useLibraryImageQuality(filteredScenes
+    .filter(scene => Boolean(scene.imageUrl))
+    .map(scene => ({ taskId: scene.sceneTaskId || null, imageUrl: scene.imageUrl! })));
 
   const sceneStats = scenes.reduce((stats, scene) => {
     stats.total += 1;
@@ -709,30 +667,24 @@ export default function Scenes() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredScenes.map((scene) => {
-            const currentNovel = novels.find(n => n.id === selectedNovel);
-            const template = promptTemplates.find(pt => pt.id === currentNovel?.promptTemplateId);
-            
-            return (
-              <SceneCard
-                key={scene.id}
-                scene={scene}
-                highlightedId={highlightedId}
-                generatingId={generatingId}
-                generatingSettingId={generatingSettingId}
-                uploadingId={uploadingId}
-                scenePrompt={scenePrompts[scene.id]}
-                templateDisplayName={getTemplateDisplayName(template)}
-                onDelete={handleDelete}
-                onEdit={setEditingScene}
-                onGenerateImage={generateSceneImage}
-                onGenerateSetting={generateSetting}
-                onUploadImage={triggerFileUpload}
-                onEditImage={openImageEdit}
-                onImageClick={openImagePreview}
-              />
-            );
-          })}
+          {filteredScenes.map((scene) => (
+            <SceneCard
+              key={scene.id}
+              scene={scene}
+              imageQuality={getQuality(scene.imageUrl, scene.sceneTaskId)}
+              highlightedId={highlightedId}
+              generatingId={generatingId}
+              generatingSettingId={generatingSettingId}
+              uploadingId={uploadingId}
+              onDelete={handleDelete}
+              onEdit={setEditingScene}
+              onGenerateImage={generateSceneImage}
+              onGenerateSetting={generateSetting}
+              onUploadImage={triggerFileUpload}
+              onEditImage={openImageEdit}
+              onImageClick={openImagePreview}
+            />
+          ))}
         </div>
       )}
 

@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
-import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse } from '../../../api/llmLogs';
+import { llmLogsApi, LLM_CANCELLED_MESSAGE, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
+import { TEMPLATE_TYPE_CONFIG } from '../../PromptConfig/hooks/usePromptConfigState';
 
-export type PromptTab = 'params' | 'system' | 'user' | 'response';
+export type PromptTab = 'params' | 'system' | 'user' | 'images' | 'response';
 
 const TASK_CATEGORY_TYPES: Record<string, string[]> = {
+  story_context: ['story_world_context_recommender'],
   style_design: ['style'],
   asset_parse: ['parse_characters', 'parse_scenes', 'parse_props'],
-  asset_generation: ['generate_character_appearance'],
+  asset_generation: ['generate_character_appearance', 'generate_scene_setting', 'generate_prop_appearance'],
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
-  video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition'],
-  keyframe_image: ['keyframe_image_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
+  video_director: ['keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
+  keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt', 'first_appearance_nameplate'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
+  { value: 'story_context', labelKey: 'promptConfig.categories.storyContext' },
   { value: 'style_design', labelKey: 'promptConfig.categories.styleDesign' },
   { value: 'asset_parse', labelKey: 'promptConfig.categories.assetParse' },
   { value: 'asset_generation', labelKey: 'promptConfig.categories.assetGeneration' },
@@ -42,6 +45,11 @@ export function useLLMLogsState() {
   const [statsRangeValue, setStatsRangeValue] = useState(1);
   const [statsData, setStatsData] = useState<LLMLogStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [showTokenStatsModal, setShowTokenStatsModal] = useState(false);
+  const [tokenStatsGroupBy, setTokenStatsGroupBy] = useState<LLMLogStatsGroupBy>('hour');
+  const [tokenStatsRangeValue, setTokenStatsRangeValue] = useState(1);
+  const [tokenStatsData, setTokenStatsData] = useState<LLMLogTokenStatsResponse | null>(null);
+  const [tokenStatsLoading, setTokenStatsLoading] = useState(false);
   const [durationNow, setDurationNow] = useState(() => Date.now());
   const fetchLogsRequestRef = useRef(0);
 
@@ -64,10 +72,12 @@ export function useLLMLogsState() {
     } catch (error) {
       console.error('加载日志失败:', error);
       if (requestId === fetchLogsRequestRef.current) {
-        toast.error('加载日志失败');
+        toast.error(t('llmLogs.loadFailed'));
       }
     } finally {
-      if (requestId === fetchLogsRequestRef.current && !options?.silent) {
+      // A silent refresh can supersede a foreground request that enabled the
+      // spinner. The latest request must settle loading in either case.
+      if (requestId === fetchLogsRequestRef.current) {
         setLoading(false);
       }
     }
@@ -177,42 +187,47 @@ export function useLLMLogsState() {
 
   const getTaskTypeCategoryLabel = (type: string | null) => {
     const categories: Record<string, string> = {
-      'parse_characters': '素材解析',
-      'parse_scenes': '素材解析',
-      'parse_props': '素材解析',
-      'style': '风格设计',
-      'generate_character_appearance': '素材生成',
-      'shot_image_prompt': '分镜生图',
-      'split_chapter': '分镜规划',
-      'video_mode_recommender': '视频导演',
-      'keyframe_description': '视频导演',
-      'keyframe_planner': '视频导演',
-      'keyframe_transition': '视频导演',
-      'keyframe_image_prompt': '关键帧生图',
-      'expand_video_prompt': '视频生成',
-      'h3_single_frame_prompt': '视频生成',
-      'h3_first_last_frame_prompt': '视频生成',
-      'h3_multi_keyframe_prompt': '视频生成',
+      story_world_context_recommender: 'storyContext',
+      parse_characters: 'assetParse', parse_scenes: 'assetParse', parse_props: 'assetParse',
+      style: 'styleDesign', generate_character_appearance: 'assetGeneration',
+      generate_scene_setting: 'assetGeneration', generate_prop_appearance: 'assetGeneration',
+      shot_image_prompt: 'shotImage', split_chapter: 'shotPlanning',
+      keyframe_description: 'videoDirector',
+      keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
+      keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage', image_quality_review_prompt: 'keyframeImage',
+      clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration',
+      h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
+      h3_multi_keyframe_director_phase_b: 'videoGeneration',
+      h3_preflight_repair_prompt: 'videoGeneration',
+      first_appearance_nameplate: 'videoGeneration',
     };
-    return (type && categories[type]) || '其他';
+    return type && categories[type]
+      ? t(`promptConfig.categories.${categories[type]}`)
+      : t('llmLogs.other');
   };
 
   const getTaskTypeNameLabel = (type: string | null) => {
     const labels: Record<string, string> = {
-      'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
-      'parse_props': t('llmLogs.parseProps'),
-      'style': '风格提示词',
-      'split_chapter': t('llmLogs.splitShots'), 'generate_character_appearance': t('llmLogs.generateAppearance'),
-      'expand_video_prompt': t('llmLogs.expandVideoPrompt'),
-      'shot_image_prompt': '主分镜图提示词',
-      'video_mode_recommender': '视频模式推荐',
-      'keyframe_description': '关键帧描述',
-      'keyframe_planner': '关键帧规划',
-      'keyframe_transition': '关键帧过渡规划',
-      'keyframe_image_prompt': '关键帧生图提示词',
-      'h3_single_frame_prompt': 'H3 单帧视频提示词',
-      'h3_first_last_frame_prompt': 'H3 首尾帧视频提示词',
-      'h3_multi_keyframe_prompt': 'H3 多关键帧视频提示词',
+      story_world_context_recommender: t('promptConfig.types.storyWorldContextRecommender'),
+      parse_characters: t('llmLogs.parseCharacters'), parse_scenes: t('llmLogs.parseScenes'),
+      parse_props: t('llmLogs.parseProps'), style: t('promptConfig.types.style'),
+      split_chapter: t('llmLogs.splitShots'), generate_character_appearance: t('llmLogs.generateAppearance'),
+      generate_scene_setting: t('llmLogs.generateSceneSetting'),
+      generate_prop_appearance: t('llmLogs.generatePropAppearance'),
+      clip_execution_planner: t('llmLogs.clipExecutionPlanner'),
+      expand_video_prompt: t('llmLogs.expandVideoPrompt'),
+      shot_image_prompt: t('promptConfig.types.shotImagePrompt'),
+      keyframe_description: t('promptConfig.types.keyframeDescription'),
+      keyframe_planner: t('promptConfig.types.keyframePlanner'),
+      keyframe_transition: t('promptConfig.types.keyframeTransition'),
+      keyframe_image_prompt: t('promptConfig.types.keyframeImagePrompt'),
+      image_quality_review_prompt: t('promptConfig.types.imageQualityReviewPrompt'),
+      temporal_reference_selector: t('promptConfig.types.temporalReferenceSelector'),
+      h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
+      h3_multi_keyframe_director_phase_b: `#${TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.fileNumber} ${t(TEMPLATE_TYPE_CONFIG.h3_multi_keyframe_director_phase_b.nameKey)}`,
+      h3_execution_optimizer_prompt: t('promptConfig.types.h3ExecutionOptimizerPrompt'),
+      h3_preflight_repair_prompt: t('promptConfig.types.h3PreflightRepairPrompt'),
+      first_appearance_nameplate: t('llmLogs.firstAppearanceNameplate'),
     };
     if (!type) return '-';
     return labels[type] || type;
@@ -225,11 +240,19 @@ export function useLLMLogsState() {
     return `${category} / ${label}`;
   };
 
-  const getStatusBadgeConfig = (status: string) => {
+  const getStatusBadgeConfig = (status: string, errorMessage?: string | null) => {
+    if (status === 'error' && errorMessage === LLM_CANCELLED_MESSAGE) {
+      return { bg: 'bg-gray-100', text: 'text-gray-600', label: '已终止' };
+    }
     if (status === 'success') return { bg: 'bg-green-100', text: 'text-green-700', label: t('common.success') };
     if (status === 'pending') return { bg: 'bg-amber-100', text: 'text-amber-700', label: t('llmLogs.pending') };
     return { bg: 'bg-red-100', text: 'text-red-700', label: t('common.failed') };
   };
+
+  useEffect(() => {
+    const logId = new URLSearchParams(window.location.search).get('logId');
+    if (logId) void llmLogsApi.fetchDetail(logId).then(data => { if (data.success && data.data) setSelectedLog(data.data); }).catch(error => console.error('加载日志详情失败:', error));
+  }, []);
 
   const closeModal = () => { setSelectedLog(null); setActivePromptTab('user'); };
 
@@ -238,10 +261,10 @@ export function useLLMLogsState() {
     try {
       const data = await llmLogsApi.fetchStats(groupBy, rangeValue, filters);
       if (data.success && data.data) setStatsData(data.data);
-      else toast.error(data.message || '加载调用统计失败');
+       else toast.error(data.message || t('llmLogs.statsLoadFailed'));
     } catch (error) {
       console.error('加载调用统计失败:', error);
-      toast.error('加载调用统计失败');
+      toast.error(t('llmLogs.statsLoadFailed'));
     } finally {
       setStatsLoading(false);
     }
@@ -266,10 +289,45 @@ export function useLLMLogsState() {
     fetchStats(statsGroupBy, rangeValue);
   };
 
+  const fetchTokenStats = useCallback(async (groupBy = tokenStatsGroupBy, rangeValue = tokenStatsRangeValue) => {
+    setTokenStatsLoading(true);
+    try {
+      const data = await llmLogsApi.fetchTokenStats(groupBy, rangeValue, filters);
+      if (data.success && data.data) setTokenStatsData(data.data);
+       else toast.error(data.message || t('llmLogs.tokenStatsLoadFailed'));
+    } catch (error) {
+      console.error('加载 Token 消耗失败:', error);
+      toast.error(t('llmLogs.tokenStatsLoadFailed'));
+    } finally {
+      setTokenStatsLoading(false);
+    }
+  }, [filters, tokenStatsGroupBy, tokenStatsRangeValue]);
+
+  const openTokenStatsModal = () => {
+    setShowTokenStatsModal(true);
+    fetchTokenStats();
+  };
+
+  const closeTokenStatsModal = () => setShowTokenStatsModal(false);
+
+  const changeTokenStatsGroupBy = (groupBy: LLMLogStatsGroupBy) => {
+    const defaultRange = groupBy === 'day' ? 7 : 1;
+    setTokenStatsGroupBy(groupBy);
+    setTokenStatsRangeValue(defaultRange);
+    fetchTokenStats(groupBy, defaultRange);
+  };
+
+  const changeTokenStatsRangeValue = (rangeValue: number) => {
+    setTokenStatsRangeValue(rangeValue);
+    fetchTokenStats(tokenStatsGroupBy, rangeValue);
+  };
+
   return {
     logs, pagination, loading, filters, filterOptions, taskCategoryOptions: TASK_CATEGORY_OPTIONS, taskTypeOptions, selectedLog, activePromptTab, autoRefreshInterval,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
     setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getDisplayDuration, getTaskTypeLabel, getTaskTypeNameLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal,
     showStatsModal, statsGroupBy, statsRangeValue, statsData, statsLoading, openStatsModal, closeStatsModal, changeStatsGroupBy, changeStatsRangeValue, fetchStats,
+    showTokenStatsModal, tokenStatsGroupBy, tokenStatsRangeValue, tokenStatsData, tokenStatsLoading,
+    openTokenStatsModal, closeTokenStatsModal, changeTokenStatsGroupBy, changeTokenStatsRangeValue, fetchTokenStats,
   };
 }

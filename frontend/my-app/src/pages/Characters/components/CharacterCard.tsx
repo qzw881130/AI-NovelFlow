@@ -5,11 +5,12 @@ import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Squar
 import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
-import type { CharacterPrompt } from '../types';
-import { ASPECT_RATIO_CLASSES } from '../constants';
+import type { CurrentImageQuality } from '../../../api/imageReviews';
+import { LibraryImageReview } from '../../../components/LibraryImageReview';
 
 interface CharacterCardProps {
   character: Character;
+  imageQuality?: CurrentImageQuality;
   aspectRatio: string;
   highlightedId: string | null;
   generatingId: string | null;
@@ -17,7 +18,6 @@ interface CharacterCardProps {
   uploadingId: string | null;
   generatingVoiceId: string | null;
   uploadingAudioId: string | null;
-  characterPrompt?: CharacterPrompt;
   onDelete: (id: string) => void;
   onEdit: (character: Character) => void;
   onGeneratePortrait: (character: Character) => void;
@@ -31,6 +31,7 @@ interface CharacterCardProps {
 
 export function CharacterCard({
   character,
+  imageQuality,
   aspectRatio,
   highlightedId,
   generatingId,
@@ -38,7 +39,6 @@ export function CharacterCard({
   uploadingId,
   generatingVoiceId,
   uploadingAudioId,
-  characterPrompt,
   onDelete,
   onEdit,
   onGeneratePortrait,
@@ -50,7 +50,6 @@ export function CharacterCard({
   onUploadAudio,
 }: CharacterCardProps) {
   const { t } = useTranslation();
-  const aspectClass = ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-video';
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -82,12 +81,12 @@ export function CharacterCard({
       }`}
     >
       {/* Character Image */}
-      <div className={`${aspectClass} bg-gray-100 relative w-full`}>
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
         {character.imageUrl ? (
           <img
             src={`${character.imageUrl}${character.updatedAt ? `${character.imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(character.updatedAt)}` : ''}`}
             alt={character.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(character.imageUrl!, character.name, character.id)}
           />
         ) : (
@@ -117,6 +116,9 @@ export function CharacterCard({
             {t('characters.narrator')}
           </div>
         )}
+        {character.isProtagonist && !character.isNarrator && (
+          <div className="absolute top-2 right-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">主角</div>
+        )}
 
         {/* Status Badge */}
         {character.generatingStatus === 'running' && !character.isNarrator && (
@@ -141,7 +143,7 @@ export function CharacterCard({
         {!character.isNarrator && (
           <button
             onClick={() => onDelete(character.id)}
-            className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            className={`absolute ${character.isProtagonist ? 'top-10' : 'top-2'} right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100`}
             title={t('common.delete')}
           >
             <Trash2 className="h-4 w-4" />
@@ -223,6 +225,7 @@ export function CharacterCard({
             {aspectRatio}
           </span>
         </div>
+        {character.imageUrl && <LibraryImageReview quality={imageQuality} name={`角色图：${character.name}`} />}
 
         {/* 角色描述 */}
         {character.description && (
@@ -261,24 +264,6 @@ export function CharacterCard({
                 </>
               )}
             </button>
-          </div>
-        )}
-
-        {/* 生成提示词 */}
-        {characterPrompt && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-gray-400">{t('characters.promptLabel')}</p>
-              <span className="text-xs text-gray-400">
-                {characterPrompt.isSystem
-                  ? t(`promptConfig.templateNames.${characterPrompt.templateName}`, { defaultValue: characterPrompt.templateName })
-                  : characterPrompt.templateName
-                }
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
-              {characterPrompt.prompt}
-            </div>
           </div>
         )}
 

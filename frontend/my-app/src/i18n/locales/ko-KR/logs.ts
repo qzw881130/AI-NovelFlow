@@ -4,6 +4,8 @@ import enUS from '../en-US/logs';
 export default {
   llmLogs: {
     ...enUS.llmLogs,
+    generateSceneSetting: '장면 설정 생성',
+    generatePropAppearance: '소품 외형 생성',
     title: 'LLM 로그',
     subtitle: 'LLM 호출 로그 기록 보기',
     clearLogs: '로그 지우기',
@@ -16,7 +18,9 @@ export default {
     parseProps: '소품 파싱',
     splitShots: '샷 분할',
     generateAppearance: '외형 생성',
+    clipExecutionPlanner: '클립 실행 플래너',
     expandVideoPrompt: '비디오 프롬프트 확장',
+    firstAppearanceNameplate: '주인공 첫 등장 이름표 위치 찾기',
     timestamp: '타임스탬프',
     novel: '소설',
     chapter: '장',

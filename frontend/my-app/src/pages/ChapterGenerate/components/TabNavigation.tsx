@@ -9,17 +9,18 @@
  */
 
 import React from 'react';
-import { Check, Image, Film, Mic, FileText } from 'lucide-react';
+import { Check, Image, Film, Mic, FileText, Sparkles, AlertCircle } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useTranslation } from '../../../stores/i18nStore';
 
-export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen';
+export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen' | 'hd_repaint';
 
 interface TabConfig {
   key: StageTab;
   labelKey: string;
   icon: React.ReactNode;
   index: number;
+  disabled?: boolean;
 }
 
 const tabs: TabConfig[] = [
@@ -40,12 +41,20 @@ const tabs: TabConfig[] = [
     labelKey: 'chapterGenerate.tabAudioGen',
     icon: <Mic className="w-4 h-4" />,
     index: 2,
+    disabled: true,
   },
   {
     key: 'video_gen',
     labelKey: 'chapterGenerate.tabVideoGen',
     icon: <Film className="w-4 h-4" />,
     index: 3,
+  },
+  {
+    key: 'hd_repaint',
+    labelKey: 'chapterGenerate.tabHdRepaint',
+    icon: <Sparkles className="w-4 h-4" />,
+    index: 4,
+    disabled: true,
   },
 ];
 
@@ -54,12 +63,18 @@ export function TabNavigation() {
   const store = useChapterGenerateStore();
 
   const { currentTab, tabProgress, setCurrentTab, markTabComplete } = store;
+  const outdatedVideoCount = store.shots.filter((shot) => shot.mainImageNewerThanVideo).length;
+  const mergeStatus = store.chapterMergeStatus;
+  const mergeReminder = mergeStatus?.reason === 'shot_video_newer'
+    ? `${mergeStatus.newerShotCount} 个 Shot 视频晚于章节合并视频，请重新合并`
+    : '本章已有 Shot 视频，尚未合并章节视频';
 
   // 键盘导航
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
     }
+    if (tabs.find((tab) => String(tab.index + 1) === e.key)?.disabled) return;
 
     switch (e.key) {
       case '1':
@@ -78,6 +93,10 @@ export function TabNavigation() {
         e.preventDefault();
         setCurrentTab(3);
         break;
+      case '5':
+        e.preventDefault();
+        setCurrentTab(4);
+        break;
     }
   };
 
@@ -91,11 +110,15 @@ export function TabNavigation() {
           return (
             <button
               key={tab.key}
+              disabled={tab.disabled}
               onClick={() => setCurrentTab(tab.index)}
+              title={tab.key === 'video_gen' && outdatedVideoCount > 0 ? `${outdatedVideoCount} 个 Shot 的主分镜图晚于此前生成的视频` : undefined}
               className={`
                 flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all relative
                 ${
-                  isActive
+                  tab.disabled
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : isActive
                     ? 'text-blue-600 bg-blue-50'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }
@@ -113,6 +136,13 @@ export function TabNavigation() {
               {/* 完成状态标记 */}
               {isCompleted && (
                 <Check className="w-3.5 h-3.5 text-green-500 ml-0.5" />
+              )}
+
+              {tab.key === 'video_gen' && outdatedVideoCount > 0 && (
+                <AlertCircle aria-label={`${outdatedVideoCount} 个 Shot 的主分镜图晚于此前生成的视频`} className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-white text-amber-600" />
+              )}
+              {tab.key === 'video_gen' && mergeStatus?.needsMerge && (
+                <span title={mergeReminder} className="absolute -left-1 -top-1 rounded-full bg-white"><AlertCircle aria-label={mergeReminder} className="h-3.5 w-3.5 text-amber-600" /></span>
               )}
 
               {/* 激活指示器 */}

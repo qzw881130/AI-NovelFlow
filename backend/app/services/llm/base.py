@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 import json
 import uuid
+from sqlalchemy import or_
+from .cancellation import LLMCallTerminated, LLM_CANCELLED_MESSAGE
 
 
 def _sanitize_headers(headers: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -27,9 +29,16 @@ def build_llm_request_info(
     payload: Dict[str, Any],
     proxy_url: str = None,
     timeout_seconds: int | float = None,
+    image_metadata: list | None = None,
 ) -> Dict[str, Any]:
     """构建用于日志展示的 LLM 请求参数，敏感字段会被脱敏。"""
+    from .multimodal import capture_image_inputs
+    from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+    logged_payload, image_inputs = capture_image_inputs(payload, image_metadata)
+    parsed = urlsplit(endpoint)
+    endpoint = urlunsplit(parsed._replace(query=urlencode([(k, "***" if k.lower() in {"key", "api_key"} else v) for k, v in parse_qsl(parsed.query)])))
     return {
+        "imageInputs": image_inputs,
         "provider": provider,
         "baseUrl": base_url,
         "url": endpoint,
@@ -37,7 +46,7 @@ def build_llm_request_info(
         "proxyUrl": proxy_url or "",
         "timeoutSeconds": timeout_seconds,
         "headers": _sanitize_headers(headers),
-        "payload": payload,
+        "payload": logged_payload,
     }
 
 
@@ -50,12 +59,16 @@ def create_llm_log(
     task_type: str = None,
     novel_id: str = None,
     chapter_id: str = None,
+    shot_id: str = None,
     character_id: str = None,
     used_proxy: bool = False,
     request_info: Dict[str, Any] = None,
 ) -> Optional[str]:
     """在请求发出前创建一条进行中的 LLM 调用日志。"""
     log_id = str(uuid.uuid4())
+    if request_info:
+        for image in request_info.get("imageInputs") or []:
+            image["request_id"] = log_id
     try:
         from app.core.database import SessionLocal
         from app.models.llm_log import LLMLog
@@ -73,6 +86,7 @@ def create_llm_log(
                 task_type=task_type,
                 novel_id=novel_id,
                 chapter_id=chapter_id,
+                shot_id=shot_id,
                 character_id=character_id,
                 used_proxy=used_proxy,
                 request_info=json.dumps(request_info, ensure_ascii=False, indent=2, default=str) if request_info else None,
@@ -96,6 +110,7 @@ def update_llm_log(
     response: str = None,
     error_message: str = None,
     duration: float = None,
+    metrics: Dict[str, Any] = None,
 ) -> None:
     """请求结束后更新同一条 LLM 调用日志。"""
     if not log_id:
@@ -111,20 +126,64 @@ def update_llm_log(
             log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
             if not log:
                 raise RuntimeError(f"日志不存在: {log_id}")
-            if log.status == "error" and log.error_message == "任务被用户取消，LLM 响应已忽略":
-                return
-            log.response = response
-            log.status = status
-            log.error_message = error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None
-            log.duration = duration
+            # Conditional update prevents a late response from winning a cancel race.
+            updated = db.query(LLMLog).filter(
+                LLMLog.id == log_id,
+                or_(LLMLog.status != "error", LLMLog.error_message.is_(None),
+                    LLMLog.error_message != LLM_CANCELLED_MESSAGE),
+            ).update({
+                LLMLog.response: response,
+                LLMLog.status: status,
+                LLMLog.error_message: error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
+                LLMLog.duration: duration,
+                LLMLog.usage_metrics: metrics,
+            }, synchronize_session=False)
+            if not updated:
+                raise LLMCallTerminated(LLM_CANCELLED_MESSAGE)
             db.commit()
         except Exception:
             db.rollback()
             raise
         finally:
             db.close()
+    except LLMCallTerminated:
+        raise
     except Exception as e:
         print(f"[LLM Log] 更新日志失败：{e}")
+
+
+def record_llm_http_attempt(
+    log_id: Optional[str], *, attempt: int, http_status: int,
+    will_retry: bool, outcome: str,
+) -> None:
+    """Keep HTTP attempt history on the existing logical LLM call log."""
+    if not log_id:
+        return
+    try:
+        from app.core.database import SessionLocal
+        from app.models.llm_log import LLMLog
+
+        with SessionLocal() as db:
+            log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
+            if not log:
+                return
+            if log.status == "error" and log.error_message == LLM_CANCELLED_MESSAGE:
+                raise LLMCallTerminated(LLM_CANCELLED_MESSAGE)
+            info = json.loads(log.request_info or "{}")
+            retry = info.setdefault("httpRetry", {"attempts": []})
+            retry["attempts"].append({
+                "attempt": attempt,
+                "httpStatus": http_status,
+                "willRetry": will_retry,
+            })
+            retry["transientRetryOccurred"] = attempt > 1
+            retry["outcome"] = outcome
+            log.request_info = json.dumps(info, ensure_ascii=False, indent=2)
+            db.commit()
+    except LLMCallTerminated:
+        raise
+    except Exception as e:
+        print(f"[LLM Log] 记录 HTTP attempt 失败：{e}")
 
 
 @dataclass

@@ -1,0 +1,279 @@
+{
+  "source": "Saved real Round 2 canonical planning facts and actual raw #10A response; semantic inherited assessments are supplied explicitly by tests, never asserted as real model output.",
+  "visual_state_candidates": [
+    {
+      "visual_state_id": "KF1",
+      "keyframe_index": 1,
+      "time_seconds": 0.0,
+      "role": "START",
+      "description": "",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF2",
+      "keyframe_index": 2,
+      "time_seconds": 7.8,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机从门内侧沿连续轨迹略微横移推近，晨光仍横落在门槛内外。\nCharacters:\n- 卫兵1: 仍站在画面左侧门槛内，身体正对两名来客，拦阻手势保持平举，目光警觉。\n- 骗子1: 站在门槛外靠右位置，手提骗子木箱，身体微微躬下，视线朝向卫兵1。\n- 骗子2: 位于骗子1侧后方，手提骗子木箱，保持殷勤神情并注视卫兵1。\nAction: 三人仍被门槛分隔，骗子1已形成恭敬躬身姿态。",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF3",
+      "keyframe_index": 3,
+      "time_seconds": 21.0,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机沿原有方向继续缓慢横移推近，三人的上半身与门槛关系更加清晰。\nCharacters:\n- 卫兵1: 留在门槛内，拦阻的手臂略有放低，眉头紧锁，目光从两人的考究衣装移向各自手中的骗子木箱。\n- 骗子1: 站在门槛外，恢复从容直立姿态，骗子木箱稳定提在身侧。\n- 骗子2: 仍在骗子1侧后方，姿态恭谨，骗子木箱提在身侧。\nAction: 卫兵1呈现明显的上下审视姿态，两名骗子保持在宫门外接受打量。",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF4",
+      "keyframe_index": 4,
+      "time_seconds": 28.8,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，连续推近后的三人构图更紧，门槛仍清楚分隔宫内与宫外。\nCharacters:\n- 卫兵1: 位于门槛内左侧，身体略向后绷紧，警惕地盯住骗子1。\n- 骗子1: 已向门槛靠近一步但仍停在门外，手提骗子木箱，上身压低并稍向卫兵1倾斜，神情沉着而神秘。\n- 骗子2: 留在骗子1侧后方，手提骗子木箱，视线在骗子1与卫兵1之间。\nAction: 骗子1与卫兵1之间的距离明显缩短，形成隔着门槛近距离对峙的空间关系。",
+      "timed_visual_target": true
+    },
+    {
+      "visual_state_id": "KF5",
+      "keyframe_index": 5,
+      "time_seconds": 35.1,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机沿同一轨迹轻微侧移，使骗子2在三人构图中更加清楚，同时保留门槛内的卫兵1。\nCharacters:\n- 卫兵1: 仍守在门槛内，身体朝向两名骗子，眉头微皱，警惕中带着好奇。\n- 骗子1: 保持靠近门槛的低姿态，骗子木箱提在身侧，视线稳定落在卫兵1身上。\n- 骗子2: 站在骗子1侧后方，头部略偏向宫门两侧，目光谨慎扫向侧面，身体微微前倾，骗子木箱保持在手中。\nAction: 三人维持门内外位置，骗子2呈现谨慎察看周围的稳定姿态。",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF6",
+      "keyframe_index": 6,
+      "time_seconds": 41.2,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机在连续推近中形成较紧的三人关系构图，晨光照亮三人的面部反应。\nCharacters:\n- 卫兵1: 仍在门槛内，原本紧皱的眉头抬起，双眼睁大，身体僵住，拦阻手臂已明显松弛下垂。\n- 骗子1: 靠近门槛外侧站定，维持沉着克制的神情，手中骗子木箱位置不变。\n- 骗子2: 位于骗子1侧后方，上身略向前，神情郑重，目光集中在卫兵1脸上。\nAction: 卫兵1呈现突然而清晰的震惊姿态，两名骗子从门外注视他的反应。",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF7",
+      "keyframe_index": 7,
+      "time_seconds": 47.6,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机保持此前连续移动形成的近距离三人构图，没有改变轴线。\nCharacters:\n- 卫兵1: 站在门槛内，肩背不再挺直，神情由震惊转为紧张不安，视线在两名骗子之间游移。\n- 骗子1: 仍靠近门槛外侧，头部稍偏向骗子2，眼神镇定。\n- 骗子2: 留在骗子1侧后方，略微侧头与骗子1对视，神情克制而笃定。\nAction: 两名骗子形成短暂而明确的相互对视关系，卫兵1的戒备姿态明显动摇。",
+      "timed_visual_target": false
+    },
+    {
+      "visual_state_id": "KF8",
+      "keyframe_index": 8,
+      "time_seconds": 52.5,
+      "role": "INTERMEDIATE",
+      "description": "Scene: 清晨的王宫宫门，摄影机沿原轨迹保持门槛与三人位置关系，并为宫内方向留出可见空间。\nCharacters:\n- 卫兵1: 已在门槛内转身朝向宫内，身体背向两名骗子，一只手仍朝门外抬起作停留示意，神情紧张。\n- 骗子1: 停在门槛外，手提骗子木箱，身体重新直立，视线追随卫兵1。\n- 骗子2: 仍停在骗子1侧后方，手提骗子木箱，视线同样朝向转身的卫兵1。\nAction: 卫兵1已完成由面对来客到朝向宫内的转身，两名骗子保持在门外未越过门槛。",
+      "timed_visual_target": true
+    },
+    {
+      "visual_state_id": "KF9",
+      "keyframe_index": 9,
+      "time_seconds": 68.0,
+      "role": "END",
+      "description": "Scene: 清晨的王宫宫门，摄影机停留在门内侧的连续构图上，门槛外的两名骗子占据主要画面，宫内通道仍可见。\nCharacters:\n- 卫兵1: 已走入宫门内较深处，背对镜头与两名骗子，身影沿宫内方向远离门槛。\n- 骗子1: 站在门槛外原位，手提骗子木箱，姿态从容，目光朝向卫兵1离开的方向。\n- 骗子2: 站在骗子1侧后方，手提骗子木箱，神情沉着，视线同样朝向宫内。\nAction: 两名骗子并肩留在宫门外，越过门槛望向逐渐远离的卫兵1。",
+      "timed_visual_target": false
+    }
+  ],
+  "speech_timing_intervals": [
+    {
+      "event_id": "D1",
+      "start_time": 1.0,
+      "end_time": 3.0
+    },
+    {
+      "event_id": "D2",
+      "start_time": 3.2,
+      "end_time": 7.95
+    },
+    {
+      "event_id": "D3",
+      "start_time": 8.15,
+      "end_time": 17.4
+    },
+    {
+      "event_id": "D4",
+      "start_time": 17.6,
+      "end_time": 18.6
+    },
+    {
+      "event_id": "D5",
+      "start_time": 18.8,
+      "end_time": 19.3
+    },
+    {
+      "event_id": "D6",
+      "start_time": 19.5,
+      "end_time": 25.25
+    },
+    {
+      "event_id": "D7",
+      "start_time": 25.45,
+      "end_time": 28.95
+    },
+    {
+      "event_id": "D8",
+      "start_time": 29.15,
+      "end_time": 30.9
+    },
+    {
+      "event_id": "D9",
+      "start_time": 31.1,
+      "end_time": 33.85
+    },
+    {
+      "event_id": "D10",
+      "start_time": 34.05,
+      "end_time": 35.05
+    },
+    {
+      "event_id": "D11",
+      "start_time": 35.25,
+      "end_time": 41.0
+    },
+    {
+      "event_id": "D12",
+      "start_time": 41.2,
+      "end_time": 43.7
+    },
+    {
+      "event_id": "D13",
+      "start_time": 43.9,
+      "end_time": 47.65
+    },
+    {
+      "event_id": "D14",
+      "start_time": 47.85,
+      "end_time": 49.6
+    }
+  ],
+  "transition_context": [
+    {
+      "from_keyframe_index": 1,
+      "to_keyframe_index": 2,
+      "start_time": 0.0,
+      "end_time": 7.8,
+      "transition_description": "不补设起始帧未提供的人物站位、姿态或具体构图。摄影机从既有起始机位保持同一轴线与连续轨迹，沿门内侧略微横移并缓慢推近，使门槛内外及三人逐渐形成清晰稳定的空间关系；晨光在运动中持续横落于门槛内外。至段末，卫兵1稳定停在画面左侧门槛内，身体正对两名来客，手臂平举保持拦阻姿态，目光警觉地落向他们；骗子1停在门槛外靠右位置，手提骗子木箱，身体逐渐收束为恭敬的微躬姿态，视线朝向卫兵1；骗子2停在骗子1侧后方，手提骗子木箱，以殷勤神情注视卫兵1。三人最终保持被门槛分隔的状态，摄影机在该构图上平稳停住，不再推进后续动作。"
+    },
+    {
+      "from_keyframe_index": 2,
+      "to_keyframe_index": 3,
+      "start_time": 7.8,
+      "end_time": 21.0,
+      "transition_description": "延续原有机位与运动方向，摄影机从门内侧缓慢横移并轻微推近，始终保持门槛对三人的空间分隔，不切镜、不跳轴。骗子1从门槛外靠右位置缓缓抬起上身，由躬身恢复为从容直立，手中的骗子木箱始终稳定垂在身侧，双脚不越过门槛。骗子2留在骗子1侧后方，维持恭谨姿态，只做轻微自然重心调整，骗子木箱保持提在身侧。卫兵1继续站在画面左侧门槛内，平举的拦阻手臂逐渐略微放低但仍保留阻挡意味，眉头收紧；他的目光先掠过两人的考究衣装，再向下移至骗子1与骗子2各自手中的木箱。摄影机随审视过程稳定推进，使三人的上半身、衣装、木箱及门槛关系逐渐更加清晰，最终停在卫兵1上下审视、骗子1直立、骗子2位于其侧后方且两人仍留在宫门外的状态。"
+    },
+    {
+      "from_keyframe_index": 3,
+      "to_keyframe_index": 4,
+      "start_time": 21.0,
+      "end_time": 28.8,
+      "transition_description": "摄影机沿原有运动方向保持连续、缓慢的横移推近，逐渐收紧三人的上半身构图，同时始终保留门槛对宫内外的清晰分隔。卫兵1留在门槛内左侧，目光从两只骗子木箱移回骗子1，原本略微放低的拦阻手臂维持在两者之间；随着骗子1靠近，他的身体略向后绷紧，眉头紧锁，警惕视线始终锁住骗子1。骗子1从门外原位朝门槛及卫兵1靠近一步，骗子木箱稳定提在身侧，全程不跨过门槛；接近后逐渐压低上身并向卫兵1稍稍倾斜，保持沉着而神秘的神情。骗子2留在骗子1侧后方，不向门槛逼近，继续将骗子木箱提在身侧，仅将视线在骗子1与卫兵1之间移动。过渡最终停在更紧的三人构图：骗子1仍在门外、卫兵1仍在门内左侧，两人隔着门槛形成明显缩短距离的近距离对峙，骗子2保持侧后方位置。"
+    },
+    {
+      "from_keyframe_index": 4,
+      "to_keyframe_index": 5,
+      "start_time": 28.8,
+      "end_time": 35.1,
+      "transition_description": "骗子1始终停在宫门外靠近门槛的位置，维持压低并略向卫兵1倾斜的上身姿态，视线稳定落在卫兵1身上，手中的骗子木箱保持垂在身侧。卫兵1不越过门槛，仍守在门内左侧，身体由略向后绷紧逐渐缓和为稳定戒备，朝向两名骗子，眉头微皱，神情中增加一丝好奇。骗子2继续站在骗子1侧后方，不改变门外位置，手提骗子木箱，身体轻微前倾，头部与视线从骗子1和卫兵1之间缓慢偏向宫门侧面，谨慎察看周围后停住。摄影机沿既有连续轨迹向骗子2所在一侧轻微平移，以平稳方式让骗子2在三人构图中更加清楚，同时始终保留门槛、门内的卫兵1和门外的骗子1，不跳轴、不改变三人的相对方位。最终停在三人继续分处门槛内外、骗子1与卫兵1保持近距离对峙、骗子2微微前倾并侧向察看的稳定状态。"
+    },
+    {
+      "from_keyframe_index": 5,
+      "to_keyframe_index": 6,
+      "start_time": 35.1,
+      "end_time": 41.2,
+      "transition_description": "摄影机沿原有侧移轨迹平稳转为缓慢推近，始终维持门槛内的卫兵1与门外两名骗子处于同一连续三人构图中。骗子2停止扫视宫门两侧，将头部和目光逐渐转向前方的卫兵1，保持位于骗子1侧后方并略微前倾，手中的骗子木箱位置稳定。骗子1继续停在门槛外侧，维持靠近门槛的克制姿态，视线落在卫兵1身上，身侧木箱不移动。卫兵1留在门槛内，身体朝向两名骗子，眉头由微皱逐渐抬起，双眼睁大，身体随即僵住，原本用于拦阻的手臂缓慢松弛并下垂。摄影机继续推至较紧的三人关系构图，使晨光下三人的面部反应更加清楚，最终停在卫兵1震惊僵立、手臂明显下垂，骗子1沉着站定、骗子2郑重注视卫兵1的状态。"
+    },
+    {
+      "from_keyframe_index": 6,
+      "to_keyframe_index": 7,
+      "start_time": 41.2,
+      "end_time": 47.6,
+      "transition_description": "卫兵1从门槛内的僵硬震惊状态逐渐松懈，已经下垂的拦阻手臂继续保持低位，肩背缓慢塌下，神情转为紧张不安；他的视线先落在门槛外侧的骗子1身上，再移向其侧后方的骗子2，随后在两人之间不安游移。骗子1始终站定在门槛外侧，保持骗子木箱位置不变，仅将头部稍微偏向侧后方的骗子2，目光依旧镇定。骗子2不改变侧后方站位，上身由略微前倾趋于稳定，同时轻微侧头迎向骗子1的视线，以克制而笃定的神情与其形成短暂、明确的对视。摄影机沿此前的推进路径继续极缓慢靠近并平稳收住，全程保持原有轴线和三人近距离关系构图，不改变人物左右位置；最终停在卫兵1肩背松弛、戒备明显动摇且视线在两名骗子之间游移，两名骗子彼此对视的状态。"
+    },
+    {
+      "from_keyframe_index": 7,
+      "to_keyframe_index": 8,
+      "start_time": 47.6,
+      "end_time": 52.5,
+      "transition_description": "卫兵1的视线在两名骗子之间短暂停顿，紧张地收紧肩颈，随后从门槛内原位向宫内方向连续转身；转动过程中，他将一只手朝门外抬起作停留示意，最终身体背向两名骗子、面朝宫内，并停在门槛内。骗子1不越过门槛，结束与骗子2的对视后重新直立身体，稳定提住骗子木箱，视线随卫兵1的转身移向宫内方向；骗子2始终留在骗子1侧后方，稳定提住骗子木箱，同步将视线转向卫兵1，不向前移动。摄影机不切换机位、不改变轴线，沿此前轨迹轻微平移并缓慢调整构图，持续保留门槛和三人的空间关系，同时逐渐为卫兵1所朝向的宫内区域留出可见空间；最终停在卫兵1朝内、单手朝门外抬起，两名骗子提箱留在门外并注视其背影的连续三人构图。"
+    },
+    {
+      "from_keyframe_index": 8,
+      "to_keyframe_index": 9,
+      "start_time": 52.5,
+      "end_time": 68.0,
+      "transition_description": "卫兵1从门槛内背对两名骗子的姿态开始，先将朝门外抬起的手自然放回身侧，随后沿宫内通道向更深处稳步走去，全程不回身，并逐渐远离门槛。骗子1与骗子2始终留在门槛外，不跨越边界，各自保持骗子木箱垂提在身侧；骗子1维持原位和从容姿态，骗子2保持在其侧后方，两人的头部与视线随卫兵1向宫内深处移动而小幅转动，最后稳定望向其离开方向。摄影机沿原有连续轨迹轻微向门内平移并缓慢调整取景，不切镜、不跳轴，使门槛外的两名骗子逐渐占据主要画面，同时始终保留宫内通道和正在远去的卫兵1。结尾摄影机稳定停在门内侧构图：两名骗子并肩留在门外原位，木箱状态不变，卫兵1背对镜头处于宫门内较深处，三者空间关系与门槛边界清晰可见。"
+    }
+  ],
+  "raw_clips": [
+    {
+      "clip_index": 1,
+      "start_time": 0,
+      "end_time": 8.15,
+      "continuity_to_previous": "NONE",
+      "previous_clip_index": null,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [],
+      "early_composition_state_id": null,
+      "reason": "建立宫门内外的三人空间关系，并沿同一轴线开始连续横移推近。"
+    },
+    {
+      "clip_index": 2,
+      "start_time": 8.15,
+      "end_time": 20.05,
+      "continuity_to_previous": "CONTINUOUS",
+      "previous_clip_index": 1,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [],
+      "early_composition_state_id": null,
+      "reason": "起点位于KF2至KF3的连续摄影机运动及姿态变化过程中，必须继承上一片段结尾的机位运动阶段、三人站位、拦阻手臂状态和门槛空间关系。EARLY_COMPOSITION_COVERAGE_INVALID：时间区间在片段起点即开始，且本片段没有可用于事件前建立构图的自有视觉状态。"
+    },
+    {
+      "clip_index": 3,
+      "start_time": 20.05,
+      "end_time": 35.05,
+      "continuity_to_previous": "CONTINUOUS",
+      "previous_clip_index": 2,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [
+        "KF4"
+      ],
+      "early_composition_state_id": null,
+      "reason": "起点仍处于沿原方向横移推近和卫兵审视动作的连续进程中，必须继承上一片段结尾的摄影机运动相位、拦阻姿态及门槛两侧的精确位置关系；KF4的靠近门槛、压低上身及近距离对峙是具有增量控制价值的物质空间状态。EARLY_COMPOSITION_COVERAGE_INVALID：首个重叠时间区间在片段开始时已经进行，KF3及其后的自有状态均不能提供事件前的早期构图覆盖。"
+    },
+    {
+      "clip_index": 4,
+      "start_time": 35.05,
+      "end_time": 49.6,
+      "continuity_to_previous": "CONTINUOUS",
+      "previous_clip_index": 3,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [],
+      "early_composition_state_id": "KF5",
+      "reason": "起点延续既有侧移轨迹以及三人在门槛两侧保持的近距离位置，必须继承上一片段结尾的机位、身体姿态和相对方位；KF5在片段内部及下一时间区间开始前建立骗子2更清楚的三人构图，随后连续进入卫兵反应变化与三人对视关系。"
+    },
+    {
+      "clip_index": 5,
+      "start_time": 49.6,
+      "end_time": 53.6,
+      "continuity_to_previous": "CONTINUOUS",
+      "previous_clip_index": 4,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [
+        "KF8"
+      ],
+      "early_composition_state_id": "KF8",
+      "reason": "起点位于卫兵从面对来客转向宫内的连续转身及摄影机构图调整过程中，必须继承上一片段结尾的身体朝向、抬手阶段、门槛位置和相机轨迹；KF8在片段内部建立转身完成、宫内空间显露且两名骗子仍留在门外的构图，并为随后向宫内行走提供明确起始安排。"
+    },
+    {
+      "clip_index": 6,
+      "start_time": 53.6,
+      "end_time": 68,
+      "continuity_to_previous": "CONTINUOUS",
+      "previous_clip_index": 5,
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [],
+      "early_composition_state_id": null,
+      "reason": "起点处卫兵已经从KF8姿态开始向宫内深处连续行走，摄影机也沿原轨迹持续向门内调整，必须继承上一片段结尾的步行阶段、身体位置、门槛距离和相机运动；不能用独立设置跳过这段持续远离动作。EARLY_COMPOSITION_COVERAGE_INVALID：本片段内部没有可用的早期自有视觉状态，KF9位于片段终点，只描述行走后的结果，不能作为早期构图覆盖。"
+    }
+  ]
+}

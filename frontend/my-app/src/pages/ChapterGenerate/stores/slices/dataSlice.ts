@@ -15,12 +15,13 @@ import { shotsApi } from '../../../../api/shots';
 
 export interface DataSlice extends DataSliceState {
   fetchNovel: (novelId: string) => Promise<void>;
-  fetchChapter: (novelId: string, chapterId: string) => Promise<void>;
+  fetchChapter: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
+  fetchChapterMergeStatus: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
   fetchCharacters: (novelId: string) => Promise<void>;
   fetchScenes: (novelId: string) => Promise<void>;
   fetchProps: (novelId: string) => Promise<void>;
   fetchShots: (novelId: string, chapterId: string) => Promise<void>;
-  fetchShotsWithReturn: (novelId: string, chapterId: string) => Promise<Shot[]>;
+  fetchShotsWithReturn: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<Shot[]>;
   setParsedData: (data: ParsedData | null) => void;
   setEditableJson: (json: string) => void;
   setShots: (shots: Shot[]) => void;
@@ -44,6 +45,7 @@ export const createDataSlice: StateCreator<
 > = (set, get) => ({
   // ========== 初始状态 ==========
   chapter: null,
+  chapterMergeStatus: null,
   novel: null,
   parsedData: null,
   editableJson: '',
@@ -71,11 +73,12 @@ export const createDataSlice: StateCreator<
     }
   },
 
-  fetchChapter: async (novelId: string, chapterId: string) => {
-    set({ loading: true });
+  fetchChapter: async (novelId: string, chapterId: string, signal?: AbortSignal) => {
+    set({ loading: true, chapterMergeStatus: null });
     try {
-      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/`);
+      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}?include_shots=false`, { signal });
       const data = await res.json();
+      if (signal?.aborted) return;
       if (data.success) {
         // 转换 snake_case 到 camelCase
         const rawChapter = data.data;
@@ -97,7 +100,8 @@ export const createDataSlice: StateCreator<
         });
 
         // 获取分镜数据（存储在独立的 shots 表中）
-        await get().fetchShotsWithReturn(novelId, chapterId);
+        await get().fetchShotsWithReturn(novelId, chapterId, signal);
+        if (signal?.aborted) return;
 
         // 解析 parsedData（仅包含章节资源：characters, scenes, props）
         if (chapter.parsedData) {
@@ -144,9 +148,25 @@ export const createDataSlice: StateCreator<
         }
       }
     } catch (error) {
-      console.error('获取章节数据失败:', error);
+      if (!signal?.aborted) console.error('获取章节数据失败:', error);
     } finally {
-      set({ loading: false });
+      if (!signal?.aborted) set({ loading: false });
+    }
+  },
+
+  fetchChapterMergeStatus: async (novelId: string, chapterId: string, signal?: AbortSignal) => {
+    try {
+      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/merge-video-status`, {
+        signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const payload = await res.json();
+      if (!signal?.aborted && payload.success && get().chapter?.id === chapterId) {
+        set({ chapterMergeStatus: payload.data });
+      }
+    } catch (error) {
+      if (!signal?.aborted) console.error('获取章节视频合并状态失败:', error);
     }
   },
 
@@ -216,9 +236,10 @@ export const createDataSlice: StateCreator<
     }
   },
 
-  fetchShotsWithReturn: async (novelId: string, chapterId: string): Promise<Shot[]> => {
+  fetchShotsWithReturn: async (novelId: string, chapterId: string, signal?: AbortSignal): Promise<Shot[]> => {
     try {
-      const result = await shotsApi.getShots(novelId, chapterId);
+      const result = await shotsApi.getShots(novelId, chapterId, signal);
+      if (signal?.aborted) return [];
       if (result.success) {
         const shots = result.data;
 
@@ -244,7 +265,7 @@ export const createDataSlice: StateCreator<
       }
       return [];
     } catch (error) {
-      console.error('获取分镜列表失败:', error);
+      if (!signal?.aborted) console.error('获取分镜列表失败:', error);
       return [];
     }
   },
@@ -302,7 +323,7 @@ export const createDataSlice: StateCreator<
 
   getPropImage: (name: string): string | null => {
     const prop = get().props.find((p) => p.name === name);
-    return prop?.imageUrl || null;
+    return prop?.existence === 'FICTIONAL_OR_NONEXISTENT' ? null : prop?.imageUrl || null;
   },
 
   // ========== 章节资源管理方法 ==========

@@ -2,6 +2,11 @@
  * 分镜相关 API
  */
 import { api } from './index';
+import { downloadQueuedShotExport } from './shotExports';
+
+export const DEFAULT_H3_PROMPT_PIPELINE = 'phase_b' as const;
+
+const shotReadsInFlight = new Map<string, Promise<{ success: boolean; data: Shot; message?: string }>>();
 
 // 分镜台词数据
 export interface DialogueData {
@@ -16,6 +21,7 @@ export interface DialogueData {
 
 // 分镜数据（从后端 Shot 模型映射）
 export interface Shot {
+  summaryOnly?: boolean;
   id: string;
   chapterId: string;
   index: number;
@@ -35,6 +41,13 @@ export interface Shot {
   videoUrl: string | null;
   videoStatus: 'pending' | 'generating' | 'completed' | 'failed';
   videoTaskId: string | null;
+  mainImageNewerThanVideo?: boolean;
+  hdVideoUrl: string | null;
+  hdVideoStatus: 'pending' | 'generating' | 'completed' | 'failed';
+  hdVideoTaskId: string | null;
+  hdVideoSourceTaskId: string | null;
+  hdVideoMegapixels: number | null;
+  hdVideoVariants: HdVideoVariant[];
   mergedCharacterImage: string | null;
   mergedPropImage: string | null;
   dialogues: DialogueData[];
@@ -45,9 +58,114 @@ export interface Shot {
   updatedAt: string | null;
 }
 
+export interface HdVideoExecution {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  videoUrl?: string | null;
+  targetMegapixels: number;
+  sourceTaskId?: string | null;
+  parentTaskId?: string | null;
+  progress: number;
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface HdVideoVariant {
+  targetMegapixels: number;
+  status: HdVideoExecution['status'];
+  videoUrl?: string | null;
+  taskId?: string | null;
+  latestCompletedTaskId?: string | null;
+  sourceTaskId?: string | null;
+  errorMessage?: string | null;
+  executions: HdVideoExecution[];
+}
+
+/** @deprecated Historical noncanonical Video Director plans only. */
 export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
 
+export type CanonicalVisualStateRole = 'START' | 'INTERMEDIATE' | 'END';
+
+export interface CanonicalVisualState {
+  index: number;
+  time_seconds: number;
+  role: CanonicalVisualStateRole;
+  description?: string | null;
+  /** #08 eligible timed-image candidate, not execution-required or selected. */
+  timed_visual_target?: boolean;
+  image_url?: string | null;
+  image_task_id?: string | null;
+  prompt_text?: string | null;
+}
+
+export interface CanonicalVisualTransition {
+  segment_index?: number;
+  from_keyframe_index?: number;
+  to_keyframe_index?: number;
+  start_time?: number;
+  end_time?: number;
+  transition_description?: string | null;
+  [key: string]: any;
+}
+
+export type SemanticClipCapability = 'GENERATE' | 'EXTEND' | 'TEMPORAL_EXTEND';
+
+export interface SemanticClipPlan {
+  visual_state_reference_config?: { enabled_state_ids: string[] } | null;
+  clip_index: number;
+  start_time: number;
+  end_time: number;
+  planned_duration?: number;
+  planning_mode?: string;
+  capability: SemanticClipCapability;
+  continuity_to_previous?: 'NONE' | 'CUT' | 'CONTINUOUS';
+  previous_clip_index?: number | null;
+  visual_state_indexes?: number[];
+  carry_in_state_index?: number | null;
+  requires_temporal_control?: boolean;
+  temporal_anchor_ids?: string[];
+  selected_temporal_target_ids?: string[];
+  early_composition_state_id?: string | null;
+  clip_id?: string;
+  generated_by_task_id?: string;
+  video_url?: string | null;
+  local_path?: string | null;
+  source_video_url?: string | null;
+  execution_status?: string;
+  approval_mode?: string;
+  approval_status?: string;
+  status?: string;
+  error_message?: string | null;
+  prompt_text?: string;
+  dialogue_assignment?: Array<Record<string, any>>;
+  [key: string]: any;
+}
+
+export interface PlanSemanticClipsRequest {
+  temporal_anchors?: Array<Record<string, any>>;
+  approval_mode?: 'AUTO_APPROVE' | 'REVIEW_REQUIRED';
+  force?: boolean;
+}
+
+export interface PlanSemanticClipsResult {
+  clips: SemanticClipPlan[];
+  validation: {
+    passed?: boolean;
+    findings?: Array<{ code?: string; severity?: string; message?: string }>;
+    [key: string]: any;
+  };
+  revision?: number;
+  temporal_anchors?: VideoDirectorPlan['temporal_anchors'];
+  execution_readiness?: VideoDirectorPlan['execution_readiness'];
+}
+
 export interface VideoAiCall {
+  history_index?: number;
+  details_deferred?: boolean;
+  has_final_prompt?: boolean;
   step?: string;
   title?: string;
   task_type?: string;
@@ -62,11 +180,65 @@ export interface VideoAiCall {
   workflow_type?: string | null;
   workflow_name?: string | null;
   reference_images?: Array<{ label?: string; url?: string }> | null;
+  submitted_reference_bindings?: Array<{ picture?: number; sources?: string[]; node_id?: string; filename?: string }> | null;
+  task_id?: string;
   created_at?: string;
 }
 
+export interface CanonicalImageProvenance {
+  shot_id: string;
+  clip_plan_revision: number;
+  state_index: number;
+  state_id: string;
+  state_fingerprint: string;
+}
+export interface RequiredExecutionImage {
+  kind: 'SELECTED_TEMPORAL_TARGET' | 'EARLY_COMPOSITION' | 'GENERATE_VISUAL_START';
+  state_index: number;
+  state_id: string;
+  shot_time: number;
+  description?: string;
+  consumer_clip_index: number;
+  consumer_clip_indexes: number[];
+  clip_local_time?: number | null;
+  image_source: string;
+  image_url?: string | null;
+  ready: boolean;
+  missing: boolean;
+  provenance: CanonicalImageProvenance;
+  active_task?: { task_id: string; status: string; current_step?: string | null; error_message?: string | null } | null;
+  failure?: { task_id: string; status: string; error_message?: string | null } | null;
+  consumers: Array<{ consumer_clip_index: number; kind: string; clip_local_time?: number | null; image_url?: string | null; ready: boolean }>;
+}
+export interface PrepareRequiredImageItem {
+  state_index: number;
+  state_id: string;
+  consumer_clip_indexes: number[];
+  status: 'READY' | 'REUSED' | 'QUEUED' | 'FAILED';
+  task_id?: string | null;
+  reason?: string;
+}
+export interface PrepareRequiredImagesResult { items: PrepareRequiredImageItem[]; shot: Shot }
+
+export type VideoResultMode = 'APPLY' | 'CANDIDATE_ONLY';
+export type ContinuationMode = 'AUTO' | 'EXTEND_ONLY';
+export interface ExecutionPolicyProjection {
+  continuation_mode: ContinuationMode;
+  planned_capability: SemanticClipCapability;
+  effective_capability: SemanticClipCapability;
+  suppressed_temporal_anchor_ids: string[];
+  effective_temporal_anchors: Array<{ anchor_id: string; time_seconds?: number; image_url?: string }>;
+  planned_clip: { clip_index: number };
+}
 export interface VideoDirectorPlan {
+  execution_policy?: { continuation_mode: ContinuationMode; clips: ExecutionPolicyProjection[] };
+  ai_history_deferred?: boolean;
+  required_execution_images?: RequiredExecutionImage[];
+  clip_execution_readiness?: Array<{ clip_index: number; images_ready: boolean; ready: boolean; code: string; previous_clip_index?: number | null }>;
+  canonical_visual_plan?: boolean;
+  /** @deprecated Historical noncanonical plans only; never canonical authority. */
   selected_mode?: VideoMode;
+  /** @deprecated Historical noncanonical plans only; never canonical authority. */
   recommended_mode?: VideoMode;
   recommended_label?: string;
   recommendation_reason?: string;
@@ -79,29 +251,18 @@ export interface VideoDirectorPlan {
     workflow_name?: string;
     [key: string]: any;
   };
-  keyframes?: Array<{
-    index: number;
-    time_seconds: number;
-    role: 'START' | 'INTERMEDIATE' | 'END';
-    description?: string | null;
-    image_url?: string;
-    prompt_text?: string;
-  }>;
-  transitions?: Array<{
-    segment_index?: number;
-    from_keyframe_index?: number;
-    to_keyframe_index?: number;
-    transition_description?: string;
-    [key: string]: any;
-  }>;
+  keyframes?: CanonicalVisualState[];
+  transitions?: CanonicalVisualTransition[];
   clips?: Array<{
     clip_index: number;
     start_time: number;
     end_time: number;
     frame_count?: number;
+    /** @deprecated Historical fixed-frame clip metadata only. */
     selected_frame_count?: number;
     workflow_key?: string;
     workflow_type?: string;
+    /** @deprecated Use semantic clip visual_state_indexes for canonical ownership. */
     keyframe_indexes?: number[];
     status?: string;
     prompt_text?: string;
@@ -111,14 +272,17 @@ export interface VideoDirectorPlan {
     start_time: number;
     end_time: number;
   }>;
+  /** @deprecated Historical MULTI_KEYFRAME planning only. */
   window_plans?: Array<{
     window_index: number;
     start_time: number;
     end_time: number;
+    /** @deprecated Historical fixed-frame window metadata only. */
     selected_frame_count: 3 | 4;
     workflow_key?: string;
     workflow_type?: string;
     workflow_name?: string;
+    /** @deprecated Historical window membership only. */
     keyframe_indexes: number[];
     status?: string;
     video_url?: string;
@@ -132,6 +296,44 @@ export interface VideoDirectorPlan {
   }>;
   merged_video_url?: string;
   merged_at?: string;
+  clip_plan_revision?: number;
+  temporal_anchors?: Array<{
+    anchor_id: string;
+    time_seconds: number;
+    image_url?: string;
+    source?: { type?: string; id?: string; keyframe_index?: number; image_task_id?: string; [key: string]: any };
+    description?: string;
+  }>;
+  assembly_status?: string;
+  assembly_mode?: string;
+  assembly_clip_plan_revision?: number;
+  assembly_task_ids?: string[];
+  assembled_result?: { status?: string; url?: string; assembled_media_duration?: number | null; clip_plan_revision?: number } | null;
+  clip_plan_approval_mode?: string;
+  clip_plan_validation?: {
+    passed?: boolean;
+    findings?: Array<{ code?: string; severity?: string; message?: string }>;
+    dialogue_ownership?: { passed?: boolean; [key: string]: any };
+    [key: string]: any;
+  };
+  clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
+  clip_plan?: SemanticClipPlan[];
+  execution_readiness?: {
+    ready: boolean;
+    code?: string;
+    message?: string | null;
+    blocking_clips?: Array<{
+      ready: boolean;
+      applicable?: boolean;
+      code?: string;
+      message?: string | null;
+      clip_index?: number | null;
+      visual_state_index?: number | null;
+      time_seconds?: number | null;
+      grounding_source?: 'KEYFRAME_IMAGE' | 'SHOT_IMAGE' | null;
+      image_url?: string | null;
+    }>;
+  };
   ai_calls?: VideoAiCall[];
   validation?: Record<string, any>;
 }
@@ -142,6 +344,7 @@ export interface KeyframeData {
   description: string;
   image_url?: string;
   image_task_id?: string;
+  prompt_text?: string;
   reference_image_url?: string;
   reference_mode?: string;
 }
@@ -160,20 +363,48 @@ export interface ShotUpdateRequest {
 }
 
 export const shotsApi = {
+  getShotAutoGeneration: (novelId: string, chapterId: string, shotId: string) =>
+    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation`),
+  controlShotAutoGeneration: (novelId: string, chapterId: string, shotId: string, action: 'start' | 'pause' | 'resume', continuationMode: ContinuationMode = 'AUTO') =>
+    api.post<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation/${action}`, action === 'start' ? { continuation_mode: continuationMode } : {}),
+  getClipPlayback: (novelId: string, chapterId: string, shotId: string, clipIndex: number) =>
+    api.get<{ independent_url: string | null; cumulative_url: string; independent_error?: string | null;
+      review_url?: string | null; review_error?: string | null }>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${clipIndex}/playback`),
   /**
    * 获取章节的所有分镜列表
    */
-  getShots: async (novelId: string, chapterId: string): Promise<{ success: boolean; data: Shot[]; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/`);
+  getShots: async (novelId: string, chapterId: string, signal?: AbortSignal): Promise<{ success: boolean; data: Shot[]; message?: string }> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots?summary=true&include_ai_history=false`, { signal });
     return response.json();
   },
 
   /**
    * 获取单个分镜详情
    */
-  getShot: async (novelId: string, chapterId: string, shotId: string): Promise<{ success: boolean; data: Shot; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`);
-    return response.json();
+  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal, includeAiHistory = false, continuationMode: ContinuationMode = 'AUTO'): Promise<{ success: boolean; data: Shot; message?: string }> => {
+    const url = `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`
+      + (continuationMode === 'AUTO' ? '' : `&continuation_mode=${continuationMode}`);
+    if (signal) {
+      const response = await fetch(url, { signal });
+      return response.json();
+    }
+    const existing = shotReadsInFlight.get(url);
+    if (existing) return existing;
+    const request = fetch(url).then(response => response.json());
+    shotReadsInFlight.set(url, request);
+    try {
+      return await request;
+    } finally {
+      shotReadsInFlight.delete(url);
+    }
+  },
+
+  getShotAiCall: async (novelId: string, chapterId: string, shotId: string, call: VideoAiCall): Promise<VideoAiCall> => {
+    const query = new URLSearchParams({ created_at: call.created_at || '' });
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/ai-calls/${call.history_index}?${query}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.detail || '读取 AI 调用失败');
+    return result.data;
   },
 
   downloadShotLlmData: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {
@@ -230,6 +461,22 @@ export const shotsApi = {
     URL.revokeObjectURL(url);
   },
 
+  downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string, sections?: string[], onProgress?: (message: string) => void): Promise<void> => {
+    if (sections && sections.length === 0) throw new Error('请至少选择一个导出项');
+    const params = new URLSearchParams();
+    sections?.forEach(section => params.append('include', section));
+    await downloadQueuedShotExport(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`, params, onProgress);
+  },
+
+  resetShotVideoData: async (novelId: string, chapterId: string, shotId: string): Promise<{ success: boolean; message?: string; detail?: string }> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/reset-video-data`, { method: 'POST' });
+    const text = await response.text();
+    let data: any = {};
+    try { data = text ? JSON.parse(text) : {}; } catch { data = { message: text }; }
+    if (!response.ok) throw new Error(data.detail || data.message || '重置当前 Shot 视频数据失败');
+    return data;
+  },
+
   /**
    * 更新分镜信息
    */
@@ -255,7 +502,12 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     options?: { prompt_text?: string; workflow_type?: 'shot' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop' }
-  ): Promise<{ success: boolean; data?: { taskId: string; status: string; promptText?: string | null }; message?: string }> => {
+  ): Promise<{
+    success: boolean;
+    data?: { taskId: string; status: string; promptText?: string | null };
+    message?: string;
+    detail?: string | { code?: string; message?: string; available_reference_count?: number; missing?: Record<string, string[]> };
+  }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate/`,
       {
@@ -264,14 +516,24 @@ export const shotsApi = {
         body: JSON.stringify({ prompt_text: options?.prompt_text || null, workflow_type: options?.workflow_type || null }),
       }
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) {
+      const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
+      return { success: false, message: detailMessage || result.message || '生成失败', detail: result.detail };
+    }
+    return result;
   },
 
   generateImagesBatch: async (
     novelId: string,
     chapterId: string,
     options: { shot_ids: string[]; skip_llm_when_prompt_exists?: boolean }
-  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+  ): Promise<{
+    success: boolean;
+    data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> };
+    message?: string;
+    detail?: string | { code?: string; message?: string; shot_id?: string; available_reference_count?: number; missing?: Record<string, string[]> };
+  }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shot-images/batch`,
       {
@@ -283,7 +545,87 @@ export const shotsApi = {
         }),
       }
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) {
+      const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
+      return { success: false, message: detailMessage || result.message || '批量生成分镜图失败', detail: result.detail };
+    }
+    return result;
+  },
+
+  generateVideosBatch: async (
+    novelId: string,
+    chapterId: string,
+    options: {
+      shot_ids: string[];
+      video_prompt_language?: 'en' | 'zh';
+      auto_complete_details?: boolean;
+      use_reference_audio?: boolean;
+      continuation_mode?: ContinuationMode; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
+      force_rerun?: boolean;
+      auto_assemble?: boolean;
+    }
+  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shot_ids: options.shot_ids,
+          auto_complete_details: options.auto_complete_details ?? true,
+          use_reference_audio: options.use_reference_audio ?? true,
+          skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
+          video_prompt_language: options.video_prompt_language,
+          continuation_mode: options.continuation_mode ?? 'AUTO',
+          optimize_h3_prompt: options.optimize_h3_prompt ?? false,
+          preflight_auto_repair: options.preflight_auto_repair,
+          force_rerun: options.force_rerun ?? true,
+          auto_assemble: options.auto_assemble ?? true,
+        }),
+      }
+    );
+    const responseText = await response.text();
+    let data: any;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { message: responseText || `HTTP ${response.status}` };
+    }
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '批量生成视频失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  preflightVideosBatch: async (novelId: string, chapterId: string, shotIds: string[], autoCompleteDetails: boolean) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch/preflight`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shot_ids: shotIds, auto_complete_details: autoCompleteDetails }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '批量预检失败');
+    return result as { success: boolean; data: { ready: boolean; checks: Array<{
+      id: string; status: 'PASS' | 'FAIL' | 'DEFERRED'; message: string;
+      blocking: boolean; shotId: string | null; shotIndex: number | null;
+    }> } };
+  },
+
+  resumeVideosBatch: async (novelId: string, chapterId: string, batchId: string) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch/${batchId}/resume`, {
+      method: 'POST',
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      const detail = result.detail;
+      if (detail?.code === 'GENERATION_PREFLIGHT_FAILED') {
+        const failed = (detail.report?.checks || []).filter((check: { blocking?: boolean }) => check.blocking);
+        throw new Error(`恢复前检查未通过：${failed.map((check: { message?: string }) => check.message).join('；') || '请查看生成质量控制设置'}`);
+      }
+      throw new Error(typeof detail === 'string' ? detail : result.message || detail?.code || '恢复批次失败');
+    }
+    return result as { success: true; data: { batchTaskId: string; resumedShotIds: string[] } };
   },
 
   /**
@@ -298,7 +640,7 @@ export const shotsApi = {
       use_reference_audio?: boolean;
       workflow_id?: string;
       selected_mode?: VideoMode;
-      skip_llm_when_prompt_exists?: boolean;
+      h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean;
     }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
@@ -312,6 +654,9 @@ export const shotsApi = {
           workflow_id: options?.workflow_id,
           selected_mode: options?.selected_mode,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
+          optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
+          preflight_auto_repair: options?.preflight_auto_repair,
         }),
       }
     );
@@ -322,38 +667,34 @@ export const shotsApi = {
     return data;
   },
 
-  recommendVideoMode: async (
-    novelId: string,
-    chapterId: string,
-    shotId: string,
-    force = false
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+  saveClipVisualStateReferences: async (
+    novelId: string, chapterId: string, shotId: string, clipIndex: number,
+    enabledStateIds: string[], expectedPlanRevision: number,
+  ): Promise<{ success: boolean; data?: Shot; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/recommend`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force }),
-      }
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${clipIndex}/visual-state-references`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        enabled_state_ids: enabledStateIds, expected_plan_revision: expectedPlanRevision,
+      }) },
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || '保存视觉状态选择失败');
+    return result;
   },
 
-  saveVideoDirectorPlan: async (
-    novelId: string,
-    chapterId: string,
-    shotId: string,
-    plan: Partial<VideoDirectorPlan>
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+  saveVisualStateDescription: async (
+    novelId: string, chapterId: string, shotId: string, stateIndex: number,
+    description: string, expectedDescription: string, expectedPlanRevision: number,
+  ): Promise<{ success: boolean; data?: { description: string; shotDescription: string; videoDirectorPlan: VideoDirectorPlan; keyframes: any[] }; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(plan),
-      }
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/states/${stateIndex}/description`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        description, expected_description: expectedDescription, expected_plan_revision: expectedPlanRevision,
+      }) },
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || '保存视觉状态描述失败');
+    return result;
   },
 
   planVideoKeyframes: async (
@@ -377,12 +718,37 @@ export const shotsApi = {
     return data;
   },
 
+  planVideoClips: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    options: PlanSemanticClipsRequest = {},
+  ): Promise<{ success: boolean; data?: PlanSemanticClipsResult; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/plan-clips`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          temporal_anchors: options.temporal_anchors ?? [],
+          approval_mode: options.approval_mode ?? 'AUTO_APPROVE',
+          force: options.force ?? false,
+        }),
+      },
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '视频片段规划失败', detail: data?.detail };
+    }
+    return data;
+  },
+
   generateVideoDirectorClip: async (
     novelId: string,
     chapterId: string,
     shotId: string,
     windowIndex: number,
-    options?: { use_reference_audio?: boolean; auto_merge?: boolean; skip_llm_when_prompt_exists?: boolean }
+    options?: { video_prompt_language?: 'en' | 'zh'; result_mode?: VideoResultMode; use_reference_audio?: boolean; auto_merge?: boolean; continuation_mode?: ContinuationMode; h3_prompt_pipeline?: 'legacy' | 'phase_b'; optimize_h3_prompt?: boolean; preflight_auto_repair?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
@@ -392,7 +758,14 @@ export const shotsApi = {
         body: JSON.stringify({
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
+          result_mode: options?.result_mode ?? 'APPLY',
+          video_prompt_language: options?.video_prompt_language,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          h3_prompt_pipeline: options?.h3_prompt_pipeline ?? DEFAULT_H3_PROMPT_PIPELINE,
+          continuation_mode: options?.continuation_mode ?? 'AUTO',
+          optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
+          preflight_auto_repair: options?.preflight_auto_repair,
+          clip_plan_revision: options?.clip_plan_revision,
         }),
       }
     );
@@ -679,6 +1052,11 @@ export const shotsApi = {
   /**
    * 生成关键帧图片
    */
+  prepareRequiredImages: async (novelId: string, chapterId: string, shotId: string, revision: number, clipIndexes?: number[], stateIndexes?: number[], continuationMode: ContinuationMode = 'AUTO') =>
+    api.post<PrepareRequiredImagesResult>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/prepare-required-images`, {
+      clip_plan_revision: revision, clip_indexes: clipIndexes, state_indexes: stateIndexes, continuation_mode: continuationMode,
+    }),
+
   generateKeyframeImage: async (
     novelId: string,
     chapterId: string,
@@ -782,6 +1160,50 @@ export const shotsApi = {
         body: JSON.stringify({ keyframes }),
       }
     );
+    return response.json();
+  },
+
+  getHdRepaintSource: async (novelId: string, chapterId: string, shotId: string) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/hd-repaint/source`);
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '无法读取 Replay Source' };
+    return data;
+  },
+
+  createHdRepaint: async (novelId: string, chapterId: string, shotId: string, targetMegapixels: number) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/hd-repaint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_megapixels: targetMegapixels }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '高清重绘任务创建失败' };
+    return data;
+  },
+
+  createHdRepaintBatch: async (novelId: string, chapterId: string, shotIds: string[], targetMegapixels: number) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/hd-repaints/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shot_ids: shotIds, target_megapixels: targetMegapixels }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '批量高清重绘任务创建失败' };
+    return data;
+  },
+
+  getLatestHdRepaintBatch: async (novelId: string, chapterId: string, targetMegapixels?: number) =>
+    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/latest${targetMegapixels == null ? '' : `?target_megapixels=${targetMegapixels}`}`),
+
+  retryFailedHdRepaints: async (novelId: string, chapterId: string, batchId: string) =>
+    api.post(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/${batchId}/retry-failed`),
+
+  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd', targetMegapixels?: number) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/merge-videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant, target_megapixels: targetMegapixels }),
+    });
     return response.json();
   },
 

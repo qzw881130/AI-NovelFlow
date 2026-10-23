@@ -4,11 +4,16 @@ OpenAI 兼容的 LLM 提供商
 支持 OpenAI、DeepSeek、Azure 等使用 OpenAI 兼容格式的 LLM 服务。
 """
 import httpx
+import asyncio
 import os
 import time
 import json
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import attach_image_inputs
+from ..metrics import normalize_metrics
+from ..cancellation import LLMCallTerminated
+from ..http_retry import post_llm_request
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -19,6 +24,18 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     """
 
     PROVIDER_NAME = "openai_compatible"
+
+    def _build_http_client(self, timeout: int):
+        proxy = self._get_proxy_config()
+        if self.config.provider in ("ollama", "custom"):
+            return httpx.AsyncClient(
+                transport=httpx.AsyncHTTPTransport(proxy=None),
+                timeout=timeout,
+                trust_env=False,
+            )
+        if proxy is None:
+            return httpx.AsyncClient(timeout=timeout, trust_env=False)
+        return httpx.AsyncClient(proxy=proxy, timeout=timeout)
 
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
@@ -100,7 +117,9 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        shot_id: str = None,
+        character_id: str = None,
+        images: list | None = None,
     ) -> LLMResponse:
         """
         发送对话请求
@@ -125,6 +144,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         body = self._build_request_body(
             system_prompt, user_content, temperature, max_tokens, response_format
         )
+        body = attach_image_inputs(body, self.config.provider, images)
 
         # 获取代理配置
         proxy = self._get_proxy_config()
@@ -140,24 +160,21 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             payload=body,
             proxy_url=proxy,
             timeout_seconds=timeout,
+            image_metadata=[{k: v for k, v in item.items() if k != "url"} for item in images or []],
         )
-        # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
             old_https_proxy = os.environ.pop('HTTPS_PROXY', None)
             old_http_proxy_lower = os.environ.pop('http_proxy', None)
             old_https_proxy_lower = os.environ.pop('https_proxy', None)
-
-            transport = httpx.AsyncHTTPTransport(proxy=None)
-            client = httpx.AsyncClient(transport=transport, timeout=timeout)
         else:
-            client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
+        client = self._build_http_client(timeout)
 
         log_id = None
         try:
             async with client:
-                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
+                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{request_info['headers']}, timeout:{timeout}")
                 log_id = create_llm_log(
                     provider=self.config.provider,
                     model=self.config.model,
@@ -167,15 +184,14 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     task_type=task_type,
                     novel_id=novel_id,
                     chapter_id=chapter_id,
+                    shot_id=shot_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
-                response = await client.post(
-                    endpoint,
-                    headers=headers,
-                    json=body,
-                    timeout=timeout
+                self.last_log_id = log_id
+                response = await post_llm_request(
+                    client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
                 )
             # 恢复环境变量
             if self.config.provider in ("ollama", "custom"):
@@ -194,6 +210,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 data = response.json()
                 content = self._parse_response(data)
                 finish_reason = self._get_finish_reason(data)
+                metrics = normalize_metrics(self.config.provider, data, duration)
 
                 if not content:
                     raw_response = json.dumps(data, ensure_ascii=False)
@@ -205,6 +222,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         status="error",
                         error_message=error_msg,
                         duration=duration,
+                        metrics=metrics,
                     )
 
                     return LLMResponse(
@@ -223,6 +241,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         status="error",
                         error_message=error_msg,
                         duration=duration,
+                        metrics=metrics,
                     )
 
                     return LLMResponse(
@@ -238,6 +257,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     response=content,
                     status="success",
                     duration=duration,
+                    metrics=metrics,
                 )
 
                 return LLMResponse(
@@ -260,6 +280,14 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     error=error_msg,
                     duration=duration
                 )
+        except LLMCallTerminated:
+            raise
+        except asyncio.CancelledError:
+            try:
+                update_llm_log(log_id, status="error", error_message="LLM 请求已中断")
+            except LLMCallTerminated:
+                pass
+            raise
         except Exception as e:
             import traceback
             error_type = type(e).__name__
@@ -281,3 +309,9 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 error=error_msg,
                 duration=duration
             )
+        finally:
+            if self.config.provider in ("ollama", "custom"):
+                for key, value in (("HTTP_PROXY", old_http_proxy), ("HTTPS_PROXY", old_https_proxy),
+                                   ("http_proxy", old_http_proxy_lower), ("https_proxy", old_https_proxy_lower)):
+                    if value is not None:
+                        os.environ[key] = value

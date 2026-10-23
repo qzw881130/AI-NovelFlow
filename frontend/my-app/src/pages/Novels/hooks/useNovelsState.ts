@@ -7,35 +7,18 @@ import { sceneApi } from '../../../api/scenes';
 import { propApi } from '../../../api/props';
 import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
+import { TEMPLATE_FIELDS } from '../promptTemplateFields';
 
 // 模板类型列表
-const TEMPLATE_TYPES = [
-  'style',
-  'character_parse',
-  'scene_parse',
-  'prop_parse',
-  'character',
-  'scene',
-  'prop',
-  'chapter_split',
-  'keyframe_description',
-  'shot_image_prompt',
-  'video_mode_recommender',
-  'keyframe_planner',
-  'keyframe_image_prompt',
-  'keyframe_transition',
-  'h3_single_frame_prompt',
-  'h3_first_last_frame_prompt',
-  'h3_multi_keyframe_prompt',
-] as const;
-type TemplateType = typeof TEMPLATE_TYPES[number];
+const TEMPLATE_TYPES = TEMPLATE_FIELDS.map(field => field.templateType);
 
 export function useNovelsState() {
   const { t } = useTranslation();
-  const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
+  const { novels, isLoading, fetchNovels, createNovel, copyNovel: copyNovelRequest, deleteNovel, importNovel, updateNovel, setNovelArchived } = useNovelStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
   const [editingNovel, setEditingNovel] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
@@ -62,12 +45,15 @@ export function useNovelsState() {
 
   const fetchAllTemplates = async () => {
     try {
+      const catalog = await promptTemplateApi.fetchConfigTypes();
+      if (!catalog.success || !catalog.data) return;
+      const types = TEMPLATE_TYPES.filter(type => catalog.data!.includes(type));
       const results = await Promise.all(
-        TEMPLATE_TYPES.map(type => promptTemplateApi.fetchList(type as any))
+        types.map(type => promptTemplateApi.fetchList(type as any))
       );
       
       const newTemplatesByType: Record<string, PromptTemplate[]> = {};
-      TEMPLATE_TYPES.forEach((type, index) => {
+      types.forEach((type, index) => {
         if (results[index].success && results[index].data) {
           newTemplatesByType[type] = results[index].data!;
         } else {
@@ -94,6 +80,12 @@ export function useNovelsState() {
       novel.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       novel.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const copyNovel = async (sourceId: string, title: string) => {
+    const copied = await copyNovelRequest(sourceId, title);
+    setSearchQuery('');
+    toast.success(t('novels.copySuccess', { title: copied.title, count: copied.chapterCount }));
+  };
 
   const openParseConfirm = (novelId: string, type: ParseType = 'characters') => {
     setConfirmDialog({ isOpen: true, novelId, type });
@@ -232,6 +224,8 @@ export function useNovelsState() {
     setSearchQuery,
     showCreateModal,
     setShowCreateModal,
+    showCopyModal,
+    setShowCopyModal,
     editingNovel,
     setEditingNovel,
     importing,
@@ -247,8 +241,10 @@ export function useNovelsState() {
     // Actions
     fetchNovels,
     createNovel,
+    copyNovel,
     deleteNovel,
     updateNovel,
+    setNovelArchived,
     handleImport,
     openParseConfirm,
     closeParseConfirm,

@@ -4,11 +4,11 @@ import {
   Settings,
   BookOpen,
   ListTodo,
+  Activity,
   Users,
   MapPin,
   Package,
   Sparkles,
-  FlaskConical,
   FileText,
   ScrollText,
   Globe,
@@ -18,6 +18,7 @@ import {
 import clsx from 'clsx';
 import { useTranslation } from '../stores/i18nStore';
 import { useSidebar } from '../contexts/SidebarContext';
+import SidebarDiskUsage from './SidebarDiskUsage';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -31,7 +32,8 @@ export default function Sidebar() {
     { name: t('nav.scenes'), href: '/scenes', icon: MapPin },
     { name: t('nav.props'), href: '/props', icon: Package },
     { name: t('nav.tasks'), href: '/tasks', icon: ListTodo },
-    { name: t('nav.testCases'), href: '/test-cases', icon: FlaskConical },
+    { name: t('nav.events'), href: '/events', icon: Activity },
+    { name: t('nav.testCases'), href: '/examples', icon: BookOpen },
     { name: t('nav.systemSettings'), href: '/settings', icon: Settings },
     { name: t('nav.promptConfig'), href: '/prompt-config', icon: FileText },
     { name: t('nav.uiConfig'), href: '/ui-config', icon: Globe },
@@ -45,7 +47,7 @@ export default function Sidebar() {
         isCollapsed ? "lg:w-20" : "lg:w-64"
       )}
     >
-      <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white border-r border-gray-200 pb-4 relative">
+      <div className="flex min-h-0 grow flex-col gap-y-5 overflow-x-hidden overflow-y-auto bg-white border-r border-gray-200 pb-4">
         <div className={clsx(
           "flex h-16 shrink-0 items-center transition-all duration-300 relative",
           isCollapsed ? "justify-center px-2" : "px-6 gap-2"
@@ -55,26 +57,12 @@ export default function Sidebar() {
             <span className="text-xl font-bold text-gray-900 whitespace-nowrap">NovelFlow</span>
           )}
         </div>
-        <button
-          onClick={toggleSidebar}
-          className={clsx(
-            "absolute top-8 -right-3 w-6 h-6 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors z-10 hover:border-gray-400",
-            isCollapsed && "rotate-180"
-          )}
-          title={isCollapsed ? t('common.expand') : t('common.collapse')}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4 text-gray-600" />
-          ) : (
-            <ChevronLeft className="h-4 w-4 text-gray-600" />
-          )}
-        </button>
-        <nav className="flex flex-1 flex-col">
+        <nav className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           <ul role="list" className="flex flex-1 flex-col gap-y-7">
             <li>
               <ul role="list" className={clsx(
                 "space-y-1 transition-all duration-300",
-                isCollapsed ? "px-2" : "-mx-2 px-2"
+                isCollapsed ? "px-2" : ""
               )}>
                 {navigation.map((item) => (
                   <li key={item.name}>
@@ -106,7 +94,26 @@ export default function Sidebar() {
             </li>
           </ul>
         </nav>
+        {!isCollapsed && (
+          <div className="shrink-0 border-t border-gray-100 px-3 pt-3 pb-14">
+            <SidebarDiskUsage />
+          </div>
+        )}
       </div>
+      <button
+        onClick={toggleSidebar}
+        className={clsx(
+          "absolute top-8 -right-3 w-6 h-6 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors z-10 hover:border-gray-400",
+          isCollapsed && "rotate-180"
+        )}
+        title={isCollapsed ? t('common.expand') : t('common.collapse')}
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        ) : (
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        )}
+      </button>
     </div>
   );
 }

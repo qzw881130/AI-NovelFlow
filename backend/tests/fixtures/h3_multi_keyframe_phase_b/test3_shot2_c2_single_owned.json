@@ -1,0 +1,1357 @@
+{
+  "provenance": {
+    "source_task_id": "c64ee62b-8b78-40e7-b323-44b234415961",
+    "source_shot_snapshot": "/Volumes/Data/tmp/test3_shot1_c2_multi_state_audit_20261016/shot2.json",
+    "source_shot_sha256": "4a0b3968d9e042c88a8cd18be18e8c0317fbaa4d8ba941f02c4d53f1062dcf60",
+    "source_tasks_sha256": "c45cdf27c500430ed84cad8255c78843817cde84bfb4fcf2cc4cce4f21641e83",
+    "scope": "Actual revision1 Canonical / Clip planning fields and failed C2 metadata. Builder input is reconstructed by production input_only builder in tests; no C2 Director request was sent. Character appearances are the same Shot successful C1 saved input. Workflow and resource hashes read only on 2026-10-16. Synthetic Director decisions are test code only."
+  },
+  "shot": {
+    "id": "2669e7aa-5f92-4261-b602-cae4d81f5c51",
+    "chapter_id": "59ce27c0-91a1-4d82-9413-7991684d29ee",
+    "index": 2,
+    "description": "Scene: 王宫更衣室内光线明亮，紫色长袍与巨大镜子位于画面视觉中心；中景略低机位朝向皇帝正面，画面共5名可见人物，只有皇帝、侍从1、侍从2、侍从3和宫廷总管。\nCharacters:\n- 皇帝: 严格继承正式参考资产身份，位于画面中央，身着紫色长袍，身体斜对巨大镜子，目光审视镜中自己，一只手停在袖口处。\n- 侍从1: 严格继承正式参考资产身份，位于皇帝左侧，面向皇帝，双手停在皇帝衣领附近作整理姿态。\n- 侍从2: 严格继承正式参考资产身份，位于皇帝右侧，面向皇帝，双手捧着宫廷腰带。\n- 侍从3: 严格继承正式参考资产身份，位于画面右后方，身体朝向皇帝，稳定举着巨大镜子。\n- 宫廷总管: 严格继承正式参考资产身份，位于画面左后方入口内侧，身体朝向皇帝，保持刚刚快步进入后准备禀报的姿态。\nAction: 皇帝面对巨大镜子审视紫色长袍，三名侍从围绕他保持整理姿态，宫廷总管站在入口内侧等待禀报。",
+    "video_description": "从当前静态首帧状态继续，皇帝转动身体反复审视紫色长袍，先检查袖口，再比较不同服饰带来的观感；侍从1快速整理衣领并回应，侍从2捧着宫廷腰带解释，侍从3始终调整巨大镜子的角度以配合皇帝。宫廷总管从入口内侧快步靠近并低头禀报，摄影机由全员中景平稳跟随总管移向皇帝，形成连续的双人视觉重心。皇帝先表现不耐烦，听到关键能力后停住手部动作；三名侍从也同时静止，只用眼神和姿态反应，不发声。皇帝缓慢转向宫廷总管，追问并听完说明，继而走到巨大镜子前观察自己，眼神逐渐明亮，最后迅速转身下令。镜头结束在宫廷总管低头领命、皇帝神情兴奋而坚定的状态。只有皇帝、侍从1、侍从2和宫廷总管按照dialogues顺序发声，侍从3保持沉默；不增加任何其他人声或台词，不生成字幕或画面文字。",
+    "characters": "[\"皇帝\", \"侍从1\", \"侍从2\", \"侍从3\", \"宫廷总管\"]",
+    "scene": "王宫更衣室",
+    "props": "[\"紫色长袍\", \"宫廷腰带\", \"巨大镜子\"]",
+    "duration": 47,
+    "continuity_mode": "CONTINUOUS_TAKE",
+    "dialogues": "[{\"order\": 1, \"character_name\": \"皇帝\", \"text\": \"袖口是不是太宽了？\", \"emotion_prompt\": \"挑剔不满\"}, {\"order\": 2, \"character_name\": \"侍从1\", \"text\": \"陛下，这正是今年王城最流行的样式。\", \"emotion_prompt\": \"紧张讨好\"}, {\"order\": 3, \"character_name\": \"皇帝\", \"text\": \"可我昨天那件蓝色礼服，看起来似乎更加威严。\", \"emotion_prompt\": \"犹豫比较\"}, {\"order\": 4, \"character_name\": \"侍从2\", \"text\": \"蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。\", \"emotion_prompt\": \"机敏恭维\"}, {\"order\": 5, \"character_name\": \"宫廷总管\", \"text\": \"陛下，宫门外来了两位织工。\", \"emotion_prompt\": \"恭敬禀报\"}, {\"order\": 6, \"character_name\": \"皇帝\", \"text\": \"织工有什么值得禀报的？\", \"emotion_prompt\": \"不耐烦\"}, {\"order\": 7, \"character_name\": \"宫廷总管\", \"text\": \"他们声称，能够织出世界上最美丽的布。\", \"emotion_prompt\": \"谨慎陈述\"}, {\"order\": 8, \"character_name\": \"皇帝\", \"text\": \"这种话，我已经听过无数次了。\", \"emotion_prompt\": \"轻蔑厌倦\"}, {\"order\": 9, \"character_name\": \"宫廷总管\", \"text\": \"可是……他们还说，那种布有一种奇特的能力。\", \"emotion_prompt\": \"迟疑试探\"}, {\"order\": 10, \"character_name\": \"皇帝\", \"text\": \"什么能力？\", \"emotion_prompt\": \"突然关注\"}, {\"order\": 11, \"character_name\": \"宫廷总管\", \"text\": \"愚蠢的人，或者不配担任自己职位的人，都无法看见那种布。\", \"emotion_prompt\": \"郑重谨慎\"}, {\"order\": 12, \"character_name\": \"皇帝\", \"text\": \"你说什么？\", \"emotion_prompt\": \"震惊警觉\"}, {\"order\": 13, \"character_name\": \"皇帝\", \"text\": \"让他们进宫！\", \"emotion_prompt\": \"兴奋果断\"}, {\"order\": 14, \"character_name\": \"宫廷总管\", \"text\": \"是，陛下。\", \"emotion_prompt\": \"恭敬服从\"}]"
+  },
+  "plan": {
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 8.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫更衣室内光线明亮，摄影机仍以略低机位沿原有轴线观察皇帝与巨大镜子。\nCharacters:\n- 皇帝: 位于画面中央，身着紫色长袍，身体转为侧对巨大镜子，一侧手臂略微抬起，目光在袖口与镜中轮廓之间审视，神情挑剔而犹豫。\n- 侍从1: 位于皇帝左侧，双手贴近衣领，保持谨慎整理姿态。\n- 侍从2: 位于皇帝右侧，双手捧着宫廷腰带，腰带靠近皇帝腰际但尚未系上。\n- 侍从3: 位于右后方，举着巨大镜子，镜面角度对准皇帝侧身。\n- 宫廷总管: 位于左后方入口内侧，身体朝向皇帝。\nAction: 紫色长袍的袖口、侧面轮廓与宫廷腰带同时处于皇帝的审视范围内，五人的空间关系保持清晰。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 3,
+        "time_seconds": 17.5,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫更衣室内，摄影机沿原有方向平稳靠近皇帝一侧，构图由全员中景收束为皇帝与宫廷总管的双人视觉重心，其余三名侍从仍可见于画面边缘和后景。\nCharacters:\n- 皇帝: 位于巨大镜子前方，身体仍略朝镜面，目光转向已经靠近的宫廷总管。\n- 宫廷总管: 已从入口抵达皇帝侧前方，保持适当距离，低头躬身，双手恭敬置于身前。\n- 侍从1: 留在皇帝左侧，双手停在衣领附近。\n- 侍从2: 留在皇帝右侧，稳稳捧着宫廷腰带。\n- 侍从3: 位于后景，继续举稳巨大镜子并使镜面朝向皇帝。\nAction: 皇帝与宫廷总管形成明确的近距离主从关系构图，三名侍从围绕紫色长袍和巨大镜子构成后景层次。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑生成17.5秒时王宫更衣室内已经到达当前状态的单一静态剧情画面。摄影机沿原有镜头方向平稳靠近皇帝一侧，已经从全员中景收束为以皇帝和宫廷总管为双人视觉重心的稳定构图，同时让侍从1、侍从2、侍从3继续清楚可见于画面边缘与后景。\n\n<image_1>是当前Shot的主分镜基线，仅用于回查五名角色、王宫更衣室、原有空间方向、明亮光线和整体视觉基线；当前时间点的人物位置、姿态、空间关系与摄影机构图以本提示中的当前视觉状态为准，不把画面退回主分镜初始状态。\n<image_2>是角色身份参考，其中包含宫廷总管、侍从3、皇帝、侍从2、侍从1。使用<image_2>保持五名角色各自的身份、年龄特征、面部、发型、体型、服装与稳定外观一致；参考图中的展示姿态、站位、背景及多视图排版不属于当前剧情构图，每个角色的不同展示视图都代表同一个人，不得复制成额外人物。\n<image_3>是紫色长袍的正式道具外观参考，只用于长袍的形制、颜色、材质和稳定细节；参考图的展示背景与排版不进入最终画面。\n<image_4>是宫廷腰带的正式道具外观参考，只用于腰带的形制、材质和稳定细节；参考图的展示背景与排版不进入最终画面。\n<image_5>是巨大镜子的正式道具外观参考，只用于镜子的结构、材质、尺寸感和稳定外观；参考图的展示背景与排版不进入最终画面。\n\nSCENE PARTICIPANTS：画面中恰好有五名各不相同且可见的人物：皇帝、宫廷总管、侍从1、侍从2、侍从3；每人出现且只出现一次。不得复制、融合或互换任何角色，不得从身份参考的多视图中生成额外演员，不得加入侍卫、路人、人影、剪影、背景人群或镜中人物。\n\n皇帝位于巨大镜子前方，继续穿着<image_3>所示紫色长袍，身体略微朝向镜面，目光已经转向靠近他的宫廷总管。保持皇帝身份和服装连续，不保留先前在袖口与镜中轮廓之间犹豫审视的旧视线；当前视线明确落在宫廷总管身上。\n\n宫廷总管已经从入口位置移动并抵达皇帝侧前方，与皇帝保持适当而明显较近的主从距离；低头躬身，双手恭敬置于身前，形成已经完成的静态礼仪姿态。不得让宫廷总管继续停留在远处入口，也不得弱化其靠近皇帝这一明确位置变化。\n\n侍从1留在皇帝左侧，双手停在皇帝衣领附近，维持谨慎整理紫色长袍衣领的姿态。侍从2留在皇帝右侧，双手稳稳捧着<image_4>所示宫廷腰带；腰带仍由侍从2持有，不擅自系到皇帝腰间。侍从3位于后景，继续稳稳举着<image_5>所示巨大镜子，并保持镜面朝向皇帝。三名侍从围绕紫色长袍与巨大镜子形成清楚的后景层次，但不得抢夺皇帝与宫廷总管的双人视觉重心。\n\n保持王宫更衣室的环境身份、主要室内结构、材质、时代特征、明亮光线逻辑、原有镜头轴线和稳定空间方向连续。明确改变构图和人物空间关系：宫廷总管已到达皇帝侧前方，皇帝已将目光转向宫廷总管，摄影机已沿原方向靠近并形成新的稳定双人重心构图。不要保留旧的全员等权中景，不要让入口处的宫廷总管仍显得遥远，也不要因参考主分镜而压回这些变化。允许自然遮挡，但五名人物各自的身份和所在层次必须可辨认。\n\n摄影机保持原有轴线与略低机位逻辑，沿原方向完成平稳推进，不跳轴、不左右镜像翻转。当前取景以皇帝和宫廷总管为清晰主体，两人形成明确的近距离主从关系；侍从1与侍从2位于画面边缘层次，侍从3和巨大镜子位于后景，仍能辨认其动作与职责。透视、人物距离、遮挡和镜子尺度自然准确。镜面只呈现合理的室内光影与非人物反射，不复制任何角色或产生额外人物实例。\n\n采用干净圆润线条、平涂色彩和简洁赛璐璐阴影的2D chibi卡通渲染。人形角色保持稳定的2.5至3头身比例和简化面部特征，同时保留可识别的年龄线索、发型、服装及身份特征。环境与道具使用相同的二维线条和阴影风格，同时保留其既定结构、功能比例与相对尺度；不得给建筑或物体添加拟人化chibi身体特征。保持既定人物、服装、道具、室内结构和世界细节，不重新设计剧情。高质量、细节清楚、人体比例自然、手部姿态合理、透视正确、环境连续稳定。\n\n只表现17.5秒这一单一静态瞬间，不表现移动过程，不使用残影、动作轨迹或同一角色的起止双重形象。不得生成前后帧对比、分屏、漫画格、多面板、多视图、拼贴、contact sheet、设定页或参考图排版。不得添加未要求的道具、现代物件、文字、字幕、对白框、标题、标签、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261016_135314.png",
+        "image_task_id": "4e4742c2-5139-4a19-a794-330290197456"
+      },
+      {
+        "index": 4,
+        "time_seconds": 34.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫更衣室内，摄影机保持同一侧轴线和连续靠近后的双人构图，巨大镜子占据皇帝身后的显著位置。\nCharacters:\n- 皇帝: 手部动作停在紫色长袍袖口附近，身体僵住，原本不耐烦的神情转为警觉，视线牢牢落在宫廷总管身上。\n- 宫廷总管: 面向皇帝，维持低头而谨慎的站姿。\n- 侍从1: 双手静止在皇帝衣领旁，抬眼观察皇帝的反应。\n- 侍从2: 双手稳住宫廷腰带，身体与腰带均保持静止，视线转向皇帝。\n- 侍从3: 固定巨大镜子的角度，身体静止，目光越过镜侧看向皇帝。\nAction: 皇帝与三名侍从的整理动作全部停住，静止的人物姿态与集中视线强化宫廷总管和皇帝之间的紧张关系。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑生成当前时间点34.8秒的单一完整剧情画面。以当前关键帧视觉状态为最高权威：在王宫更衣室内形成摄影机连续靠近后已经稳定到达的构图，以皇帝和宫廷总管为双人视觉重心，同时让三名侍从继续清楚可见于画面边缘与后景；所有整理动作已经完全停住，集中视线强化皇帝与宫廷总管之间的紧张关系。\n\n<image_1>是前序物理状态的连续性参考，提供动作起点，以及未变化的人物外观、服装、王宫更衣室环境、道具、光线、摄影机轴线和空间方向线索。当前位置、空间关系、姿态、朝向、表情、视线及构图必须服从当前关键帧状态；与当前状态冲突的旧动作和旧表情必须改变，不因保留该图而冻结前序状态。\n\n<image_2>是皇帝、宫廷总管、侍从1、侍从2、侍从3的合并角色身份参考。使用<image_2>分别保持五名角色的身份、脸部、年龄特征、发型、体型比例、服装和稳定外观一致；其中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。每个名字只代表一个独立角色，同一角色的不同展示视图不是额外人物。\n\n<image_3>是紫色长袍的正式道具外观参考，只取用长袍的形制、颜色、材质和稳定细节，不采用其展示背景或排版。\n\n<image_4>是宫廷腰带的正式道具外观参考，只取用腰带的形制、材质和稳定细节，不采用其展示背景或排版。\n\n<image_5>是巨大镜子的正式道具外观参考，只取用镜子的结构、材质、装饰和相对尺度，不采用其展示背景、排版或未列物体。\n\n保持<image_1>中的王宫更衣室身份、主要建筑结构、时代感、空间方向、材质、合理光线逻辑和同侧摄影机轴线。摄影机维持连续靠近后已经到达的稳定构图，不退回全员中景，不跳轴、不镜像翻转：皇帝与宫廷总管占据清晰的双人视觉重心，三名侍从仍分别位于皇帝周围的画面边缘和后景，巨大镜子在皇帝身后占据显著位置并形成明确环境层次。\n\n明确执行当前视觉变化：皇帝与三名侍从原本进行中的更衣整理动作全部停止，手、身体和道具都处于完全静止的当前状态。皇帝身体僵住，手部停在紫色长袍袖口附近；将其原本不耐烦的神情明确转为警觉，视线牢牢锁定宫廷总管。宫廷总管面向皇帝，维持低头而谨慎的站姿，与皇帝保持适当距离；未被要求改变的恭敬手部位置继续自然保持。侍从1留在皇帝左侧，双手静止在皇帝衣领旁，不再整理衣领，抬眼观察皇帝的反应。侍从2留在皇帝右侧，双手稳稳托住宫廷腰带，身体与腰带均完全静止，视线转向皇帝。侍从3位于后景，固定巨大镜子的当前角度，身体静止，目光越过镜子侧边看向皇帝。五人的姿态与视线共同形成紧张而凝固的瞬间，不添加新的动作或剧情事件。\n\nSCENE PARTICIPANTS：画面中恰好五名独立且可见的人物，分别为皇帝、宫廷总管、侍从1、侍从2、侍从3；每人出现且只出现一次。不得新增、删除、复制、融合或互换角色，不得从角色参考或道具参考中带入额外人物，不得出现路人、侍卫、剪影、背景人群或可辨识的镜中反射人物。巨大镜子可以呈现室内光线与环境反射，但不得通过镜面制造任何额外人物实例或重复角色。\n\n紫色长袍、宫廷腰带和巨大镜子保持正式参考中的外观与合理尺度。只呈现当前状态所需的这些道具：紫色长袍位于皇帝身上，皇帝的手停在袖口附近；宫廷腰带由侍从2双手稳住；巨大镜子位于皇帝身后并由侍从3固定角度。不得改变道具持有关系，不得添加武器、现代物件或其他装饰性道具。\n\n采用统一的2D chibi卡通渲染：干净圆润的线条、平涂色彩和简洁赛璐璐阴影；人物维持稳定的2.5至3头身比例与简化面部特征，同时保留可辨识的年龄特征、发型、服装和身份细节。环境与道具使用相同的二维线条和阴影风格，但保持其原有结构、功能比例与相对尺度，不将建筑或物体拟人成Q版身体。高质量、细节清晰、透视正确、人体比例自然、遮挡合理、环境连续稳定。\n\n只表现34.8秒这一单一静态瞬间，不表现动作开始与结束的多个版本，不使用残影或重复人物，不生成前后对比、多面板、漫画分格、拼贴、contact sheet、角色多视图、设定页或参考图排版。不得生成字幕、对白框、标题、标签、说明文字、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261016_135447.png",
+        "image_task_id": "ff65fa01-ad31-4d52-ba54-d1831519909d"
+      },
+      {
+        "index": 5,
+        "time_seconds": 42.4,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫更衣室内，摄影机沿既有轨迹轻微横移，使巨大镜子、皇帝本人和镜中映像共同进入连续构图，宫廷总管位于皇帝侧后方。\nCharacters:\n- 皇帝: 已站到巨大镜子近前，正面审视镜中身着紫色长袍的自己，双手垂离袖口，双眼睁大，神情震惊而高度警觉。\n- 宫廷总管: 位于皇帝侧后方，身体朝向皇帝，姿态郑重克制。\n- 侍从1: 留在镜旁左侧，双手收于身前，身体静止。\n- 侍从2: 留在镜旁右侧，仍捧着宫廷腰带，身体静止。\n- 侍从3: 稳定举着巨大镜子，使皇帝的正面映像清晰可见。\nAction: 皇帝与镜中映像形成新的视觉中心，宫廷总管和三名侍从分布在同一空间的后层与边缘。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑为42.4秒当前关键帧的单一静态剧情画面：在王宫更衣室内，摄影机沿既有轨迹完成轻微横移，使巨大镜子、站到镜前的皇帝本人及其清晰镜中映像共同进入一个连续构图；皇帝与镜中映像成为新的视觉中心，宫廷总管位于皇帝侧后方，三名侍从分布在后层与画面边缘。必须完整实现当前状态，不保留与此冲突的前序站位、视线、手势或双人构图。\n\n<image_1>是前序物理状态的连续性参考，提供动作起点以及未变化的角色外观、服装、环境、道具、空间方向和光线线索。当前位置、空间关系、姿态、朝向、表情、视线和构图以当前关键帧描述为准；必须改变其中皇帝注视宫廷总管、双手停在袖口附近及旧双人构图等冲突状态，不因保留参考图而冻结旧布局。\n\n<image_2>是当前Shot的主分镜基线，仅用于回查角色、王宫更衣室和整体视觉基线；当前时间状态以本提示中的当前关键帧为准，不把画面退回主分镜的初始状态或初始构图。\n\n<image_3>是宫廷总管、侍从3、皇帝、侍从2、侍从1的正式角色身份参考。使用<image_3>保持五名角色各自的身份、面部、年龄特征、发型、体型比例、服装和稳定外观一致；参考图中的展示姿态、站位、背景和多视图排版不属于当前剧情构图。同一角色的不同展示视图只代表同一个人，不得复制成额外人物。\n\n<image_4>是“王宫更衣室”的正式场景参考，只用于保持环境身份、宫廷建筑结构、空间材质、时代特征和稳定视觉细节；不得把场景参考中的任何人物带入画面。当前摄影机位置、人物站位和剧情状态服从本关键帧。\n\n<image_5>是“紫色长袍”的正式道具外观参考，只用于保持长袍的形制、紫色、材质和稳定设计；当前由皇帝穿着，不引入参考图的展示背景、排版或其他物体。\n\n<image_6>是“宫廷腰带”的正式道具外观参考，只用于保持腰带的形制、材质和稳定设计；当前由侍从2双手稳稳捧持，不引入参考图的展示背景、排版或其他物体。\n\n<image_7>是“巨大镜子”的正式道具外观参考，只用于保持镜子的形制、材质、尺度和稳定设计；当前由侍从3稳定举持，并形成符合空间关系和镜面透视的皇帝正面映像，不引入参考图的展示背景、排版或未列物体。\n\n当前必须达到的视觉状态：皇帝已经从前序位置移动到巨大镜子近前，身体正对镜面，正面审视镜中身穿紫色长袍的自己；双手自然垂下并明确离开袖口，不再停留于整理动作；双眼睁大，神情震惊而高度警觉，视线牢牢落在自己的镜中映像上，不再看向宫廷总管。镜中映像必须与皇帝本人身份、紫色长袍、姿态和表情严格对应，是正常镜面反射而非第二个皇帝，反射方向和透视自然准确。\n\n宫廷总管位于皇帝侧后方，身体朝向皇帝，保持郑重、克制且谨慎的站姿，不占据皇帝与镜中映像的主视觉中心。侍从1留在镜旁左侧，双手收于身前，身体静止，不再把双手放在皇帝衣领附近。侍从2留在镜旁右侧，双手稳稳捧着宫廷腰带，身体静止。侍从3稳定举着巨大镜子，保持镜面角度，使皇帝的正面映像完整、清楚可见。宫廷总管和三名侍从处于同一空间的后层及边缘，层次清晰，遮挡自然，不遮住皇帝关键表情或主要镜中映像。\n\nSCENE PARTICIPANTS：画面中恰好五名独立且唯一的真实可见人物，即皇帝、宫廷总管、侍从1、侍从2、侍从3，每人各出现且只出现一次。皇帝的镜中映像只是同一人物的光学反射，不算第六个人，不得变成独立人物。禁止复制皇帝或任何侍从，禁止相貌近似的额外角色，禁止从角色多视图或场景参考中增加侍从、卫兵、路人、人影、剪影、背景人群或反射中的额外人物。\n\n保持五名角色的身份、面部、发型、年龄、体型、既有服装与配饰连续；保持王宫更衣室的建筑结构、材质、时代、合理光线、镜头轴线和世界空间方向连续；保持紫色长袍、宫廷腰带和巨大镜子的正式外观。仅对当前状态要求的内容进行明确而充分的调整：皇帝到达镜前、转向并注视镜面、双手离开袖口垂下、表情转为震惊警觉；宫廷总管调整至皇帝侧后方；侍从1回到镜旁左侧并双手收于身前；侍从2位于镜旁右侧继续捧持腰带；侍从3稳定举镜；摄影机完成沿既有轨迹的轻微横移，形成镜子、皇帝本人和镜中映像共同入画的新稳定构图。变化必须清楚可见，不得弱化成与上一关键帧几乎相同的状态。\n\n摄影机保持既有侧轴线与空间方向，不镜像翻转人物左右关系；沿原有轨迹完成轻微横移后停在新的稳定机位。构图必须同时清晰容纳巨大镜子、皇帝本人、皇帝正面镜像、侧后方的宫廷总管以及位于镜旁两侧和后层的三名侍从。皇帝与镜中映像是明确视觉中心，其他人物作为次级层次分布，空间纵深、镜面反射、人物尺度、透视和自然遮挡准确。\n\n采用2D chibi cartoon rendering：干净圆润线稿、平涂色彩、简洁赛璐璐阴影；人形角色保持稳定的2.5至3头身比例和简化面部特征，同时保留可识别的年龄线索、发型、服装和身份特征。环境与道具使用一致的二维线稿和阴影，同时保持正式资产的结构、功能比例和相对尺度，不把建筑或物体拟人成Q版身体。高质量、细节清晰、人物比例自然稳定、镜面逻辑准确、环境连续。\n\n只呈现42.4秒这一个已经到达的静态瞬间。禁止前后帧并排、before/after对比、拼贴、分格漫画、contact sheet、资料页、多视图、残影、动作轨迹、同一人物的动作起止版本同时出现。不得添加未要求的剧情物件、现代物件、文字、字幕、对白框、标题、标签、箭头、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261016_135645.png",
+        "image_task_id": "ba5dcd77-b81d-48e0-b955-d0af9eee5b1a"
+      },
+      {
+        "index": 6,
+        "time_seconds": 43.6,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 王宫更衣室内，摄影机保持与上一状态连续的镜前位置，皇帝、宫廷总管和巨大镜子仍处于同一轴线关系中。\nCharacters:\n- 皇帝: 已从镜面方向迅速转向宫廷总管，身体挺直，一只手形成明确有力的指示姿态，双眼明亮，神情兴奋而果断。\n- 宫廷总管: 面向皇帝，保持恭敬躬身姿态，视线压低。\n- 侍从1: 位于皇帝后侧，收手肃立。\n- 侍从2: 位于另一侧，抱稳宫廷腰带，姿态静止。\n- 侍从3: 位于巨大镜子后方，保持镜面稳定；镜中可见皇帝转身后的部分轮廓。\nAction: 皇帝的坚定姿态成为画面主导，宫廷总管在其指示方向前形成清晰的承接关系。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑生成43.6秒当前关键帧的单一完整剧情画面：在王宫更衣室内，保持镜前摄影机位置与空间轴线连续，同时明确完成皇帝从面向镜子审视自己到迅速转身面向宫廷总管的动作变化。当前画面必须已经到达转身后的稳定状态，皇帝坚定有力的姿态成为视觉中心，宫廷总管在其指示方向前形成清晰承接关系。\n\n<image_1>是前序物理状态的连续性参考，提供动作起点、镜前摄影机上下文，以及未变化的角色外观、紫色长袍、环境、道具、光线与空间方向线索。当前位置、空间关系、姿态、朝向、表情、视线和构图以当前关键帧描述为准；必须改变皇帝仍正对镜面、震惊警觉以及双手下垂等旧状态，不得因保留前序参考而冻结旧姿态或旧视觉中心。\n\n<image_2>是角色身份参考，其中包含宫廷总管、侍从3、皇帝、侍从2、侍从1。使用<image_2>分别保持五名角色的身份、年龄特征、脸部、发型、体型比例、服装与稳定外观一致；其中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。同一角色的不同展示视图只代表同一个人，不得复制为额外人物。\n\n<image_3>是“王宫更衣室”的正式场景参考，只用于保持环境身份、宫廷建筑结构、空间材质、时代特征和稳定视觉细节；不得把场景参考中的人物带入画面。当前镜前机位、人物位置和剧情状态服从当前关键帧描述。\n\n<image_4>是“宫廷腰带”的正式道具外观参考，只用于保持腰带的形制、材质、颜色与稳定细节；参考图的展示背景、排版和其他未列物体不进入最终画面。腰带由侍从2抱稳。\n\n<image_5>是“巨大镜子”的正式道具外观参考，只用于保持镜子的形制、材质、结构、尺度与稳定细节；参考图的展示背景、排版和其他未列物体不进入最终画面。镜子位于既有镜前空间，由侍从3从后方保持稳定，并产生符合当前人物朝向与透视的真实镜面反射。\n\n当前视觉状态：皇帝、宫廷总管与巨大镜子继续处于同一镜前轴线关系中。皇帝仍穿着连续一致的紫色长袍，但已从镜面方向迅速转向宫廷总管，身体挺直，转身后的躯干与双脚朝向明确，不再正面面对镜子；一只手形成清楚、坚定、有力的指示姿态，手势方向与宫廷总管的位置建立直接关系。皇帝双眼明亮，神情兴奋而果断，不保留前一状态的震惊和高度警觉表情。宫廷总管面向皇帝，位于皇帝指示方向前，保持恭敬躬身姿态，视线压低，对皇帝的手势形成明确的空间承接，但不添加任何说话或口型含义。侍从1位于皇帝后侧，双手收回，肃立静止。侍从2位于另一侧，双臂稳妥抱住宫廷腰带，身体静止。侍从3位于巨大镜子后方，稳定扶持镜子，不改变镜面方向。镜中只呈现符合物理反射的皇帝转身后部分轮廓，不再显示前一关键帧中清晰正面的皇帝映像。\n\n画面人物闭包：恰好五名独立可见剧情人物——皇帝、宫廷总管、侍从1、侍从2、侍从3，每人各出现且只出现一次。镜中的皇帝轮廓只是同一皇帝的物理反射，不是第六个人。不得复制、融合或互换任何角色，不得从角色多视图、场景参考或道具参考增加侍从、卫兵、路人、人影、剪影或背景人群。\n\n连续性保持：保留五名角色的身份与未被要求改变的服装、发型、年龄、体型和配饰；保留皇帝身上的紫色长袍及其稳定外观；保留王宫更衣室的主要结构、材质、时代、既有光线逻辑和镜前空间方向；保留巨大镜子、宫廷腰带及其他未指定变化的道具状态；保持既有镜头轴线，不镜像翻转人物左右关系。不要改变侍从1、侍从2和侍从3的稳定职责与基本位置关系。\n\n必须清楚完成的视觉变化：将皇帝由正对镜面、双手下垂、震惊警觉的旧状态，明确调整为已经转向宫廷总管、身体挺直、单手有力指示、双眼明亮且兴奋果断的当前状态；让皇帝的身体朝向、双脚方向、视线和手势共同支持这一转身结果。宫廷总管由前序侧后方关系调整到皇帝指示方向前，并保持面向皇帝、恭敬躬身和视线压低。镜面反射必须同步改变为皇帝转身后的部分轮廓。该变化应肉眼清晰可辨，不得弱化成皇帝仍主要面向镜子或仅轻微转头。\n\n摄影机保持与上一状态连续的镜前位置、机位高度、镜头方向、轴线和透视关系，在同一稳定构图中容纳皇帝、宫廷总管、三名侍从与巨大镜子。构图重心转移到皇帝挺直的身体和有力指示手势，并让宫廷总管位于手势关系可读的位置；巨大镜子仍是重要空间元素，但不再以皇帝正面镜像作为视觉中心。保持自然遮挡、正确透视、清楚的人物层次和可读的手部动作。\n\n采用2D Q版卡通渲染、干净圆润线稿、平涂色彩与简洁赛璐璐阴影。人形角色保持稳定的2.5至3头身比例和简化面部特征，同时保留可识别的年龄线索、发型、服装和身份细节。环境与道具使用一致的二维线稿和阴影语言，保留原有结构、功能比例和相对尺度，不把建筑、镜子或腰带拟人化或改造成Q版身体。画面高质量、细节清楚、人体比例自然、环境稳定。\n\n只呈现43.6秒这一单一静态时间切片，不呈现转身前后的两个皇帝，不使用残影、重复人物、动作轨迹箭头或多时间状态同屏；不生成拼贴、分镜格、前后对比、角色设定表、多视图、contact sheet或参考资料页。不得新增剧情内容、著名武器、现代物件、字幕、对白框、标题、标签、说明文字、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261016_135824.png",
+        "image_task_id": "cc36c3c9-4a34-48e4-a9cb-d231d6f195d0"
+      },
+      {
+        "index": 7,
+        "time_seconds": 47.0,
+        "role": "END",
+        "description": "Scene: 王宫更衣室内，连续镜头停留在皇帝、宫廷总管与巨大镜子组成的双人主构图上，三名侍从仍处于画面边缘和后景。\nCharacters:\n- 皇帝: 身着紫色长袍，面向宫廷总管挺直站立，手臂收回至坚定姿态，眼神明亮，表情兴奋而坚决。\n- 宫廷总管: 面向皇帝深低头躬身，双手恭敬置于身前。\n- 侍从1: 在皇帝后侧肃立，双手离开衣领并收于身前。\n- 侍从2: 稳稳捧着宫廷腰带，保持静止并看向皇帝。\n- 侍从3: 继续举稳巨大镜子，镜面映出皇帝紫色长袍的侧后轮廓。\nAction: 皇帝的兴奋坚定与宫廷总管的恭敬低头构成最终视觉关系，紫色长袍、宫廷腰带和巨大镜子的状态保持稳定。",
+        "timed_visual_target": false
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 8.5,
+        "transition_description": "保持同一连续镜头。皇帝从画面中央斜对巨大镜子的起始姿态缓慢转动上身，使身体逐渐侧对镜面；他先将停在袖口处的手沿紫色长袍袖缘轻微抚平并略微抬起这一侧手臂，目光在袖口细节与镜中轮廓之间移动，神情由挑剔转为犹豫。0至3.2秒，摄影机维持略低中景并沿原有轴线极缓慢推进，持续以皇帝为视觉中心；侍从1在皇帝左侧小幅收拢、抚平衣领，侍从3在右后方轻微调整巨大镜子的朝向，使镜面连续跟上皇帝的转身，两人的动作均不夺取主体。3.2至7.15秒，摄影机仅向皇帝左侧做轻微平移，在不改变轴线与人物左右关系的前提下，让皇帝与侍从1的衣领整理关系更清晰；侍从1完成一次谨慎的衣领校正后将双手停回衣领附近，皇帝保持抬臂并继续比较袖口与镜中侧面。侍从2始终位于皇帝右侧，双手稳定捧住宫廷腰带，只将腰带小幅移近皇帝腰际但不系上；宫廷总管留在左后方入口内侧，身体朝向皇帝，仅以克制的重心调整维持等待姿态。7.15至8.5秒，摄影机停止侧移并稳定在原有轴线附近，重新明确以皇帝为单一视觉中心；侍从3将镜面最终对准皇帝侧身后稳住，侍从1保持双手贴近衣领，侍从2把腰带停在皇帝腰际附近，宫廷总管位置不变。过渡结束时，皇帝位于画面中央、身体侧对巨大镜子，一侧手臂略微抬起，目光停留在袖口与镜中轮廓之间；五人的左右位置、明亮光线及更衣室空间关系均保持连续清晰。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 8.5,
+        "end_time": 17.5,
+        "transition_description": "摄影机从略低机位沿原有轴线连续缓慢推进。皇帝保持在巨大镜子前，先维持侧身姿态，目光由抬起的袖口移向镜中紫色长袍的侧面轮廓，再落向右侧侍从2捧在腰际附近的宫廷腰带，神情持续挑剔而犹豫；侍从1在皇帝左侧完成少量衣领整理后，将双手停留在衣领附近，侍从2留在皇帝右侧稳稳托住腰带，仅轻微调整展示角度，不将腰带系上。侍从3在右后方小幅修正巨大镜子的朝向，使镜面始终对应皇帝的连续转动，随后举稳不动。与此同时，宫廷总管从左后方入口内侧沿斜向右前方快步接近皇帝侧前方；摄影机以轻微向前、向侧方的平移补偿他的移动，但在17.35秒前仍以皇帝及皇帝与侍从2的关系为主要视觉重心，不单独追随或突出宫廷总管，并让其余侍从和镜子持续留在边缘与后景。接近17.35秒时，宫廷总管在皇帝侧前方的适当距离停步，低头躬身并将双手恭敬置于身前；皇帝停止比较袖口与腰带，身体仍略朝镜面，仅将目光连续转向宫廷总管。摄影机在最后0.15秒只开始自然地把构图重心从皇帝与侍从2向皇帝与宫廷总管重新分配，不提前完成后续关注交接；到17.5秒停在较近的群像层次中，皇帝与宫廷总管已形成明确的近距离主从关系构图，侍从1停在皇帝左侧衣领旁，侍从2仍在右侧捧稳宫廷腰带，侍从3在后景举稳朝向皇帝的巨大镜子。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 17.5,
+        "end_time": 34.8,
+        "transition_description": "摄影机从现有机位沿同一侧轴线极缓慢推进，并以轻微横向补偿将皇帝与宫廷总管稳定在双人关系构图中；侍从2及其捧持的宫廷腰带逐渐退居画面边缘，侍从1和侍从3保持后景层次，不发生切镜、跳轴或突然改变景别。宫廷总管始终位于皇帝侧前方，面向皇帝维持低头、双手置于身前的谨慎站姿，仅有轻微呼吸和重心稳定。皇帝保持身体略朝巨大镜子、头部朝向宫廷总管，先以不耐烦的神情短暂审视对方，随后将一只手移到紫色长袍袖口，做一次克制的抚平和检查动作。侍从1在皇帝左侧小幅整理衣领后将双手留在衣领旁；侍从2在皇帝右侧持续用双手稳住宫廷腰带，不改变站位；侍从3从后景轻微修正巨大镜子的朝向，使镜面继续对准皇帝。中段摄影机保持平稳缓推，让皇帝成为稍强的视觉重心，同时仍保留宫廷总管及两人的空间关系，巨大镜子在皇帝身后逐渐占据更显著的位置。接近末段时，皇帝袖口处的手指逐步停止，肩背收紧，身体由松散的不耐烦状态转为僵直警觉，视线重新牢牢锁定宫廷总管；摄影机连续而自然地把视觉重心进一步偏向皇帝，但不完成对宫廷总管的排除。侍从1随即停止整理，双手静止在衣领旁并抬眼看向皇帝；侍从2连同宫廷腰带完全停稳，视线转向皇帝；侍从3固定镜子的最终角度，身体静止并从镜侧看向皇帝。到34.8秒时，摄影机停在同侧轴线上的稳定双人构图：皇帝的手停在紫色长袍袖口附近、身体僵住且神情警觉，宫廷总管仍低头谨慎站立，三名侍从的整理动作全部停止，巨大镜子显著位于皇帝身后，所有集中视线共同维持皇帝与宫廷总管之间的紧张关系。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 34.8,
+        "end_time": 42.4,
+        "transition_description": "从34.8秒的停顿状态开始，皇帝保持双手停在紫色长袍袖口附近，警觉地注视宫廷总管；宫廷总管继续低头面向皇帝，三名侍从维持静止，只以目光追随皇帝。摄影机不切换机位，先在原有双人构图中极轻微调整重心，使注意力自然落到皇帝身上。随后皇帝双手缓慢离开袖口并垂向身体两侧，身体朝宫廷总管略作转正，神情由不耐转为专注戒备。36.25秒后，宫廷总管保持原位，以郑重克制的站姿成为画面主要视觉重心；与此同时，皇帝从原站位转向身后的巨大镜子，沿两者之间的短距离缓步走向镜前。侍从1从皇帝衣领旁收回双手，退守并停在镜旁左侧；侍从2继续双手捧稳宫廷腰带，留在镜旁右侧；侍从3在原有位置小幅连续调整巨大镜子的朝向，使镜面始终对准逐渐靠近的皇帝。摄影机沿既有轴线稳定轻微横移，以群像补偿方式同时保留宫廷总管的主要位置和皇帝走向镜子的动作，不追成皇帝的独立近景。39.5秒后，随着皇帝抵达镜前，摄影机继续同方向小幅横移，将巨大镜子、皇帝本人及其正面映像逐渐纳入同一连续构图，视觉重心从宫廷总管自然转向皇帝与镜中映像；宫廷总管留在皇帝侧后方，身体仍朝向皇帝。皇帝最终在镜前站定，正面审视身着紫色长袍的镜中自己，双手完全垂离袖口，双眼逐渐睁大，神情停在震惊而高度警觉的状态。侍从1、侍从2分别静止于镜旁左右两侧，侍从2仍捧着宫廷腰带，侍从3稳定举住镜子；摄影机停在既定横移终点，不越过该状态。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 42.4,
+        "end_time": 43.6,
+        "transition_description": "承接镜前构图，皇帝先保持双眼睁大的警觉神情，随即从正对巨大镜子的姿态迅速转向侧后方宫廷总管所在方向；他的躯干与头部连续转动并挺直身体，同时抬起一只手，朝宫廷总管前方形成明确有力的指示姿态，视线牢牢落在宫廷总管身上，神情由震惊警觉转为眼神明亮、兴奋果断。宫廷总管在原位面向皇帝，随着皇帝转身进一步恭敬躬身并压低视线，形成对指示姿态的承接关系。侍从1在皇帝后侧收手肃立，侍从2在另一侧抱稳宫廷腰带，侍从3始终从镜后稳住巨大镜子；三名侍从不改变站位，仅维持必要的自然平衡，镜中映像随皇帝转身连续变为其部分轮廓。摄影机从既有镜前机位沿原轨迹做极轻微平移和稳定重构，保持皇帝、宫廷总管与巨大镜子的轴线连续，不追随侍从动作，并让视觉重心自然集中到皇帝的转身与指示姿态。最终停在皇帝挺直、单手有力指向宫廷总管前方，宫廷总管低头躬身，巨大镜子与三名侍从位置稳定的状态。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 43.6,
+        "end_time": 47.0,
+        "transition_description": "从既有镜前机位连续开始，皇帝面向宫廷总管保持挺直姿态和有力的指示手势，明亮而兴奋的目光继续主导画面；随后他将伸出的手臂沿原路径稳稳收回身侧，肩背保持挺拔，最终停在坚定而坚决的站姿。约44.9秒起，宫廷总管在原位朝皇帝进一步俯低上身，将双手恭敬收拢于身前并压低视线，与皇帝形成清晰的双人关系。摄影机不改变轴线，只做极轻微的稳定平移与构图校正，使宫廷总管逐渐获得与皇帝并列的视觉权重，同时保留巨大镜子及其中皇帝紫色长袍的侧后轮廓。侍从1始终在皇帝后侧肃立，双手收于身前；侍从2在另一侧稳稳捧住宫廷腰带，身体不移动，仅将视线保持在皇帝身上；侍从3继续在镜后举稳巨大镜子，不再改变镜面角度。紫色长袍、宫廷腰带和镜面状态全程稳定。到47秒时，画面停在皇帝面向宫廷总管、手臂已经收回且神情兴奋坚定，宫廷总管深低头躬身、双手置于身前的最终双人主构图，三名侍从仍留在边缘与后景。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "皇帝",
+        "text": "袖口是不是太宽了？",
+        "start_time": 1.0,
+        "end_time": 3.0,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "挑剔不满"
+      },
+      {
+        "id": "D2",
+        "speaker": "侍从1",
+        "text": "陛下，这正是今年王城最流行的样式。",
+        "start_time": 3.2,
+        "end_time": 6.95,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "紧张讨好"
+      },
+      {
+        "id": "D3",
+        "speaker": "皇帝",
+        "text": "可我昨天那件蓝色礼服，看起来似乎更加威严。",
+        "start_time": 7.15,
+        "end_time": 11.9,
+        "duration": 4.75,
+        "estimated_speech_duration": 4.75,
+        "min_required_duration": 4.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "犹豫比较"
+      },
+      {
+        "id": "D4",
+        "speaker": "侍从2",
+        "text": "蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。",
+        "start_time": 12.1,
+        "end_time": 17.35,
+        "duration": 5.25,
+        "estimated_speech_duration": 5.25,
+        "min_required_duration": 5.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "机敏恭维"
+      },
+      {
+        "id": "D5",
+        "speaker": "宫廷总管",
+        "text": "陛下，宫门外来了两位织工。",
+        "start_time": 17.55,
+        "end_time": 20.3,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬禀报"
+      },
+      {
+        "id": "D6",
+        "speaker": "皇帝",
+        "text": "织工有什么值得禀报的？",
+        "start_time": 20.5,
+        "end_time": 23.0,
+        "duration": 2.5,
+        "estimated_speech_duration": 2.5,
+        "min_required_duration": 2.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "不耐烦"
+      },
+      {
+        "id": "D7",
+        "speaker": "宫廷总管",
+        "text": "他们声称，能够织出世界上最美丽的布。",
+        "start_time": 23.2,
+        "end_time": 27.2,
+        "duration": 4.0,
+        "estimated_speech_duration": 4.0,
+        "min_required_duration": 4.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "谨慎陈述"
+      },
+      {
+        "id": "D8",
+        "speaker": "皇帝",
+        "text": "这种话，我已经听过无数次了。",
+        "start_time": 27.4,
+        "end_time": 30.4,
+        "duration": 3.0,
+        "estimated_speech_duration": 3.0,
+        "min_required_duration": 3.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "轻蔑厌倦"
+      },
+      {
+        "id": "D9",
+        "speaker": "宫廷总管",
+        "text": "可是……他们还说，那种布有一种奇特的能力。",
+        "start_time": 30.6,
+        "end_time": 34.85,
+        "duration": 4.25,
+        "estimated_speech_duration": 4.25,
+        "min_required_duration": 4.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "迟疑试探"
+      },
+      {
+        "id": "D10",
+        "speaker": "皇帝",
+        "text": "什么能力？",
+        "start_time": 35.05,
+        "end_time": 36.05,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "突然关注"
+      },
+      {
+        "id": "D11",
+        "speaker": "宫廷总管",
+        "text": "愚蠢的人，或者不配担任自己职位的人，都无法看见那种布。",
+        "start_time": 36.25,
+        "end_time": 42.25,
+        "duration": 6.0,
+        "estimated_speech_duration": 6.0,
+        "min_required_duration": 6.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "郑重谨慎"
+      },
+      {
+        "id": "D12",
+        "speaker": "皇帝",
+        "text": "你说什么？",
+        "start_time": 42.45,
+        "end_time": 43.45,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "震惊警觉"
+      },
+      {
+        "id": "D13",
+        "speaker": "皇帝",
+        "text": "让他们进宫！",
+        "start_time": 43.65,
+        "end_time": 44.9,
+        "duration": 1.25,
+        "estimated_speech_duration": 1.25,
+        "min_required_duration": 1.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "兴奋果断"
+      },
+      {
+        "id": "D14",
+        "speaker": "宫廷总管",
+        "text": "是，陛下。",
+        "start_time": 45.1,
+        "end_time": 45.85,
+        "duration": 0.75,
+        "estimated_speech_duration": 0.75,
+        "min_required_duration": 0.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "恭敬服从"
+      }
+    ],
+    "visual_attention": {
+      "version": 1,
+      "time_base": "SHOT_SECONDS",
+      "character_catalog": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝"
+        },
+        {
+          "character_id": "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+          "character_name": "侍从1"
+        },
+        {
+          "character_id": "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+          "character_name": "侍从2"
+        },
+        {
+          "character_id": "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+          "character_name": "侍从3"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 3.2,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ]
+        },
+        {
+          "start_time_seconds": 3.2,
+          "end_time_seconds": 7.15,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a"
+          ],
+          "background_motion_subjects": [
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ]
+        },
+        {
+          "start_time_seconds": 7.15,
+          "end_time_seconds": 12.1,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ]
+        },
+        {
+          "start_time_seconds": 12.1,
+          "end_time_seconds": 17.35,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "eca1ee76-c644-47ed-aeae-9e06f49b253a"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ]
+        },
+        {
+          "start_time_seconds": 17.35,
+          "end_time_seconds": 18.8,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ],
+          "handoff": {
+            "from": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+              "eca1ee76-c644-47ed-aeae-9e06f49b253a"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 18.8,
+          "end_time_seconds": 27.4,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ]
+        },
+        {
+          "start_time_seconds": 27.4,
+          "end_time_seconds": 30.6,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 30.6,
+          "end_time_seconds": 35.05,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 35.05,
+          "end_time_seconds": 36.25,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 36.25,
+          "end_time_seconds": 39.5,
+          "primary_subjects": [
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ]
+        },
+        {
+          "start_time_seconds": 39.5,
+          "end_time_seconds": 42.45,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ],
+          "handoff": {
+            "from": [
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 42.45,
+          "end_time_seconds": 44.9,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 44.9,
+          "end_time_seconds": 47.0,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": []
+        }
+      ]
+    },
+    "clip_plan_revision": 1,
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 12.0,
+        "planned_duration": 12.0,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "首段从KF1完整建立五人、更衣服饰、腰带与镜子的空间关系，并推进至KF2所示的皇帝侧身审视状态。12.0秒边界位于D3结束与D4开始之间，不拆分任何话语；相比把首段延长到宫廷总管17.5秒到位，当前边界避免让D1-D4约15.75秒固定话语与持续整理、转身、镜面调整及推进摄影共同挤入一个超过15秒且接近执行上限的段落。D1、D2、D3均有完整的primary注意覆盖，其中D2保留皇帝与侍从1的共享构图；这些是已有规划支持而非实际可见性或口型实现证明，因而不需要额外参与意图。四段式边界使全序列负担更均衡，少一个片段的三段方案会明显压缩中段动作与连续摄影余量。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          1,
+          2
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 12.0
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "袖口是不是太宽了？",
+            "emotion_prompt": "挑剔不满",
+            "estimated_duration": 2.0,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 3.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "侍从1",
+            "text": "陛下，这正是今年王城最流行的样式。",
+            "emotion_prompt": "紧张讨好",
+            "estimated_duration": 3.75,
+            "source_order": 2,
+            "start_time": 3.2,
+            "end_time": 6.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "可我昨天那件蓝色礼服，看起来似乎更加威严。",
+            "emotion_prompt": "犹豫比较",
+            "estimated_duration": 4.75,
+            "source_order": 3,
+            "start_time": 7.15,
+            "end_time": 11.9,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 2,
+        "start_time": 12.0,
+        "end_time": 23.1,
+        "planned_duration": 11.1,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 1,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF3"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF2",
+          "transition_to_state_id": "KF3",
+          "premise_preserved": true
+        },
+        "reason": "12.0秒处宫廷总管仍在从入口连续接近皇帝，摄影机也正沿原轴线持续推进并补偿其移动；该开场必须继承上一片段实际形成的移动阶段、皇帝与侍从2的既有关系、人物左右位置及镜面朝向，不能从未来状态独立重建，因此为CONTINUOUS。KF2已在边界前建立皇帝、侍从2、镜子和其余人物的开场构图；KF2至KF3的过渡在此时仍明确维持原轴线和皇帝—侍从2视觉重心，宫廷总管仅在背景持续接近，故这些开场前提可由前段继承，无需在D4前重新建立。选择KF3用于控制17.5秒宫廷总管停步躬身并形成皇帝—总管双人重心这一实质性空间与构图到达。D4具有共享primary支持；D5由共享primary及handoff_participant自然完成向宫廷总管的交接，随后D6在皇帝与总管共享构图中具有primary支持。三者的实际可见性与可读性仍未知，但没有not_listed缺口，合法交接不要求另行切分。23.1秒位于D6与D7之间；相较把边界提前到20.4秒，当前安排不会把D6-D9及后续停顿变化集中进一个更拥挤的相邻片段。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          3
+        ],
+        "carry_in_state_index": 2,
+        "dialogue_scope": {
+          "start_time": 12.0,
+          "end_time": 23.1
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-2-KF3"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "侍从2",
+            "text": "蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。",
+            "emotion_prompt": "机敏恭维",
+            "estimated_duration": 5.25,
+            "source_order": 4,
+            "start_time": 12.1,
+            "end_time": 17.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "陛下，宫门外来了两位织工。",
+            "emotion_prompt": "恭敬禀报",
+            "estimated_duration": 2.75,
+            "source_order": 5,
+            "start_time": 17.55,
+            "end_time": 20.3,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "织工有什么值得禀报的？",
+            "emotion_prompt": "不耐烦",
+            "estimated_duration": 2.5,
+            "source_order": 6,
+            "start_time": 20.5,
+            "end_time": 23.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 3,
+        "start_time": 23.1,
+        "end_time": 35.0,
+        "planned_duration": 11.9,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 2,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF4"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF3",
+          "transition_to_state_id": "KF4",
+          "premise_preserved": true
+        },
+        "reason": "23.1秒仍处于KF3至KF4的同轴线连续缓推中，皇帝与宫廷总管的精确双人站位、皇帝袖口动作阶段、后景侍从和镜子关系都来自前段实际结尾，故需要CONTINUOUS。KF3在边界前已经建立近距离主从双人构图；到此边界前没有切镜、轴线重置、人物出入或重大移位，过渡仅以缓推、轻微横向补偿和克制动作延续该前提，因此可继承开场构图。选择KF4用于控制34.8秒所有整理动作停止、视线集中、皇帝僵直警觉及镜子显著化的关键同步到达，这比仅依赖文字缓推具有额外的定时构图价值。D7和D8分别在皇帝—总管共享关系及皇帝主导构图中拥有完整primary覆盖；D9拥有完整primary覆盖并作为handoff_participant启动向皇帝的合法注意交接。上述支持不证明实际面部或发言归属实现，但不存在需要软参与修正的缺口。35.0秒紧随KF4稳定状态并位于D9结束与D10开始之间，为后续镜前移动保留独立执行余量，同时没有把压力转移给相邻片段。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          4
+        ],
+        "carry_in_state_index": 3,
+        "dialogue_scope": {
+          "start_time": 23.1,
+          "end_time": 35.0
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-3-KF4"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D7",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "他们声称，能够织出世界上最美丽的布。",
+            "emotion_prompt": "谨慎陈述",
+            "estimated_duration": 4.0,
+            "source_order": 7,
+            "start_time": 23.2,
+            "end_time": 27.2,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D8",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "这种话，我已经听过无数次了。",
+            "emotion_prompt": "轻蔑厌倦",
+            "estimated_duration": 3.0,
+            "source_order": 8,
+            "start_time": 27.4,
+            "end_time": 30.4,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D9",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "可是……他们还说，那种布有一种奇特的能力。",
+            "emotion_prompt": "迟疑试探",
+            "estimated_duration": 4.25,
+            "source_order": 9,
+            "start_time": 30.6,
+            "end_time": 34.85,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 4,
+        "start_time": 35.0,
+        "end_time": 47.0,
+        "planned_duration": 12.0,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 3,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF5",
+          "KF6"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF4",
+          "transition_to_state_id": "KF5",
+          "premise_preserved": true
+        },
+        "reason": "35.0秒仅在KF4停顿状态之后0.2秒，随后皇帝必须从既有双人站位连续转向镜子并沿短距离走到镜前，摄影机同时沿既有轴线横移；开场动作依赖前段留下的身体姿态、镜子位置、侍从停顿状态和摄影机运动起点，因此为CONTINUOUS。KF4严格位于边界前，且其至KF5的过渡在开场没有轴线重置、人物出入或构图跳变，皇帝、宫廷总管、镜子及侍从的空间前提均保持，足以继承D10开始前的开场构图。选择KF5控制42.4秒皇帝抵达镜前并与映像形成新视觉中心的物理到达，选择KF6控制43.6秒皇帝迅速转身、形成指示姿态及总管承接关系的关键动作结果；两者都是后续连续运动中材料性不同的定时状态。D10具有皇帝primary支持；D11先由宫廷总管primary支持，后以primary加handoff_participant合法移交给皇帝；D12和D13连续保持皇帝primary支持，D14在皇帝与宫廷总管共享构图中为总管提供primary支持。密集交接增加执行注意负担，但每个事件已有规划支持，实际可见性与可读性仍未知，故不机械增加切分或参与意图。D14后至47.0秒包含总管进一步躬身、皇帝收回手臂并完成最终双人关系，并非重复静止填充。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          5,
+          6,
+          7
+        ],
+        "carry_in_state_index": 4,
+        "dialogue_scope": {
+          "start_time": 35.0,
+          "end_time": 47.0
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-4-KF5",
+          "clip-4-KF6"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D10",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "什么能力？",
+            "emotion_prompt": "突然关注",
+            "estimated_duration": 1.0,
+            "source_order": 10,
+            "start_time": 35.05,
+            "end_time": 36.05,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D11",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "愚蠢的人，或者不配担任自己职位的人，都无法看见那种布。",
+            "emotion_prompt": "郑重谨慎",
+            "estimated_duration": 6.0,
+            "source_order": 11,
+            "start_time": 36.25,
+            "end_time": 42.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D12",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "你说什么？",
+            "emotion_prompt": "震惊警觉",
+            "estimated_duration": 1.0,
+            "source_order": 12,
+            "start_time": 42.45,
+            "end_time": 43.45,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D13",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "让他们进宫！",
+            "emotion_prompt": "兴奋果断",
+            "estimated_duration": 1.25,
+            "source_order": 13,
+            "start_time": 43.65,
+            "end_time": 44.9,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D14",
+            "segment_index": 1,
+            "speaker": "宫廷总管",
+            "text": "是，陛下。",
+            "emotion_prompt": "恭敬服从",
+            "estimated_duration": 0.75,
+            "source_order": 14,
+            "start_time": 45.1,
+            "end_time": 45.85,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      }
+    ]
+  },
+  "character_appearances": {
+    "皇帝": "单一主体全身照，一名约五十五岁的人类男性君主，气质讲究、威严中带着明显的虚荣感，身高约一百七十五厘米，体态略丰腴，腰腹圆润而肩背尚挺，四肢完整并从头到脚清晰可见；脸型偏宽的椭圆形，中庭适中，额头高而饱满，颧骨柔和，下颌圆厚，下巴短，左眼下方有一颗细小褐痣；眼睛为浅蓝灰色中等大小的双眼皮眼，外眼角微垂，眼型与眼睛颜色不得改变；鼻梁高而略带弧度，鼻尖圆润，鼻翼较窄，鼻孔细小向下；嘴唇偏薄，天然嘴角略向下，中性展示时牙齿不可见；皮肤为偏冷的浅肤色，眼周与额头有细密年龄纹；银灰色微卷头发长度及耳并向后梳，发际线后移，留有修整精致的银灰色短络腮胡与小尖须；稳定身份标记包括浅蓝灰色微垂眼、左眼下褐痣、后移发际线、银灰短须和略丰腴体态；基础造型采用欧洲童话式前现代宫廷礼服，头戴固定于头顶中央的金色小型王冠，上身穿宝蓝色天鹅绒长礼服与金线滚边象牙白衬衫，肩披深红色短斗篷，下身穿深蓝色及膝裤、白色长袜和带金色搭扣的黑色低跟宫廷鞋，试穿紫袍等情境服装不作为永久造型；以自然中性站姿展示，双手、双腿和鞋袜完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓、胡须形状与全部独特标记一致，禁止改变物种、年龄段与男性君主气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故增加配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+    "侍从1": "单一主体全身照，一名约二十四岁的人类男性宫廷侍从，气质恭谨细致，身高约一百七十二厘米，身材纤细匀称，四肢完整并从头到脚清晰可见；脸型为窄椭圆形，额头平滑，中庭略短，颧骨柔和，下颌线收窄，下巴尖圆，右脸颊靠近耳前有一颗浅褐小痣；眼睛为榛褐色细长双眼皮眼，眼角微微下垂，眼型与眼睛颜色不得改变；鼻梁细直，鼻尖小巧，鼻翼窄，鼻孔不明显；嘴唇薄而整齐，天然嘴角平缓，中性展示时牙齿不可见；皮肤为暖调浅肤色，质感细腻；栗色直发整齐束于脑后低位，以黑色细带固定，发际线圆滑，无胡须；稳定身份标记包括纤细身形、榛褐色下垂眼、右耳前小痣和低位束发；基础服装为欧洲童话式前现代宫廷侍从制服，上身穿浅灰蓝色合身短外套、白衬衫与银色窄领巾，下身穿深蓝色及膝裤、白色长袜和黑色搭扣鞋，不把整理衣领等动作或物件固化为身份特征；以自然中性站姿展示，双手和双脚完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与所有标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、畸形解剖、左右不对称错误、随机疤痕纹身、额外主体或新增无依据配饰，禁止半身、特写、裁切或缺手缺脚。",
+    "侍从2": "单一主体全身照，一名约二十九岁的人类男性宫廷侍从，气质稳重圆融，身高约一百七十六厘米，体型中等而肩背端正，四肢完整并从头到脚清晰可见；脸型偏长方，额头略宽，中庭适中，颧骨较平，下颌清楚，下巴方圆，左眉中央有一小段天然断眉；眼睛为深灰褐色中等大小的内双眼，外眼角平直，眼型与眼睛颜色不得改变；鼻梁笔直，鼻尖略方，鼻翼中等，鼻孔朝下；嘴唇中等厚度，天然嘴角轻微上扬，中性展示时牙齿不可见；皮肤为中性调浅麦色，鼻梁带少量淡雀斑；黑褐色浓密短发从右侧分开并梳理服帖，无胡须；稳定身份标记包括长方脸、左眉断眉、鼻梁淡雀斑和右分黑褐短发；基础服装为欧洲童话式前现代宫廷侍从制服，上身穿深青色短外套、乳白衬衫和灰银色领巾，下身穿黑色及膝裤、浅灰长袜与黑色低跟皮鞋，不将曾经捧持的腰带或任何手持物设为固定配饰；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与独特标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机伤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切或任何肢体缺失。",
+    "侍从3": "单一主体全身照，一名约二十岁的人类男性宫廷侍从，气质安静拘谨，身高约一百八十厘米，身材瘦长但手臂结实，四肢完整并从头到脚清晰可见；脸型为较长的倒卵形，额头窄，中庭偏长，颧骨略突出，下颌收束，下巴尖，左侧下颌边缘有一颗小黑痣；眼睛为浅褐色较大的单眼皮眼，眼角略向下，眼型与眼睛颜色不得改变；鼻梁较长且直，鼻尖窄，鼻翼收紧，鼻孔小；嘴唇上薄下稍厚，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，面颊略显苍白；亚麻棕色柔软直发长度到耳下，中央偏左分缝并收拢至脑后，无胡须；稳定身份标记包括瘦长体态、浅褐色大单眼皮眼、左下颌小黑痣和耳下亚麻棕发；基础服装为欧洲童话式前现代宫廷侍从制服，上身穿浅褐色长背心、白色宽袖衬衫与暗蓝领巾，下身穿深灰及膝裤、米白长袜和棕黑色搭扣鞋，不将镜子或举镜姿态固化为身份特征；以自然中性站姿展示，双手与双脚完整可见且不受遮挡，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与全部标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故新增配饰，禁止半身、特写、裁切、缺手缺腿或脚部出画。",
+    "宫廷总管": "单一主体全身照，一名约四十八岁的人类男性宫廷总管，气质谨慎、干练而克制，身高约一百七十三厘米，体型清瘦，肩线端正，四肢完整并从头到脚清晰可见；脸型瘦削偏长，额头高，中庭较长，颧骨清楚，下颌线锐利，下巴略向前，右侧太阳穴有一块指尖大小的浅褐色斑；眼睛为深蓝灰色狭长内双眼，外眼角略下垂，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄而稍向下，鼻翼薄，鼻孔细小；嘴唇薄，天然嘴角平直，中性展示时牙齿不可见；皮肤为冷调浅肤色，眼下有轻微阴影和细纹；深灰色直发整齐向后梳并束成短低发束，发际线略后移，留有修整整齐的深灰色短山羊胡；稳定身份标记包括清瘦长脸、深蓝灰色狭长眼、右太阳穴浅褐斑和短山羊胡；基础服装为欧洲童话式前现代高级宫廷官员服饰，上身穿黑紫色长外套、银灰刺绣背心与白色高领衬衫，下身穿黑色及膝裤、深灰长袜和黑色银扣宫廷鞋，胸前左侧固定佩戴一枚小型银质王室职务徽章；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型和胡须轮廓以及全部标记一致，禁止改变物种、年龄段和男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机伤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切或肢体残缺。"
+  },
+  "props": [
+    {
+      "name": "宫廷腰带",
+      "existence": "REAL"
+    },
+    {
+      "name": "巨大镜子",
+      "existence": "REAL"
+    },
+    {
+      "name": "紫色长袍",
+      "existence": "REAL"
+    }
+  ],
+  "manifest": {
+    "version": 1,
+    "references": [
+      {
+        "kind": "SCENE",
+        "source_name": "王宫更衣室",
+        "source_id": "c0a2fc44-51e8-4124-8126-ae9ad1e3d2b6",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "c0a2fc44-51e8-4124-8126-ae9ad1e3d2b6",
+          "name": "王宫更衣室"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫更衣室_20261003_173153.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫更衣室_20261003_173153.png",
+        "slot": 1
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "slot": 3
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从2",
+        "source_id": "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+          "name": "侍从2"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/侍从2_20261010_232818.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从2_20261010_232818.png",
+        "slot": 4
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从1",
+        "source_id": "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+          "name": "侍从1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/侍从1_20261010_232800.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从1_20261010_232800.png",
+        "slot": 5
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从3",
+        "source_id": "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+          "name": "侍从3"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/侍从3_20261010_232836.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从3_20261010_232836.png",
+        "slot": 6
+      },
+      {
+        "kind": "PROP",
+        "source_name": "巨大镜子",
+        "source_id": "95d594f9-969e-4f09-bb80-75b17119a1e1",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "95d594f9-969e-4f09-bb80-75b17119a1e1",
+          "name": "巨大镜子"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/巨大镜子_20261003_183437.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/巨大镜子_20261003_183437.png",
+        "slot": 7
+      },
+      {
+        "kind": "PROP",
+        "source_name": "宫廷腰带",
+        "source_id": "5c7fd3f9-5ddb-4264-9833-3dd94af93e7f",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "5c7fd3f9-5ddb-4264-9833-3dd94af93e7f",
+          "name": "宫廷腰带"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/宫廷腰带_20261003_183843.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/宫廷腰带_20261003_183843.png",
+        "slot": 8
+      },
+      {
+        "kind": "PROP",
+        "source_name": "紫色长袍",
+        "source_id": "f0f446cc-283c-4f65-acc6-e4e22fbbd919",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "f0f446cc-283c-4f65-acc6-e4e22fbbd919",
+          "name": "紫色长袍"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/紫色长袍_20261003_174222.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/紫色长袍_20261003_174222.png",
+        "slot": 9
+      }
+    ],
+    "skipped_references": []
+  },
+  "execution_contract": {
+    "version": 1,
+    "capability": "TEMPORAL_EXTEND",
+    "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+    "clip": {
+      "clip_id": "2669e7aa-5f92-4261-b602-cae4d81f5c51:clip:2",
+      "clip_index": 2,
+      "clip_plan_revision": 1,
+      "start_seconds": 12.0,
+      "end_seconds": 23.1,
+      "duration_seconds": 11.100000000000001
+    },
+    "previous_clip": {
+      "clip_index": 1,
+      "clip_plan_revision": 1,
+      "generated_by_task_id": "3027749f-6028-41b8-bee4-2b299a48bc66",
+      "result_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_1_3027749f_20261016_140123.mp4",
+      "physical_output": {
+        "frame_count": 294,
+        "fps": 24,
+        "timebase": "1/24",
+        "video_duration": 12.25,
+        "has_audio": true,
+        "audio_duration": 12.25,
+        "audio_start_time": 0.0,
+        "width": 864,
+        "height": 480,
+        "sha256": "3b4b65db58373d5d04e4fa527fb517fff06f3f1c6da25454469dd8254eceec11",
+        "physical_output_role": "CLIP_ONLY"
+      },
+      "source_frame_start": 0
+    },
+    "temporal_anchor_manifest": {
+      "manifest_version": "1.0",
+      "anchors": [
+        {
+          "slot": 1,
+          "anchor_id": "clip-2-KF3",
+          "time_seconds": 5.5,
+          "frame_position": 138,
+          "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261016_135314.png",
+          "description": null,
+          "source": {
+            "type": "KEYFRAME",
+            "id": "KF3",
+            "keyframe_index": 3,
+            "image_task_id": "4e4742c2-5139-4a19-a794-330290197456"
+          },
+          "reachability": {
+            "policy": "CANONICAL_MOTION_WINDOW_V1",
+            "previous_state_index": 2,
+            "target_state_index": 3,
+            "semantic_frame_position": 138,
+            "effective_frame_position": 138,
+            "semantic_local_time": 5.5,
+            "earliest_reachable_local_time": 0.9,
+            "transition_start_local_time": 0.0,
+            "canonical_transition_duration_seconds": 9.0,
+            "requested_anchor_local_time": 5.5,
+            "effective_anchor_local_time": 5.708333333333333,
+            "motion_budget_seconds": 0.9,
+            "effective_frame_local_time": 5.708333333333333,
+            "placement_adjusted": false,
+            "clamped": false,
+            "reachability_reason": [
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION",
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION",
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+            ],
+            "critical_subjects": [
+              {
+                "character": "侍从2",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于皇帝右侧，双手捧着宫廷腰带，腰带靠近皇帝腰际但尚未系上。",
+                  "target_role": "留在皇帝右侧，稳稳捧着宫廷腰带。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              },
+              {
+                "character": "侍从3",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于右后方，举着巨大镜子，镜面角度对准皇帝侧身。",
+                  "target_role": "位于后景，继续举稳巨大镜子并使镜面朝向皇帝。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              },
+              {
+                "character": "皇帝",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于画面中央，身着紫色长袍，身体转为侧对巨大镜子，一侧手臂略微抬起，目光在袖口与镜中轮廓之间审视，神情挑剔而犹豫。",
+                  "target_role": "位于巨大镜子前方，身体仍略朝镜面，目光转向已经靠近的宫廷总管。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              }
+            ],
+            "findings": [
+              {
+                "code": "TEMPORAL_REACHABILITY_UNCERTAIN",
+                "character": "侍从1",
+                "reason": "OWNED_MOTION_NOT_RELIABLY_CLASSIFIED",
+                "anchor_id": "clip-2-KF3"
+              },
+              {
+                "code": "TEMPORAL_REACHABILITY_UNCERTAIN",
+                "character": "宫廷总管",
+                "reason": "OWNED_MOTION_NOT_RELIABLY_CLASSIFIED",
+                "anchor_id": "clip-2-KF3"
+              }
+            ]
+          },
+          "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_1_20261016_135314.png"
+        }
+      ]
+    },
+    "visual_attention_snapshot": {
+      "version": 1,
+      "projection_version": 1,
+      "time_base": "CLIP_SECONDS",
+      "status": "VALID",
+      "findings": [],
+      "character_catalog": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝"
+        },
+        {
+          "character_id": "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+          "character_name": "侍从1"
+        },
+        {
+          "character_id": "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+          "character_name": "侍从2"
+        },
+        {
+          "character_id": "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+          "character_name": "侍从3"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 0.1,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ],
+          "source_window_index": 2,
+          "source_start_time_seconds": 7.15,
+          "source_end_time_seconds": 12.1
+        },
+        {
+          "start_time_seconds": 0.1,
+          "end_time_seconds": 5.35,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "eca1ee76-c644-47ed-aeae-9e06f49b253a"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "source_window_index": 3,
+          "source_start_time_seconds": 12.1,
+          "source_end_time_seconds": 17.35
+        },
+        {
+          "start_time_seconds": 5.35,
+          "end_time_seconds": 6.8,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ],
+          "handoff": {
+            "from": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+              "eca1ee76-c644-47ed-aeae-9e06f49b253a"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+              "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+            ]
+          },
+          "source_window_index": 4,
+          "source_start_time_seconds": 17.35,
+          "source_end_time_seconds": 18.8,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 6.8,
+          "end_time_seconds": 11.1,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "2eab8846-dc86-4e12-8c30-dfeca26cc6c5"
+          ],
+          "background_motion_subjects": [
+            "7a638d99-0e8d-4e35-9b65-b822fcc50fb3"
+          ],
+          "source_window_index": 5,
+          "source_start_time_seconds": 18.8,
+          "source_end_time_seconds": 27.4
+        }
+      ],
+      "clip_start_seconds": 12.0,
+      "clip_end_seconds": 23.1,
+      "characters": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "efaaf3af-ba23-4f46-a1b0-94279851d16a",
+          "character_name": "侍从1",
+          "subject": "<Subject 3>"
+        },
+        {
+          "character_id": "eca1ee76-c644-47ed-aeae-9e06f49b253a",
+          "character_name": "侍从2",
+          "subject": "<Subject 4>"
+        },
+        {
+          "character_id": "7a638d99-0e8d-4e35-9b65-b822fcc50fb3",
+          "character_name": "侍从3",
+          "subject": "<Subject 5>"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管",
+          "subject": "<Subject 2>"
+        }
+      ],
+      "fingerprint": "5e0a5be4997bc2b704835fb1696f2b1d4e5f8dd8c0d561b851f7f33d4e1e9baa",
+      "source": "shots.video_director_plan.visual_attention",
+      "stage": "PROJECTED",
+      "program_owned_section_sha256": null,
+      "temporal_times": [
+        {
+          "anchor_id": "clip-2-KF3",
+          "time_seconds": 5.5,
+          "frame_position": 138,
+          "reachability": {
+            "policy": "CANONICAL_MOTION_WINDOW_V1",
+            "previous_state_index": 2,
+            "target_state_index": 3,
+            "semantic_frame_position": 138,
+            "effective_frame_position": 138,
+            "semantic_local_time": 5.5,
+            "earliest_reachable_local_time": 0.9,
+            "transition_start_local_time": 0.0,
+            "canonical_transition_duration_seconds": 9.0,
+            "requested_anchor_local_time": 5.5,
+            "effective_anchor_local_time": 5.708333333333333,
+            "motion_budget_seconds": 0.9,
+            "effective_frame_local_time": 5.708333333333333,
+            "placement_adjusted": false,
+            "clamped": false,
+            "reachability_reason": [
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION",
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION",
+              "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+            ],
+            "critical_subjects": [
+              {
+                "character": "侍从2",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于皇帝右侧，双手捧着宫廷腰带，腰带靠近皇帝腰际但尚未系上。",
+                  "target_role": "留在皇帝右侧，稳稳捧着宫廷腰带。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              },
+              {
+                "character": "侍从3",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于右后方，举着巨大镜子，镜面角度对准皇帝侧身。",
+                  "target_role": "位于后景，继续举稳巨大镜子并使镜面朝向皇帝。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              },
+              {
+                "character": "皇帝",
+                "lifecycle": "EXISTING_CURRENT_BODY",
+                "start_presence": "PRESENT",
+                "target_presence": "PRESENT",
+                "motion_ownership": "LOCAL_MOTION / SPATIALLY_ANCHORED",
+                "motion_class": "LOCAL_MOTION",
+                "motion_budget_seconds": 0.9,
+                "motion_window_ratio": 0.1,
+                "blocking_delta": {
+                  "previous_role": "位于画面中央，身着紫色长袍，身体转为侧对巨大镜子，一侧手臂略微抬起，目光在袖口与镜中轮廓之间审视，神情挑剔而犹豫。",
+                  "target_role": "位于巨大镜子前方，身体仍略朝镜面，目光转向已经靠近的宫廷总管。"
+                },
+                "reachability_reason": "EXISTING_CURRENT_BODY+LOCAL_MOTION"
+              }
+            ],
+            "findings": [
+              {
+                "code": "TEMPORAL_REACHABILITY_UNCERTAIN",
+                "character": "侍从1",
+                "reason": "OWNED_MOTION_NOT_RELIABLY_CLASSIFIED",
+                "anchor_id": "clip-2-KF3"
+              },
+              {
+                "code": "TEMPORAL_REACHABILITY_UNCERTAIN",
+                "character": "宫廷总管",
+                "reason": "OWNED_MOTION_NOT_RELIABLY_CLASSIFIED",
+                "anchor_id": "clip-2-KF3"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "workflow": {
+    "id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+    "name": "NovelFlow H3 AV 时序续生成 V1",
+    "type": "TEMPORAL_EXTEND",
+    "workflow_json": "{\n  \"1\": {\n    \"inputs\": {\n      \"noise_seed\": 123456789\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#1 RandomNoise\"\n    }\n  },\n  \"2\": {\n    \"inputs\": {\n      \"model\": [\n        \"71\",\n        0\n      ],\n      \"conditioning\": [\n        \"116\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#2 Basic Guider\"\n    }\n  },\n  \"3\": {\n    \"inputs\": {\n      \"noise\": [\n        \"1\",\n        0\n      ],\n      \"guider\": [\n        \"2\",\n        0\n      ],\n      \"sampler\": [\n        \"36\",\n        0\n      ],\n      \"sigmas\": [\n        \"70\",\n        0\n      ],\n      \"latent_image\": [\n        \"23\",\n        0\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#3 Extension 1 - SamplerCustomAdvanced\"\n    }\n  },\n  \"23\": {\n    \"inputs\": {\n      \"context_length\": [\n        \"37\",\n        0\n      ],\n      \"audio_feather_ticks\": [\n        \"96\",\n        0\n      ],\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StartMaskedContext\",\n    \"_meta\": {\n      \"title\": \"#23 H3 Start Masked Context\"\n    }\n  },\n  \"29\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#29 Starter Clip - Load VAE\"\n    }\n  },\n  \"30\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#30 Starter Clip - Load VAE\"\n    }\n  },\n  \"31\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#31 Starter Clip - Load CLIP\"\n    }\n  },\n  \"32\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#32 Starter Clip - Load Diffusion Model\"\n    }\n  },\n  \"36\": {\n    \"inputs\": {\n      \"sampler_name\": \"res_multistep\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#36 KSamplerSelect\"\n    }\n  },\n  \"37\": {\n    \"inputs\": {\n      \"value\": 39\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#37 Int\"\n    }\n  },\n  \"39\": {\n    \"inputs\": {\n      \"frame_rate\": 24,\n      \"loop_count\": 0,\n      \"filename_prefix\": \"h3_preview/extension_01\",\n      \"format\": \"video/h264-mp4\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"pingpong\": false,\n      \"save_output\": true,\n      \"images\": [\n        \"62\",\n        0\n      ],\n      \"audio\": [\n        \"61\",\n        0\n      ]\n    },\n    \"class_type\": \"VHS_VideoCombine\",\n    \"_meta\": {\n      \"title\": \"#39 Extension 1 - VHS Video Combine\"\n    }\n  },\n  \"55\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"120\",\n        0\n      ],\n      \"width\": 960,\n      \"height\": 544,\n      \"length\": [\n        \"126\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"31\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"142\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"141\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"143\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"137\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"138\",\n        0\n      ],\n      \"ref_images.ref_image_5\": [\n        \"140\",\n        0\n      ],\n      \"ref_images.ref_image_6\": [\n        \"135\",\n        0\n      ],\n      \"ref_images.ref_image_7\": [\n        \"136\",\n        0\n      ],\n      \"ref_images.ref_image_8\": [\n        \"139\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#55 Extension 1 - MiniMax H3 Reference to Video\"\n    }\n  },\n  \"56\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#56 Int\"\n    }\n  },\n  \"61\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"102\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#61 VAE Decode Audio\"\n    }\n  },\n  \"62\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#62 VAE Decode\"\n    }\n  },\n  \"65\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"context_frames\": 39,\n      \"video_overlap_frames\": 39,\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"filename_prefix\": \"video/masked_av_extension\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"save_output\": true,\n      \"video_vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ],\n      \"preview_gate\": [\n        \"98\",\n        0\n      ],\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"extension_1\": [\n        \"3\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StreamLiveExtensionAVToVHS\",\n    \"_meta\": {\n      \"title\": \"#65 H3 Stream AV Extensions to VHS\"\n    }\n  },\n  \"66\": {\n    \"inputs\": {\n      \"video\": \"shot_002_20260923_142519 (1).mp4\",\n      \"force_rate\": 24,\n      \"custom_width\": 0,\n      \"custom_height\": 0,\n      \"frame_load_cap\": 0,\n      \"start_time\": 0,\n      \"format\": \"AnimateDiff\"\n    },\n    \"class_type\": \"VHS_LoadVideoFFmpeg\",\n    \"_meta\": {\n      \"title\": \"#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢\"\n    }\n  },\n  \"67\": {\n    \"inputs\": {\n      \"images\": [\n        \"101\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CropTo32\",\n    \"_meta\": {\n      \"title\": \"#67 H3 Crop Source To /32\"\n    }\n  },\n  \"70\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": [\n        \"56\",\n        0\n      ],\n      \"denoise\": 1,\n      \"model\": [\n        \"71\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#70 BasicScheduler\"\n    }\n  },\n  \"71\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"72\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#71 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"72\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\n      \"strength_model\": 0.95,\n      \"model\": [\n        \"73\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#72 Starter Clip - LoraLoaderModelOnly\"\n    }\n  },\n  \"73\": {\n    \"inputs\": {\n      \"attention\": \"comfy kitchen attention\",\n      \"model\": [\n        \"32\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelAttentionBackend\",\n    \"_meta\": {\n      \"title\": \"#73 Model Attention Backend\"\n    }\n  },\n  \"93\": {\n    \"inputs\": {\n      \"source_fps\": 24,\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"mode\": [\n        \"97\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SourceAudioPolicy\",\n    \"_meta\": {\n      \"title\": \"#93 H3 Source Audio Policy\"\n    }\n  },\n  \"94\": {\n    \"inputs\": {\n      \"start\": \"Existing Video\"\n    },\n    \"class_type\": \"MiniMaxH3AVStartModeParam\",\n    \"_meta\": {\n      \"title\": \"#94 Start Mode — FIXED Existing Video\"\n    }\n  },\n  \"95\": {\n    \"inputs\": {\n      \"value\": 1\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#95 Active Extensions — FIXED 1\"\n    }\n  },\n  \"96\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#96 Audio Feather — FIXED 8\"\n    }\n  },\n  \"97\": {\n    \"inputs\": {\n      \"source_audio\": \"Keep source audio\"\n    },\n    \"class_type\": \"MiniMaxH3AVSourceAudioModeParam\",\n    \"_meta\": {\n      \"title\": \"#97 Source Audio — FIXED Keep source audio\"\n    }\n  },\n  \"98\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"preview_1\": [\n        \"39\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3LastActiveVHSPreviewBarrier\",\n    \"_meta\": {\n      \"title\": \"#98 H3 Last Active VHS Preview Barrier\"\n    }\n  },\n  \"99\": {\n    \"inputs\": {\n      \"filenames\": [\n        \"65\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3FinalizeVHSOutput\",\n    \"_meta\": {\n      \"title\": \"#99 H3 Final Stream Output Sink\"\n    }\n  },\n  \"101\": {\n    \"inputs\": {\n      \"images\": [\n        \"66\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3Validate24FPSVideo\",\n    \"_meta\": {\n      \"title\": \"#101 H3 Validate 24 FPS Video\"\n    }\n  },\n  \"102\": {\n    \"inputs\": {\n      \"audio_vae\": [\n        \"29\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3AudioVAECompatibility\",\n    \"_meta\": {\n      \"title\": \"#102 H3 Audio VAE Compatibility\"\n    }\n  },\n  \"116\": {\n    \"inputs\": {\n      \"keyframe_state\": \"{\\\"count\\\":8,\\\"positions\\\":[121,243,260,277,294,311,328,345]}\",\n      \"indexing\": \"1-based\",\n      \"crop\": \"center\",\n      \"+ Add keyframe\": null,\n      \"- Remove keyframe\": null,\n      \"conditioning\": [\n        \"55\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"keyframe_image_1\": [\n        \"117\",\n        0\n      ],\n      \"keyframe_image_2\": [\n        \"128\",\n        0\n      ],\n      \"keyframe_image_3\": [\n        \"129\",\n        0\n      ],\n      \"keyframe_image_4\": [\n        \"130\",\n        0\n      ],\n      \"keyframe_image_5\": [\n        \"131\",\n        0\n      ],\n      \"keyframe_image_6\": [\n        \"132\",\n        0\n      ],\n      \"keyframe_image_7\": [\n        \"133\",\n        0\n      ],\n      \"keyframe_image_8\": [\n        \"134\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CustomKeyframes\",\n    \"_meta\": {\n      \"title\": \"#116 H3 Custom Keyframes — TEMPORAL ANCHOR\"\n    }\n  },\n  \"117\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#117 KeyFrame — Load Image 1\"\n    }\n  },\n  \"120\": {\n    \"inputs\": {\n      \"prompt\": \"Continue directly from the final moment of the selected start clip with no cut, reset, or re-establishment.\\n\\nThe incoming protected audiovisual prefix is authoritative for the current pose, motion, camera trajectory, lighting, environment, object state, voice, ambience, and timing.\\n\\nContinue the exact motion and sound already in progress naturally.\\n\\nPreserve the existing camera trajectory, spatial continuity, environment, lighting, ambience, and audiovisual timing throughout.\\n\\nThe connected temporal keyframes define required visual states at their assigned temporal positions.\\n\\nDevelop naturally through the temporal keyframes in chronological order while preserving continuous motion and audiovisual continuity.\\n\\nDo not introduce, describe, anticipate, or prematurely reveal the visual content of a future temporal keyframe before its assigned temporal position.\\n\\nDo not reset the scene at a temporal keyframe. Each temporal keyframe is part of the same continuous shot and must be reached through natural continuous development from the preceding state.\\n\\nNo cuts, no scene reset, no camera reset, no re-establishment, and no restart from rest.\"\n    },\n    \"class_type\": \"CR Prompt Text\",\n    \"_meta\": {\n      \"title\": \"#120 ⚙️ CR Prompt Text（提示词）\"\n    }\n  },\n  \"124\": {\n    \"inputs\": {\n      \"text\": \"{\\n    \\\"source_fps\\\": 24.0,\\n    \\\"source_frame_count\\\": 243.12,\\n    \\\"source_duration\\\": 10.13,\\n    \\\"source_width\\\": 1728,\\n    \\\"source_height\\\": 960,\\n    \\\"loaded_fps\\\": 24.0,\\n    \\\"loaded_frame_count\\\": 243,\\n    \\\"loaded_duration\\\": 10.125,\\n    \\\"loaded_width\\\": 1728,\\n    \\\"loaded_height\\\": 960\\n}\",\n      \"anything\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#124 #-1 Show Any\"\n    }\n  },\n  \"125\": {\n    \"inputs\": {\n      \"value\": 10\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#125 Float(时长秒)\"\n    }\n  },\n  \"126\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"125\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#126 Math Expression\"\n    }\n  },\n  \"127\": {\n    \"inputs\": {\n      \"text\": \"243\",\n      \"anything\": [\n        \"126\",\n        1\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#127 #-1 Show Any\"\n    }\n  },\n  \"128\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#128 KeyFrame — Load Image 2\"\n    }\n  },\n  \"129\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#129 KeyFrame — Load Image 3\"\n    }\n  },\n  \"130\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#130 KeyFrame — Load Image 4\"\n    }\n  },\n  \"131\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#131 KeyFrame — Load Image 5\"\n    }\n  },\n  \"132\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#132 KeyFrame — Load Image 6\"\n    }\n  },\n  \"133\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#133 KeyFrame — Load Image 7\"\n    }\n  },\n  \"134\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#134 KeyFrame — Load Image 8\"\n    }\n  },\n  \"135\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#113 Reference Image 7\"\n    }\n  },\n  \"136\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#114 Reference Image 8\"\n    }\n  },\n  \"137\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#110 Reference Image 4\"\n    }\n  },\n  \"138\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#111 Reference Image 5\"\n    }\n  },\n  \"139\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#115 Reference Image 9\"\n    }\n  },\n  \"140\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#112 Reference Image 6\"\n    }\n  },\n  \"141\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#68 Reference Image 2\"\n    }\n  },\n  \"142\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#69 Reference Image 1\"\n    }\n  },\n  \"143\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#109 Reference Image 3\"\n    }\n  }\n}",
+    "node_mapping": "{\"load_video_node_id\": \"66\", \"duration_seconds_node_id\": \"125\", \"prompt_node_id\": \"120\", \"keyframe_node_1\": \"117\", \"keyframe_node_2\": \"128\", \"keyframe_node_3\": \"129\", \"keyframe_node_4\": \"130\", \"keyframe_node_5\": \"131\", \"keyframe_node_6\": \"132\", \"keyframe_node_7\": \"133\", \"keyframe_node_8\": \"134\", \"custom_keyframes_node_id\": \"116\", \"video_save_node_id\": \"65\", \"reference_to_video_node_id\": \"55\", \"load_image_node_1\": \"142\", \"load_image_node_2\": \"141\", \"load_image_node_3\": \"143\", \"load_image_node_4\": \"137\", \"load_image_node_5\": \"138\", \"load_image_node_6\": \"140\", \"load_image_node_7\": \"135\", \"load_image_node_8\": \"136\", \"load_image_node_9\": \"139\"}",
+    "extension": null
+  },
+  "resource_hashes": {
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫更衣室_20261003_173153.png": "32148a608401b29cb10d2b507cb8b4c03802da9704117a8abc6b0e3adc9d2ff0",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png": "caa170bb09a68f341b47ce750d09b007b48293e1edbc1d29b814b42e59ff801e",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png": "7aa57eb14192fa2fe6da8ff34f818679d2414397196c9cd5163cf6e85009dea3",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从2_20261010_232818.png": "9f844e388796758ef74ffb371bf03cb9864e89b160dc7e0b8de8a6f0bb403ec1",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从1_20261010_232800.png": "6adabf1beff0a01c59cd5929e8ca3fd60aa379016499c1d6e8dbed29bc396b5e",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/侍从3_20261010_232836.png": "84f9676c9f05610baf6f9ed2da7dee7e8957cd2a716d7f0b8305528e04d45ba2",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/巨大镜子_20261003_183437.png": "6a1d7ecf1633822fd36fb57b79ee74147819e7acf1b7d1c99faf06bd83f73360",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/宫廷腰带_20261003_183843.png": "aa83f4fe0bb8aca9001eb55c10f4324e7853c60302986136d46c8b09b2bd9b85",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/紫色长袍_20261003_174222.png": "568dbb1560886208fad152e7efad9f4d849b83d16f286523ccdc59a6593f03c7",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_1_20261016_135314.png": "85493171598df04e3fb8be0676e1248c68ed68ffdc3201082b7e7200450ab9eb"
+  }
+}

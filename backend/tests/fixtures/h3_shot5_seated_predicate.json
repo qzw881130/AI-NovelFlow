@@ -1,0 +1,400 @@
+{
+  "raw_prompt": "subject_definitions:\n- <Subject 1> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、暖浅肤色、灰绿色细长上挑双眼皮眼、高直窄鼻、薄唇，右侧鼻翼旁有小褐痣；深棕色微卷短发向后梳理，发际线两侧略高，留整齐的深棕色小胡子。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n- <Subject 2> is 骗子2，一名约三十二岁、身高较矮且略显敦实的人类男性；圆中带方的脸、暖调浅麦色皮肤、琥珀褐色圆杏眼、较短且圆钝的鼻子、中等偏厚的嘴唇，左侧嘴角下方有明显小黑痣；栗褐色浓密短卷发从左侧分开，面部无胡须。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n\nofficial_character_identity_lock:\n参考视觉锚点是在各自时间位置确立当前人物视觉身份的首要视觉权威；官方人物描述仅作为防止跨帧身份漂移的补充约束，不得覆盖参考视觉锚点中清楚可见的身份特征。对每个 Subject，始终保持同一张脸、年龄、身体比例、发型或胡须、肤色、永久标记、身份定义配饰及整体人物唯一性，不得重新设计、美化、老化、年轻化、换脸、换色或替换人物。\n\n稳定身份与当前服装是彼此分离的连续性领域。当前服装服从按时间排列的权威视觉条件；不得恢复、叠穿、混穿、部分露出或融合任何冲突的历史或默认服装。阴影、暗光、冷暖调色、距离、环境照明和运动模糊不得被解释为肤色、发色或服装颜色发生改变。若稳定身份细节因姿态、遮挡、距离或照明暂时不清晰，在重新可见时必须正确保持；若文本人物描述与视觉锚点中清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n姿态、表情、视线、身体朝向、空间位置和自然动作可依照当前过渡变化。只允许已建立的 <Subject 1> 与 <Subject 2>，不得复制人物、交换身份、无依据令人物出现或消失、镜像翻转左右关系、重置场景或新增人物与道具。两架脚踏织机必须保持正常结构、稳定空间位置和可操作关系；空置编织区域不得无故出现布料。禁止字幕、标题、说明文字、气泡、标志、水印、界面元素及任何画面文字。\n\nkeyframe_timeline:\n- 普通参考绑定：<Picture 1> 是王宫织造室的场景参考；<Picture 2> 是 <Subject 1> 的身份参考；<Picture 3> 是 <Subject 2> 的身份参考；<Picture 4> 是脚踏织机的道具参考。\n- KF9 — END — Clip-local 14.0 秒 — TEXT_ONLY：摄影机抵达缓慢横移轨迹的末端，以连续中全景同时容纳两架脚踏织机、关闭的房门以及受白昼照亮的空置编织区域。<Subject 1> 坐在左侧脚踏织机前，身体朝向织机，双手分别停在拉动与推动操作部位，神情轻松而一本正经。<Subject 2> 坐在右侧脚踏织机前，低头注视空置的编织区域，两根手指悬在虚空中的操作位置，带着克制的会意笑容。两者均维持煞有介事的工作姿态；编织区域没有布料，房门保持关闭。\n\ndialogue_timeline:\nNo assigned dialogue. No character is authorized to speak throughout this clip.\nNO_VOICE: no human speech, no human vocalization, no invented dialogue.\nNo Subject may visibly perform speech-like mouth or lip articulation throughout this clip; natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nsilent_characters: <Subject 1>, <Subject 2>\nNO_VOICE is not SILENT_AUDIO. This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible, including movement, object interaction and appropriate non-human sounds.\n\nsummary:\n从所提供 Previous AV 的结束视觉状态连续延伸，保持 <Subject 1>、<Subject 2>、两架织机、关闭房门及当前服装之间已经建立的空间与外观连续性。摄影机沿既有方向和轴线平稳横移，以连续中全景逐步平衡两者与两架织机的画面关系。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.0–14.0 秒：承接 Previous AV 中两者隔着左侧织机交换会意视线的持续动作，摄影机沿既有方向继续极其平稳地缓慢横移，不越轴，不突然改变高度、焦段或运动方向。开段短暂而自然地把视觉重心由 <Subject 1> 平顺转向 <Subject 2>，但始终保留两者和织机之间的整体关系，不切换成孤立肖像，也不单独追随任何一人。\n\n<Subject 1> 先收回投向 <Subject 2> 的视线，在左侧织机前由侧向姿态逐渐转正，使身体稳定朝向织机；双手依次、自然地移至拉动与推动操作部位，动作克制、连贯并符合坐姿下的身体力学。<Subject 2> 随后结束对视，转向右侧脚踏织机并在机前坐稳，视线下落至始终空置的编织区域，再抬起两根手指，使其悬停在虚空中的操作位置。所有身体转向和手部调度都通过自然重心转移完成，不瞬移、不跳姿势，也不改变两者已建立的左右位置。\n\n摄影机继续横移并做轻微构图补偿，稳定保留两者作为共同视觉主体，使两架脚踏织机、关闭的房门和白昼照亮的空置编织区域逐渐完整进入同一中全景。两者完成调度后，仅保留自然呼吸、细小的手指稳定动作和极轻微的坐姿重心调整：<Subject 1> 呈现轻松、笃定而一本正经的神情；<Subject 2> 低头维持克制的会意笑容。织机可因手部接触产生极小且合理的机械响应，但不得生成布料、纱线成品或额外工具。\n\n临近 14.0 秒时，横移平缓减速并停在 KF9 的构图位置，不产生回摆或突兀制动。<Subject 1> 与 <Subject 2> 分别稳定停留在左、右织机前的既定姿态；两架织机、关闭的房门与空置编织区域清楚可见。到达 KF9 后保持该稳定状态，不继续发展新的事件。\n\noverall_soundscape:\n维持王宫织造室内柔和、稳定的白昼室内环境底噪与轻微空间回响。摄影机移动不产生夸张机械声；身体转向和坐姿调整带来克制的衣料摩擦、座面轻响与轻微脚步或鞋底移位声。双手接触脚踏织机时产生细小的木质触碰、踏板与连接件轻微吱响，但织机不出现持续高速运转声。关闭的房门保持稳定，仅保留建筑空间自然的微弱环境声，不添加无依据的音乐或额外声源。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–14.00s: Maintain primary narrative emphasis around <Subject 1>, <Subject 2> within the established composition.",
+  "output": {
+    "optimized_prompt": "subject_definitions:\n<Subject 1> is 骗子1, a tall, slender human man around thirty-five with a long narrow warm-light face, gray-green upturned eyes, a high straight narrow nose, thin lips, a small brown mole beside the right nostril, swept-back short dark-brown wavy hair, and a neat dark-brown moustache. <Picture 2> supplies permanent identity only for <Subject 1>, not clothing, pose, or staging.\n<Subject 2> is 骗子2, a shorter, stockier human man around thirty-two with a rounded-square warm light-tan face, amber-brown round almond eyes, a short blunt nose, moderately full lips, a distinct dark mole below the left corner of his mouth, thick short chestnut curls parted from the left, and no facial hair. <Picture 3> supplies permanent identity only for <Subject 2>, not clothing, pose, or staging.\n\nsummary:\nA 14-second silent continuation in the royal palace weaving room, using one calm continuous medium-wide shot. The incoming camera direction and established axis carry through the shared opening, then the slow lateral move continues and gently settles while both seated men turn from their knowing exchange toward their respective looms and assume convincingly serious work poses.\n\nretention_analysis:\nPreserve the existing bodies, current costumes, hats, seated positions, left-right relationship, eyelines, and loom placement inherited from the previous video. <Picture 1> guides the weaving room’s architectural and daylight appearance, while the canonical scene state keeps the door closed. <Picture 4> guides the normal wooden treadle-loom structure without authorizing fabric or extra tools. The identity images apply only to permanent character identity and do not overwrite canonical staging, current costume, pose, or blocking.\n\ndetailed_description:\nContinue directly from the incoming view without replaying any completed action. During the shared opening, preserve the existing camera motion, current costumes, seated postures, and the established placement of <Subject 1> on the left and <Subject 2> on the right among the two treadle looms. Once the preserved opening has passed, continue the camera’s extremely smooth lateral travel in the same direction and on the same axis, with no abrupt height, lens, or directional change. Briefly let the composition’s attention pass naturally from <Subject 1> toward <Subject 2> while retaining both men and their relationship to the looms in the ensemble view.\n\n<Subject 1> ends his knowing glance toward <Subject 2>, relaxes his mouth into a natural closed resting position, and gradually turns from the existing side orientation to face the left loom. He remains seated in his established place and uses restrained, mechanically plausible weight shifts rather than translating across the floor. His hands move in sequence to the loom’s pulling and pushing operating areas, then settle there. His expression becomes relaxed, confident, and solemnly businesslike.\n\n<Subject 2> then ends the exchanged glance, keeps his lips naturally closed with no speech-like articulation, and turns toward the right treadle loom while remaining seated in his established place. He settles squarely before it, lowers his gaze to the weaving area, and raises two fingers into an empty operating position, suspending them deliberately in open space. His restrained knowing smile remains nonverbal. Both men may breathe, blink, make tiny finger corrections, and perform slight seated balance adjustments, but neither changes floor position or exchanges sides.\n\nThe camera continues its slow lateral movement with subtle compositional compensation, gradually forming a balanced continuous medium-wide view that clearly includes both seated men, both stable treadle looms, the closed door, and the daylight-lit weaving areas. The weaving areas remain visibly empty throughout: no cloth, finished textile, invented material, or extra tool appears. Hand contact may cause only minute, physically credible wooden responses in the loom components; the machines never enter sustained rapid operation.\n\nEase the lateral move into a smooth deceleration without rebound. Finish with <Subject 1> seated at the left loom, body facing it and hands resting at the pulling and pushing controls, while <Subject 2> sits at the right loom looking down at the empty weaving area with two fingers poised in vacant space. Hold both men in their serious pretend-work postures, with the closed door and both empty loom areas clearly visible. No one speaks, vocalizes, or performs speech-like lip movement, and no subtitles or other visible text appear.\n\noverall_soundscape:\nMaintain soft daylight room ambience and restrained natural reverberation in the royal palace weaving room. Seated turns and posture adjustments produce quiet cloth movement, subtle seat sounds, and slight shoe repositioning. Hands contacting the looms produce small wooden taps and occasional mild pedal or linkage creaks, never continuous high-speed machinery. The closed door remains still. There is no human speech or human vocalization.\n\nnon_diegetic_music:\nN/A",
+    "duration": {
+      "original_duration": 14.0,
+      "optimized_duration": 14.0,
+      "duration_delta": 0.0,
+      "duration_changed": false,
+      "reason": "The existing total clip-local budget already includes the 1.625-second shared context and provides sufficient time for the two seated turns, hand placement, continuous lateral camera completion, deceleration, and final hold without compressing action."
+    },
+    "complexity": {
+      "level": "MEDIUM",
+      "reasons": [
+        "The clip must continue seamlessly from a verified shared audiovisual prefix while preserving incoming camera direction, current costumes, poses, and blocking.",
+        "Two seated characters complete coordinated but sequential gaze, torso, and hand adjustments while the camera continues a slow lateral move.",
+        "The final ensemble composition must expose both looms, a closed door, and visibly empty weaving areas without allowing the reference images to introduce conflicting door or textile states."
+      ]
+    },
+    "risks": [
+      {
+        "code": "REFERENCE_STATE_CONFLICT",
+        "detail": "The scene reference depicts an open doorway and visible textile-like material, while the canonical outcome requires the door closed and the weaving areas empty. Canonical state must override those incidental reference details."
+      },
+      {
+        "code": "IDENTITY_COSTUME_LEAKAGE",
+        "detail": "The character identity pictures show standing poses and historical/default outfits. They must supply identity only; the current seated bodies, hats, and costumes come from previous-video continuity."
+      },
+      {
+        "code": "NONVERBAL_MOUTH_MOTION_RISK",
+        "detail": "The continuation previews show slightly open mouths. After the preserved prefix, both mouths must settle naturally without producing speech-like articulation or any human vocalization."
+      },
+      {
+        "code": "EMPTY_WEAVING_AREA_MATERIALIZATION_RISK",
+        "detail": "Loom and room references contain warp or textile cues that could encourage generated cloth. The canonical weaving areas must remain empty, with no finished fabric or additional tools."
+      }
+    ],
+    "changes": [
+      {
+        "area": "Prompt structure",
+        "before": "The upstream prompt contained compiler metadata, timing blocks, reference-authority sections, and motion-ownership DSL.",
+        "after": "Compiled into the required six H3-native prose sections.",
+        "reason": "Keep internal execution logic out of generation prose while preserving all canonical visible and audible facts."
+      },
+      {
+        "area": "Continuation execution",
+        "before": "The upstream description restated the complete clip-local interval and camera constraints.",
+        "after": "The final prose naturally preserves the shared opening and begins new action only after that incoming continuation has passed.",
+        "reason": "Avoid replaying completed previous-clip action and respect the verified masked context boundary."
+      },
+      {
+        "area": "Reference authority",
+        "before": "Scene, identity, and prop bindings were spread across several technical sections.",
+        "after": "The retained references are assigned compact role-specific scopes, with canonical door, costume, pose, blocking, and empty-area states explicitly dominant.",
+        "reason": "Prevent reference leakage while preserving useful environment, identity, and loom guidance."
+      },
+      {
+        "area": "Silent performance",
+        "before": "NO_VOICE and mouth restrictions appeared as technical directives.",
+        "after": "Both subjects visibly relax or keep naturally closed mouths while retaining breathing, blinking, and nonverbal expressions.",
+        "reason": "Translate the silent-character authority into directly observable performance."
+      }
+    ],
+    "timing_recommendations": [
+      "Preserve the incoming camera and action unchanged through the 1.625-second shared context.",
+      "After the context, allow Subject 1 to complete his turn and hand placement before Subject 2 finishes his corresponding turn and two-finger pose.",
+      "Begin broad compositional completion while the seated actions are still settling, then reserve the final portion for smooth camera deceleration and a stable endpoint hold."
+    ],
+    "canonical_visual_requirements": [
+      {
+        "id": "CVR01",
+        "requirement": "Continue the existing two-character bodies, current costumes, seated postures, left-right relation, loom placement, and incoming camera direction without resetting the scene.",
+        "source_id": "opening_state",
+        "source_excerpt": "从所提供 Previous AV 的结束视觉状态连续延伸，保持 <Subject 1>、<Subject 2>、两架织机、关闭房门及当前服装之间已经建立的空间与外观连续性。",
+        "prompt_excerpt": "During the shared opening, preserve the existing camera motion, current costumes, seated postures, and the established placement of <Subject 1> on the left and <Subject 2> on the right among the two treadle looms."
+      },
+      {
+        "id": "CVR02",
+        "requirement": "Subject 1 remains seated at the left loom, turns to face it, and places his hands at the pulling and pushing operating areas.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。",
+        "prompt_excerpt": "<Subject 1> ends his knowing glance toward <Subject 2>, relaxes his mouth into a natural closed resting position, and gradually turns from the existing side orientation to face the left loom."
+      },
+      {
+        "id": "CVR03",
+        "requirement": "Subject 2 remains seated at the right loom, turns toward it, looks down at the empty weaving area, and holds two fingers suspended in empty operating space.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。",
+        "prompt_excerpt": "<Subject 2> then ends the exchanged glance, keeps his lips naturally closed with no speech-like articulation, and turns toward the right treadle loom while remaining seated in his established place."
+      },
+      {
+        "id": "CVR04",
+        "requirement": "Both treadle looms retain normal structure and fixed placement; the weaving areas remain empty with no cloth, finished textile, or extra tools.",
+        "source_id": "opening_state",
+        "source_excerpt": "两架脚踏织机必须保持正常结构、稳定空间位置和可操作关系；空置编织区域不得无故出现布料。",
+        "prompt_excerpt": "The weaving areas remain visibly empty throughout: no cloth, finished textile, invented material, or extra tool appears."
+      },
+      {
+        "id": "CVR05",
+        "requirement": "The continuous lateral camera move ends in a balanced medium-wide view containing both men, both looms, the closed door, and the daylight-lit empty weaving areas.",
+        "source_id": "transition_1",
+        "source_excerpt": "摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景",
+        "prompt_excerpt": "The camera continues its slow lateral movement with subtle compositional compensation, gradually forming a balanced continuous medium-wide view that clearly includes both seated men, both stable treadle looms, the closed door, and the daylight-lit weaving areas."
+      },
+      {
+        "id": "CVR06",
+        "requirement": "The endpoint holds Subject 1 relaxed, confident, and serious at the left loom, while Subject 2 retains a restrained knowing smile at the right loom.",
+        "source_id": "opening_state",
+        "source_excerpt": "<Subject 1> 坐在左侧脚踏织机前，身体朝向织机，双手分别停在拉动与推动操作部位，神情轻松而一本正经。<Subject 2> 坐在右侧脚踏织机前，低头注视空置的编织区域，两根手指悬在虚空中的操作位置，带着克制的会意笑容。",
+        "prompt_excerpt": "Finish with <Subject 1> seated at the left loom, body facing it and hands resting at the pulling and pushing controls, while <Subject 2> sits at the right loom looking down at the empty weaving area with two fingers poised in vacant space."
+      },
+      {
+        "id": "CVR07",
+        "requirement": "Neither subject performs speech-like mouth articulation; natural breathing, blinking, expression, and non-speech facial movement remain allowed.",
+        "source_id": "opening_state",
+        "source_excerpt": "No Subject may visibly perform speech-like mouth or lip articulation throughout this clip; natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.",
+        "prompt_excerpt": "No one speaks, vocalizes, or performs speech-like lip movement, and no subtitles or other visible text appear."
+      }
+    ],
+    "reference_projection": [
+      {
+        "source_picture": "<Picture 1>",
+        "picture": "<Picture 1>"
+      },
+      {
+        "source_picture": "<Picture 2>",
+        "picture": "<Picture 2>"
+      },
+      {
+        "source_picture": "<Picture 3>",
+        "picture": "<Picture 3>"
+      },
+      {
+        "source_picture": "<Picture 4>",
+        "picture": "<Picture 4>"
+      }
+    ],
+    "authority_echo": {
+      "generation_mode": "EXTEND",
+      "dialogue_events": [],
+      "subject_bindings": {
+        "<Subject 1>": "骗子1",
+        "<Subject 2>": "骗子2"
+      },
+      "reference_bindings": [
+        {
+          "picture": "<Picture 1>",
+          "type": "SCENE",
+          "subject": null,
+          "source_name": "王宫织造室",
+          "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 2>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 1>",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 3>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 2>",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "type": "PROP",
+          "subject": null,
+          "source_name": "脚踏织机",
+          "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "state_index": null,
+          "role": null
+        }
+      ],
+      "visual_anchor_order": [],
+      "temporal_anchor_order": [],
+      "allowed_dialogue_overlaps": [],
+      "continuation": {
+        "mode": "VIDEO_CONTINUATION",
+        "binding_verified": true,
+        "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+        "source_sha256": "27c604c27239d74e464b25dc0e752b1b832868021305ff6e934cf0dd25f03cb1",
+        "previous_frames": 1926,
+        "fps": 24,
+        "context_frames": 39,
+        "overlap_frames": 39,
+        "overlap_seconds": 1.625,
+        "source_start_frame": 1887,
+        "source_end_frame_exclusive": 1926,
+        "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+        "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+        "cumulative_start_frame": 1887,
+        "earliest_new_dialogue": 1.625,
+        "audio_hard_preserve_until": 1.425,
+        "audio_feather_until": 1.625,
+        "audio_feather_ticks": 8,
+        "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+        "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "assembly": "previous_frames + target_frames - context_frames",
+        "video_overlap": "blend source tail with decoded preserved prefix",
+        "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+      },
+      "anchor_policy": {
+        "version": 1,
+        "catalog": [],
+        "canonical_visual_sources": [
+          {
+            "id": "opening_state",
+            "text": "subject_definitions:\n- <Subject 1> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、暖浅肤色、灰绿色细长上挑双眼皮眼、高直窄鼻、薄唇，右侧鼻翼旁有小褐痣；深棕色微卷短发向后梳理，发际线两侧略高，留整齐的深棕色小胡子。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n- <Subject 2> is 骗子2，一名约三十二岁、身高较矮且略显敦实的人类男性；圆中带方的脸、暖调浅麦色皮肤、琥珀褐色圆杏眼、较短且圆钝的鼻子、中等偏厚的嘴唇，左侧嘴角下方有明显小黑痣；栗褐色浓密短卷发从左侧分开，面部无胡须。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n\nofficial_character_identity_lock:\n参考视觉锚点是在各自时间位置确立当前人物视觉身份的首要视觉权威；官方人物描述仅作为防止跨帧身份漂移的补充约束，不得覆盖参考视觉锚点中清楚可见的身份特征。对每个 Subject，始终保持同一张脸、年龄、身体比例、发型或胡须、肤色、永久标记、身份定义配饰及整体人物唯一性，不得重新设计、美化、老化、年轻化、换脸、换色或替换人物。\n\n稳定身份与当前服装是彼此分离的连续性领域。当前服装服从按时间排列的权威视觉条件；不得恢复、叠穿、混穿、部分露出或融合任何冲突的历史或默认服装。阴影、暗光、冷暖调色、距离、环境照明和运动模糊不得被解释为肤色、发色或服装颜色发生改变。若稳定身份细节因姿态、遮挡、距离或照明暂时不清晰，在重新可见时必须正确保持；若文本人物描述与视觉锚点中清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n姿态、表情、视线、身体朝向、空间位置和自然动作可依照当前过渡变化。只允许已建立的 <Subject 1> 与 <Subject 2>，不得复制人物、交换身份、无依据令人物出现或消失、镜像翻转左右关系、重置场景或新增人物与道具。两架脚踏织机必须保持正常结构、稳定空间位置和可操作关系；空置编织区域不得无故出现布料。禁止字幕、标题、说明文字、气泡、标志、水印、界面元素及任何画面文字。\n\nkeyframe_timeline:\n- 普通参考绑定：<Picture 1> 是王宫织造室的场景参考；<Picture 2> 是 <Subject 1> 的身份参考；<Picture 3> 是 <Subject 2> 的身份参考；<Picture 4> 是脚踏织机的道具参考。\n- KF9 — END — Clip-local 14.0 秒 — TEXT_ONLY：摄影机抵达缓慢横移轨迹的末端，以连续中全景同时容纳两架脚踏织机、关闭的房门以及受白昼照亮的空置编织区域。<Subject 1> 坐在左侧脚踏织机前，身体朝向织机，双手分别停在拉动与推动操作部位，神情轻松而一本正经。<Subject 2> 坐在右侧脚踏织机前，低头注视空置的编织区域，两根手指悬在虚空中的操作位置，带着克制的会意笑容。两者均维持煞有介事的工作姿态；编织区域没有布料，房门保持关闭。\n\ndialogue_timeline:\nNo assigned dialogue. No character is authorized to speak throughout this clip.\nNO_VOICE: no human speech, no human vocalization, no invented dialogue.\nNo Subject may visibly perform speech-like mouth or lip articulation throughout this clip; natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nsilent_characters: <Subject 1>, <Subject 2>\nNO_VOICE is not SILENT_AUDIO. This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible, including movement, object interaction and appropriate non-human sounds.\n\nsummary:\n从所提供 Previous AV 的结束视觉状态连续延伸，保持 <Subject 1>、<Subject 2>、两架织机、关闭房门及当前服装之间已经建立的空间与外观连续性。摄影机沿既有方向和轴线平稳横移，以连续中全景逐步平衡两者与两架织机的画面关系。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.0–14.0 秒：承接 Previous AV 中两者隔着左侧织机交换会意视线的持续动作，摄影机沿既有方向继续极其平稳地缓慢横移，不越轴，不突然改变高度、焦段或运动方向。开段短暂而自然地把视觉重心由 <Subject 1> 平顺转向 <Subject 2>，但始终保留两者和织机之间的整体关系，不切换成孤立肖像，也不单独追随任何一人。\n\n<Subject 1> 先收回投向 <Subject 2> 的视线，在左侧织机前由侧向姿态逐渐转正，使身体稳定朝向织机；双手依次、自然地移至拉动与推动操作部位，动作克制、连贯并符合坐姿下的身体力学。<Subject 2> 随后结束对视，转向右侧脚踏织机并在机前坐稳，视线下落至始终空置的编织区域，再抬起两根手指，使其悬停在虚空中的操作位置。所有身体转向和手部调度都通过自然重心转移完成，不瞬移、不跳姿势，也不改变两者已建立的左右位置。\n\n摄影机继续横移并做轻微构图补偿，稳定保留两者作为共同视觉主体，使两架脚踏织机、关闭的房门和白昼照亮的空置编织区域逐渐完整进入同一中全景。两者完成调度后，仅保留自然呼吸、细小的手指稳定动作和极轻微的坐姿重心调整：<Subject 1> 呈现轻松、笃定而一本正经的神情；<Subject 2> 低头维持克制的会意笑容。织机可因手部接触产生极小且合理的机械响应，但不得生成布料、纱线成品或额外工具。\n\n临近 14.0 秒时，横移平缓减速并停在 KF9 的构图位置，不产生回摆或突兀制动。<Subject 1> 与 <Subject 2> 分别稳定停留在左、右织机前的既定姿态；两架织机、关闭的房门与空置编织区域清楚可见。到达 KF9 后保持该稳定状态，不继续发展新的事件。\n\noverall_soundscape:\n维持王宫织造室内柔和、稳定的白昼室内环境底噪与轻微空间回响。摄影机移动不产生夸张机械声；身体转向和坐姿调整带来克制的衣料摩擦、座面轻响与轻微脚步或鞋底移位声。双手接触脚踏织机时产生细小的木质触碰、踏板与连接件轻微吱响，但织机不出现持续高速运转声。关闭的房门保持稳定，仅保留建筑空间自然的微弱环境声，不添加无依据的音乐或额外声源。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–14.00s: Maintain primary narrative emphasis around <Subject 1>, <Subject 2> within the established composition."
+          },
+          {
+            "id": "transition_1",
+            "text": "承接两人隔着左侧织机交换会意视线的状态，摄影机沿既有方向继续缓慢横移，不改变轴线；最初短暂地将视觉重心从骗子1自然移向骗子2，同时始终以两人和织机关系为主体。骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。两人完成调度后，各自在对应织机前保持轻松而煞有介事的工作姿态，仅保留自然呼吸和极小的重心调整；骗子1神情笃定，骗子2维持克制的会意笑容。摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景，不单独追随任何一人。横移在终点平缓停住，两人分别停在左、右织机前的既定姿态，编织区域全程没有布料，房门全程保持关闭。"
+          }
+        ],
+        "drop_binding": {
+          "supported": true,
+          "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+          "reference_node_id": "55"
+        },
+        "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+      }
+    },
+    "av_timeline": {
+      "original_duration": 14.0,
+      "optimized_duration": 14.0,
+      "duration_delta": 0.0,
+      "duration_changed": false,
+      "reason": "The original total clip-local duration is feasible when the shared context is counted once and the dual seated actions overlap naturally with the continuing lateral camera move.",
+      "dialogue_events": [],
+      "handoffs": [],
+      "anchors": [],
+      "execution_phases": [
+        {
+          "id": "E00",
+          "start": 0.0,
+          "end": 1.625,
+          "type": "CONTEXT",
+          "description": "Preserve the verified previous-video prefix, including its incoming camera motion, current costumes, seated postures, loom relationship, and ongoing exchanged glance; schedule no new action inside this interval."
+        },
+        {
+          "id": "E01",
+          "start": 1.625,
+          "end": 4.8,
+          "type": "ACTION",
+          "description": "Subject 1 withdraws his gaze, naturally settles his mouth, turns toward the left loom while remaining seated, and moves his hands sequentially toward the pulling and pushing controls."
+        },
+        {
+          "id": "E02",
+          "start": 1.625,
+          "end": 12.8,
+          "type": "CAMERA",
+          "description": "Continue the inherited slow lateral move on the established axis, briefly transferring compositional attention toward Subject 2 while retaining the two-person loom relationship, then broaden and balance the ensemble."
+        },
+        {
+          "id": "E03",
+          "start": 4.0,
+          "end": 8.4,
+          "type": "ACTION",
+          "description": "Subject 2 ends the shared glance, naturally settles his lips, turns toward the right loom while remaining seated, lowers his gaze to the empty weaving area, and raises two fingers into the vacant operating position."
+        },
+        {
+          "id": "E04",
+          "start": 8.4,
+          "end": 12.8,
+          "type": "ACTION",
+          "description": "Both subjects settle into restrained pretend-work poses with natural breathing, blinking, tiny finger corrections, and physically minor loom response; the weaving areas remain empty and the door remains closed."
+        },
+        {
+          "id": "E05",
+          "start": 12.8,
+          "end": 13.4,
+          "type": "CAMERA",
+          "description": "Smoothly decelerate the lateral move into the balanced medium-wide endpoint without rebound or abrupt braking."
+        },
+        {
+          "id": "E06",
+          "start": 13.4,
+          "end": 14.0,
+          "type": "FINAL_SETTLE",
+          "description": "Hold the completed endpoint with Subject 1 at the left loom, Subject 2 at the right loom, both looms, the closed door, and the empty daylight-lit weaving areas clearly visible."
+        }
+      ]
+    }
+  },
+  "authority": {
+    "generation_mode": "EXTEND",
+    "dialogue_events": [],
+    "subject_bindings": {
+      "<Subject 1>": "骗子1",
+      "<Subject 2>": "骗子2"
+    },
+    "reference_bindings": [
+      {
+        "picture": "<Picture 1>",
+        "type": "SCENE",
+        "subject": null,
+        "source_name": "王宫织造室",
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 2>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 1>",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 3>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 2>",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 4>",
+        "type": "PROP",
+        "subject": null,
+        "source_name": "脚踏织机",
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "state_index": null,
+        "role": null
+      }
+    ],
+    "visual_anchor_order": [],
+    "temporal_anchor_order": [],
+    "allowed_dialogue_overlaps": [],
+    "continuation": {
+      "mode": "VIDEO_CONTINUATION",
+      "binding_verified": true,
+      "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+      "source_sha256": "27c604c27239d74e464b25dc0e752b1b832868021305ff6e934cf0dd25f03cb1",
+      "previous_frames": 1926,
+      "fps": 24,
+      "context_frames": 39,
+      "overlap_frames": 39,
+      "overlap_seconds": 1.625,
+      "source_start_frame": 1887,
+      "source_end_frame_exclusive": 1926,
+      "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+      "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+      "cumulative_start_frame": 1887,
+      "earliest_new_dialogue": 1.625,
+      "audio_hard_preserve_until": 1.425,
+      "audio_feather_until": 1.625,
+      "audio_feather_ticks": 8,
+      "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+      "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "assembly": "previous_frames + target_frames - context_frames",
+      "video_overlap": "blend source tail with decoded preserved prefix",
+      "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+    },
+    "anchor_policy": {
+      "version": 1,
+      "catalog": [],
+      "canonical_visual_sources": [
+        {
+          "id": "opening_state",
+          "text": "subject_definitions:\n- <Subject 1> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、暖浅肤色、灰绿色细长上挑双眼皮眼、高直窄鼻、薄唇，右侧鼻翼旁有小褐痣；深棕色微卷短发向后梳理，发际线两侧略高，留整齐的深棕色小胡子。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n- <Subject 2> is 骗子2，一名约三十二岁、身高较矮且略显敦实的人类男性；圆中带方的脸、暖调浅麦色皮肤、琥珀褐色圆杏眼、较短且圆钝的鼻子、中等偏厚的嘴唇，左侧嘴角下方有明显小黑痣；栗褐色浓密短卷发从左侧分开，面部无胡须。保持其年龄、比例、面部结构、独特标记及整体主体身份。当前服装仅延续权威时间视觉条件已经建立的状态，不采用角色资产中的历史或默认服装进行覆盖、叠加或混合。\n\nofficial_character_identity_lock:\n参考视觉锚点是在各自时间位置确立当前人物视觉身份的首要视觉权威；官方人物描述仅作为防止跨帧身份漂移的补充约束，不得覆盖参考视觉锚点中清楚可见的身份特征。对每个 Subject，始终保持同一张脸、年龄、身体比例、发型或胡须、肤色、永久标记、身份定义配饰及整体人物唯一性，不得重新设计、美化、老化、年轻化、换脸、换色或替换人物。\n\n稳定身份与当前服装是彼此分离的连续性领域。当前服装服从按时间排列的权威视觉条件；不得恢复、叠穿、混穿、部分露出或融合任何冲突的历史或默认服装。阴影、暗光、冷暖调色、距离、环境照明和运动模糊不得被解释为肤色、发色或服装颜色发生改变。若稳定身份细节因姿态、遮挡、距离或照明暂时不清晰，在重新可见时必须正确保持；若文本人物描述与视觉锚点中清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n姿态、表情、视线、身体朝向、空间位置和自然动作可依照当前过渡变化。只允许已建立的 <Subject 1> 与 <Subject 2>，不得复制人物、交换身份、无依据令人物出现或消失、镜像翻转左右关系、重置场景或新增人物与道具。两架脚踏织机必须保持正常结构、稳定空间位置和可操作关系；空置编织区域不得无故出现布料。禁止字幕、标题、说明文字、气泡、标志、水印、界面元素及任何画面文字。\n\nkeyframe_timeline:\n- 普通参考绑定：<Picture 1> 是王宫织造室的场景参考；<Picture 2> 是 <Subject 1> 的身份参考；<Picture 3> 是 <Subject 2> 的身份参考；<Picture 4> 是脚踏织机的道具参考。\n- KF9 — END — Clip-local 14.0 秒 — TEXT_ONLY：摄影机抵达缓慢横移轨迹的末端，以连续中全景同时容纳两架脚踏织机、关闭的房门以及受白昼照亮的空置编织区域。<Subject 1> 坐在左侧脚踏织机前，身体朝向织机，双手分别停在拉动与推动操作部位，神情轻松而一本正经。<Subject 2> 坐在右侧脚踏织机前，低头注视空置的编织区域，两根手指悬在虚空中的操作位置，带着克制的会意笑容。两者均维持煞有介事的工作姿态；编织区域没有布料，房门保持关闭。\n\ndialogue_timeline:\nNo assigned dialogue. No character is authorized to speak throughout this clip.\nNO_VOICE: no human speech, no human vocalization, no invented dialogue.\nNo Subject may visibly perform speech-like mouth or lip articulation throughout this clip; natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nsilent_characters: <Subject 1>, <Subject 2>\nNO_VOICE is not SILENT_AUDIO. This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible, including movement, object interaction and appropriate non-human sounds.\n\nsummary:\n从所提供 Previous AV 的结束视觉状态连续延伸，保持 <Subject 1>、<Subject 2>、两架织机、关闭房门及当前服装之间已经建立的空间与外观连续性。摄影机沿既有方向和轴线平稳横移，以连续中全景逐步平衡两者与两架织机的画面关系。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.0–14.0 秒：承接 Previous AV 中两者隔着左侧织机交换会意视线的持续动作，摄影机沿既有方向继续极其平稳地缓慢横移，不越轴，不突然改变高度、焦段或运动方向。开段短暂而自然地把视觉重心由 <Subject 1> 平顺转向 <Subject 2>，但始终保留两者和织机之间的整体关系，不切换成孤立肖像，也不单独追随任何一人。\n\n<Subject 1> 先收回投向 <Subject 2> 的视线，在左侧织机前由侧向姿态逐渐转正，使身体稳定朝向织机；双手依次、自然地移至拉动与推动操作部位，动作克制、连贯并符合坐姿下的身体力学。<Subject 2> 随后结束对视，转向右侧脚踏织机并在机前坐稳，视线下落至始终空置的编织区域，再抬起两根手指，使其悬停在虚空中的操作位置。所有身体转向和手部调度都通过自然重心转移完成，不瞬移、不跳姿势，也不改变两者已建立的左右位置。\n\n摄影机继续横移并做轻微构图补偿，稳定保留两者作为共同视觉主体，使两架脚踏织机、关闭的房门和白昼照亮的空置编织区域逐渐完整进入同一中全景。两者完成调度后，仅保留自然呼吸、细小的手指稳定动作和极轻微的坐姿重心调整：<Subject 1> 呈现轻松、笃定而一本正经的神情；<Subject 2> 低头维持克制的会意笑容。织机可因手部接触产生极小且合理的机械响应，但不得生成布料、纱线成品或额外工具。\n\n临近 14.0 秒时，横移平缓减速并停在 KF9 的构图位置，不产生回摆或突兀制动。<Subject 1> 与 <Subject 2> 分别稳定停留在左、右织机前的既定姿态；两架织机、关闭的房门与空置编织区域清楚可见。到达 KF9 后保持该稳定状态，不继续发展新的事件。\n\noverall_soundscape:\n维持王宫织造室内柔和、稳定的白昼室内环境底噪与轻微空间回响。摄影机移动不产生夸张机械声；身体转向和坐姿调整带来克制的衣料摩擦、座面轻响与轻微脚步或鞋底移位声。双手接触脚踏织机时产生细小的木质触碰、踏板与连接件轻微吱响，但织机不出现持续高速运转声。关闭的房门保持稳定，仅保留建筑空间自然的微弱环境声，不添加无依据的音乐或额外声源。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF8. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–14.00s: Maintain primary narrative emphasis around <Subject 1>, <Subject 2> within the established composition."
+        },
+        {
+          "id": "transition_1",
+          "text": "承接两人隔着左侧织机交换会意视线的状态，摄影机沿既有方向继续缓慢横移，不改变轴线；最初短暂地将视觉重心从骗子1自然移向骗子2，同时始终以两人和织机关系为主体。骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。两人完成调度后，各自在对应织机前保持轻松而煞有介事的工作姿态，仅保留自然呼吸和极小的重心调整；骗子1神情笃定，骗子2维持克制的会意笑容。摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景，不单独追随任何一人。横移在终点平缓停住，两人分别停在左、右织机前的既定姿态，编织区域全程没有布料，房门全程保持关闭。"
+        }
+      ],
+      "drop_binding": {
+        "supported": true,
+        "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+        "reference_node_id": "55"
+      },
+      "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+    }
+  },
+  "initial": {
+    "duration": 14.0,
+    "dialogue_events": [],
+    "visual_anchors": [],
+    "temporal_anchors": []
+  },
+  "limits": {
+    "minimum": 4.0,
+    "maximum": 20.0,
+    "absolute_maximum": 20.0,
+    "frame_rule": "existing frozen workflow duration-to-frames conversion"
+  }
+}

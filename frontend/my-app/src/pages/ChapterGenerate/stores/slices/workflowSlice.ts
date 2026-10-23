@@ -33,11 +33,13 @@ export interface WorkflowSliceState {
 
   /** 各 Tab 的完成状态 */
   tabProgress: Record<number, boolean>;
+  hdTargetMegapixels: number;
 }
 
 export interface WorkflowSliceActions {
   /** 切换 Tab */
   setCurrentTab: (index: number) => void;
+  setHdTargetMegapixels: (value: number) => void;
 
   /** 标记 Tab 为完成 */
   markTabComplete: (tabIndex: number) => void;
@@ -63,8 +65,9 @@ const getInitialState = (): WorkflowSliceState => {
     if (saved) {
       const parsed = JSON.parse(saved);
       return {
-        currentTab: parsed.currentTab ?? 0,
+        currentTab: Number.isInteger(parsed.currentTab) && parsed.currentTab >= 0 && parsed.currentTab <= 4 ? parsed.currentTab : 0,
         tabProgress: parsed.tabProgress ?? {},
+        hdTargetMegapixels: Number(parsed.hdTargetMegapixels) || 1.0,
       };
     }
   } catch (e) {
@@ -74,6 +77,7 @@ const getInitialState = (): WorkflowSliceState => {
   return {
     currentTab: 0,
     tabProgress: {},
+    hdTargetMegapixels: 1.0,
   };
 };
 
@@ -91,7 +95,12 @@ export const createWorkflowSlice: StateCreator<
     ...state,
 
     setCurrentTab: (index: number) => {
-      _set({ currentTab: index });
+      _set({ currentTab: Math.max(0, Math.min(4, Math.trunc(index))) });
+      _get().saveWorkflowState();
+    },
+
+    setHdTargetMegapixels: (value: number) => {
+      _set({ hdTargetMegapixels: value });
       _get().saveWorkflowState();
     },
 
@@ -113,10 +122,10 @@ export const createWorkflowSlice: StateCreator<
     // 持久化方法
     saveWorkflowState: () => {
       try {
-        const { currentTab, tabProgress } = _get();
+        const { currentTab, tabProgress, hdTargetMegapixels } = _get();
         localStorage.setItem(
           getWorkflowStorageKey(),
-          JSON.stringify({ currentTab, tabProgress })
+          JSON.stringify({ currentTab, tabProgress, hdTargetMegapixels })
         );
       } catch (e) {
         console.warn('Failed to save workflow state to localStorage:', e);
@@ -129,8 +138,9 @@ export const createWorkflowSlice: StateCreator<
         if (saved) {
           const parsed = JSON.parse(saved);
           _set({
-            currentTab: parsed.currentTab ?? 0,
+            currentTab: Number.isInteger(parsed.currentTab) && parsed.currentTab >= 0 && parsed.currentTab <= 4 ? parsed.currentTab : 0,
             tabProgress: parsed.tabProgress ?? {},
+            hdTargetMegapixels: Number(parsed.hdTargetMegapixels) || 1.0,
           });
           return;
         }

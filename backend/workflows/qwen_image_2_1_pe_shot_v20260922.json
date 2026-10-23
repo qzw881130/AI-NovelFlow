@@ -1,0 +1,289 @@
+{
+  "470": {
+    "inputs": {
+      "image": "shot_001_bf2c13bc_characters.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#470 Load Image （合并角色图）"
+    }
+  },
+  "477": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#477 Load Diffusion Model"
+    }
+  },
+  "478": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#478 Load CLIP"
+    }
+  },
+  "479": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#479 Load VAE"
+    }
+  },
+  "480": {
+    "inputs": {
+      "width": [
+        "517",
+        0
+      ],
+      "height": [
+        "518",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "#480 Empty Latent Image"
+    }
+  },
+  "481": {
+    "inputs": {
+      "samples": [
+        "482",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#481 VAE Decode"
+    }
+  },
+  "482": {
+    "inputs": {
+      "seed": 999,
+      "steps": 50,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "484",
+        0
+      ],
+      "positive": [
+        "485",
+        0
+      ],
+      "negative": [
+        "485",
+        1
+      ],
+      "latent_image": [
+        "483",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#482 KSampler"
+    }
+  },
+  "483": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "485",
+        2
+      ],
+      "on_true": [
+        "480",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#483 If/Else Switch"
+    }
+  },
+  "484": {
+    "inputs": {
+      "device": "auto",
+      "dtype": "default",
+      "model": [
+        "477",
+        0
+      ]
+    },
+    "class_type": "QwenImage21Cache",
+    "_meta": {
+      "title": "#484 Qwen Image 2.1 Cache"
+    }
+  },
+  "485": {
+    "inputs": {
+      "prompt": [
+        "519",
+        0
+      ],
+      "negative_prompt": "",
+      "resolution": 1280,
+      "clip": [
+        "478",
+        0
+      ],
+      "images.image_1": [
+        "470",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ],
+      "images.image_12": [
+        "510",
+        0
+      ],
+      "images.image_5": [
+        "503",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "#485 Text Encode Qwen Image 2.1"
+    }
+  },
+  "494": {
+    "inputs": {
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "481",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "#494 Save Image (Advanced)"
+    }
+  },
+  "501": {
+    "inputs": {
+      "text": "The user's raw input prompt is in Chinese. According to the instructions, if the user's input is in any language other than English, the output must be in that same language—Chinese. Wait, let me re-read: \"Output language: The output must be in the same language as the user's input. If the user's input is in any language other than English, the output must be in that same language (e.g., if the user's input is in Korean, the output should also be in Korean).\"\n\nThe user's input is in Chinese, so the output should be in Chinese.\n\nNow let me analyze the task. This is not a multi-person conversation scene—it's a single-subject image generation task with reference images. The system prompt is for multi-person video generation, but the actual input is a detailed static scene description involving reference images. I need to rewrite this into a coherent, fluent paragraph describing the scene.\n\nLet me carefully understand the content of the user's prompt:\n\n- <Picture 1> = character reference for the emperor: an elderly man with gray curly hair, no beard (actually clean-shaven or slight stubble? Looking at the image: an elderly man with gray curly hair, plump build, wearing a purple robe with gold embroidery). Identity features: face, hairstyle/hair color, age impression, body proportions, accessories (earrings visible), stable identity.\n- <Picture 2> = palace scene reference: grand hall with red marble columns, gold ornamentation, tall arched windows on the right, tapestries, marble floor, warm sunlight streaming in.\n- <Picture 3> = prop reference for the \"new garment\": a white/cream ceremonial robe with gold embroidery, standing collar, wide sleeves, front opening with gold ornamental trim.\n\nFinal frame: a single static first frame inside the palace inner chamber. Morning soft warm golden sunlight slants in from tall carved window lattices on the left side of the frame, illuminating vermilion columns and gold curtains inside the hall. Camera is medium shot, position slightly below eye level, shooting inward from the direction of the hall door. Environment structure, space, architectural materials, overall visual consistent with <Picture 2>, but final composition/camera/spatial relations follow the shot description, not copying <Picture 2>'s original camera viewpoint.\n\nOnly one visible person: the emperor. No second person, no passersby, attendants, guards, background crowd, blurred figures",
+      "anything": [
+        "519",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#501 Show Any"
+    }
+  },
+  "503": {
+    "inputs": {
+      "image": "新衣_20260921_100130.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#503 Load Image （道具）"
+    }
+  },
+  "510": {
+    "inputs": {
+      "image": "皇宫_20260921_100028.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#510 Load Image（场景）"
+    }
+  },
+  "515": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "494",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#515 Save Image"
+    }
+  },
+  "516": {
+    "inputs": {
+      "prompt": "<Picture 1> 是当前 Shot 的角色合并参考图，其中包含“皇帝”的正式身份与稳定外观参考；只用于锁定皇帝的面部、发型/毛色、胡须、年龄感、体型比例、配饰与稳定身份特征，不得交换身份，不得把合并图的排版、展示站位、背景或无关元素带入最终画面。<Picture 3> 是当前 Shot 的道具合并参考图，其中包含“新衣”，仅用于“新衣”的外观、材质、纹样与形制参考；皇帝身上所穿的华丽新衣以 <Picture 3> 中“新衣”的正式外观为准，不得把道具合并图的背景、展示排版、展示台或其他未列物体带入画面。<Picture 2> 是“皇宫”的正式场景参考图，仅用于环境结构、建筑、空间、时代材质与总体视觉参考；不得从 <Picture 2> 引入人物、额外剧情道具或剧情主体。\n\n最终画面为皇宫内殿的单一静态首帧：清晨柔和的暖金色阳光从画面左侧高大的雕花窗棂斜射入内，照亮殿内朱红立柱与金色帷幔。摄影机为中景，机位略低于视线水平，从殿门方向朝内拍摄。环境结构、殿内空间、建筑材质与总体视觉与 <Picture 2> 保持一致，但最终构图、机位与空间关系以 shot.description 为准，不复制 <Picture 2> 的原始摄影机视角。\n\n画面中只出现皇帝一名可见人物，共 1 名可见人物；禁止第 2 人，禁止路人、侍从、守卫、背景群众、模糊人影、人物剪影、镜中额外人物、反射人物、画像人物或任何类人形装饰。皇帝位于画面中央偏右，身体与面部朝向画面左侧的铜镜，视线落在镜中自身衣袍上，双手停在整理身上华丽新衣衣襟的单一静态瞬间。皇帝的面部、发型、胡须、年龄感、体型比例与稳定身份特征严格继承 <Picture 1>，不得把 <Picture 1> 中展示排版或姿态当作最终剧情站位；皇帝所穿华丽新衣的外观、材质、纹样与形制以 <Picture 3> 中“新衣”为准。铜镜按 shot.description 作为殿内左侧既定陈设出现，不声称继承任何道具参考图外观，镜面中仅允许映出皇帝自身衣袍或衣襟的局部倒影，不得生成第二个完整人物、第二张脸、背后人影或额外反射人物。\n\n这是静态生图，只表现皇帝正在整理衣襟的一个瞬间，不得同时表现后续侧身端详镜中自己、镜头推进或其他连续过程。皇帝嘴部自然闭合或保持自然静态表情，不做明显说话口型；不生成任何对白、字幕、气泡、标题或画面文字。除“新衣”与 description 明确出现的铜镜外，不添加 shot.props 之外的剧情关键道具；不得因为角色身份自动添加武器、皇冠以外的未列物品或专属物件。\n\n保持 anime style, high quality, detailed, professional artwork 风格，电影级构图，真实一致的人体尺度，正确透视，自然遮挡，合理景深。禁止额外手指或肢体、融合脸、重复人物、多余人物、身份串图、现代物品、文字、字幕、logo、水印、UI、边框、拼贴画、角色设定四视图、多时间状态同屏。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#516 #-1 ⚙️ CR Prompt Text(提示词)"
+    }
+  },
+  "517": {
+    "inputs": {
+      "value": 2016
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#517 #-1 Int 宽度"
+    }
+  },
+  "518": {
+    "inputs": {
+      "value": 1152
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#518 #-1 Int 高度"
+    }
+  },
+  "519": {
+    "inputs": {
+      "user_prompt": [
+        "516",
+        0
+      ],
+      "task": "edit",
+      "aspect_ratio": "auto",
+      "output_language": "auto",
+      "transparent_rgba": false,
+      "t2i_model": "pe_t2i_heretic-Q4_K_M.gguf",
+      "edit_model": "Qwen-Image-2.1-PE-I2I.Q4_K_M.gguf",
+      "vision_model": "Auto",
+      "model_lifetime": "after_run",
+      "seed": 42,
+      "image_1": [
+        "470",
+        0
+      ],
+      "image_2": [
+        "510",
+        0
+      ],
+      "image_3": [
+        "503",
+        0
+      ]
+    },
+    "class_type": "QwenPERewriteT8",
+    "_meta": {
+      "title": "#498 Qwen Image 2.1 PE Rewrite T8"
+    }
+  }
+}

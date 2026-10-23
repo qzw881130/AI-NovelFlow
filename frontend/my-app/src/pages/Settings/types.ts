@@ -12,17 +12,29 @@ export interface Workflow {
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
+  availableForNewTasks?: boolean;
   nodeMapping?: {
     prompt_node_id?: string;
     save_image_node_id?: string;
     width_node_id?: string;
     height_node_id?: string;
     video_save_node_id?: string;
+    clip_video_output_node_id?: string;
     max_side_node_id?: string;
     megapixels_node_id?: string;
     megapixels_value?: string;
     reference_image_node_id?: string;
     load_image_node_id?: string;
+    load_image_node_1?: string;
+    load_image_node_2?: string;
+    load_image_node_3?: string;
+    load_image_node_4?: string;
+    load_image_node_5?: string;
+    load_image_node_6?: string;
+    load_image_node_7?: string;
+    load_image_node_8?: string;
+    load_image_node_9?: string;
+    reference_to_video_node_id?: string;
     frame_count_node_id?: string;
     duration_seconds_node_id?: string;
     first_image_node_id?: string;
@@ -38,6 +50,15 @@ export interface Workflow {
     reference_audio_node_id?: string;
     text_node_id?: string;
     emotion_prompt_node_id?: string;
+    load_video_node_id?: string;
+    scale_node_id?: string;
+    scale_value?: string;
+    custom_keyframes_node_id?: string;
+    custom_keyframes_node_ids?: string[];
+    second_pass_upscale_step_node_id?: string;
+    second_pass_upscale_step?: string;
+    second_pass_upscale_scale_node_id?: string;
+    second_pass_upscale_scale?: string;
   };
   extension?: {
     [key: string]: any;
@@ -65,6 +86,12 @@ export interface SettingsFormData {
   llmMaxTokens?: number;
   llmTemperature?: string;
   llmTimeout?: number;
+  autoImageReviewEnabled?: boolean;
+  videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
+  autoApproveFirstAppearanceNames?: boolean;
+  generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   proxy: ProxyConfig;
   comfyUIHost: string;
   comfyUITimeout: number;
@@ -73,10 +100,13 @@ export interface SettingsFormData {
 
 export interface MappingForm {
   promptNodeId: string;
+  appearanceNodeId?: string;
+  styleNodeId?: string;
   saveImageNodeId: string;
   widthNodeId: string;
   heightNodeId: string;
   videoSaveNodeId: string;
+  clipVideoOutputNodeId?: string;
   maxSideNodeId: string;
   megapixelsNodeId: string;
   megapixelsValue: string;
@@ -95,15 +125,26 @@ export interface MappingForm {
   referenceAudioNodeId: string;
   textNodeId: string;
   emotionPromptNodeId: string;
+  loadVideoNodeId?: string;
+  scaleNodeId?: string;
+  scaleValue?: string;
+  customKeyframesNodeId?: string;
+  secondPassUpscaleStepNodeId?: string;
+  secondPassUpscaleStep?: string;
+  secondPassUpscaleScaleNodeId?: string;
+  secondPassUpscaleScale?: string;
 }
 
 export interface AvailableNodes {
   clipTextEncode: string[];
   saveImage: string[];
   easyInt: string[];
+  secondPassStepNodes: string[];
+  secondPassScaleNodes: string[];
   easyFloat: string[];
   crPromptText: string[];
-  vhsVideoCombine: string[];
+  videoCombine: string[];
+  h3VideoOutputs: string[];
   saveVideo: string[];
   loadImage: string[];
   // 音色设计相关节点
@@ -113,4 +154,7 @@ export interface AvailableNodes {
   // 音频生成相关节点
   loadAudio: string[];
   qwen3TtsVoiceClone: string[];
+  loadVideo: string[];
+  customKeyframes: string[];
+  referenceToVideo: string[];
 }

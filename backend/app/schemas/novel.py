@@ -10,6 +10,7 @@ class NovelBase(BaseModel):
     author: str = ""
     description: str = ""
     # 提示词模板关联（每种类型可选择不同模板）
+    story_world_context_prompt_template_id: Optional[str] = Field(None, alias="storyWorldContextPromptTemplateId")
     style_prompt_template_id: Optional[str] = Field(None, alias="stylePromptTemplateId")  # 风格提示词模板
     character_parse_prompt_template_id: Optional[str] = Field(None, alias="characterParsePromptTemplateId")  # 角色解析提示词模板
     scene_parse_prompt_template_id: Optional[str] = Field(None, alias="sceneParsePromptTemplateId")  # 场景解析提示词模板
@@ -17,21 +18,54 @@ class NovelBase(BaseModel):
     prompt_template_id: Optional[str] = Field(None, alias="promptTemplateId")  # 角色生成提示词模板
     scene_prompt_template_id: Optional[str] = Field(None, alias="scenePromptTemplateId")  # 场景生成提示词模板
     prop_prompt_template_id: Optional[str] = Field(None, alias="propPromptTemplateId")  # 道具生成提示词模板
+    scene_setting_prompt_template_id: Optional[str] = Field(None, alias="sceneSettingPromptTemplateId")
+    prop_appearance_prompt_template_id: Optional[str] = Field(None, alias="propAppearancePromptTemplateId")
     chapter_split_prompt_template_id: Optional[str] = Field(None, alias="chapterSplitPromptTemplateId")  # 分镜拆分提示词模板
     keyframe_description_prompt_template_id: Optional[str] = Field(None, alias="keyframeDescriptionPromptTemplateId")  # 关键帧描述提示词模板
     shot_image_prompt_template_id: Optional[str] = Field(None, alias="shotImagePromptTemplateId")  # 主分镜图提示词模板
-    video_mode_recommender_prompt_template_id: Optional[str] = Field(None, alias="videoModeRecommenderPromptTemplateId")  # 视频模式推荐提示词模板
     keyframe_planner_prompt_template_id: Optional[str] = Field(None, alias="keyframePlannerPromptTemplateId")  # 关键帧规划提示词模板
     keyframe_image_prompt_template_id: Optional[str] = Field(None, alias="keyframeImagePromptTemplateId")  # 关键帧生图提示词模板
+    temporal_reference_selector_prompt_template_id: Optional[str] = Field(None, alias="temporalReferenceSelectorPromptTemplateId")
+    image_quality_review_prompt_template_id: Optional[str] = Field(None, alias="imageQualityReviewPromptTemplateId")
     keyframe_transition_prompt_template_id: Optional[str] = Field(None, alias="keyframeTransitionPromptTemplateId")  # 关键帧过渡规划提示词模板
-    h3_single_frame_prompt_template_id: Optional[str] = Field(None, alias="h3SingleFramePromptTemplateId")  # H3 单帧视频提示词模板
-    h3_first_last_frame_prompt_template_id: Optional[str] = Field(None, alias="h3FirstLastFramePromptTemplateId")  # H3 首尾帧视频提示词模板
+    clip_execution_planner_prompt_template_id: Optional[str] = Field(None, alias="clipExecutionPlannerPromptTemplateId")
     h3_multi_keyframe_prompt_template_id: Optional[str] = Field(None, alias="h3MultiKeyframePromptTemplateId")  # H3 多关键帧视频提示词模板
+    h3_multi_keyframe_director_phase_b_template_id: Optional[str] = Field(None, alias="h3MultiKeyframeDirectorPhaseBTemplateId")  # H3 Phase B 单阶段导演视频提示词模板
+    h3_execution_optimizer_prompt_template_id: Optional[str] = Field(None, alias="h3ExecutionOptimizerPromptTemplateId")  # H3 执行提示词优化模板
+    h3_preflight_repair_prompt_template_id: Optional[str] = Field(None, alias="h3PreflightRepairPromptTemplateId")  # H3 Preflight 自动修复模板
     aspect_ratio: Optional[str] = Field("16:9", alias="aspectRatio")
 
 
 class NovelCreate(NovelBase):
     pass
+
+
+class NovelCopy(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1)
+
+
+class StoryWorldMaterialCulture(BaseModel):
+    clothing: str = Field(min_length=1)
+    architecture: str = Field(min_length=1)
+    objects: str = Field(min_length=1)
+
+
+class StoryWorldContext(BaseModel):
+    world_type: str = Field(min_length=1)
+    era: str = Field(min_length=1)
+    historical_period: str = Field(min_length=1)
+    geographic_scope: str = Field(min_length=1)
+    cultural_system: str = Field(min_length=1)
+    technology_level: str = Field(min_length=1)
+    allow_time_travel: bool = False
+    material_culture: StoryWorldMaterialCulture
+    visual_exclusions: List[str] = Field(min_length=2, max_length=5)
+
+
+class StoryWorldContextSave(BaseModel):
+    context: StoryWorldContext
 
 
 class NovelUpdate(NovelBase):
@@ -70,6 +104,7 @@ class ChapterResponse(ChapterBase):
     shot_images: Optional[str] = None
     shot_videos: Optional[str] = None
     final_video: Optional[str] = None
+    hd_final_video: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

@@ -1,0 +1,69 @@
+.notification-config-container {
+  container-type: inline-size;
+}
+
+.notification-channel-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 720px) {
+  .notification-channel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notification-sound-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (min-width: 1000px) {
+  .notification-channel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .notification-sound-card {
+    grid-column: auto;
+  }
+}
+
+.notification-sound-card {
+  container-type: inline-size;
+}
+
+.notification-sound-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+}
+
+.notification-event-container {
+  container-type: inline-size;
+}
+
+.notification-category-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 650px) {
+  .notification-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1000px) {
+  .notification-category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.notification-category-card {
+  container-type: inline-size;
+}
+
+.notification-event-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 440px) {
+  .notification-event-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

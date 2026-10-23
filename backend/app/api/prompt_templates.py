@@ -19,11 +19,13 @@ from app.schemas.prompt_template import PromptTemplateCreate, PromptTemplateUpda
 from app.services.prompt_template_service import PromptTemplateService
 from app.repositories import PromptTemplateRepository
 from app.api.deps import get_prompt_template_repo
+from app.constants.prompt_template import PROMPT_TEMPLATE_TYPES
 
 router = APIRouter(tags=["prompt_templates"])
 
 
 PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
+    ("故事上下文", [("story_world_context_recommender", "故事世界上下文推荐")]),
     ("素材解析", [
         ("character_parse", "角色解析提示词"),
         ("scene_parse", "场景解析提示词"),
@@ -33,20 +35,27 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("character", "角色生成提示词"),
         ("scene", "场景生成提示词"),
         ("prop", "道具生成提示词"),
+        ("scene_setting", "场景设定描述提示词"),
+        ("prop_appearance", "道具外观描述提示词"),
     ]),
     ("风格设计", [("style", "风格提示词")]),
-    ("分镜规划", [("chapter_split", "分镜拆分提示词")]),
+    ("分镜规划", [("chapter_split", "分镜拆分提示词"), ("keyframe_description", "关键帧描述提示词")]),
     ("分镜生图", [("shot_image_prompt", "主分镜图生成提示词构建")]),
     ("视频导演", [
-        ("video_mode_recommender", "视频生成模式推荐"),
         ("keyframe_planner", "关键帧时间轴规划"),
         ("keyframe_transition", "关键帧过渡规划"),
+        ("clip_execution_planner", "Clip Execution Planner"),
     ]),
-    ("关键帧生图", [("keyframe_image_prompt", "视频关键帧生图提示词构建")]),
+    ("关键帧生图", [
+        ("temporal_reference_selector", "Temporal Anchor Reference Selector V1"),
+        ("keyframe_image_prompt", "视频关键帧生图提示词构建"),
+        ("image_quality_review_prompt", "AI 图片质量评审"),
+    ]),
     ("视频生成", [
-        ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"),
-        ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"),
         ("h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建"),
+        ("h3_multi_keyframe_director_phase_b", "MiniMax H3 单阶段导演规划（Phase B）"),
+        ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
+        ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
 ]
 
@@ -86,13 +95,28 @@ def init_system_prompt_templates(db: Session):
 
 # ==================== 模板 CRUD ====================
 
+@router.get("/config-types", response_model=dict)
+def get_configurable_template_types():
+    """Return the supported prompt-template types."""
+    return {"success": True, "data": PROMPT_TEMPLATE_TYPES}
+
+@router.get("/image-quality-review/effective", response_model=dict)
+def get_effective_image_review_template(service: PromptTemplateService = Depends(get_template_service)):
+    template = service.get_effective_image_review_template()
+    if not template:
+        raise HTTPException(status_code=404, detail="AI 图片质量评审系统模板未登记")
+    return {"success": True, "data": service.to_response(template)}
+
 @router.get("/", response_model=dict)
 def list_prompt_templates(
     type: Optional[str] = Query(None, description="筛选类型: character 或 chapter_split"),
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """获取所有提示词模板"""
+    if type and type not in PROMPT_TEMPLATE_TYPES:
+        raise HTTPException(status_code=404, detail="提示词类型不存在")
     templates = service.list_templates(type)
+    templates = [template for template in templates if template.type in PROMPT_TEMPLATE_TYPES]
     return {
         "success": True,
         "data": [service.to_response(t) for t in templates]
@@ -157,12 +181,27 @@ def get_prompt_template(
     }
 
 
+@router.get("/{template_id}/bound-novels", response_model=dict)
+def get_bound_novels(
+    template_id: str,
+    service: PromptTemplateService = Depends(get_template_service),
+):
+    """List novels with this template ID stored in its matching prompt field."""
+    try:
+        novels = service.list_explicitly_bound_novels(template_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"success": True, "data": novels}
+
+
 @router.post("/", response_model=dict)
 def create_prompt_template(
     data: PromptTemplateCreate,
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """创建用户自定义提示词模板"""
+    if data.type not in PROMPT_TEMPLATE_TYPES:
+        raise HTTPException(status_code=400, detail="不支持的提示词类型")
     template = service.create_template(
         name=data.name,
         description=data.description,
@@ -183,6 +222,9 @@ def copy_prompt_template(
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """复制系统提示词模板为用户自定义模板"""
+    source = service.get_template_by_id(template_id)
+    if source and source.type not in PROMPT_TEMPLATE_TYPES:
+        raise HTTPException(status_code=404, detail="提示词模板不存在")
     try:
         new_template = service.copy_template(template_id)
     except ValueError as e:
@@ -202,6 +244,9 @@ def update_prompt_template(
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """更新提示词模板（仅用户自定义可编辑）"""
+    existing = service.get_template_by_id(template_id)
+    if (data.type and data.type not in PROMPT_TEMPLATE_TYPES) or (existing and existing.type not in PROMPT_TEMPLATE_TYPES):
+        raise HTTPException(status_code=400, detail="不支持的提示词类型")
     try:
         template = service.update_template(
             template_id=template_id,
@@ -211,7 +256,8 @@ def update_prompt_template(
             template_type=data.type
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        status = 409 if str(e).startswith("TRANSITION_INPUT_CONTRACT_MISMATCH:") else 404
+        raise HTTPException(status_code=status, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 

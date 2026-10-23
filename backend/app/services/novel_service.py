@@ -11,16 +11,23 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.novel import Novel, Chapter, Character, Scene
-from app.models.prompt_template import PromptTemplate
 from app.core.database import SessionLocal
 from app.utils.time_utils import format_datetime
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
+from app.services.novel_prompt_templates import resolve_novel_prompt_template
+from app.services.visual_style_authority import strip_embedded_visual_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
+from app.services.prop_policy import PROP_EXISTENCE_NONEXISTENT, invalidate_nonexistent_prop_references, normalize_prop_existence
+from app.services.parse_events import observed_parse
+from app.services.narration_timeline import (
+    minimum_shot_duration_for_dialogues,
+    split_oversized_narration_records,
+)
 
 
 class NovelService:
@@ -33,9 +40,14 @@ class NovelService:
     def get_llm_service(self) -> LLMService:
         """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
         return LLMService()
+
+    def _resolve_parse_template(self, novel_id: str, template_type: str):
+        novel = self.db.query(Novel).filter(Novel.id == novel_id).first()
+        return resolve_novel_prompt_template(self.db, novel, template_type)
     
     # ==================== 角色解析 ====================
     
+    @observed_parse("character.parse")
     async def parse_characters(
         self,
         novel_id: str,
@@ -72,7 +84,15 @@ class NovelService:
         
         try:
             # 调用 LLM 解析文本提取角色
-            result = await self.get_llm_service().parse_novel_text(full_text, novel_id=novel_id, source_range=source_range)
+            template = self._resolve_parse_template(novel_id, "character_parse")
+            result = await self.get_llm_service().parse_novel_text(
+                full_text,
+                novel_id=novel_id,
+                source_range=source_range,
+                prompt_template=template.template if template else None,
+                prompt_template_name=template.name if template else None,
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
+            )
             
             if "error" in result:
                 return {"success": False, "message": f"解析失败: {result['error']}"}
@@ -103,6 +123,8 @@ class NovelService:
                             existing.description = char_data.get("description")
                         if not existing.appearance and char_data.get("appearance"):
                             existing.appearance = char_data.get("appearance")
+                            from app.utils.identity_features import update_identity_features
+                            update_identity_features(existing, existing.appearance)
                         if not existing.voice_prompt and char_data.get("voice_prompt"):
                             existing.voice_prompt = char_data.get("voice_prompt")
                         if source_range:
@@ -114,6 +136,8 @@ class NovelService:
                         # 全量更新模式：直接覆盖
                         existing.description = char_data.get("description", existing.description)
                         existing.appearance = char_data.get("appearance", existing.appearance)
+                        from app.utils.identity_features import update_identity_features
+                        update_identity_features(existing, existing.appearance)
                         if char_data.get("voice_prompt"):
                             existing.voice_prompt = char_data.get("voice_prompt")
                         existing.source_range = source_range
@@ -134,6 +158,8 @@ class NovelService:
                         source_range=source_range,
                         last_parsed_at=datetime.utcnow()
                     )
+                    from app.utils.identity_features import update_identity_features
+                    update_identity_features(character, character.appearance)
                     self.db.add(character)
                     created_characters.append(character)
 
@@ -205,6 +231,7 @@ class NovelService:
 
     # ==================== 道具解析 ====================
 
+    @observed_parse("prop.parse")
     async def parse_props(
         self,
         novel_id: str,
@@ -244,17 +271,14 @@ class NovelService:
         try:
             # 获取道具解析提示词模板
             prompt_template = None
-            template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.type == 'prop_parse',
-                PromptTemplate.is_system == True
-            ).order_by(PromptTemplate.created_at.asc()).first()
+            template = self._resolve_parse_template(novel_id, "prop_parse")
 
             if template:
                 prompt_template = template.template
 
             # 如果没有系统模板，使用默认模板文件
             if not prompt_template:
-                template_path = os.path.join(os.path.dirname(__file__), '..', 'prompt_templates', 'prop_parse.txt')
+                template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates', 'prop_parse.txt')
                 if os.path.exists(template_path):
                     with open(template_path, "r", encoding="utf-8") as f:
                         prompt_template = f.read()
@@ -262,8 +286,10 @@ class NovelService:
             # 调用 LLM 解析文本提取道具
             result = await self.get_llm_service().parse_props(
                 text=full_text[:150000],  # 限制长度
+                novel_id=novel_id,
                 prompt_template=prompt_template,
-                prompt_template_name=template.name if template else "默认道具解析提示词"
+                prompt_template_name=template.name if template else "默认道具解析提示词",
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
             )
 
             if result.get("error"):
@@ -279,6 +305,7 @@ class NovelService:
 
             # 获取现有道具
             existing_props = prop_repo.get_dict_by_novel(novel_id)
+            has_nonexistent_props = False
 
             for prop_data in props_data:
                 name = prop_data.get("name", "").strip()
@@ -294,6 +321,12 @@ class NovelService:
                             existing.description = prop_data.get("description")
                         if not existing.appearance and prop_data.get("appearance"):
                             existing.appearance = prop_data.get("appearance")
+                        existing.existence = normalize_prop_existence(
+                            prop_data.get("existence"),
+                            prop_data.get("description", existing.description),
+                            prop_data.get("appearance", existing.appearance),
+                        )
+                        has_nonexistent_props = has_nonexistent_props or existing.existence == PROP_EXISTENCE_NONEXISTENT
                         if source_range:
                             if existing.source_range:
                                 existing.source_range += f", {source_range}"
@@ -302,6 +335,10 @@ class NovelService:
                     else:
                         existing.description = prop_data.get("description", existing.description)
                         existing.appearance = prop_data.get("appearance", existing.appearance)
+                        existing.existence = normalize_prop_existence(
+                            prop_data.get("existence"), existing.description, existing.appearance
+                        )
+                        has_nonexistent_props = has_nonexistent_props or existing.existence == PROP_EXISTENCE_NONEXISTENT
                         existing.source_range = source_range
 
                     existing.last_parsed_at = datetime.utcnow()
@@ -313,6 +350,11 @@ class NovelService:
                         name=name,
                         description=prop_data.get("description", ""),
                         appearance=prop_data.get("appearance", ""),
+                        existence=normalize_prop_existence(
+                            prop_data.get("existence"),
+                            prop_data.get("description", ""),
+                            prop_data.get("appearance", ""),
+                        ),
                         start_chapter=start_chapter,
                         end_chapter=end_chapter,
                         is_incremental=is_incremental,
@@ -320,8 +362,11 @@ class NovelService:
                         last_parsed_at=datetime.utcnow()
                     )
                     self.db.add(prop)
+                    has_nonexistent_props = has_nonexistent_props or prop.existence == PROP_EXISTENCE_NONEXISTENT
                     created_props.append(prop)
 
+            if has_nonexistent_props:
+                invalidate_nonexistent_prop_references(self.db, novel_id)
             self.db.commit()
 
             # 刷新对象以获取 ID
@@ -343,6 +388,7 @@ class NovelService:
                         "name": p.name,
                         "description": p.description,
                         "appearance": p.appearance,
+                        "existence": p.existence,
                         "startChapter": p.start_chapter,
                         "endChapter": p.end_chapter,
                         "isIncremental": p.is_incremental,
@@ -366,6 +412,7 @@ class NovelService:
 
     # ==================== 场景解析 ====================
     
+    @observed_parse("scene.parse")
     async def parse_scenes_from_chapters(
         self,
         novel_id: str,
@@ -404,11 +451,10 @@ class NovelService:
         # 获取场景解析提示词模板
         prompt_template = None
         prompt_template_name = None
-        if prompt_template_repo:
-            templates = prompt_template_repo.list_by_type('scene_parse')
-            if templates:
-                prompt_template = templates[0].template
-                prompt_template_name = templates[0].name
+        template = self._resolve_parse_template(novel_id, "scene_parse")
+        if template:
+            prompt_template = template.template
+            prompt_template_name = template.name
         
         try:
             # 调用 LLM 解析场景
@@ -417,7 +463,8 @@ class NovelService:
                 chapter_content=combined_content[:150000],  # 限制长度
                 chapter_title=source_range,
                 prompt_template=prompt_template,
-                prompt_template_name=prompt_template_name
+                prompt_template_name=prompt_template_name,
+                chapter_id=getattr(chapters[0], "id", None) if len(chapters) == 1 else None,
             )
             
             if result.get("error"):
@@ -504,6 +551,7 @@ class NovelService:
             traceback.print_exc()
             return {"success": False, "message": f"解析异常: {str(e)}"}
     
+    @observed_parse("scene.parse")
     async def parse_scenes(
         self,
         novel_id: str,
@@ -527,10 +575,7 @@ class NovelService:
             return {"success": False, "message": "章节内容为空"}
         
         # 获取场景解析提示词模板
-        template = self.db.query(PromptTemplate).filter(
-            PromptTemplate.type == 'scene_parse',
-            PromptTemplate.is_system == True
-        ).order_by(PromptTemplate.created_at.asc()).first()
+        template = self._resolve_parse_template(novel_id, "scene_parse")
         
         prompt_template = template.template if template else None
         
@@ -543,7 +588,8 @@ class NovelService:
                 chapter_content=chapter.content[:20000],  # 限制长度
                 chapter_title=source_range,
                 prompt_template=prompt_template,
-                prompt_template_name=template.name if template else "默认场景解析提示词"
+                prompt_template_name=template.name if template else "默认场景解析提示词",
+                chapter_id=chapter.id,
             )
             
             if result.get("error"):
@@ -665,6 +711,12 @@ class NovelService:
         Returns:
             拆分结果
         """
+        from app.services.story_world_context import StoryWorldContextRequiredError, get_locked_story_world_context
+        try:
+            story_world_context = get_locked_story_world_context(novel.id).model_dump()
+        except StoryWorldContextRequiredError as exc:
+            return {"success": False, "message": str(exc)}
+
         # 检查 LLM 配置
         llm_service = self.get_llm_service()
         if not llm_service.api_key and llm_service.provider != "ollama":
@@ -692,18 +744,7 @@ class NovelService:
             }
         
         # 获取拆分提示词模板
-        prompt_template = None
-        if novel.chapter_split_prompt_template_id:
-            prompt_template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.chapter_split_prompt_template_id
-            ).first()
-        
-        # 如果没有配置，使用默认模板
-        if not prompt_template:
-            prompt_template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.type == "chapter_split",
-                PromptTemplate.is_system == True
-            ).first()
+        prompt_template = resolve_novel_prompt_template(self.db, novel, "chapter_split")
         
         if not prompt_template:
             return {"success": False, "message": "未找到章节拆分提示词模板"}
@@ -735,7 +776,8 @@ class NovelService:
             style=style,
             novel_id=novel.id,
             chapter_id=chapter.id,
-            prompt_template_name=prompt_template.name
+            prompt_template_name=prompt_template.name,
+            story_world_context=story_world_context,
         )
 
         # 检查是否有错误
@@ -751,16 +793,23 @@ class NovelService:
         # 创建 Shot 记录
         created_shots = []
         for idx, shot_data in enumerate(shots_data, 1):
+            dialogues = shot_data.get("dialogues", [])
+            segmented = split_oversized_narration_records(dialogues)
+            if segmented is not None:
+                dialogues = segmented
+                required_duration = minimum_shot_duration_for_dialogues(dialogues)
+                shot_data["duration"] = max(int(shot_data.get("duration") or 4), required_duration)
             shot = shot_repo.create(
                 chapter_id=chapter.id,
                 index=idx,
-                description=shot_data.get("description", ""),
+                description=strip_embedded_visual_style(shot_data.get("description", ""), style),
                 video_description=shot_data.get("video_description", ""),
                 characters=shot_data.get("characters", []),
                 scene=shot_data.get("scene", ""),
                 props=shot_data.get("props", []),
                 duration=shot_data.get("duration", 4),
-                dialogues=shot_data.get("dialogues", []),
+                continuity_mode=shot_data.get("continuity_mode") or "NORMAL",
+                dialogues=dialogues,
             )
             created_shots.append(shot)
 

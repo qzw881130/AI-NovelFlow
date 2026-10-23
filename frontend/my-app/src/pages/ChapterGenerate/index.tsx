@@ -4,16 +4,17 @@ import { useTranslation } from '../../stores/i18nStore';
 
 // 导入 Store
 import { useChapterGenerateStore } from './stores';
+import { shotsApi } from '../../api/shots';
 
 // 导入组件
 import { FullTextModal, MergedImageModal, ImagePreviewModal, SplitConfirmDialog } from './components/Modals';
 import { ChapterGenerateLayout } from './components/ChapterGenerateLayout';
-import { ChapterResourcesModal } from './components/ChapterResourcesModal';
 
 export default function ChapterGenerate() {
   const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const initializedChapterRef = useRef<string | null>(null);
   const activeTasksSyncedChapterRef = useRef<string | null>(null);
 
   // 使用 Store 获取状态和方法
@@ -32,7 +33,7 @@ export default function ChapterGenerate() {
 
   // 数据获取方法
   const {
-    fetchNovel, fetchChapter, fetchCharacters, fetchScenes, fetchProps,
+    fetchNovel, fetchChapter, fetchChapterMergeStatus, fetchCharacters, fetchScenes, fetchProps,
     setParsedData, getCharacterImage, getSceneImage, getPropImage,
   } = store;
 
@@ -59,20 +60,19 @@ export default function ChapterGenerate() {
   // 本地状态
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
-  const [showResourcesModal, setShowResourcesModal] = useState(false);
+
+  const hasImageTasks = generatingShots.size > 0 || pendingShots.size > 0;
+  const hasVideoTasks = generatingVideos.size > 0 || pendingVideos.size > 0;
+  const hasTransitionTasks = generatingTransitions.size > 0;
+  const hasAudioTasks = generatingAudios.size > 0;
+  const hasKeyframeTasks = generatingKeyframes.size > 0;
 
   // 轮询任务状态
   useEffect(() => {
     if (!cid || !id) return;
 
-    // 如果有生成中的任务，开始轮询
-    const hasGeneratingTasks = generatingShots.size > 0 ||
-                               pendingShots.size > 0 ||
-                               generatingVideos.size > 0 ||
-                               pendingVideos.size > 0 ||
-                               generatingTransitions.size > 0 ||
-                               generatingAudios.size > 0 ||
-                               generatingKeyframes.size > 0;
+    // One chapter-level poll owns video status and active Shot refreshes.
+    const hasGeneratingTasks = hasImageTasks || hasVideoTasks || hasTransitionTasks || hasAudioTasks || hasKeyframeTasks;
 
     if (!hasGeneratingTasks) return;
 
@@ -83,21 +83,25 @@ export default function ChapterGenerate() {
     const pollTasks = async () => {
       if (cancelled) return;
 
+      if (document.hidden) {
+        timeoutId = window.setTimeout(pollTasks, 2000);
+        return;
+      }
       const checks = [];
-      if (generatingShots.size > 0 || pendingShots.size > 0) {
+      if (hasImageTasks) {
         checks.push(checkShotTaskStatus(cid));
       }
-      if (generatingVideos.size > 0 || pendingVideos.size > 0) {
+      if (hasVideoTasks) {
         checks.push(checkVideoTaskStatus(cid));
       }
-      if (generatingTransitions.size > 0) {
+      if (hasTransitionTasks) {
         checks.push(checkTransitionTaskStatus(cid));
       }
-      if (generatingAudios.size > 0) {
+      if (hasAudioTasks) {
         checks.push(checkAudioTaskStatus(cid));
       }
-      if (generatingKeyframes.size > 0) {
-        checks.push(checkKeyframeTaskStatus(cid));
+      if (hasKeyframeTasks) {
+        checks.push(checkKeyframeTaskStatus(cid, id));
       }
       if (checks.length > 0) {
         await Promise.allSettled(checks);
@@ -116,28 +120,81 @@ export default function ChapterGenerate() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [cid, id, generatingShots.size, pendingShots.size, generatingVideos.size, pendingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
+  }, [cid, id, hasImageTasks, hasVideoTasks, hasTransitionTasks, hasAudioTasks, hasKeyframeTasks]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {
     if (cid && id) {
+      const key = `${id}:${cid}`;
+      if (initializedChapterRef.current === key) return;
+      initializedChapterRef.current = key;
+      const controller = new AbortController();
       activeTasksSyncedChapterRef.current = null;
-      fetchNovel(id);
-      fetchCharacters(id);
-      fetchScenes(id);
-      fetchProps(id);
-      fetchChapter(id, cid);
-      fetchTransitionWorkflows();
+      const timer = window.setTimeout(() => {
+        if (controller.signal.aborted) return;
+        fetchNovel(id);
+        fetchCharacters(id);
+        fetchScenes(id);
+        fetchProps(id);
+        fetchChapter(id, cid, controller.signal);
+        fetchTransitionWorkflows();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+        controller.abort();
+        if (initializedChapterRef.current === key) initializedChapterRef.current = null;
+      };
     }
   }, [cid, id, fetchProps]);
 
+  // A chapter merge may finish in the background or another tab. Keep the
+  // chapter-wide reminder current without reloading the editor's Shot state.
+  useEffect(() => {
+    if (!id || !cid || chapter?.id !== cid) return;
+    const controller = new AbortController();
+    const refresh = () => {
+      if (!document.hidden) void fetchChapterMergeStatus(id, cid, controller.signal);
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 10000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [id, cid, chapter?.id, fetchChapterMergeStatus]);
+
+  // The chapter list is a navigation projection. Only hydrate the selected
+  // Shot; selecting another one cancels the previous detail read.
+  const selectedShot = shots[currentShotIndex - 1];
+  useEffect(() => {
+    if (!id || !cid || !selectedShot?.id || selectedShot.chapterId !== cid || !selectedShot.summaryOnly) return;
+    const controller = new AbortController();
+    // Let the layout apply a URL Shot selection before dispatching the read.
+    const timer = window.setTimeout(() => {
+      shotsApi.getShot(id, cid, selectedShot.id, controller.signal).then(result => {
+        if (controller.signal.aborted || !result.success || !result.data) return;
+        useChapterGenerateStore.setState(state => ({
+          shots: state.shots.map(shot => shot.id === selectedShot.id
+            ? { ...shot, ...result.data, summaryOnly: false }
+            : shot),
+        }));
+      }).catch(error => {
+        if (!controller.signal.aborted) console.error('获取当前分镜详情失败:', error);
+      });
+    }, 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [id, cid, selectedShot?.id, selectedShot?.summaryOnly]);
+
   // 刷新页面后本地 generating 集合为空，需要先从后端恢复一次任务状态。
   useEffect(() => {
-    if (!cid || chapter?.id !== cid || activeTasksSyncedChapterRef.current === cid) return;
+    const shotsReady = !!cid && shots.length > 0 && shots.every(shot => shot.chapterId === cid);
+    if (!cid || chapter?.id !== cid || !shotsReady || activeTasksSyncedChapterRef.current === cid) return;
 
     activeTasksSyncedChapterRef.current = cid;
-    fetchActiveTasks(cid);
-  }, [cid, chapter?.id, fetchActiveTasks]);
+    fetchActiveTasks(cid, id);
+  }, [cid, id, chapter?.id, shots, fetchActiveTasks]);
 
   // 从章节数据初始化状态
   useEffect(() => {
@@ -278,12 +335,12 @@ export default function ChapterGenerate() {
         generatingShots={generatingShots}
         pendingShots={pendingShots}
         generatingVideos={generatingVideos}
+        pendingVideos={pendingVideos}
         generatingTransitions={generatingTransitions}
         loading={loading}
         getCharacterImage={getCharacterImage}
         getSceneImage={getSceneImage}
         getPropImage={getPropImage}
-        onResourcesManageClick={() => setShowResourcesModal(true)}
         onImageClick={onImageClick}
       />
 
@@ -319,14 +376,6 @@ export default function ChapterGenerate() {
         isOpen={splitConfirmDialog.isOpen}
         onClose={() => setSplitConfirmDialog({ isOpen: false, hasResources: false })}
         onConfirm={doSplitChapter}
-      />
-
-      {/* 章节资源管理弹窗 */}
-      <ChapterResourcesModal
-        isOpen={showResourcesModal}
-        onClose={() => setShowResourcesModal(false)}
-        novelId={id}
-        chapterId={cid}
       />
 
       <canvas ref={canvasRef} className="hidden" />

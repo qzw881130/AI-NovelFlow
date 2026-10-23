@@ -5,26 +5,199 @@
 """
 
 import json
+import secrets
 from datetime import datetime
 from typing import Optional, Dict
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
+from app.services.required_visual_state_images import (
+    commit_visual_state_image, task_provenance, validate_image_provenance,
+)
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
+from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, save_image_prompt, resume_image_prompt, ensure_task_active,
+)
 from app.utils.workflow_disconnect import disconnect_reference_chain
+from app.utils.workflow_seed import extract_workflow_seed, set_workflow_seed
+
+
+MAX_SHOT_IMAGE_QUALITY_GENERATIONS = 3
+
+
+def _task_metadata(task: Task) -> dict:
+    try:
+        value = json.loads(task.metadata_json or "{}")
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+async def _regenerate_from_submitted_workflow(db, task, comfyui_service, workflow):
+    """Retry the same submitted graph and reference bindings with only a new seed."""
+    graph = json.loads(task.workflow_json or "{}")
+    if not isinstance(graph, dict) or not graph:
+        raise ValueError("AI 评审重生缺少已提交工作流快照")
+    previous_seed = extract_workflow_seed(graph)
+    if previous_seed is not None:
+        prior_attempts = (_task_metadata(task).get("shot_image_quality") or {}).get("attempts") or []
+        used_seeds = {item.get("seed") for item in prior_attempts if isinstance(item, dict)}
+        used_seeds.add(previous_seed)
+        next_seed = secrets.randbelow(2**31 - 1) + 1
+        while next_seed in used_seeds:
+            next_seed = secrets.randbelow(2**31 - 1) + 1
+        set_workflow_seed(graph, next_seed)
+    node_mapping = json.loads(workflow.node_mapping or "{}")
+    saved_output_node = (_task_metadata(task).get("image_attempt") or {}).get("save_image_node_id")
+    if saved_output_node:
+        node_mapping["save_image_node_id"] = saved_output_node
+
+    def save_prompt_id(prompt_id: str, queued_workflow: dict = None):
+        metadata = _task_metadata(task)
+        metadata.setdefault("shot_image_quality", {})["retry_pending"] = False
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        save_image_prompt(db, task, prompt_id, queued_workflow or graph,
+                          node_mapping.get("save_image_node_id"), reserve_retry=True)
+
+    task.current_step = "AI 评审未通过，重新生成图片..."
+    db.commit()
+    return await comfyui_service.generate_shot_image_with_workflow(
+        prompt=task.prompt_text, workflow_json=workflow.workflow_json,
+        node_mapping=node_mapping, workflow=graph, on_prompt_queued=save_prompt_id,
+    )
+
+
+async def _review_and_finish_shot_image(db, task, chapter_id: str, shot_index: int,
+                                        image_path: str | None, image_url: str,
+                                        shot_repo: ShotRepository) -> bool:
+    """Return True only when the same durable task needs another physical image."""
+    from app.services.image_quality_review import review_image_task
+
+    metadata = _task_metadata(task)
+    quality = metadata.setdefault("shot_image_quality", {})
+    if quality.get("pending_review") and task.result_url == image_url:
+        attempt = int(quality["generation_count"])
+    else:
+        attempt = int(quality.get("generation_count") or 0) + 1
+        quality["generation_count"] = attempt
+    quality["pending_review"] = True
+    quality["pending_image_path"] = image_path
+    quality["max_generations"] = MAX_SHOT_IMAGE_QUALITY_GENERATIONS
+    task.result_url = image_url
+    task.current_step = f"AI 图片质量评审中（{attempt}/{MAX_SHOT_IMAGE_QUALITY_GENERATIONS}）"
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    db.commit()
+
+    try:
+        review = await review_image_task(db, task.id, trigger="generation")
+        verdict = review.overall if review.status == "success" else "ERROR"
+        review_id = review.id
+        review_error = review.error_message
+    except Exception as exc:
+        verdict, review_id, review_error = "ERROR", None, str(exc)
+    quality["attempts"] = [*(quality.get("attempts") or []), {
+        "number": attempt, "image_url": image_url, "review_id": review_id,
+        "verdict": verdict, "review_error": review_error,
+        "seed": task.seed, "comfyui_prompt_id": task.comfyui_prompt_id,
+    }]
+    quality["status"] = verdict
+    quality["pending_review"] = False
+    quality.pop("pending_image_path", None)
+    if _is_task_cancelled(db, task):
+        return False
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    if verdict == "FAIL" and attempt < MAX_SHOT_IMAGE_QUALITY_GENERATIONS:
+        quality["retry_pending"] = True
+        task.result_url = None
+        task.comfyui_prompt_id = None
+        task.current_step = f"AI 评审 FAIL，准备重新生成（{attempt + 1}/{MAX_SHOT_IMAGE_QUALITY_GENERATIONS}）"
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
+        return True
+
+    _update_shot_image(db, chapter_id, shot_index, image_path, image_url, shot_repo, task_id=task.id)
+    task.status = "completed"
+    task.progress = 100
+    task.current_step = ("生成完成；AI 审核未通过，需人工处理" if verdict == "FAIL" else
+                         "生成完成；AI 审核未完成" if verdict == "ERROR" else
+                         f"生成完成；AI 审核 {verdict}")
+    task.completed_at = datetime.utcnow()
+    db.commit()
+    return False
 
 
 def _is_task_cancelled(db, task) -> bool:
     db.refresh(task)
     return task.status == "cancelled"
+
+
+def _project_current_shot_image_failure(
+    db,
+    task,
+    chapter_id: str,
+    shot_index: int,
+    shot_repo: ShotRepository = None,
+) -> bool:
+    """Project a task failure only when this task still owns the Shot attempt."""
+    if not task:
+        return False
+    shot_repo = shot_repo or ShotRepository(db)
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        return False
+
+    # Canonical failures may project only while their provenance and attempt
+    # still own this binding, including after a manual replacement cleared it.
+    try:
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
+    except ValueError:
+        return False
+
+    if shot.image_task_id and shot.image_task_id != task.id:
+        return False
+
+    if not shot.image_task_id:
+        latest_task = (
+            db.query(Task)
+            .filter(Task.type == "shot_image", Task.shot_id == shot.id)
+            .order_by(Task.created_at.desc(), Task.id.desc())
+            .first()
+        )
+        if latest_task and latest_task.id != task.id:
+            return False
+
+    shot.image_status = "failed"
+    shot.image_task_id = task.id
+    db.commit()
+    return True
+
+
+def _fail_shot_image_task(
+    db,
+    task,
+    error_message: str,
+    current_step: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_repo: ShotRepository = None,
+) -> None:
+    task.status = "failed"
+    task.error_message = error_message
+    task.current_step = current_step
+    task.completed_at = datetime.utcnow()
+    db.commit()
+    _project_current_shot_image_failure(
+        db, task, chapter_id, shot_index, shot_repo=shot_repo
+    )
 
 
 def enqueue_shot_image_task(
@@ -36,16 +209,20 @@ def enqueue_shot_image_task(
     workflow_id: str,
 ) -> None:
     """Queue shot image generation in its dedicated serial worker."""
-    worker_manager.worker("shot_image").enqueue(
-        lambda: generate_shot_image_task(
-            task_id,
-            novel_id,
-            chapter_id,
-            shot_index,
-            shot_description,
-            workflow_id,
-        )
-    )
+    payload = {
+        "task_id": task_id,
+        "novel_id": novel_id,
+        "chapter_id": chapter_id,
+        "shot_index": shot_index,
+        "shot_description": shot_description,
+        "workflow_id": workflow_id,
+    }
+    worker_manager.worker("shot_image").enqueue(persistent_job(
+        task_id,
+        "app.services.shot_image_service:generate_shot_image_task",
+        payload,
+        lambda: generate_shot_image_task(**payload),
+    ))
 
 
 async def generate_shot_image_task(
@@ -68,17 +245,20 @@ async def generate_shot_image_task(
         workflow_id: 工作流ID
     """
     db = SessionLocal()
+    task = None
+    shot_repo = None
+    retry_requested = False
     try:
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
             return
-        if task.status == "cancelled":
+        if task.status not in {"pending", "running"}:
             return
 
         # 更新任务状态为运行中
         task.status = "running"
-        task.started_at = datetime.utcnow()
+        task.started_at = task.started_at or datetime.utcnow()
         task.current_step = "准备生成环境..."
         db.commit()
 
@@ -90,16 +270,12 @@ async def generate_shot_image_task(
         )
 
         if not chapter:
-            task.status = "failed"
-            task.error_message = "章节不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "章节不存在", "生成失败", chapter_id, shot_index)
             return
 
         novel = db.query(Novel).filter(Novel.id == novel_id).first()
         if not novel:
-            task.status = "failed"
-            task.error_message = "小说不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "小说不存在", "生成失败", chapter_id, shot_index)
             return
 
         # 使用 ShotRepository 获取分镜数据
@@ -107,150 +283,177 @@ async def generate_shot_image_task(
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
 
         if not shot:
-            task.status = "failed"
-            task.error_message = "分镜不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "分镜不存在", "生成失败", chapter_id, shot_index, shot_repo)
             return
 
-        # 从 Shot 模型获取分镜数据
-        shot_characters = json.loads(shot.characters) if shot.characters else []
-        shot_scene = shot.scene or ""
-        shot_props = json.loads(shot.props) if shot.props else []
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
 
-        print(
-            f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}"
-        )
-        print(f"[ShotTask {task_id}] Description: {shot_description}")
-        print(f"[ShotTask {task_id}] Characters: {shot_characters}")
-        print(f"[ShotTask {task_id}] Props: {shot_props}")
-
-        # 获取工作流
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-        if not workflow:
-            task.status = "failed"
-            task.error_message = "工作流不存在"
-            db.commit()
+        quality = _task_metadata(task).get("shot_image_quality") or {}
+        if quality.get("pending_review") and task.result_url:
+            retry_requested = await _review_and_finish_shot_image(
+                db, task, chapter_id, shot_index, quality.get("pending_image_path"),
+                task.result_url, shot_repo,
+            )
+            if retry_requested:
+                db.close()
+                await generate_shot_image_task(
+                    task_id, novel_id, chapter_id, shot_index, shot_description, workflow_id,
+                )
             return
-
-        # 获取节点映射
-        node_mapping = (
-            json.loads(workflow.node_mapping) if workflow.node_mapping else {}
-        )
-        print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
-
-        # 获取风格提示词
-        style, _ = get_style(db, novel, "character")
-        print(f"[ShotTask {task_id}] Using style: {style}")
 
         comfyui_service = ComfyUIService()
+        if task.comfyui_prompt_id:
+            result = await resume_image_prompt(db, task, comfyui_service)
+        elif _task_metadata(task).get("shot_image_quality", {}).get("retry_pending"):
+            workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            if not workflow:
+                _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
+                return
+            result = await _regenerate_from_submitted_workflow(db, task, comfyui_service, workflow)
+        else:
+            # 从 Shot 模型获取分镜数据
+            shot_characters = json.loads(shot.characters) if shot.characters else []
+            shot_scene = shot.scene or ""
+            shot_props = get_visual_prop_names(db, novel_id, json.loads(shot.props) if shot.props else [])
 
-        # 合并角色图片
-        character_reference_path = await _process_character_references(
-            db, task, novel_id, chapter_id, shot_index, shot_characters, task_id, shot_repo
-        )
-
-        # 处理场景图
-        scene_reference_path = await _process_scene_reference(
-            db, task, novel_id, shot_scene, task_id
-        )
-
-        # 处理道具图
-        prop_reference_paths = await _process_prop_references(
-            db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
-        )
-
-        effective_prompt = shot_description
-        task.prompt_text = effective_prompt
-        db.commit()
-
-        # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
-        # 查询角色外貌描述
-        character_appearances = {}
-        for char_name in shot_characters:
-            character = (
-                db.query(Character)
-                .filter(Character.novel_id == novel_id, Character.name == char_name)
-                .first()
+            print(
+                f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}"
             )
-            if character and character.appearance:
-                character_appearances[char_name] = character.appearance
-        print(f"[ShotTask {task_id}] Character appearances: {character_appearances}")
+            print(f"[ShotTask {task_id}] Description: {shot_description}")
+            print(f"[ShotTask {task_id}] Characters: {shot_characters}")
+            print(f"[ShotTask {task_id}] Props: {shot_props}")
 
-        # 查询场景设定
-        scene_setting = None
-        if shot_scene:
-            scene = (
-                db.query(Scene)
-                .filter(Scene.novel_id == novel_id, Scene.name == shot_scene)
-                .first()
+            # 获取工作流
+            workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            if not workflow:
+                _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
+                return
+
+            # 获取节点映射
+            node_mapping = (
+                json.loads(workflow.node_mapping) if workflow.node_mapping else {}
             )
-            if scene and scene.setting:
-                scene_setting = scene.setting
-        print(f"[ShotTask {task_id}] Scene setting: {scene_setting}")
+            print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
 
-        # 查询道具外观
-        prop_appearances = {}
-        for prop_name in shot_props:
-            prop = (
-                db.query(Prop)
-                .filter(Prop.novel_id == novel_id, Prop.name == prop_name)
-                .first()
+            # 获取风格提示词
+            style, _ = get_style(db, novel, "character")
+            print(f"[ShotTask {task_id}] Using style: {style}")
+
+
+            # 合并角色图片
+            character_reference_path = await _process_character_references(
+                db, task, novel_id, chapter_id, shot_index, shot_characters, task_id, shot_repo
             )
-            if prop and prop.appearance:
-                prop_appearances[prop_name] = prop.appearance
-        print(f"[ShotTask {task_id}] Prop appearances: {prop_appearances}")
 
-        # 构建工作流
-        task.current_step = "构建工作流..."
-        db.commit()
+            # 处理场景图
+            scene_reference_path = await _process_scene_reference(
+                db, task, novel_id, shot_scene, task_id
+            )
 
-        submitted_workflow = comfyui_service.builder.build_shot_workflow(
-            prompt=effective_prompt,
-            workflow_json=workflow.workflow_json,
-            node_mapping=node_mapping,
-            aspect_ratio=novel.aspect_ratio or "16:9",
-            style=style,
-            character_appearances=character_appearances,
-            scene_setting=scene_setting,
-            prop_appearances=prop_appearances,
-        )
+            # 处理道具图
+            if shot.merged_prop_image:
+                shot_repo.update(shot, merged_prop_image=None)
+            prop_reference_paths = await _process_prop_references(
+                db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
+            )
 
-        # 上传参考图并更新工作流
-        await _upload_references_and_update_workflow(
-            comfyui_service,
-            submitted_workflow,
-            node_mapping,
-            character_reference_path,
-            scene_reference_path,
-            task,
-            db,
-            task_id,
-            prop_reference_paths=prop_reference_paths,
-        )
-
-        # 调用 ComfyUI 生成图片
-        if _is_task_cancelled(db, task):
-            return
-        task.current_step = "正在调用 ComfyUI 生成图片..."
-        task.progress = 30
-        db.commit()
-
-        def save_prompt_id(prompt_id: str):
-            task.comfyui_prompt_id = prompt_id
+            effective_prompt = shot_description
+            task.prompt_text = effective_prompt
             db.commit()
-            print(f"[ShotTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
-        result = await comfyui_service.generate_shot_image_with_workflow(
-            prompt=effective_prompt,
-            workflow_json=workflow.workflow_json,
-            node_mapping=node_mapping,
-            aspect_ratio=novel.aspect_ratio or "16:9",
-            character_reference_path=None,
-            scene_reference_path=None,
-            workflow=submitted_workflow,
-            style=style,
-            on_prompt_queued=save_prompt_id,
-        )
+            # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
+            # 查询角色外貌描述
+            character_appearances = {}
+            for char_name in shot_characters:
+                character = (
+                    db.query(Character)
+                    .filter(Character.novel_id == novel_id, Character.name == char_name)
+                    .first()
+                )
+                if character and character.appearance:
+                    character_appearances[char_name] = character.appearance
+            print(f"[ShotTask {task_id}] Character appearances: {character_appearances}")
+
+            # 查询场景设定
+            scene_setting = None
+            if shot_scene:
+                scene = (
+                    db.query(Scene)
+                    .filter(Scene.novel_id == novel_id, Scene.name == shot_scene)
+                    .first()
+                )
+                if scene and scene.setting:
+                    scene_setting = scene.setting
+            print(f"[ShotTask {task_id}] Scene setting: {scene_setting}")
+
+            # 查询道具外观
+            prop_appearances = {}
+            for prop_name in shot_props:
+                prop = (
+                    db.query(Prop)
+                    .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
+                    .first()
+                )
+                if prop and prop.appearance:
+                    prop_appearances[prop_name] = prop.appearance
+            print(f"[ShotTask {task_id}] Prop appearances: {prop_appearances}")
+
+            # 构建工作流
+            task.current_step = "构建工作流..."
+            db.commit()
+
+            submitted_workflow = comfyui_service.builder.build_shot_workflow(
+                prompt=effective_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                aspect_ratio=novel.aspect_ratio or "16:9",
+                style=style,
+                character_appearances=character_appearances,
+                scene_setting=scene_setting,
+                prop_appearances=prop_appearances,
+            )
+
+            # 上传参考图并更新工作流
+            await _upload_references_and_update_workflow(
+                comfyui_service,
+                submitted_workflow,
+                node_mapping,
+                character_reference_path,
+                scene_reference_path,
+                task,
+                db,
+                task_id,
+                prop_reference_paths=prop_reference_paths,
+                character_names=shot_characters,
+                scene_name=shot_scene,
+                prop_names=shot_props,
+            )
+
+            # 调用 ComfyUI 生成图片
+            if _is_task_cancelled(db, task):
+                return
+            task.current_step = "正在调用 ComfyUI 生成图片..."
+            task.progress = 30
+            db.commit()
+
+            def save_prompt_id(prompt_id: str, queued_workflow: dict = None):
+                save_image_prompt(
+                    db, task, prompt_id, queued_workflow or submitted_workflow,
+                    node_mapping.get("save_image_node_id"),
+                    reserve_retry=True,
+                )
+
+            result = await comfyui_service.generate_shot_image_with_workflow(
+                prompt=effective_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                aspect_ratio=novel.aspect_ratio or "16:9",
+                character_reference_path=None,
+                scene_reference_path=None,
+                workflow=submitted_workflow,
+                style=style,
+                on_prompt_queued=save_prompt_id,
+            )
 
         print(f"[ShotTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
@@ -267,16 +470,27 @@ async def generate_shot_image_task(
             db.commit()
 
         if not result.get("success"):
-            task.status = "failed"
-            task.error_message = result.get("message", "生成失败")
-            task.current_step = "生成失败"
-            db.commit()
+            persist_task_comfyui_error(task, result)
+            _fail_shot_image_task(
+                db,
+                task,
+                result.get("message", "生成失败"),
+                "生成失败",
+                chapter_id,
+                shot_index,
+                shot_repo,
+            )
             return
 
         # 下载并保存生成的图片
-        await _save_generated_image(
-            result, task, chapter, novel_id, chapter_id, shot_index, db, task_id, shot.id, shot_repo
+        staged = await _save_generated_image(
+            result, task, chapter, novel_id, chapter_id, shot_index, db, task_id, shot.id, shot_repo,
+            stage_only=True,
         )
+        if staged:
+            retry_requested = await _review_and_finish_shot_image(
+                db, task, chapter_id, shot_index, staged[0], staged[1], shot_repo,
+            )
 
     except Exception as e:
         print(f"[ShotTask {task_id}] Error: {e}")
@@ -285,14 +499,19 @@ async def generate_shot_image_task(
         traceback.print_exc()
 
         try:
-            task.status = "failed"
-            task.error_message = str(e)
-            task.current_step = "任务异常"
-            db.commit()
+            if task:
+                ensure_task_active(db, task)
+                _fail_shot_image_task(
+                    db, task, str(e), "任务异常", chapter_id, shot_index, shot_repo
+                )
         except Exception:
             pass
     finally:
         db.close()
+    if retry_requested:
+        await generate_shot_image_task(
+            task_id, novel_id, chapter_id, shot_index, shot_description, workflow_id,
+        )
 
 
 # ==================== 辅助函数 ====================
@@ -450,7 +669,7 @@ async def _process_prop_references(
     for prop_name in shot_props:
         prop = (
             db.query(Prop)
-            .filter(Prop.novel_id == novel_id, Prop.name == prop_name)
+            .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
             .first()
         )
 
@@ -522,6 +741,9 @@ async def _upload_references_and_update_workflow(
     db,
     task_id: str,
     prop_reference_paths: Optional[Dict[str, str]] = None,
+    character_names: Optional[list[str]] = None,
+    scene_name: Optional[str] = None,
+    prop_names: Optional[list[str]] = None,
 ):
     """
     上传参考图并更新工作流
@@ -541,21 +763,54 @@ async def _upload_references_and_update_workflow(
     db.commit()
     print(f"[ShotTask {task_id}] Uploading compact reference images before submission")
 
+    character_members = []
+    for name in character_names or []:
+        character = db.query(Character).filter(
+            Character.novel_id == task.novel_id, Character.name == name,
+        ).first()
+        if character and character.image_url and url_to_local_path(character.image_url):
+            character_members.append({"name": name, "source": f"CHAR:{character.id}"})
+    prop_members = []
+    for name in prop_names or []:
+        prop = db.query(Prop).filter(
+            Prop.novel_id == task.novel_id, Prop.name == name,
+            Prop.existence == PROP_EXISTENCE_REAL,
+        ).first()
+        if prop and prop.image_url and url_to_local_path(prop.image_url):
+            prop_members.append({"name": name, "source": f"PROP:{name}"})
+
     reference_items_by_key = {}
     if character_reference_path:
         character_url = local_path_to_url(character_reference_path)
         if character_url:
-            reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
+            reference_items_by_key["character_reference_image_node_id"] = {
+                "label": "角色合并图", "url": character_url, "path": character_reference_path,
+                "kind": "CHARACTER_IDENTITY", "members": [item["name"] for item in character_members],
+                "sources": [item["source"] for item in character_members],
+                "purpose": "角色身份与稳定外观参考，不复制展示排版",
+            }
     if scene_reference_path:
         scene_url = local_path_to_url(scene_reference_path)
         if scene_url:
-            reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
+            reference_items_by_key["scene_reference_image_node_id"] = {
+                "label": "场景图", "url": scene_url, "path": scene_reference_path,
+                "kind": "SCENE", "name": scene_name, "sources": [f"SCENE:{scene_name}"] if scene_name else [],
+                "purpose": "场景身份与建筑空间参考",
+            }
     if prop_reference_paths:
         prop_label = "、".join(prop_reference_paths.keys())
         prop_path = next((path for path in prop_reference_paths.values() if path), None)
         prop_url = local_path_to_url(prop_path) if prop_path else None
         if prop_path and prop_url:
-            prop_item = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
+            selected_props = prop_members if "合并道具图" in prop_reference_paths else [
+                item for item in prop_members if item["name"] in prop_reference_paths
+            ]
+            prop_item = {
+                "label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path,
+                "kind": "PROP", "members": [item["name"] for item in selected_props],
+                "sources": [item["source"] for item in selected_props],
+                "purpose": "道具外观与形制参考，不复制展示排版",
+            }
             reference_items_by_key["prop_reference_image_node_id"] = prop_item
             first_custom_key = _get_first_custom_reference_node_key(node_mapping)
             if first_custom_key:
@@ -563,17 +818,6 @@ async def _upload_references_and_update_workflow(
 
     reference_node_keys = _get_compact_reference_node_keys(node_mapping)
     reference_items = [reference_items_by_key.get(key) for key in reference_node_keys]
-    visible_reference_items = [item for item in reference_items if item]
-
-    task.reference_images = (
-        json.dumps(
-            [{"label": item["label"], "url": item["url"]} for item in visible_reference_items],
-            ensure_ascii=False,
-        )
-        if visible_reference_items
-        else None
-    )
-    db.commit()
 
     uploaded_filenames = []
     for item in reference_items:
@@ -581,7 +825,7 @@ async def _upload_references_and_update_workflow(
             uploaded_filenames.append(None)
             continue
         upload_result = await comfyui_service.client.upload_image(item["path"])
-        if upload_result.get("success"):
+        if upload_result.get("success") and upload_result.get("filename"):
             uploaded_filenames.append(upload_result.get("filename"))
             print(
                 f"[ShotTask {task_id}] {item['label']} uploaded successfully: "
@@ -594,6 +838,7 @@ async def _upload_references_and_update_workflow(
                 f"{upload_result.get('message')}"
             )
 
+    submitted_references = []
     for index, ref_key in enumerate(reference_node_keys):
         node_id = node_mapping.get(ref_key)
         node_id_str = str(node_id) if node_id else ""
@@ -602,6 +847,10 @@ async def _upload_references_and_update_workflow(
         uploaded_filename = uploaded_filenames[index] if index < len(uploaded_filenames) else None
         if uploaded_filename:
             submitted_workflow[node_id_str]["inputs"]["image"] = uploaded_filename
+            item = reference_items[index]
+            submitted_references.append({
+                key: value for key, value in item.items() if key != "path"
+            } | {"picture": index + 1})
             print(
                 f"[ShotTask {task_id}] Set <Picture {index + 1}> node "
                 f"{node_id_str} to {uploaded_filename}"
@@ -611,6 +860,7 @@ async def _upload_references_and_update_workflow(
             disconnect_reference_chain(submitted_workflow, node_id_str)
             print(f"[ShotTask {task_id}] Disconnected unused reference node {node_id_str}")
 
+    task.reference_images = json.dumps(submitted_references, ensure_ascii=False) if submitted_references else None
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()
     print(f"[ShotTask {task_id}] Saved workflow with reference images to task")
@@ -649,24 +899,41 @@ async def _save_generated_image(
     task_id: str,
     shot_id: str = None,
     shot_repo: ShotRepository = None,
+    *,
+    stage_only: bool = False,
 ):
     """下载并保存生成的图片"""
     if _is_task_cancelled(db, task):
         return
+    shot_repo = shot_repo or ShotRepository(db)
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if shot:
+        db.refresh(shot)
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
     task.current_step = "正在下载生成的图片..."
     task.progress = 80
     db.commit()
 
     image_url = result.get("image_url")
     if not image_url:
-        task.status = "failed"
-        task.error_message = "未获取到图片URL"
-        task.current_step = "生成失败"
-        db.commit()
+        _fail_shot_image_task(
+            db,
+            task,
+            "未获取到图片URL",
+            "生成失败",
+            chapter_id,
+            shot_index,
+            shot_repo,
+        )
         return
 
     # 使用 shot_id 作为文件名的一部分（如果提供）
     file_prefix = f"shot_{shot_id[:8]}" if shot_id else f"shot_{shot_index:03d}"
+    if task_provenance(task):
+        file_prefix += f"_{task.id}"
+    if stage_only:
+        next_attempt = int(_task_metadata(task).get("shot_image_quality", {}).get("generation_count") or 0) + 1
+        file_prefix += f"_{task.id}_quality{next_attempt}"
     local_path = await file_storage.download_image(
         url=image_url,
         novel_id=novel_id,
@@ -683,29 +950,36 @@ async def _save_generated_image(
         )
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
+        if stage_only:
+            return str(local_path), local_url
+
+        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = local_url
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
 
-        # 更新 Shot 记录
-        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
     else:
         if _is_task_cancelled(db, task):
             return
+        if stage_only:
+            return None, image_url
+        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = image_url
         task.current_step = "生成完成（使用远程图片）"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
 
-        # 更新 Shot 记录（使用远程URL）
-        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
 
 
 def _update_shot_image(
@@ -724,6 +998,14 @@ def _update_shot_image(
     shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
     if not shot:
         print(f"[Warning] Shot not found: chapter_id={chapter_id}, index={shot_index}")
+        return
+
+    task = db.query(Task).filter(Task.id == task_id).first() if task_id else None
+    db.refresh(shot)
+    validate_image_provenance(shot, task_provenance(task), task_id=task_id)
+    if task and task_provenance(task):
+        commit_visual_state_image(db, shot, image_url, frame_index=None, expected_provenance=task_provenance(task), task_id=task.id, local_path=local_path)
+        db.commit()
         return
 
     update_data = {

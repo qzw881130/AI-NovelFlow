@@ -2,6 +2,7 @@ import type { PromptTemplate } from '../../types';
 
 // 提示词模板类型（与后端保持一致）
 export type TemplateType =
+  | 'story_world_context_recommender'
   | 'style'
   | 'character_parse'
   | 'scene_parse'
@@ -9,18 +10,24 @@ export type TemplateType =
   | 'character'
   | 'scene'
   | 'prop'
+  | 'scene_setting'
+  | 'prop_appearance'
   | 'chapter_split'
   | 'shot_image_prompt'
-  | 'video_mode_recommender'
   | 'keyframe_description'
   | 'keyframe_planner'
   | 'keyframe_image_prompt'
+  | 'image_quality_review_prompt'
+  | 'temporal_reference_selector'
   | 'keyframe_transition'
-  | 'h3_single_frame_prompt'
-  | 'h3_first_last_frame_prompt'
-  | 'h3_multi_keyframe_prompt';
+  | 'clip_execution_planner'
+  | 'h3_multi_keyframe_prompt'
+  | 'h3_multi_keyframe_director_phase_b'
+  | 'h3_execution_optimizer_prompt'
+  | 'h3_preflight_repair_prompt';
 
 export type TemplateCategory =
+  | 'story_context'
   | 'style_design'
   | 'asset_parse'
   | 'asset_generation'

@@ -38,6 +38,7 @@ class LLMLog(Base):
     # 关联信息（可选）
     novel_id = Column(String, nullable=True)
     chapter_id = Column(String, nullable=True)
+    shot_id = Column(String, nullable=True)
     character_id = Column(String, nullable=True)
     
     # 代理使用情况
@@ -45,3 +46,4 @@ class LLMLog(Base):
     
     # 请求耗时（秒）
     duration = Column(Float, nullable=True)  # 请求耗时，单位秒
+    usage_metrics = Column(JSON, nullable=True)

@@ -1,0 +1,47 @@
+[
+  {
+    "task_id": "8d4cb355-9540-42a8-b8a3-bc31a58eb9d1",
+    "status": "completed",
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_8d4cb355_20261006_215552.mp4",
+    "clip_plan_revision": 1,
+    "created_at": "2026-10-06 13:53:15",
+    "artifact_id": null,
+    "identity_status": "PENDING"
+  },
+  {
+    "task_id": "f18d8ebb-059c-4227-bf09-a1b44beded72",
+    "status": "completed",
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_f18d8ebb_20261006_203912.mp4",
+    "clip_plan_revision": 1,
+    "created_at": "2026-10-06 12:36:34",
+    "artifact_id": null,
+    "identity_status": "PENDING"
+  },
+  {
+    "task_id": "c6b13480-4294-4336-b3b7-7c6d75ba76cb",
+    "status": "completed",
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_c6b13480_20261006_200754.mp4",
+    "clip_plan_revision": 1,
+    "created_at": "2026-10-06 12:05:04",
+    "artifact_id": null,
+    "identity_status": "PENDING"
+  },
+  {
+    "task_id": "b811a205-ce9c-42c9-9a9f-75fd059497da",
+    "status": "completed",
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_b811a205_20261006_163746.mp4",
+    "clip_plan_revision": 1,
+    "created_at": "2026-10-06 08:33:48",
+    "artifact_id": null,
+    "identity_status": "PENDING"
+  },
+  {
+    "task_id": "f4e9885e-e21c-4fe7-923e-ea917fbc79a0",
+    "status": "completed",
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_f4e9885e_20261006_011627.mp4",
+    "clip_plan_revision": 1,
+    "created_at": "2026-10-05 17:09:21",
+    "artifact_id": null,
+    "identity_status": "PENDING"
+  }
+]

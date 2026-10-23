@@ -11,6 +11,8 @@ export const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
   httpProxy: '',
   httpsProxy: '',
+  youtubeEnabled: false,
+  youtubeProxyUrl: '',
 };
 
 /**
@@ -24,9 +26,15 @@ export const DEFAULT_CONFIG: SystemConfig = {
   llmMaxTokens: 393216,
   llmTemperature: undefined,
   llmTimeout: 1800,
+  autoImageReviewEnabled: true,
+  videoPromptLanguage: 'en',
+  showFirstAppearanceNames: true,
+  autoApproveFirstAppearanceNames: true,
+  generationQualityPolicy: {},
+  coverProduction: '旺仔有声小说',
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
-  comfyUITimeout: 900,
+  comfyUITimeout: 3600,
   systemStatusSource: 'comfyui',
   outputResolution: '1920x1080',
   outputFrameRate: 24,

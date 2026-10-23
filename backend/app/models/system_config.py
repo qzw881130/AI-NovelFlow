@@ -19,15 +19,24 @@ class SystemConfig(Base):
     llm_max_tokens = Column(Integer, default=393216, nullable=True)  # 最大token数
     llm_temperature = Column(String, nullable=True)  # 温度参数（字符串类型，支持范围0.0-2.0）
     llm_timeout = Column(Integer, default=1800, nullable=True)  # 请求超时（秒）
+    auto_image_review_enabled = Column(Boolean, default=True, nullable=False)
+    auto_image_review_enabled_at = Column(DateTime(timezone=True), nullable=True)
+    video_prompt_language = Column(String, default="en", nullable=False)
+    show_first_appearance_names = Column(Boolean, default=True, nullable=False)
+    auto_approve_first_appearance_names = Column(Boolean, default=True, nullable=False)
+    generation_quality_policy = Column(Text, default="{}", nullable=False)
+    cover_production = Column(String, default="旺仔有声小说", nullable=False)
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)
     http_proxy = Column(String, nullable=True)
     https_proxy = Column(String, nullable=True)
+    youtube_proxy_enabled = Column(Boolean, default=False, nullable=False)
+    youtube_proxy_url = Column(String, default="", nullable=False)
     
     # ComfyUI 配置
     comfyui_host = Column(String, default="http://127.0.0.1:8188")
-    comfyui_timeout = Column(Integer, default=900, nullable=True)  # ComfyUI 任务结果保存超时（秒）
+    comfyui_timeout = Column(Integer, default=3600, nullable=True)  # ComfyUI 任务结果保存超时（秒）
     system_status_source = Column(String, default="comfyui")
     
     # 输出配置

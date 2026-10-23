@@ -67,7 +67,12 @@ echo "按 Ctrl+C 停止服务"
 echo ""
 
 # 使用 nohup 在后台运行，输出到 backend.log
-nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > backend.log 2>&1 &
+RELOAD_ARGS=()
+if [[ "${NOVELFLOW_RELOAD:-0}" == "1" ]]; then
+    RELOAD_ARGS=(--reload --reload-dir "$SCRIPT_DIR/app")
+    echo "开发热重载已启用（仅监视 app 目录）"
+fi
+nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 "${RELOAD_ARGS[@]}" > backend.log 2>&1 &
 disown 2>/dev/null || true
 
 # 等待服务启动

@@ -4,18 +4,17 @@
 import { Loader2, Package, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Prop } from '../../../types';
-import type { PropPrompt } from '../types';
-import { ASPECT_RATIO_CLASSES } from '../constants';
+import type { CurrentImageQuality } from '../../../api/imageReviews';
+import { LibraryImageReview } from '../../../components/LibraryImageReview';
 
 interface PropCardProps {
   prop: Prop;
+  imageQuality?: CurrentImageQuality;
   aspectRatio: string;
   highlightedId: string | null;
   generatingId: string | null;
   generatingAppearanceId: string | null;
   uploadingId: string | null;
-  propPrompt?: PropPrompt;
-  templateDisplayName: string;
   onDelete: (id: string) => void;
   onEdit: (prop: Prop) => void;
   onGenerateImage: (prop: Prop) => void;
@@ -27,13 +26,11 @@ interface PropCardProps {
 
 export function PropCard({
   prop,
-  aspectRatio,
+  imageQuality,
   highlightedId,
   generatingId,
   generatingAppearanceId,
   uploadingId,
-  propPrompt,
-  templateDisplayName,
   onDelete,
   onEdit,
   onGenerateImage,
@@ -43,7 +40,7 @@ export function PropCard({
   onImageClick,
 }: PropCardProps) {
   const { t } = useTranslation();
-  const aspectClass = ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-square';
+  const isNonexistent = prop.existence === 'FICTIONAL_OR_NONEXISTENT';
 
   return (
     <div
@@ -55,12 +52,12 @@ export function PropCard({
       }`}
     >
       {/* Prop Image */}
-      <div className={`${aspectClass} bg-gray-100 relative w-full`}>
-        {prop.imageUrl ? (
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
+        {prop.imageUrl && !isNonexistent ? (
           <img
             src={prop.imageUrl}
             alt={prop.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(prop.imageUrl!, prop.name, prop.id)}
           />
         ) : (
@@ -69,7 +66,7 @@ export function PropCard({
           </div>
         )}
 
-        {prop.imageUrl && (
+        {prop.imageUrl && !isNonexistent && (
           <button
             onClick={() => onEditImage(prop)}
             className="absolute top-2 left-2 p-2 bg-white/90 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors opacity-0 group-hover:opacity-100"
@@ -80,6 +77,9 @@ export function PropCard({
         )}
 
         {/* Status Badge */}
+        {isNonexistent && (
+          <div className="absolute top-2 left-2 rounded-full bg-gray-800 px-2 py-1 text-xs text-white">故事中不存在</div>
+        )}
         {prop.generatingStatus === 'running' && (
           <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -113,7 +113,7 @@ export function PropCard({
         {/* 上传按钮 */}
         <button
           onClick={() => onUploadImage(prop.id)}
-          disabled={uploadingId === prop.id}
+          disabled={uploadingId === prop.id || isNonexistent}
           className="absolute bottom-2 left-12 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100"
           title={t('props.uploadImage')}
         >
@@ -127,9 +127,9 @@ export function PropCard({
         {/* AI生成道具图 Button */}
         <button
           onClick={() => onGenerateImage(prop)}
-          disabled={generatingId === prop.id || prop.generatingStatus === 'pending' || prop.generatingStatus === 'running'}
+          disabled={isNonexistent || generatingId === prop.id || prop.generatingStatus === 'pending' || prop.generatingStatus === 'running'}
           className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-amber-600/90 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100 text-xs"
-          title={prop.generatingStatus === 'pending' || prop.generatingStatus === 'running' ? t('props.generatingStatus') : (prop.imageUrl ? t('props.regenerate') : t('props.generateImage'))}
+          title={isNonexistent ? '故事中不存在的道具不生成实体参考图' : prop.generatingStatus === 'pending' || prop.generatingStatus === 'running' ? t('props.generatingStatus') : (prop.imageUrl ? t('props.regenerate') : t('props.generateImage'))}
         >
           {prop.generatingStatus === 'pending' || prop.generatingStatus === 'running' || generatingId === prop.id ? (
             <>
@@ -160,6 +160,7 @@ export function PropCard({
         <h3 className="text-lg font-semibold text-gray-900 truncate">
           {prop.name}
         </h3>
+        {prop.imageUrl && !isNonexistent && <LibraryImageReview quality={imageQuality} name={`道具图：${prop.name}`} />}
 
         {/* 道具描述 */}
         {prop.description && (
@@ -183,7 +184,7 @@ export function PropCard({
           <div className="mt-3">
             <button
               onClick={() => onGenerateAppearance(prop)}
-              disabled={generatingAppearanceId === prop.id || !prop.description}
+              disabled={isNonexistent || generatingAppearanceId === prop.id || !prop.description}
               className="text-xs inline-flex items-center text-primary-600 hover:text-primary-700 disabled:opacity-50"
             >
               {generatingAppearanceId === prop.id ? (
@@ -201,18 +202,6 @@ export function PropCard({
           </div>
         )}
 
-        {/* 生成提示词 */}
-        {propPrompt && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-gray-400">{t('props.promptLabel')}</p>
-              <span className="text-xs text-gray-400">{templateDisplayName}</span>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
-              {propPrompt.prompt}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

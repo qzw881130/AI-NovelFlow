@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
+from app.constants.h3_prompt_pipeline import DEFAULT_H3_PROMPT_PIPELINE
+from app.services.effective_execution import ContinuationMode
 
 
 VideoMode = Literal["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"]
@@ -95,6 +97,18 @@ class MergeVideosRequest(BaseModel):
     )
     include_transitions: bool = Field(False, description="是否包含转场视频（兼容旧请求）")
     shot_ids: Optional[List[str]] = Field(None, description="要参与合并的分镜 ID 列表；为空时合并所有已有视频的分镜")
+    video_variant: Literal["draft", "hd"] = Field("draft", description="视频版本：初稿或高清")
+    target_megapixels: Optional[float] = Field(None, description="高清视频目标 MP")
+
+
+class HdRepaintRequest(BaseModel):
+    target_megapixels: float = Field(1.0, ge=0.5, le=2.0)
+    source_task_id: Optional[str] = None
+
+
+class BatchHdRepaintRequest(BaseModel):
+    shot_ids: List[str]
+    target_megapixels: float = Field(1.0, ge=0.5, le=2.0)
 
 
 class ShotUpdate(BaseModel):
@@ -203,15 +217,29 @@ class GenerateVideoRequest(BaseModel):
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
     selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
+    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")
+    preflight_auto_repair: Optional[bool] = Field(None, description="启用 #14 时默认执行 Preflight L0/L1 修复；显式 false 可关闭")
     skip_llm_when_prompt_exists: bool = Field(False, description="已有最终视频提示词时跳过 LLM，直接提交工作流")
+
+
+from app.services.video_result_mode import ResultMode
+from app.services.h3_prompt_language import PromptLanguage
 
 
 class GenerateVideoDirectorClipRequest(BaseModel):
     """重新生成单个 Video Director Clip 请求"""
 
+    result_mode: ResultMode = "APPLY"
+    video_prompt_language: Optional[PromptLanguage] = None
+
+    continuation_mode: ContinuationMode = "AUTO"
+    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
+    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")
+    preflight_auto_repair: Optional[bool] = Field(None, description="启用 #14 时默认执行 Preflight L0/L1 修复；显式 false 可关闭")
     skip_llm_when_prompt_exists: bool = Field(False, description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
+    clip_plan_revision: Optional[int] = Field(None, description="语义 Clip 计划 revision")
 
 
 class SaveVideoDirectorPlanRequest(BaseModel):
@@ -228,13 +256,22 @@ class SaveVideoDirectorPlanRequest(BaseModel):
     validation: Optional[dict] = None
 
 
-class RecommendVideoModeRequest(BaseModel):
-    """推荐视频生成模式请求"""
-
-    force: bool = Field(False, description="是否强制重新推荐")
-
-
 class PlanVideoKeyframesRequest(BaseModel):
     """规划视频关键帧时间轴请求"""
 
     force: bool = Field(False, description="是否强制重新规划关键帧时间轴")
+    operation: Literal["FULL_VISUAL_PLAN", "ATTENTION_REPLAN"] = "FULL_VISUAL_PLAN"
+
+
+class PlanVideoTransitionsRequest(BaseModel):
+    """Explicitly refresh selected attention-stale canonical edges."""
+
+    transition_edges: Optional[List[tuple[int, int]]] = None
+
+
+class PlanClipsRequest(BaseModel):
+    """Semantic Clip Planner request."""
+
+    temporal_anchors: List[dict] = Field(default_factory=list)
+    approval_mode: Literal["AUTO_APPROVE", "REVIEW_REQUIRED"] = "AUTO_APPROVE"
+    force: bool = False

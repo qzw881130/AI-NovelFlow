@@ -1,0 +1,39 @@
+# 示例小说 V1 验收记录
+
+## 旧功能审计
+
+- 旧 `/test-cases` 页面由 `frontend/my-app/src/pages/TestCases`、`src/api/testCases.ts` 和旧多语言文案组成，只提供旧测试 UI。已移除这些不再引用的前端文件；新路由 `/examples` 取代该页面，旧地址在前端重定向。
+- 旧 `/api/test-cases` 包含测试用例列表、详情、增删改和 `/{id}/run`。新页面不调用这些接口；旧执行接口保留兼容，但不再从导航或页面暴露。旧执行目前只启动角色解析任务，并非完整流程引擎。
+- 三个预设正文来自 `backend/app/constants/test_case.py`。旧 `init_preset_test_cases` 曾在应用启动和测试 fixture 中使用；现在只停止应用启动时自动创建预设小说、章回及角色。初始化函数、`TestCase` 模型和仓库仍保留供现有自动化测试使用，不删除用户数据库里已有的预设记录。
+- 正式小说创建入口是 `POST /api/novels/`；章回创建入口是 `POST /api/novels/{id}/chapters`。两者原本分别提交，因此新导入接口抽出正式小说创建的同一实现，并把小说与全部章回放在一次提交中。
+- 正式创建默认设置：角色生成和风格提示词使用系统默认模板，其余模板沿用空值默认；宽高比 `16:9`，小说和章回状态 `pending`；世界上下文未锁定。Video Director 配置保持正式创建时的默认值，导入不触发生成。
+
+## 示例数据检查
+
+| 示例 ID | 原有小说标题 | 章回数 | 正文字符数（含标点及空白字符） | 缺失标题/正文 |
+| --- | --- | ---: | ---: | --- |
+| `xiaoma` | 小马过河（章节版） | 8 | 2281 | 0 |
+| `red-riding-hood` | 小红帽（章回体版） | 5 | 753 | 0 |
+| `emperor` | 《皇帝的新装》章回体改写 | 5 | 819 | 0 |
+
+章节顺序、标题和正文来自原有预设常量。三组都没有空章节，故事正文是项目已有的简短改写版本；没有补写或改写正文。
+
+## 导入流程
+
+`GET /api/examples/` 提供卡片信息；`GET /api/examples/{id}/` 返回全部正文供预览；`POST /api/examples/{id}/import/` 调用与正式创建相同的小说初始化函数，写入章回并提交一次事务。失败会回滚并返回明确错误，成功返回 `novel_id` 后进入小说详情。重复导入每次产生新 ID。业务事件在提交后独立记录；事件或通知失败不影响已提交小说。
+
+## 验证
+
+- 后端独立内存数据库：三个示例预览与导入正文逐章一致；章回顺序和数量正确；重复导入互不覆盖；与正式创建默认设置一致；无角色、场景、道具、Shot 或任务；失败回滚无残留。
+- 后端相关回归：`44 passed`（`test_examples.py`、`test_api_compatibility.py`、`test_business_events.py`）。
+- 前端 TypeScript 检查及 Vite 生产构建通过。
+- 浏览器检查：实际运行接口下的旧地址重定向、三张卡片及三个示例首尾章预览通过；导入跳转另以模拟 POST 响应验证。截图取自实际运行接口；未对用户正式数据库进行导入。
+- 页面截图：`docs/example-novels-v1-page.png`；预览截图：`docs/example-novels-v1-preview.png`。
+
+后端已重启并通过 `/api/health/`、`/api/examples/` 读取检查。正式数据库小说数量保持 12，没有清理、覆盖或新增用户正式小说。
+
+## 本次修改文件
+
+- 后端：`backend/app/api/examples.py`、`backend/app/constants/examples.py`、`backend/app/api/novels.py`、`backend/app/main.py`、`backend/app/services/business_events.py`、`backend/app/services/notification_registry.py`、`backend/tests/test_examples.py`。
+- 前端：`frontend/my-app/src/api/examples.ts`、`frontend/my-app/src/pages/Examples/index.tsx`、`frontend/my-app/src/App.tsx`、`frontend/my-app/src/components/Sidebar.tsx`、五种语言的 `nav.ts` 及 `index.ts`；移除旧 `pages/TestCases/`、`api/testCases.ts`、五种语言的 `testCases.ts`。
+- 验收材料：本记录及两张截图。

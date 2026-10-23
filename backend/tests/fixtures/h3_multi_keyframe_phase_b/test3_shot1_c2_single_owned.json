@@ -1,0 +1,1101 @@
+{
+  "provenance": {
+    "source_task_id": "400414ff-9338-42b3-ba8a-69f29dd8cbda",
+    "source_shot_snapshot": "/Volumes/Data/tmp/test3_shot1_c2_multi_state_audit_20261016/shot1.json",
+    "source_shot_sha256": "eb8a55c2c3c70963dfb2fa50b478d03305f4dd0c48ac643293de1a90302b6322",
+    "source_tasks_sha256": "ea7004ed5c20911a3257cf2df3bfcfe76a91e4fb2f6b8abeb7fa80a1103cb533",
+    "scope": "Actual revision1 Canonical / Clip planning fields and failed C2 metadata. Builder input is reconstructed by production input_only builder in tests; no C2 Director request was sent. Character appearances are the same Shot successful C1 saved input. Workflow and resource hashes read only on 2026-10-16. Synthetic Director decisions are test code only."
+  },
+  "shot": {
+    "id": "b0c1f742-fd15-4ffc-b7b3-e511374b054d",
+    "chapter_id": "59ce27c0-91a1-4d82-9413-7991684d29ee",
+    "index": 1,
+    "description": "Scene: 清晨的王宫宫门刚刚开启，柔和晨光从门内照向门外；中景平视机位朝向门槛外侧，画面共3名可见人物，只有卫兵1、骗子1和骗子2，宫门内外的空间边界清晰。\nCharacters:\n- 卫兵1: 严格继承正式参考资产身份，位于画面左侧门槛内，身体朝向门外的骗子1和骗子2，目光警惕，单臂平伸作拦阻姿态。\n- 骗子1: 严格继承正式参考资产身份，位于画面右侧门槛外，身体朝向卫兵1，头戴宽边礼帽，手提骗子木箱，保持从容站姿。\n- 骗子2: 严格继承正式参考资产身份，位于骗子1右后方的门外区域，身体朝向卫兵1，头戴宽边礼帽，手提骗子木箱，面带殷勤笑容站立。\nAction: 卫兵1从门槛内伸手指向门外的骗子1和骗子2，阻止二人进入王宫。",
+    "video_description": "从当前静态首帧状态继续，卫兵1保持在门槛内盘问二人；骗子1微微躬身并从容回应，骗子2紧接着补充说明。摄影机以中景缓慢向三人推进，在卫兵1打量二人时轻微横移，保持宫门边界和三人的位置关系。骗子1向卫兵1靠近一步并压低姿态，骗子2谨慎观察两侧，以表情和手势强化秘密感；卫兵1从怀疑转为震惊，又因担忧而收敛质疑。骗子1与骗子2交换眼神，继续完成说明。镜头最终停在卫兵1匆匆转身、从门槛处走向宫门内侧的状态，骗子1和骗子2留在门外等待。只有卫兵1、骗子1和骗子2按照dialogues顺序发声，不增加任何其他人声、称谓或填充词；保留必要脚步声和清晨环境声，不生成字幕或画面文字。",
+    "characters": "[\"卫兵1\", \"骗子1\", \"骗子2\"]",
+    "scene": "王宫宫门",
+    "props": "[\"宽边礼帽\", \"骗子木箱\"]",
+    "duration": 53,
+    "continuity_mode": "CONTINUOUS_TAKE",
+    "dialogues": "[{\"order\": 1, \"character_name\": \"卫兵1\", \"text\": \"站住！你们是什么人？\", \"emotion_prompt\": \"警惕严厉\"}, {\"order\": 2, \"character_name\": \"骗子1\", \"text\": \"请禀告陛下，我们是从遥远国度来的织布大师。\", \"emotion_prompt\": \"从容恭敬\"}, {\"order\": 3, \"character_name\": \"骗子2\", \"text\": \"我们听说陛下最喜爱天下最华美的衣裳，所以特地带来一种世上从未出现过的织造方法。\", \"emotion_prompt\": \"殷勤自信\"}, {\"order\": 4, \"character_name\": \"卫兵1\", \"text\": \"织布大师？\", \"emotion_prompt\": \"怀疑审视\"}, {\"order\": 5, \"character_name\": \"骗子1\", \"text\": \"正是。\", \"emotion_prompt\": \"镇定肯定\"}, {\"order\": 6, \"character_name\": \"卫兵1\", \"text\": \"王城里能织锦缎的工匠多得很，凭什么要让陛下见你们？\", \"emotion_prompt\": \"强硬质问\"}, {\"order\": 7, \"character_name\": \"骗子1\", \"text\": \"因为我们织出来的布，不只是漂亮。\", \"emotion_prompt\": \"神秘克制\"}, {\"order\": 8, \"character_name\": \"卫兵1\", \"text\": \"那还有什么特别？\", \"emotion_prompt\": \"戒备好奇\"}, {\"order\": 9, \"character_name\": \"骗子2\", \"text\": \"这种布，有一种奇妙的力量。\", \"emotion_prompt\": \"故作神秘\"}, {\"order\": 10, \"character_name\": \"卫兵1\", \"text\": \"什么力量？\", \"emotion_prompt\": \"急切追问\"}, {\"order\": 11, \"character_name\": \"骗子2\", \"text\": \"凡是愚蠢的人，或者不配担任自己职位的人，都看不见它。\", \"emotion_prompt\": \"郑重诱导\"}, {\"order\": 12, \"character_name\": \"骗子1\", \"text\": \"所以，这不仅是一件衣裳。\", \"emotion_prompt\": \"轻声暗示\"}, {\"order\": 13, \"character_name\": \"骗子2\", \"text\": \"还是检验一个人智慧和能力的宝物。\", \"emotion_prompt\": \"笃定煽动\"}, {\"order\": 14, \"character_name\": \"卫兵1\", \"text\": \"你们……在这里等着。\", \"emotion_prompt\": \"紧张迟疑\"}]"
+  },
+  "plan": {
+    "keyframes": [
+      {
+        "index": 1,
+        "time_seconds": 0.0,
+        "role": "START",
+        "description": "",
+        "timed_visual_target": false
+      },
+      {
+        "index": 2,
+        "time_seconds": 8.0,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门，晨光越过门槛照向门外；摄影机沿原有中景轴线略微推进，宫门内外边界仍清晰可见。\nCharacters:\n- 卫兵1: 站在画面左侧门槛内，身体仍朝向门外，伸出的拦阻手臂略有放松，目光警惕地落在骗子1身上。\n- 骗子1: 站在画面右侧门槛外，腰背微躬，宽边礼帽下神情从容，骗子木箱垂置身侧。\n- 骗子2: 位于骗子1右后方，保持殷勤神情和面向卫兵1的站姿，手提骗子木箱。\nAction: 三人分处门槛两侧，骗子1的恭敬低姿态与卫兵1的拦阻姿态形成清晰对照。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 3,
+        "time_seconds": 17.4,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门；摄影机沿同一连续轨迹缓慢靠近并轻微横移，三人与门槛的空间关系保持连贯。\nCharacters:\n- 卫兵1: 仍在门槛内侧，眉头收紧，目光在骗子1和骗子2之间审视，拦阻手臂保持在二人前方。\n- 骗子1: 位于门外右侧，恢复较直的从容站姿，宽边礼帽和骗子木箱保持不变。\n- 骗子2: 仍在骗子1右后方，身体略向前倾，一只手以克制的开放姿势置于身前，脸上保持自信而殷勤的神情，另一只手提着骗子木箱。\nAction: 构图在不改变门槛两侧站位的前提下更紧密地纳入卫兵1的审视神情和骗子2的手势。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 4,
+        "time_seconds": 27.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门；摄影机继续沿原轨迹缓慢推进，门槛线仍横隔在卫兵1与两名骗子之间。\nCharacters:\n- 卫兵1: 留在门槛内，身体正对骗子1，眉头微皱，拦阻手臂尚未完全收回。\n- 骗子1: 已在门外向门槛靠近一步，与卫兵1的距离明显缩短，但没有越过门槛；他压低上身，宽边礼帽略微遮住额头，骗子木箱仍稳稳提在身侧。\n- 骗子2: 留在骗子1右后方的门外区域，头部谨慎偏向宫门一侧，手提骗子木箱。\nAction: 骗子1在门外形成更靠近卫兵1的低姿态前景关系，骗子2保持后方警戒位置。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑并合成为27.8秒当前时间点的一幅完整静态剧情画面：清晨的王宫宫门，摄影机沿既定轨迹推进后已经到达更靠近人物的新稳定构图；门槛线仍清楚横隔在门内的卫兵1与门外的骗子1、骗子2之间。必须完整实现当前人物位置、距离、姿态、朝向、视线、道具状态和摄影机变化，不得停留在较早的站位与姿态。\n\n<image_1>是当前Shot的主分镜基线，仅用于回查王宫宫门、三名角色、空间方向、镜头轴线和整体视觉基线；当前时间状态以本提示描述为准，不把画面退回主分镜初始状态，也不机械复制其中与当前人物距离、姿态或构图冲突的状态。\n\n<image_2>是卫兵1、骗子2、骗子1的正式角色身份参考。直接使用<image_2>保持三人的身份、面容、年龄特征、发型、体型比例、服装和身份识别细节稳定一致；参考图中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。不同视图仅代表同一角色，不得复制成额外人物。\n\n<image_3>是宽边礼帽的正式道具外观参考，只用于保持宽边礼帽的形制、材质、颜色与稳定细节；参考图的展示背景、排版和其他未列物体不得进入最终画面。\n\n<image_4>是骗子木箱的正式道具外观参考，只用于保持骗子木箱的形制、材质、颜色、结构和相对尺度；参考图的展示背景、排版和其他未列物体不得进入最终画面。\n\nSCENE PARTICIPANTS：画面中恰好出现三名独立且唯一的可见人物：卫兵1、骗子1、骗子2，每人各出现且只出现一次。不得新增、删除、复制、融合或互换角色，不得从主分镜或角色参考图带入路人、卫兵、侍从、人影、剪影、背景人群、镜中人物或任何第四个人。\n\n当前视觉状态必须明确达到：卫兵1留在宫门门槛内侧，身体正对门外的骗子1，眉头微皱，保持警觉而克制的神情；其用于拦阻的手臂尚未完全收回，仍能清楚看出刚才拦阻动作留下的姿态，但不要表现动作过程或残影。骗子1仍在门外，已经向门槛和卫兵1靠近一步，与卫兵1之间的距离明显缩短，同时双脚和身体都没有越过门槛；他位于更靠近摄影机的门外前景，压低上身形成清楚可见的低姿态，朝向卫兵1，宽边礼帽略微遮住额头，骗子木箱稳稳提在身侧。骗子2留在骗子1右后方的门外区域，与骗子1保持前后层次；头部谨慎偏向宫门一侧，处于后方警戒位置，手提骗子木箱。门槛必须保持为明确的空间边界，骗子1与骗子2均未跨入宫门内侧。\n\nVisual Delta必须充分可见：让骗子1相对于较早状态实质性地向门槛靠近一步，显著缩短他与卫兵1的距离，并由较直站姿改变为压低上身的低姿态前景关系；卫兵1由在两名骗子之间审视调整为身体和注意方向明确正对骗子1，拦阻手臂处于尚未完全收回的当前状态；骗子2继续位于骗子1右后方，但取消不属于当前状态的前伸开放手势，形成更克制的后方警戒姿态，头部谨慎偏向宫门。不得因保留基线而弱化这些变化，也不得让骗子1仍停留在远离门槛的较直站姿。\n\nContinuity Locks：保持<image_2>定义的三人身份与稳定外观，保持未被当前状态改变的服装、发型、体型、配饰和道具外观；保持王宫宫门的建筑身份、门洞与门槛结构、材质、时代感、清晨光线逻辑、世界空间方向和镜头轴线连续。除实现当前明确变化所需的自然重构外，不改变建筑结构，不突然换装，不增加武器或其他身份物件，不增加未要求的剧情道具。\n\n摄影机继续沿<image_1>所示既定空间轨迹缓慢推进，并在当前时刻形成已经到达的稳定近距离构图；相较主分镜基线，三人的表情、骗子1的低姿态前景关系以及卫兵1尚未完全收回的拦阻手臂更加清晰。保持合理透视和空间纵深，不跳轴、不镜像翻转人物左右关系。门槛线仍横向贯穿画面并清楚分隔门内与门外，构图重心落在靠近后的骗子1与正对他的卫兵1之间，同时保留骗子2位于骗子1右后方的完整可读位置。人物身体、双脚、门槛和木箱之间保持自然遮挡与可信接触关系。\n\n采用2D chibi cartoon rendering：干净圆润的线条、平涂色彩、简洁赛璐璐阴影；人形角色保持稳定的2.5至3头身比例与简化面部特征，同时保留可辨识的年龄线索、发型、服装和身份细节。环境与道具使用相同的二维线条和阴影语言，但保持建筑与物件原有结构、功能比例及相对尺度，不把建筑或道具拟人成Q版身体。高质量、细节清晰、透视正确、人体比例自然稳定、环境连续。\n\n只呈现27.8秒的单一静态瞬间，不表现动作起点与终点同屏，不使用残影或重复人物，不生成漫画分格、多面板、前后对比、角色设定表、多视图、参考图拼贴或contact sheet。不得生成字幕、对白框、标题、标签、说明文字、logo、水印、UI或运动箭头；不得擅自添加现代物件、额外人物或额外道具。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261016_134207.png",
+        "image_task_id": "26dd8a55-d766-4201-bd54-5957ae011531"
+      },
+      {
+        "index": 5,
+        "time_seconds": 33.8,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门；连续推进后的中近景仍保留门槛和部分开启的宫门，晨光保持柔和稳定。\nCharacters:\n- 卫兵1: 站在门槛内侧，身体略向前探，警惕神情中显出好奇，视线集中在骗子2身上。\n- 骗子1: 保持靠近门槛但未越界的低姿态，神情镇定，骗子木箱垂在身侧。\n- 骗子2: 位于骗子1右后方，头部微偏并以余光观察宫门两侧，一只手靠近胸前作收敛的暗示手势，另一只手提着骗子木箱。\nAction: 三人形成紧凑的斜向关系，骗子2的谨慎视线和克制手势成为画面中的秘密感来源。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 6,
+        "time_seconds": 41.1,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门；摄影机在同一侧继续轻微横移，门槛边界与三人的连续站位均保持清楚。\nCharacters:\n- 卫兵1: 仍在门槛内，双眼明显睁大，眉峰抬起，原本平伸的拦阻手臂已降至半高，身体僵直地面向两名骗子。\n- 骗子1: 位于门外靠近门槛处，压低的姿态保持稳定，神情冷静而含蓄。\n- 骗子2: 站在骗子1右后方，姿态沉稳，收敛的手势停在身前，目光坚定地朝向卫兵1。\nAction: 卫兵1的震惊表情与降低的拦阻手臂构成明显变化，两名骗子仍共同停留在门外。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 7,
+        "time_seconds": 47.7,
+        "role": "INTERMEDIATE",
+        "description": "Scene: 清晨的王宫宫门；摄影机沿既有轨迹抵达更紧凑的三人构图，柔和晨光仍从宫门内侧照出。\nCharacters:\n- 卫兵1: 位于门槛内，拦阻手臂已经垂下，肩颈略显紧绷，眉头重新收拢，神情由震惊转为担忧。\n- 骗子1: 位于门槛外前方，身体略微抬起，侧目看向骗子2，骗子木箱仍在身侧。\n- 骗子2: 留在骗子1右后方，回望骗子1，神情笃定，骗子木箱保持垂置。\nAction: 两名骗子在门外形成短暂的相互注视，卫兵1则在门内呈现迟疑而忧虑的静止姿态。",
+        "timed_visual_target": false
+      },
+      {
+        "index": 8,
+        "time_seconds": 53.0,
+        "role": "END",
+        "description": "Scene: 清晨的王宫宫门；摄影机沿同一连续轨迹停稳，门槛与宫门内外空间仍同时可见，晨光从门内铺向门外。\nCharacters:\n- 卫兵1: 已从门槛处进入宫门内侧数步，背部与侧身朝向画面，身体面向宫内，步幅急促，双臂自然摆在行走姿态中。\n- 骗子1: 留在门槛外侧，没有越界，恢复从容直立姿态，宽边礼帽端正，骗子木箱提在身侧，视线朝向卫兵1的背影。\n- 骗子2: 仍在骗子1右后方的门外区域，宽边礼帽和骗子木箱保持不变，身体朝向宫门内侧，神情克制而期待。\nAction: 卫兵1位于宫门内侧，骗子1和骗子2并立等候在门外，三人与门槛形成明确的最终空间分隔。",
+        "timed_visual_target": true,
+        "prompt_text": "编辑生成53.0秒当前关键帧的单一完整剧情画面：以当前关键帧描述为当前可见状态的最高依据，在保持人物身份、稳定外观、王宫宫门环境及道具连续性的同时，明确完成卫兵1深入宫门内侧、两名骗子留在门外等候的空间变化，使三人与门槛形成清楚可见的最终分隔。\n\n<image_1>是前序物理状态的连续性参考，提供动作起点、前序摄影机上下文以及未变化的人物外观、服装、环境、光线和道具线索。当前位置、人物空间关系、姿态、身体朝向、视线、表情与构图以当前关键帧描述为准；与当前状态冲突的旧站位、旧姿态和骗子之间的相互注视必须改变，不因保留该参考图而冻结旧布局。\n\n<image_2>是卫兵1、骗子2、骗子1的正式角色身份参考。直接使用<image_2>保持三名角色各自的身份、面部、年龄特征、发型、体型比例、服装和稳定外观一致；其中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。不同视图均为对应的同一角色，不得复制成额外人物，也不得交换或融合三人的身份。\n\n<image_3>是“王宫宫门”的正式场景参考，只用于保持宫门建筑身份、门槛结构、宫门内外空间、材质、时代特征和稳定环境外观；不得把场景参考中的任何人物带入画面。当前摄影机、人物位置、晨光状态和剧情构图服从当前关键帧描述。\n\n<image_4>是“宽边礼帽”的正式道具外观参考，只用于保持当前可见宽边礼帽的形制、材质和稳定外观；参考图的展示背景、排版及未列物体不进入最终画面。\n\n<image_5>是“骗子木箱”的正式道具外观参考，只用于保持骗子木箱的形制、材质、功能比例和稳定外观；参考图的展示背景、排版及未列物体不进入最终画面。\n\n当前为清晨的王宫宫门。摄影机沿既有连续轨迹完成移动并已经停稳，形成稳定的当前构图；门槛以及宫门内、宫门外两个空间必须同时清楚可见，保留明确纵深。柔和晨光从宫门内侧铺向门外，照明方向、建筑空间方向和世界轴线连续自然，不发生无依据的左右镜像或跳轴。\n\n明确改变前序状态：将卫兵1从门槛附近移动到宫门内侧数步之外，使他与门槛之间产生清楚可辨的距离。他正在急促向宫内行走，身体正面朝向宫内，背部与侧身朝向画面，双腿处于已经迈开的行走步幅，双臂自然前后摆动，呈现当前时间点已到达的单一行走姿态。不要保留此前门内迟疑静止、肩颈紧绷或面朝两名骗子的状态。\n\n骗子1始终留在门槛外侧，不得越过门槛。将其从此前侧目看向骗子2的状态调整为从容直立，宽边礼帽端正佩戴，骗子木箱自然提在身侧，头部和视线越过门槛朝向卫兵1正在离开的背影。骗子1不追随卫兵进入宫门内侧。\n\n骗子2仍位于骗子1右后方的门外区域，与骗子1并立等候，但保留前后层次。骗子2的宽边礼帽和骗子木箱保持稳定外观与既有携带状态，身体朝向宫门内侧，视线关注宫门内方向，神情克制而期待。取消此前与骗子1相互回望的关系，不把两人继续画成彼此对视。\n\n最终空间关系必须一目了然：卫兵1已经位于门槛内侧数步处并朝宫内前行；骗子1和骗子2都完整留在门槛外侧，骗子2位于骗子1右后方；门槛在画面中形成三人与宫门内外区域之间的明确视觉界线。不要弱化卫兵向宫内深入的位移，不要让卫兵仍停在门槛边，也不要让任何骗子跨入门内。\n\n保持未被当前状态要求改变的内容连续：三名角色的身份、面部、发型、体型、服装与配饰；两顶宽边礼帽及两名骗子各自当前携带的骗子木箱；王宫宫门的建筑结构、材质、时代、空间方向；清晨光线逻辑；自然遮挡、正确透视和合理相对尺度。除完成当前明确的站位、姿态、朝向、视线及构图变化外，不增加新的动作、人物、道具或环境事件。\n\n画面中恰好出现三名独立且唯一的具名人物：卫兵1、骗子1、骗子2，每人各出现一次。不得新增路人、侍从、卫兵、背景人群、人影、剪影、镜中人物或反射人物；不得复制任何角色，不得角色融合，不得互换脸、服装、发型或身份。只呈现当前剧情实际可见的宽边礼帽和骗子木箱，不添加著名武器、现代物件或其他未指定道具。\n\n采用统一的2D chibi卡通渲染：干净圆润线稿、平涂色彩、简洁赛璐璐阴影；人物保持稳定的2.5至3头身比例和简化面部特征，同时保留可识别的年龄线索、发型、服装及身份细节。环境和道具使用相同的二维线稿与阴影体系，但保持建筑与物件原有结构、功能比例和相对尺度，不赋予建筑或物体拟人化的Q版身体。高质量、细节清晰、人体姿态自然、透视正确、环境稳定。\n\n只生成53.0秒这一时刻的一幅完整单画面，不生成前后帧并排、对比图、拼贴、分镜格、contact sheet、设定页或角色多视图；同一角色不得以动作起点和终点两个版本同时出现，不使用残影、重复人物、箭头或轨迹文字表现运动。不得生成字幕、对白框、标题、标签、说明文字、logo、水印或UI。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_6_20261016_134345.png",
+        "image_task_id": "7f87b454-3798-4c83-b66c-3eac1457e6f9"
+      }
+    ],
+    "transitions": [
+      {
+        "segment_index": 1,
+        "from_keyframe_index": 1,
+        "to_keyframe_index": 2,
+        "start_time": 0.0,
+        "end_time": 8.0,
+        "transition_description": "同一连续镜头内，摄影机从原有平视中景机位沿轴线极缓慢推进，始终保留宫门门槛及其内外边界。开始阶段，卫兵1留在画面左侧门槛内，身体朝向门外，平伸手臂继续阻挡右侧的骗子1和骗子2，警惕目光在二人之间短暂打量；骗子1站在门槛外不越界，宽边礼帽位置不变，骗子木箱稳定提在身侧；骗子2保持在骗子1右后方，面向卫兵1并提稳自己的骗子木箱。约在3.2秒后，骗子1从门外右侧向左前方门槛方向谨慎挪近一小步，但停在门槛外，随后腰背逐渐微躬、重心略微前移，提箱手自然下沉，使木箱垂置身侧，神情始终从容恭敬。与此同时，摄影机在推进中轻微向右平移，让画面重心从卫兵1平顺转向骗子1，同时仍将卫兵1的拦阻手臂和骗子2纳入中景，不改变三人的左右关系。卫兵1随骗子1的移动将目光稳定落到他身上，伸出的手臂略微放松但仍维持阻拦含义，双脚和身体留在门槛内；骗子2不前移，只以细微目光变化观察卫兵1与骗子1，维持殷勤神情和右后方站位。到8秒时，摄影机停止在沿原轴线略微推进后的中景：卫兵1位于左侧门槛内、手臂稍松且注视骗子1；骗子1位于右侧门槛外，以微躬低姿态站定，木箱垂在身侧；骗子2仍在其右后方提箱站立，三人均不得越过门槛或继续展开后续动作。"
+      },
+      {
+        "segment_index": 2,
+        "from_keyframe_index": 2,
+        "to_keyframe_index": 3,
+        "start_time": 8.0,
+        "end_time": 17.4,
+        "transition_description": "从8秒的门槛两侧站位连续开始：短暂保持骗子1为主要视觉落点，他仍站在画面右侧门外，随后缓慢挺直微躬的腰背，宽边礼帽位置不变，手中的骗子木箱继续垂在身侧，不向门内跨步。8.15秒后，骗子2在骗子1右后方轻微前倾上身，逐渐将一只手抬至身前并展开为克制的开放手势，另一只手始终稳提骗子木箱；视觉重心在持续构图中自然由骗子1过渡到骗子2。卫兵1始终守在画面左侧门槛内，不后退也不让开，原本稍有放松的拦阻手臂重新稳定在二人前方；他的眉头逐渐收紧，目光先落在骗子2的手势上，再在骗子1与骗子2之间谨慎移动。摄影机沿原有中景轴线持续缓慢推进，同时做轻微横移，以更紧密地容纳卫兵1的审视神情和骗子2的前倾手势，但不越轴、不改变三人的左右关系，也不越过清晰可见的宫门边界。到17.4秒时，摄影机平稳停在较紧的三人构图：卫兵1仍在门槛内保持拦阻并来回审视，骗子1在门外右侧恢复较直的从容站姿，骗子2仍位于其右后方，身体略向前倾并保持一手开放、一手提箱的状态。"
+      },
+      {
+        "segment_index": 3,
+        "from_keyframe_index": 3,
+        "to_keyframe_index": 4,
+        "start_time": 17.4,
+        "end_time": 27.8,
+        "transition_description": "摄影机从原有机位沿同一轨迹持续缓慢推进，并以轻微横移维持门槛线、卫兵1和门外二人的空间关系。开始时，卫兵1仍站在门槛内侧，拦阻手臂横在前方，眉头收紧，目光短暂扫过骗子2后落回骗子1；骗子2收住身前克制的开放手势，继续留在骗子1右后方，另一只手稳定提着骗子木箱；骗子1保持门外右侧的从容直立姿态，宽边礼帽与身侧骗子木箱位置稳定。随后大部分时间由卫兵1保持画面主要视觉重心，他身体不越过门槛，正面盯住骗子1，拦阻手臂仅随戒备姿态略微放松但不完全收回；骗子1和骗子2不改变左右次序，也不跨越宫门边界，只以轻微呼吸、重心调整和克制表情维持连续状态。临近末段，骗子1从门外右侧朝左前方的门槛与卫兵1靠近一步，在门槛外及时停住，同时逐渐压低上身，使宽边礼帽帽檐略微遮住额头，手中的骗子木箱始终稳稳垂在身侧。摄影机以连续的小幅推进和平移容纳这一步动作，让骗子1与卫兵1逐渐形成更紧密的前景关系，但仍保留卫兵1的审视反应和清晰门槛线。骗子2不跟进，留在骗子1右后方的门外区域，谨慎将头偏向宫门一侧，手提骗子木箱并保持后方位置。过渡结束时，卫兵1身体正对骗子1、眉头微皱且拦阻手臂尚未完全收回；骗子1以靠近门槛但未越界的低姿态停稳；骗子2在其右后方保持警戒，三人的位置、视线、道具与宫门边界连续不变。"
+      },
+      {
+        "segment_index": 4,
+        "from_keyframe_index": 4,
+        "to_keyframe_index": 5,
+        "start_time": 27.8,
+        "end_time": 33.8,
+        "transition_description": "摄影机从原有机位沿既定轨迹持续缓慢推进，始终保留横隔三人的门槛线与部分开启的宫门。前半段以门槛内的卫兵1和门外低姿态的骗子1为视觉重心：骗子1稳在靠近门槛的位置，不再前移或越界，仅以轻微抬眼和克制的重心调整维持与卫兵1的正面关系，宽边礼帽仍略遮额头，骗子木箱垂在身侧并保持稳定；卫兵1仍站在门槛内，拦阻手臂逐渐放松但不作新的阻挡动作，身体略向前探，眉间的怀疑缓和为警惕中的好奇。骗子2留在骗子1右后方，不改变前后层次，一手继续提稳骗子木箱，头部谨慎偏转，以余光依次扫过宫门两侧。接近后半段时，骗子2将空着的一只手缓慢收至胸前，形成幅度很小、向内收敛的暗示手势；摄影机只作轻微横移补偿，使这一动作与三人的斜向关系清晰可见，同时不追随骗子2形成独立特写。卫兵1的视线随骗子2的动作从骗子1自然移向骗子2，注意力连续转移；骗子1保持靠近门槛的低姿态和镇定神情，退居关系中的稳定支点。最终摄影机停在连续推进形成的中近景：卫兵1位于门槛内侧并略微前探，视线集中于骗子2；骗子1仍在门外靠近门槛且未越界，木箱垂于身侧；骗子2仍处于骗子1右后方，一手提箱、一手停在胸前，头部微偏并留意宫门两侧，三人构成紧凑而不交叉换位的斜向关系。"
+      },
+      {
+        "segment_index": 5,
+        "from_keyframe_index": 5,
+        "to_keyframe_index": 6,
+        "start_time": 33.8,
+        "end_time": 41.1,
+        "transition_description": "同一镜头内，卫兵1保持在门槛内侧，先维持略向前探、警惕而好奇的姿态，视线始终落在骗子2身上；随后他的身体逐渐绷直，双眼明显睁大、眉峰抬起，原本用于拦阻的手臂从平伸位置缓慢降至半高，最终僵直地面向两名骗子。骗子2留在骗子1右后方，不跨越门槛，头部和目光从对宫门两侧的谨慎观察逐步转向卫兵1，胸前克制的暗示手势轻微收束后稳定停在身前，姿态由谨慎转为沉稳坚定；另一只手持续提稳骗子木箱。骗子1始终停在门外靠近门槛处，保持压低而镇定的姿态，不再向前移动，手中的骗子木箱垂在身侧。摄影机沿原有机位在同一侧缓慢轻微横移，以稳定的中近景同时维持卫兵1与骗子2的视觉主次，并保留骗子1、门槛和部分开启的宫门，既不越轴也不改变三人的左右关系。过渡最终停在卫兵1震惊、拦阻手臂降至半高的状态；骗子1与骗子2仍共同留在门外，骗子2正视卫兵1，所有道具、晨光与宫门边界保持连续。"
+      },
+      {
+        "segment_index": 6,
+        "from_keyframe_index": 6,
+        "to_keyframe_index": 7,
+        "start_time": 41.1,
+        "end_time": 47.7,
+        "transition_description": "同一连续镜头内，卫兵1留在门槛内，先维持双眼睁大、身体僵直的状态，随后将半高的拦阻手臂缓慢降至身侧；他的眉峰逐渐落下并重新收拢，肩颈仍然紧绷，神情由震惊连续转为迟疑和担忧。骗子1始终停在门外靠近门槛处，不跨越边界，从压低的姿态中略微抬起身体，骗子木箱保持在身侧；他先维持面向卫兵1的冷静神态，继而侧目转向位于自己右后方的骗子2。骗子2保持右后方站位和骗子木箱的垂置状态，仅以小幅头部与视线转动回望骗子1，神情保持笃定。两名骗子形成短暂而克制的相互注视后停住，卫兵1也停在手臂完全垂下、忧虑地面对二人的姿态。摄影机沿原有同侧轨迹继续轻微横移并缓慢推进，不越轴、不改变三人的左右关系，先保持卫兵1与骗子1的关系清晰，再将骗子2自然纳入更紧凑的三人构图；后段视觉重心从两名骗子的眼神交换连续而未完全完成地回落至卫兵1的忧虑反应，最终停在宫门边界、三人站位和内侧晨光均清楚可辨的状态。"
+      },
+      {
+        "segment_index": 7,
+        "from_keyframe_index": 7,
+        "to_keyframe_index": 8,
+        "start_time": 47.7,
+        "end_time": 53.0,
+        "transition_description": "从门槛内外的紧凑三人构图开始，视觉关注在最初片刻由两名骗子自然转向卫兵1。卫兵1眉头紧锁，短暂迟疑后将身体重心转向宫门内侧，先转动肩背和躯干，再从门槛处朝宫内纵深急促迈出数步，双臂随步幅自然摆动。骗子1收回与骗子2的相互注视，在门槛外恢复从容直立姿态，宽边礼帽保持端正，骗子木箱垂提在身侧，视线跟随卫兵1的背影，但不越过门槛；骗子2仍停在骗子1右后方，随卫兵1的移动将身体和视线转向宫门内侧，宽边礼帽与骗子木箱状态保持不变，神情克制而期待。摄影机沿原有机位和方向轻微向宫门内侧平移并稳定跟随卫兵1的离开，同时以门槛为构图支点保留门外两名骗子，不切镜、不跳轴，也不将两名骗子提升为主导焦点。最终摄影机平稳停住：卫兵1已进入宫门内侧数步，背部与侧身朝向画面并保持急行姿态；骗子1和骗子2并立等候在门外，三人与门槛形成清晰的内外空间分隔。"
+      }
+    ],
+    "dialogue_timeline_source": [
+      {
+        "id": "D1",
+        "speaker": "卫兵1",
+        "text": "站住！你们是什么人？",
+        "start_time": 1.0,
+        "end_time": 3.0,
+        "duration": 2.0,
+        "estimated_speech_duration": 2.0,
+        "min_required_duration": 2.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "警惕严厉"
+      },
+      {
+        "id": "D2",
+        "speaker": "骗子1",
+        "text": "请禀告陛下，我们是从遥远国度来的织布大师。",
+        "start_time": 3.2,
+        "end_time": 7.95,
+        "duration": 4.75,
+        "estimated_speech_duration": 4.75,
+        "min_required_duration": 4.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "从容恭敬"
+      },
+      {
+        "id": "D3",
+        "speaker": "骗子2",
+        "text": "我们听说陛下最喜爱天下最华美的衣裳，所以特地带来一种世上从未出现过的织造方法。",
+        "start_time": 8.15,
+        "end_time": 17.4,
+        "duration": 9.25,
+        "estimated_speech_duration": 9.25,
+        "min_required_duration": 9.25,
+        "duration_sufficient": true,
+        "emotion_prompt": "殷勤自信"
+      },
+      {
+        "id": "D4",
+        "speaker": "卫兵1",
+        "text": "织布大师？",
+        "start_time": 17.6,
+        "end_time": 18.6,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "怀疑审视"
+      },
+      {
+        "id": "D5",
+        "speaker": "骗子1",
+        "text": "正是。",
+        "start_time": 18.8,
+        "end_time": 19.3,
+        "duration": 0.5,
+        "estimated_speech_duration": 0.5,
+        "min_required_duration": 0.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "镇定肯定"
+      },
+      {
+        "id": "D6",
+        "speaker": "卫兵1",
+        "text": "王城里能织锦缎的工匠多得很，凭什么要让陛下见你们？",
+        "start_time": 19.5,
+        "end_time": 25.25,
+        "duration": 5.75,
+        "estimated_speech_duration": 5.75,
+        "min_required_duration": 5.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "强硬质问"
+      },
+      {
+        "id": "D7",
+        "speaker": "骗子1",
+        "text": "因为我们织出来的布，不只是漂亮。",
+        "start_time": 25.45,
+        "end_time": 28.95,
+        "duration": 3.5,
+        "estimated_speech_duration": 3.5,
+        "min_required_duration": 3.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "神秘克制"
+      },
+      {
+        "id": "D8",
+        "speaker": "卫兵1",
+        "text": "那还有什么特别？",
+        "start_time": 29.15,
+        "end_time": 30.9,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "戒备好奇"
+      },
+      {
+        "id": "D9",
+        "speaker": "骗子2",
+        "text": "这种布，有一种奇妙的力量。",
+        "start_time": 31.1,
+        "end_time": 33.85,
+        "duration": 2.75,
+        "estimated_speech_duration": 2.75,
+        "min_required_duration": 2.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "故作神秘"
+      },
+      {
+        "id": "D10",
+        "speaker": "卫兵1",
+        "text": "什么力量？",
+        "start_time": 34.05,
+        "end_time": 35.05,
+        "duration": 1.0,
+        "estimated_speech_duration": 1.0,
+        "min_required_duration": 1.0,
+        "duration_sufficient": true,
+        "emotion_prompt": "急切追问"
+      },
+      {
+        "id": "D11",
+        "speaker": "骗子2",
+        "text": "凡是愚蠢的人，或者不配担任自己职位的人，都看不见它。",
+        "start_time": 35.25,
+        "end_time": 41.0,
+        "duration": 5.75,
+        "estimated_speech_duration": 5.75,
+        "min_required_duration": 5.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "郑重诱导"
+      },
+      {
+        "id": "D12",
+        "speaker": "骗子1",
+        "text": "所以，这不仅是一件衣裳。",
+        "start_time": 41.2,
+        "end_time": 43.7,
+        "duration": 2.5,
+        "estimated_speech_duration": 2.5,
+        "min_required_duration": 2.5,
+        "duration_sufficient": true,
+        "emotion_prompt": "轻声暗示"
+      },
+      {
+        "id": "D13",
+        "speaker": "骗子2",
+        "text": "还是检验一个人智慧和能力的宝物。",
+        "start_time": 43.9,
+        "end_time": 47.65,
+        "duration": 3.75,
+        "estimated_speech_duration": 3.75,
+        "min_required_duration": 3.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "笃定煽动"
+      },
+      {
+        "id": "D14",
+        "speaker": "卫兵1",
+        "text": "你们……在这里等着。",
+        "start_time": 47.85,
+        "end_time": 49.6,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
+        "duration_sufficient": true,
+        "emotion_prompt": "紧张迟疑"
+      }
+    ],
+    "visual_attention": {
+      "version": 1,
+      "time_base": "SHOT_SECONDS",
+      "character_catalog": [
+        {
+          "character_id": "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+          "character_name": "卫兵1"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 3.2,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 3.2,
+          "end_time_seconds": 4.2,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "18d390dc-ae72-43d2-ad1d-aa5ba5721a56"
+            ],
+            "to": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 4.2,
+          "end_time_seconds": 8.15,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 8.15,
+          "end_time_seconds": 9.4,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            ],
+            "to": [
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 9.4,
+          "end_time_seconds": 17.6,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 17.6,
+          "end_time_seconds": 25.45,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 25.45,
+          "end_time_seconds": 31.1,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "background_motion_subjects": [
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ]
+        },
+        {
+          "start_time_seconds": 31.1,
+          "end_time_seconds": 41.2,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 41.2,
+          "end_time_seconds": 43.9,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "background_motion_subjects": []
+        },
+        {
+          "start_time_seconds": 43.9,
+          "end_time_seconds": 47.85,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "to": [
+              "18d390dc-ae72-43d2-ad1d-aa5ba5721a56"
+            ]
+          }
+        },
+        {
+          "start_time_seconds": 47.85,
+          "end_time_seconds": 53.0,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56"
+          ],
+          "background_motion_subjects": []
+        }
+      ]
+    },
+    "clip_plan_revision": 1,
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 8.1,
+        "planned_duration": 8.1,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "在D2结束后、D3开始前的合法间隙收束第一段，并完整保留KF1至KF2的缓慢推进、骗子1靠近并微躬以及三人不越门槛的连续动作。相比把前三段发言和持续摄影机运动合并到一个接近硬上限的片段，此边界为后续长发言及动作留出明显执行余量。D1已有完整primary注意支持；D2由共同构图中的handoff过渡到完整primary支持，属于合理交接，不需要机械切换特写。实际可见性和面部可读性仍属未知。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          1,
+          2
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 8.1
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "站住！你们是什么人？",
+            "emotion_prompt": "警惕严厉",
+            "estimated_duration": 2.0,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 3.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "请禀告陛下，我们是从遥远国度来的织布大师。",
+            "emotion_prompt": "从容恭敬",
+            "estimated_duration": 4.75,
+            "source_order": 2,
+            "start_time": 3.2,
+            "end_time": 7.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 2,
+        "start_time": 8.1,
+        "end_time": 17.5,
+        "planned_duration": 9.4,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 1,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF2",
+          "transition_to_state_id": "KF3",
+          "premise_preserved": true
+        },
+        "reason": "开端必须继承上一片段实际形成的同轴推进阶段、门槛两侧精确站位和骗子1刚完成的低姿态，随后无中断地转向骗子2前倾举手及卫兵1重新收紧拦阻，因此需要CONTINUOUS。KF2在边界前已建立三人、门槛、朝向和中景轴线；其至KF3的过渡保持这些前提，开场无需另建构图。片段在D3完整结束并到达KF3稳定状态后结束。D3在交接阶段和后续窗口均有完整primary注意支持，骗子2也在相关状态中有计划成员关系；这支持保留连续共享构图，但不证明实际可见性或口部可读性。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          3
+        ],
+        "carry_in_state_index": 2,
+        "dialogue_scope": {
+          "start_time": 8.1,
+          "end_time": 17.5
+        },
+        "capability": "EXTEND",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "我们听说陛下最喜爱天下最华美的衣裳，所以特地带来一种世上从未出现过的织造方法。",
+            "emotion_prompt": "殷勤自信",
+            "estimated_duration": 9.25,
+            "source_order": 3,
+            "start_time": 8.15,
+            "end_time": 17.4,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 3,
+        "start_time": 17.5,
+        "end_time": 29.05,
+        "planned_duration": 11.55,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 2,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF4"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF3",
+          "transition_to_state_id": "KF4",
+          "premise_preserved": true
+        },
+        "reason": "开场承接KF3后的同一摄影机推进、卫兵1尚未收回的拦阻手臂及三人固定前后层次；骗子1临近末段向门槛靠近的一步属于该连续过渡，不能用独立重建跳过，故为CONTINUOUS。KF3已在边界前建立轴线、门槛关系、道具和朝向，并在至KF4的过渡中持续保留。选择KF4是因为骗子1靠近但未越界、压低上身并与卫兵1形成更紧前景关系，是有增量价值的材料性定时空间状态。D4、D6均有完整primary支持；D7在共享构图中由骗子1获得primary支持，骗子2作为背景运动保留，构图有效。D5虽被时间窗口覆盖，但其已解析说话者被标为not_listed；附近状态中的计划成员关系不能替代区间支持，因此以软参与意图处理，同时保留卫兵1的反应构图。未在D6与D7之间加切，因为那会把仍在进行的KF3至KF4靠近动作拆开，且新片段在D7前几乎没有可靠的独立建立时间；当前边界对整段负担更均衡。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": [
+            {
+              "dialogue_id": "D5",
+              "intent": "SUPPORT_SPEAKER_PARTICIPATION",
+              "target_character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            }
+          ]
+        },
+        "visual_state_indexes": [
+          4
+        ],
+        "carry_in_state_index": 3,
+        "dialogue_scope": {
+          "start_time": 17.5,
+          "end_time": 29.05
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-3-KF4"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "织布大师？",
+            "emotion_prompt": "怀疑审视",
+            "estimated_duration": 1.0,
+            "source_order": 4,
+            "start_time": 17.6,
+            "end_time": 18.6,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "正是。",
+            "emotion_prompt": "镇定肯定",
+            "estimated_duration": 0.5,
+            "source_order": 5,
+            "start_time": 18.8,
+            "end_time": 19.3,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "王城里能织锦缎的工匠多得很，凭什么要让陛下见你们？",
+            "emotion_prompt": "强硬质问",
+            "estimated_duration": 5.75,
+            "source_order": 6,
+            "start_time": 19.5,
+            "end_time": 25.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D7",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "因为我们织出来的布，不只是漂亮。",
+            "emotion_prompt": "神秘克制",
+            "estimated_duration": 3.5,
+            "source_order": 7,
+            "start_time": 25.45,
+            "end_time": 28.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 4,
+        "start_time": 29.05,
+        "end_time": 33.95,
+        "planned_duration": 4.9,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 3,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF4",
+          "transition_to_state_id": "KF5",
+          "premise_preserved": true
+        },
+        "reason": "该段必须继承KF4之后骗子1贴近门槛但未越界的低姿态、卫兵1逐渐放松的手臂以及仍在推进的同侧摄影机轨迹，因此为CONTINUOUS。KF4已在边界前建立门槛、人物层次和道具关系，至KF5的过渡仅作连续注意转移和轻微横移，足以保存开场构图前提。D8与D9均在共享多人构图中获得完整primary支持，骗子2先作为背景运动存在、随后成为受支持主体；这类共享关系有效，但实际视觉实现仍未知。在D9完成后的间隙设置边界，使后续D10至D12的高密度发言和卫兵表情变化不被挤入同一片段；相较保留一个更长的交替段，这个新增片段同时减轻两侧负担，并落在KF5前后的稳定视觉阶段，而非仅把压力转移给相邻片段。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          5
+        ],
+        "carry_in_state_index": 4,
+        "dialogue_scope": {
+          "start_time": 29.05,
+          "end_time": 33.95
+        },
+        "capability": "EXTEND",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D8",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "那还有什么特别？",
+            "emotion_prompt": "戒备好奇",
+            "estimated_duration": 1.75,
+            "source_order": 8,
+            "start_time": 29.15,
+            "end_time": 30.9,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D9",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "这种布，有一种奇妙的力量。",
+            "emotion_prompt": "故作神秘",
+            "estimated_duration": 2.75,
+            "source_order": 9,
+            "start_time": 31.1,
+            "end_time": 33.85,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 5,
+        "start_time": 33.95,
+        "end_time": 43.8,
+        "planned_duration": 9.85,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 4,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF5",
+          "transition_to_state_id": "KF6",
+          "premise_preserved": true
+        },
+        "reason": "开场需要承接KF5中卫兵1前探并注视骗子2、骗子2胸前收敛手势以及骗子1靠近门槛的精确状态，随后连续完成卫兵1睁大双眼、身体绷直和拦阻手臂降至半高的变化，故为CONTINUOUS。KF5在边界前已经建立紧凑斜向构图，其至KF6的过渡保持人物站位、门槛、同侧轴线和木箱状态，开场重要行为无需重新建立。D10、D11在卫兵1与骗子2共享的primary构图中均有完整覆盖，D12也在卫兵1与骗子1的共享primary构图中获得完整覆盖；连续的说话者交替增加执行注意，但每个事件已有计划支持，不构成缺失参与或自动切分理由。片段在D12结束后的间隙终止，使该组三段发言及卫兵从好奇到震惊的完整变化保持在一起。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          6
+        ],
+        "carry_in_state_index": 5,
+        "dialogue_scope": {
+          "start_time": 33.95,
+          "end_time": 43.8
+        },
+        "capability": "EXTEND",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D10",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "什么力量？",
+            "emotion_prompt": "急切追问",
+            "estimated_duration": 1.0,
+            "source_order": 10,
+            "start_time": 34.05,
+            "end_time": 35.05,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D11",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "凡是愚蠢的人，或者不配担任自己职位的人，都看不见它。",
+            "emotion_prompt": "郑重诱导",
+            "estimated_duration": 5.75,
+            "source_order": 11,
+            "start_time": 35.25,
+            "end_time": 41.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D12",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "所以，这不仅是一件衣裳。",
+            "emotion_prompt": "轻声暗示",
+            "estimated_duration": 2.5,
+            "source_order": 12,
+            "start_time": 41.2,
+            "end_time": 43.7,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      },
+      {
+        "clip_index": 6,
+        "start_time": 43.8,
+        "end_time": 53.0,
+        "planned_duration": 9.2,
+        "continuity_to_previous": "CONTINUOUS",
+        "previous_clip_index": 5,
+        "requires_temporal_control": true,
+        "selected_temporal_target_ids": [
+          "KF8"
+        ],
+        "early_composition_state_id": null,
+        "inherited_start_composition": {
+          "state_id": "KF6",
+          "transition_to_state_id": "KF7",
+          "premise_preserved": true
+        },
+        "reason": "开场处于KF6至KF7的连续动作中段，必须继承卫兵1半高拦阻手臂、震惊表情、三人精确站位及摄影机横移阶段，继续完成手臂垂下、神情转为担忧和两名骗子的短暂对视，因此为CONTINUOUS。KF6已在边界前建立门槛内外关系、同侧轴线和道具状态，至KF7的渐进变化未重置构图，其前提可持续覆盖开场。D13在三人共享primary构图中同时承担向卫兵1交接的handoff，属于合法的反应与交接安排；D14随后获得卫兵1的完整primary支持，无需额外切镜，实际可见性和可读性仍未知。选择KF8是因为卫兵1进入宫门内数步、两名骗子留在门外的最终空间分隔，是相对既有连续运动具有显著定时控制价值的结果状态。D14结束后的尾段用于完成卫兵1转身并急促走入宫内、摄影机跟随并停稳，持续增加明确可见的故事信息，不是重复静止填充。",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": []
+        },
+        "visual_state_indexes": [
+          7,
+          8
+        ],
+        "carry_in_state_index": 6,
+        "dialogue_scope": {
+          "start_time": 43.8,
+          "end_time": 53.0
+        },
+        "capability": "TEMPORAL_EXTEND",
+        "temporal_anchor_ids": [
+          "clip-6-KF8"
+        ],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D13",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "还是检验一个人智慧和能力的宝物。",
+            "emotion_prompt": "笃定煽动",
+            "estimated_duration": 3.75,
+            "source_order": 13,
+            "start_time": 43.9,
+            "end_time": 47.65,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D14",
+            "segment_index": 1,
+            "speaker": "卫兵1",
+            "text": "你们……在这里等着。",
+            "emotion_prompt": "紧张迟疑",
+            "estimated_duration": 1.75,
+            "source_order": 14,
+            "start_time": 47.85,
+            "end_time": 49.6,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ]
+      }
+    ]
+  },
+  "character_appearances": {
+    "卫兵1": "单一主体全身照，一名约三十岁的人类男性宫门卫兵，气质严肃谨慎，身高约一百七十八厘米，体格结实挺拔，肩部宽阔，四肢完整并从头到脚清晰可见；脸型方正，中庭适中，额头较窄，颧骨平实，下颌宽硬，下巴中央有一道天然浅凹，右眉尾有一条细短旧疤；眼睛为深褐色中等大小的内双眼，眼角平直，眼型与眼睛颜色不得改变；鼻梁端正略宽，鼻尖厚实，鼻翼中等，鼻孔朝下；上下嘴唇厚薄均匀，天然嘴角平直，中性展示时牙齿不可见；皮肤呈暖调小麦色，面颊和鼻梁有轻微日晒痕迹；深褐色短发整齐贴伏，发际线平直，留有很短的同色胡茬；稳定身份标记包括宽肩方脸、右眉尾旧疤、下巴浅凹和深褐色内双眼；基础服装为欧洲童话式前现代王宫卫兵制服，上身穿暗蓝色厚呢短外衣与银灰色包边背心，配白色高领衬衫，下身穿黑色及膝裤、深灰长袜和黑色硬底搭扣鞋，头戴暗蓝色软帽并别有小型王室徽章，不把武器或其他临时物件固定为身份标记；以自然中性站姿展示，双手、双腿和鞋履完整可见，保持脸型、眼型、眼色、面部比例、头身比、发型轮廓与全部独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机标记、额外主体或无故新增配饰，禁止半身、特写、裁切及任何缺手缺脚。",
+    "骗子1": "单一主体全身照，一名约三十五岁的人类男性，气质精明而从容，身材高瘦，约一百八十五厘米，头身比例修长，四肢完整并从头到脚清晰可见；长窄脸，中庭偏长，额头宽而平，颧骨略高，下颌线清晰，下巴稍尖，右侧鼻翼旁有一颗小褐痣；眼睛为细长的灰绿色双眼皮眼，外眼角微微上挑，眼型与眼睛颜色不得改变；鼻梁高直，鼻尖窄，鼻翼收束，鼻孔较小且略向下；嘴唇偏薄，天然嘴角轻微上扬，中性展示时牙齿不可见；皮肤为偏暖的浅肤色，表面略有风吹日晒形成的细纹；深棕色微卷短发向后梳理，发际线两侧略高，留有修剪整齐的深棕色小胡子，下巴无须；稳定身份标记包括高瘦轮廓、右鼻翼旁褐痣、灰绿色上挑眼和整齐小胡子；基础服装为欧洲童话式前现代旅行绅士装束，头戴深炭灰色宽边毡礼帽，上身穿墨绿色合体长外套、米白衬衫与暗金色领巾，下身穿深褐色及膝马裤、灰色长袜和黑色低跟皮鞋，不固定任何手持物；以自然中性站姿展示，双手和双脚均完整可见且不被遮挡，保持脸型、面部比例、头身比、发型轮廓和所有独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无故新增配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。",
+    "骗子2": "单一主体全身照，一名约三十二岁的人类男性，气质殷勤活络，身高约一百七十厘米，体型略显敦实但动作灵便，头身比例约为七头身，四肢完整并从头到脚清晰可见；脸型圆中带方，额头饱满，颧骨不高，下颌较宽，下巴短圆，左侧嘴角下方有一颗明显的小黑痣；眼睛为中等大小的琥珀褐色圆杏眼，双眼皮清楚，外眼角平缓，眼型与眼睛颜色不得改变；鼻梁较短，鼻尖圆钝，鼻翼稍宽，鼻孔小而端正；嘴唇中等偏厚，天然嘴角微微上翘，中性展示时牙齿不可见；皮肤为暖调浅麦色，双颊略带自然红润；栗褐色浓密短卷发从左侧分开，发际线圆润，面部刮得干净，没有胡须；稳定身份标记包括稍矮敦实的轮廓、琥珀褐色圆杏眼、左嘴角下方黑痣和左分短卷发；基础服装为欧洲童话式前现代考究旅行服，头戴棕红色宽边礼帽，上身穿酒红色短外套、奶油白衬衫和深蓝色领结，下身穿黑褐色及膝马裤、米灰色长袜及深棕色搭扣皮鞋，不固定任何手持物；以自然中性站姿展示，双手与双脚全部可见且不受遮挡，保持脸型、面部比例、头身比、发型轮廓及全部独特标记一致，禁止改变物种、年龄段与男性气质，禁止换脸、身份漂移、左右不对称错误、畸形解剖、随机疤痕纹身、额外主体或无依据配饰，禁止半身、特写、裁切、缺手缺腿、缺脚或脚部出画。"
+  },
+  "props": [
+    {
+      "name": "宽边礼帽",
+      "existence": "REAL"
+    },
+    {
+      "name": "骗子木箱",
+      "existence": "REAL"
+    }
+  ],
+  "manifest": {
+    "version": 1,
+    "references": [
+      {
+        "kind": "SCENE",
+        "source_name": "王宫宫门",
+        "source_id": "a70e8f96-e746-44b8-886f-17a06c69813a",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "a70e8f96-e746-44b8-886f-17a06c69813a",
+          "name": "王宫宫门"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫宫门_20261003_173140.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫宫门_20261003_173140.png",
+        "slot": 1
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "slot": 2
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "卫兵1",
+        "source_id": "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+          "name": "卫兵1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/卫兵1_20261010_232720.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/卫兵1_20261010_232720.png",
+        "slot": 3
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "slot": 4
+      },
+      {
+        "kind": "PROP",
+        "source_name": "宽边礼帽",
+        "source_id": "2583d6fa-05f2-48ff-a54d-8c07bcf3327e",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "2583d6fa-05f2-48ff-a54d-8c07bcf3327e",
+          "name": "宽边礼帽"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/宽边礼帽_20261003_174109.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/宽边礼帽_20261003_174109.png",
+        "slot": 5
+      },
+      {
+        "kind": "PROP",
+        "source_name": "骗子木箱",
+        "source_id": "d8eae30c-8ff2-466d-a4c6-03dd45b4f39b",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "d8eae30c-8ff2-466d-a4c6-03dd45b4f39b",
+          "name": "骗子木箱"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/骗子木箱_20261003_174412.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/骗子木箱_20261003_174412.png",
+        "slot": 6
+      }
+    ],
+    "skipped_references": []
+  },
+  "execution_contract": {
+    "version": 1,
+    "capability": "EXTEND",
+    "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+    "clip": {
+      "clip_id": "b0c1f742-fd15-4ffc-b7b3-e511374b054d:clip:2",
+      "clip_index": 2,
+      "clip_plan_revision": 1,
+      "start_seconds": 8.1,
+      "end_seconds": 17.5,
+      "duration_seconds": 9.4
+    },
+    "visual_attention_snapshot": {
+      "version": 1,
+      "projection_version": 1,
+      "time_base": "CLIP_SECONDS",
+      "status": "VALID",
+      "findings": [],
+      "character_catalog": [
+        {
+          "character_id": "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+          "character_name": "卫兵1"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 0.05,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 2,
+          "source_start_time_seconds": 4.2,
+          "source_end_time_seconds": 8.15
+        },
+        {
+          "start_time_seconds": 0.05,
+          "end_time_seconds": 1.3,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            ],
+            "to": [
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ]
+          },
+          "source_window_index": 3,
+          "source_start_time_seconds": 8.15,
+          "source_end_time_seconds": 9.4,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 1.3,
+          "end_time_seconds": 9.4,
+          "primary_subjects": [
+            "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 4,
+          "source_start_time_seconds": 9.4,
+          "source_end_time_seconds": 17.6
+        }
+      ],
+      "clip_start_seconds": 8.1,
+      "clip_end_seconds": 17.5,
+      "characters": [
+        {
+          "character_id": "18d390dc-ae72-43d2-ad1d-aa5ba5721a56",
+          "character_name": "卫兵1",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1",
+          "subject": "<Subject 2>"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2",
+          "subject": "<Subject 3>"
+        }
+      ],
+      "fingerprint": "6edf3718da74d59454059c3ebb33fc4eb1a9602375ea0bc7a9fa87ad89c74317",
+      "source": "shots.video_director_plan.visual_attention",
+      "stage": "PROJECTED",
+      "program_owned_section_sha256": null
+    },
+    "previous_clip": {
+      "clip_index": 1,
+      "clip_plan_revision": 1,
+      "generated_by_task_id": "e701acaa-d036-4036-9080-2ed0aeebe182",
+      "result_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_001_clip_1_e701acaa_20261016_134546.mp4",
+      "physical_output": {
+        "frame_count": 209,
+        "fps": 24,
+        "timebase": "1/24",
+        "video_duration": 8.708333333333334,
+        "has_audio": true,
+        "audio_duration": 8.7,
+        "audio_start_time": 0.0,
+        "width": 864,
+        "height": 480,
+        "sha256": "d312118d82ed8f0280a23f3d077d86203f0bb85d0db7f40a907b3322e220eed7",
+        "physical_output_role": "CLIP_ONLY"
+      },
+      "source_frame_start": 0
+    }
+  },
+  "workflow": {
+    "id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+    "name": "NovelFlow H3 AV 视频续生成 Minimal V1",
+    "type": "VIDEO_CONTINUATION",
+    "workflow_json": "{\n  \"1\": {\n    \"inputs\": {\n      \"noise_seed\": 758007644453984\n    },\n    \"class_type\": \"RandomNoise\",\n    \"_meta\": {\n      \"title\": \"#1 RandomNoise\"\n    }\n  },\n  \"2\": {\n    \"inputs\": {\n      \"model\": [\n        \"71\",\n        0\n      ],\n      \"conditioning\": [\n        \"55\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicGuider\",\n    \"_meta\": {\n      \"title\": \"#2 Basic Guider\"\n    }\n  },\n  \"3\": {\n    \"inputs\": {\n      \"noise\": [\n        \"1\",\n        0\n      ],\n      \"guider\": [\n        \"2\",\n        0\n      ],\n      \"sampler\": [\n        \"36\",\n        0\n      ],\n      \"sigmas\": [\n        \"70\",\n        0\n      ],\n      \"latent_image\": [\n        \"23\",\n        0\n      ]\n    },\n    \"class_type\": \"SamplerCustomAdvanced\",\n    \"_meta\": {\n      \"title\": \"#3 Extension 1 - SamplerCustomAdvanced\"\n    }\n  },\n  \"23\": {\n    \"inputs\": {\n      \"context_length\": [\n        \"37\",\n        0\n      ],\n      \"audio_feather_ticks\": [\n        \"96\",\n        0\n      ],\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"latent\": [\n        \"55\",\n        1\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StartMaskedContext\",\n    \"_meta\": {\n      \"title\": \"#23 H3 Start Masked Context\"\n    }\n  },\n  \"29\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#29 Starter Clip - Load VAE\"\n    }\n  },\n  \"30\": {\n    \"inputs\": {\n      \"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\"\n    },\n    \"class_type\": \"VAELoader\",\n    \"_meta\": {\n      \"title\": \"#30 Starter Clip - Load VAE\"\n    }\n  },\n  \"31\": {\n    \"inputs\": {\n      \"clip_name\": \"qwen3vl_32b_minimax_h3_int8_convrot.safetensors\",\n      \"type\": \"minimax\",\n      \"device\": \"default\"\n    },\n    \"class_type\": \"CLIPLoader\",\n    \"_meta\": {\n      \"title\": \"#31 Starter Clip - Load CLIP\"\n    }\n  },\n  \"32\": {\n    \"inputs\": {\n      \"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\",\n      \"weight_dtype\": \"default\"\n    },\n    \"class_type\": \"UNETLoader\",\n    \"_meta\": {\n      \"title\": \"#32 Starter Clip - Load Diffusion Model\"\n    }\n  },\n  \"36\": {\n    \"inputs\": {\n      \"sampler_name\": \"res_multistep\"\n    },\n    \"class_type\": \"KSamplerSelect\",\n    \"_meta\": {\n      \"title\": \"#36 KSamplerSelect\"\n    }\n  },\n  \"37\": {\n    \"inputs\": {\n      \"value\": 39\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#37 Int\"\n    }\n  },\n  \"39\": {\n    \"inputs\": {\n      \"frame_rate\": 24,\n      \"loop_count\": 0,\n      \"filename_prefix\": \"h3_preview/extension_01\",\n      \"format\": \"video/h264-mp4\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"pingpong\": false,\n      \"save_output\": true,\n      \"images\": [\n        \"62\",\n        0\n      ],\n      \"audio\": [\n        \"61\",\n        0\n      ]\n    },\n    \"class_type\": \"VHS_VideoCombine\",\n    \"_meta\": {\n      \"title\": \"#39 Extension 1 - VHS Video Combine\"\n    }\n  },\n  \"55\": {\n    \"inputs\": {\n      \"prompt\": [\n        \"107\",\n        0\n      ],\n      \"width\": 960,\n      \"height\": 544,\n      \"length\": [\n        \"106\",\n        1\n      ],\n      \"ref_image_size\": \"match\",\n      \"clip\": [\n        \"31\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"ref_images.ref_image_0\": [\n        \"69\",\n        0\n      ],\n      \"ref_images.ref_image_1\": [\n        \"68\",\n        0\n      ],\n      \"ref_images.ref_image_2\": [\n        \"109\",\n        0\n      ],\n      \"ref_images.ref_image_3\": [\n        \"110\",\n        0\n      ],\n      \"ref_images.ref_image_4\": [\n        \"111\",\n        0\n      ],\n      \"ref_images.ref_image_5\": [\n        \"112\",\n        0\n      ],\n      \"ref_images.ref_image_6\": [\n        \"113\",\n        0\n      ],\n      \"ref_images.ref_image_7\": [\n        \"114\",\n        0\n      ],\n      \"ref_images.ref_image_8\": [\n        \"115\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3ReferenceToVideo\",\n    \"_meta\": {\n      \"title\": \"#55 Extension 1 - MiniMax H3 Reference to Video\"\n    }\n  },\n  \"56\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#56 Int\"\n    }\n  },\n  \"61\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"102\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecodeAudio\",\n    \"_meta\": {\n      \"title\": \"#61 VAE Decode Audio\"\n    }\n  },\n  \"62\": {\n    \"inputs\": {\n      \"samples\": [\n        \"3\",\n        0\n      ],\n      \"vae\": [\n        \"30\",\n        0\n      ]\n    },\n    \"class_type\": \"VAEDecode\",\n    \"_meta\": {\n      \"title\": \"#62 VAE Decode\"\n    }\n  },\n  \"65\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"context_frames\": 39,\n      \"video_overlap_frames\": 39,\n      \"source_fps\": 24,\n      \"crop\": \"disabled\",\n      \"filename_prefix\": \"video/masked_av_extension\",\n      \"pix_fmt\": \"yuv420p\",\n      \"crf\": 19,\n      \"save_metadata\": false,\n      \"trim_to_audio\": true,\n      \"save_output\": true,\n      \"video_vae\": [\n        \"30\",\n        0\n      ],\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"start_mode\": [\n        \"94\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"source_audio\": [\n        \"93\",\n        0\n      ],\n      \"preview_gate\": [\n        \"98\",\n        0\n      ],\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"extension_1\": [\n        \"3\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3StreamLiveExtensionAVToVHS\",\n    \"_meta\": {\n      \"title\": \"#65 H3 Stream AV Extensions to VHS\"\n    }\n  },\n  \"66\": {\n    \"inputs\": {\n      \"video\": \"shot_004_20260925_151336.mp4\",\n      \"force_rate\": 24,\n      \"custom_width\": 0,\n      \"custom_height\": 0,\n      \"frame_load_cap\": 0,\n      \"start_time\": 0,\n      \"format\": \"AnimateDiff\"\n    },\n    \"class_type\": \"VHS_LoadVideoFFmpeg\",\n    \"_meta\": {\n      \"title\": \"#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢\"\n    }\n  },\n  \"67\": {\n    \"inputs\": {\n      \"images\": [\n        \"101\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3CropTo32\",\n    \"_meta\": {\n      \"title\": \"#67 H3 Crop Source To /32\"\n    }\n  },\n  \"68\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#68 Reference Image 2\"\n    }\n  },\n  \"69\": {\n    \"inputs\": {\n      \"image\": \"c90ee577-98eb-4f6c-9b0c-562a6b448d69.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#69 Reference Image 1\"\n    }\n  },\n  \"70\": {\n    \"inputs\": {\n      \"scheduler\": \"simple\",\n      \"steps\": [\n        \"56\",\n        0\n      ],\n      \"denoise\": 1,\n      \"model\": [\n        \"71\",\n        0\n      ]\n    },\n    \"class_type\": \"BasicScheduler\",\n    \"_meta\": {\n      \"title\": \"#70 BasicScheduler\"\n    }\n  },\n  \"71\": {\n    \"inputs\": {\n      \"shift_video\": 12,\n      \"shift_audio\": 3,\n      \"model\": [\n        \"72\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SigmaShift\",\n    \"_meta\": {\n      \"title\": \"#71 ModelSamplingMiniMaxH3\"\n    }\n  },\n  \"72\": {\n    \"inputs\": {\n      \"lora_name\": \"minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\n      \"strength_model\": 0.95,\n      \"model\": [\n        \"73\",\n        0\n      ]\n    },\n    \"class_type\": \"LoraLoaderModelOnly\",\n    \"_meta\": {\n      \"title\": \"#72 Starter Clip - LoraLoaderModelOnly\"\n    }\n  },\n  \"73\": {\n    \"inputs\": {\n      \"attention\": \"comfy kitchen attention\",\n      \"model\": [\n        \"32\",\n        0\n      ]\n    },\n    \"class_type\": \"ModelAttentionBackend\",\n    \"_meta\": {\n      \"title\": \"#73 Model Attention Backend\"\n    }\n  },\n  \"93\": {\n    \"inputs\": {\n      \"source_fps\": 24,\n      \"audio_vae\": [\n        \"102\",\n        0\n      ],\n      \"mode\": [\n        \"97\",\n        0\n      ],\n      \"source_frames\": [\n        \"67\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3SourceAudioPolicy\",\n    \"_meta\": {\n      \"title\": \"#93 H3 Source Audio Policy\"\n    }\n  },\n  \"94\": {\n    \"inputs\": {\n      \"start\": \"Existing Video\"\n    },\n    \"class_type\": \"MiniMaxH3AVStartModeParam\",\n    \"_meta\": {\n      \"title\": \"#94 Start Mode — FIXED Existing Video\"\n    }\n  },\n  \"95\": {\n    \"inputs\": {\n      \"value\": 1\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#95 Active Extensions — FIXED 1\"\n    }\n  },\n  \"96\": {\n    \"inputs\": {\n      \"value\": 8\n    },\n    \"class_type\": \"PrimitiveInt\",\n    \"_meta\": {\n      \"title\": \"#96 Audio Feather — FIXED 8\"\n    }\n  },\n  \"97\": {\n    \"inputs\": {\n      \"source_audio\": \"Keep source audio\"\n    },\n    \"class_type\": \"MiniMaxH3AVSourceAudioModeParam\",\n    \"_meta\": {\n      \"title\": \"#97 Source Audio — FIXED Keep source audio\"\n    }\n  },\n  \"98\": {\n    \"inputs\": {\n      \"input_count\": 1,\n      \"active_extensions\": [\n        \"95\",\n        0\n      ],\n      \"preview_1\": [\n        \"39\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3LastActiveVHSPreviewBarrier\",\n    \"_meta\": {\n      \"title\": \"#98 H3 Last Active VHS Preview Barrier\"\n    }\n  },\n  \"101\": {\n    \"inputs\": {\n      \"images\": [\n        \"66\",\n        0\n      ],\n      \"video_info\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"MiniMaxH3Validate24FPSVideo\",\n    \"_meta\": {\n      \"title\": \"#101 H3 Validate 24 FPS Video\"\n    }\n  },\n  \"102\": {\n    \"inputs\": {\n      \"audio_vae\": [\n        \"29\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3AudioVAECompatibility\",\n    \"_meta\": {\n      \"title\": \"#102 H3 Audio VAE Compatibility\"\n    }\n  },\n  \"104\": {\n    \"inputs\": {\n      \"text\": \"{\\n    \\\"source_fps\\\": 24.0,\\n    \\\"source_frame_count\\\": 345.12,\\n    \\\"source_duration\\\": 14.38,\\n    \\\"source_width\\\": 864,\\n    \\\"source_height\\\": 480,\\n    \\\"loaded_fps\\\": 24.0,\\n    \\\"loaded_frame_count\\\": 345,\\n    \\\"loaded_duration\\\": 14.375,\\n    \\\"loaded_width\\\": 864,\\n    \\\"loaded_height\\\": 480\\n}\",\n      \"anything\": [\n        \"66\",\n        3\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#104 #-1 Show Any\"\n    }\n  },\n  \"105\": {\n    \"inputs\": {\n      \"value\": 14\n    },\n    \"class_type\": \"PrimitiveFloat\",\n    \"_meta\": {\n      \"title\": \"#105 Float(时长秒)\"\n    }\n  },\n  \"106\": {\n    \"inputs\": {\n      \"expression\": \"max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17\",\n      \"values.a\": [\n        \"105\",\n        0\n      ]\n    },\n    \"class_type\": \"ComfyMathExpression\",\n    \"_meta\": {\n      \"title\": \"#106 Math Expression\"\n    }\n  },\n  \"107\": {\n    \"inputs\": {\n      \"prompt\": \"dialogue_timeline:\\nThis is the only source of exact spoken text in this prompt.\\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\\n- D3: 皇帝 speaks from 15.0s to 20.18s (5.18s).\\n  exact_dialogue: \\\"“我只需要穿上它，站在所有人面前。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D4: 皇帝 speaks from 20.57s to 26.38s (5.8s).\\n  exact_dialogue: \\\"“看得见的人，自然会称赞它。看不见的人……”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D5: 皇帝 speaks from 23.45s to 28.0s (4.55s).\\n  exact_dialogue: \\\"“谁敢第一个承认自己看不见？”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D6: 皇帝 speaks from 26.26s to 28.0s (1.74s).\\n  exact_dialogue: \\\"“没有人。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\n- D7: 皇帝 speaks from 15.32s to 28.0s (12.68s).\\n  exact_dialogue: \\\"“因为只要他说自己看不见，就等于承认自己愚蠢，或者承认自己根本不配坐在现在的位置上。”\\\"\\n  segment: complete assigned span.\\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\\nsilent_characters: 官员1\\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\\n\\nsubject_definitions:\\n\\n<Subject 1> is 皇帝, the middle-aged human male emperor in the purple long robe.\\n<Subject 2> is 官员1, the middle-aged human male court official in the dark court official attire.\\n\\nCharacter names are mapped to Subject labels only in this block. Every later block refers to the people only as <Subject 1> and <Subject 2>.\\n\\nofficial_character_identity_lock:\\n\\nThe referenced Picture (<Picture 1>) is the primary visual authority for the currently established visual identity of every character in this clip. The official character descriptions are identity-preservation constraints used to prevent character drift across frames; they supplement the referenced Picture and must not override clearly visible identity features or the current costume established by the Picture.\\n\\n<Subject 1> is the emperor visible on the left side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 1> come primarily from <Picture 1>. The official description of <Subject 1> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole at the outer end of the left eyebrow, the silver-grey short curly hair with a slightly receded hairline, the light blue almond-shaped eyes with slightly drooping outer corners, the long face with a full forehead and slightly high cheekbones, the clear jawline, the thin lips and the habitually lifted corner of the mouth. Current costume is a separate continuity domain from stable character identity and is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 1> wears the purple long robe established by the authoritative start frame. The dark red velvet long coat with gold embroidered trim, the white silk shirt with lace collar, the white tight trousers, the black leather short boots with gold buckles, the golden crown and the ruby ring belong to the historical/default ceremonial costume recorded only for identity reference and are not the current costume; they must not be restored, layered over, blended with, partially revealed under, or mixed into the purple robe at any moment of this clip.\\n\\n<Subject 2> is the court official visible on the right side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 2> come primarily from <Picture 1>. The official description of <Subject 2> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole above the right eyebrow, the brown short straight hair swept to one side with a little grey at the temples, the dark brown almond-shaped eyes with level outer corners, the square face with a broad forehead and flat cheekbones, the hard jawline, the square chin and the medium-thick lips. Current costume is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 2> wears the dark court official attire established by the authoritative start frame. Any garment, cap, belt, trimming or accessory element that is not clearly visible in <Picture 1> must not be added, restored or blended in during the clip.\\n\\nFor both characters: do not redesign, reinterpret, beautify, age, de-age, recolor or replace the subject. Do not reinterpret shadows, dark lighting, color grading, distance, motion blur or environmental illumination as changes to skin color, hair color or the real color of the current costume. Temporary pose, expression, gaze direction, body orientation, spatial position and physically natural motion may change according to the motion described below. Stable identity features and the current costume must remain consistent from the first frame to the last frame of the clip.\\n\\ninitial_state_anchor:\\n\\n<Picture 1> defines the authoritative initial visual state and the initial composition, environment, lighting, camera framing, character positions, poses, costumes, props, and visual style for this clip. At the beginning of the clip, the frame must naturally continue from <Picture 1> without resetting, swapping, or arbitrarily repositioning the subjects. After motion begins, character positions, poses, gaze directions, body orientations, and framing may evolve naturally only as required by the described actions and camera movement. Stable character identity, body proportions, skin and hair colors, permanent markings, and identity-defining accessories must remain consistent throughout the clip. Current costume continuity is governed by the authoritative Picture and the current Shot Appearance/costume binding, not by conflicting historical/default costume descriptions.\\n\\nsummary:\\n\\nContinuing directly from <Picture 1>, <Subject 1> keeps the right hand raised in a halting gesture and holds the gaze on <Subject 2>, while <Subject 2> opens the mouth as if about to speak, is stopped by the gesture, slowly closes the mouth, freezes for a moment and then stays silent. <Subject 1> speaks the authorized lines in order while slowly pacing two steps from the left of the frame toward the center, then stops on the final line, turns the head toward <Subject 2> and smiles more deeply, while the camera follows and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects. No event outside this clip is introduced.\\n\\ndetailed_description:\\n\\n[Shot 1] The clip begins exactly from <Picture 1> at t=0. <Subject 1> stands on the left side of the frame in the purple long robe, body facing <Subject 2>, right hand already raised in the halting gesture, gaze fixed on <Subject 2>. <Subject 2> stands on the right side in the dark court official attire, body leaning slightly forward, mouth slightly open, watching <Subject 1>. There is no reset of positions, no identity swap, no added character, no change of costume, and no new prop. The scene is the dressing area of the palace hall, with soft mixed overhead and side light creating a light-and-shadow contrast between the two subjects, rendered in stylized 3D animation with clean modeled forms, readable volumes, smooth surface shading, soft bounced light, coherent contact shadows, controlled material roughness, restrained specular highlights, and consistent three-dimensional rendering across characters, environment and props.\\n\\n<Subject 2> begins to open the mouth as if about to speak, but <Subject 1> keeps the raised right hand steady in the stopping gesture and looks directly at <Subject 2>. <Subject 2> is halted by that gesture, slowly closes the mouth, freezes for a moment, and then remains silent for the rest of the clip. <Subject 2> remains completely non-vocal throughout the entire clip, with the mouth naturally closed and only subtle non-vocal breathing and micro-expressions.\\n\\n<Subject 1> speaks while slowly pacing two steps from the left side of the frame toward the center of the frame, the raised right hand gradually lowering into a relaxed, still position, and the gaze of <Subject 1> stays fixed on <Subject 2> throughout. On the final authorized line, <Subject 1> stops walking, turns the head of <Subject 1> toward <Subject 2>, and the smile of <Subject 1> deepens into a cold, satisfied expression held in silence. The camera follows the movement of <Subject 1> and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects as a stable, clearly visible final state. No cut, no hidden edit, no sudden camera repositioning, and no jump in framing, lighting or spatial direction occurs.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D3 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Before the first spoken character, there must be no human vocal sound. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text. Between authorized utterances, <Subject 1> remains non-vocal with no voiced breath, gasp, grunt, hesitation, filler, invented syllable or pseudo-speech.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D4 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D5 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D6 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D7 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Immediately afterward, the speaking <Subject 1> enters a silent post-utterance state, with the mouth naturally settled into a non-speaking state while the cold, satisfied expression is held silently. Natural Chinese lip synchronization applies only during the exact authorized dialogue; no subtitles, no captions, no on-screen text.\\n\\n<Subject 2> never speaks and never produces any human vocal sound at any moment of the clip. No character name, Subject label, role label or metadata token is ever vocalized.\\n\\noverall_soundscape:\\n\\nInterior palace hall room tone with a soft, slightly reverberant pre-modern court ambience; synchronized Foley of cloth rustle from the purple long robe of <Subject 1>, soft footsteps on the stone floor while <Subject 1> paces two steps, subtle shifting of the dark official attire of <Subject 2>, and faint air movement in the large hall. The only human voice in the entire clip is the exact authorized Chinese dialogue of <Subject 1> listed above, delivered with confident, drawn-out, cold and satisfied delivery as marked, and ending immediately after the final authorized character with no trailing vocalization. No dialogue, no speech, no human vocalization from <Subject 2>, no background voices, no crowd murmur or chatter, no whispering, no laughter, no grunts, no sighs, no babble, no pseudo-speech and no invented syllables from any other source. No narration and no non-diegetic music. The audio track must NOT be silent: environmental ambience and synchronized natural action sounds remain audible throughout the clip, and character silence must NOT suppress ambience or Foley.\"\n    },\n    \"class_type\": \"CR Prompt Text\",\n    \"_meta\": {\n      \"title\": \"#107 #-1 ⚙️ CR Prompt Text(提示词)\"\n    }\n  },\n  \"108\": {\n    \"inputs\": {\n      \"text\": \"345\",\n      \"anything\": [\n        \"106\",\n        1\n      ]\n    },\n    \"class_type\": \"easy showAnything\",\n    \"_meta\": {\n      \"title\": \"#108 #-1 Show Any\"\n    }\n  },\n  \"109\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#109 Reference Image 3\"\n    }\n  },\n  \"110\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#110 Reference Image 4\"\n    }\n  },\n  \"111\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#111 Reference Image 5\"\n    }\n  },\n  \"112\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#112 Reference Image 6\"\n    }\n  },\n  \"113\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#113 Reference Image 7\"\n    }\n  },\n  \"114\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#114 Reference Image 8\"\n    }\n  },\n  \"115\": {\n    \"inputs\": {\n      \"image\": \"derope_continuation_reference.png\"\n    },\n    \"class_type\": \"LoadImage\",\n    \"_meta\": {\n      \"title\": \"#115 Reference Image 9\"\n    }\n  },\n  \"99\": {\n    \"inputs\": {\n      \"filenames\": [\n        \"65\",\n        0\n      ]\n    },\n    \"class_type\": \"MiniMaxH3FinalizeVHSOutput\",\n    \"_meta\": {\n      \"title\": \"#99 H3 Final Stream Output Sink\"\n    }\n  }\n}\n",
+    "node_mapping": "{\"load_video_node_id\": \"66\", \"duration_seconds_node_id\": \"105\", \"prompt_node_id\": \"107\", \"video_save_node_id\": \"65\", \"load_image_node_1\": \"69\", \"load_image_node_2\": \"68\", \"load_image_node_3\": \"109\", \"load_image_node_4\": \"110\", \"load_image_node_5\": \"111\", \"load_image_node_6\": \"112\", \"load_image_node_7\": \"113\", \"load_image_node_8\": \"114\", \"load_image_node_9\": \"115\", \"reference_to_video_node_id\": \"55\"}",
+    "extension": "{\"workflow_capability\": \"TEMPORAL_EXTEND\"}"
+  },
+  "resource_hashes": {
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫宫门_20261003_173140.png": "df41db2af7441e8379aed52e71a9c31ab335bd7f5b16d60b8478e640a6a136cc",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/卫兵1_20261010_232720.png": "73999858b69108a48a62dd541c6107f3c17894cc7f756bffcc11879817730cb8",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/宽边礼帽_20261003_174109.png": "4ab3bec2e511d9c065f953d59668e1e21fb9d85c8a36f54c3e255150762b726c",
+    "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/骗子木箱_20261003_174412.png": "d568d04dc9a5ec87298ea253f330a671bc8735b107dd972ecdf551f0a697434d"
+  }
+}

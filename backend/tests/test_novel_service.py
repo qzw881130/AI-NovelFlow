@@ -7,10 +7,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.novel import Chapter, Character, Novel
 from app.repositories.character_repository import CharacterRepository
+from app.repositories.novel_repository import NovelRepository
 from app.services.novel_service import NovelService
 
 
-def test_full_non_incremental_parse_deletes_missing_old_characters(db_session):
+def test_full_non_incremental_parse_deletes_missing_old_characters(db_session, monkeypatch):
+    from app.services import parse_events
+    events = []
+    monkeypatch.setattr(parse_events, "publish", lambda code, payload: events.append((code, payload)))
     novel = Novel(title="测试小说")
     db_session.add(novel)
     db_session.commit()
@@ -49,7 +53,35 @@ def test_full_non_incremental_parse_deletes_missing_old_characters(db_session):
 
     assert result["success"] is True
     assert result["statistics"]["created"] == 1
+    assert [code for code, _ in events] == ["character.parse.completed"]
     assert result["statistics"]["deleted"] == 1
     assert "母亲" in names
     assert "旁白" in names
     assert "旧角色" not in names
+
+
+def test_copy_novel_only_copies_chapter_source_text(db_session):
+    source = Novel(title="原小说", author="原作者", description="原描述", chapter_count=2)
+    source.chapters = [
+        Chapter(number=2, title="第二章", content="第二章正文", parsed_data='{"shots": []}'),
+        Chapter(number=1, title="第一章", content="第一章正文", final_video="/generated.mp4"),
+    ]
+    db_session.add(source)
+    db_session.commit()
+
+    copied = NovelRepository(db_session).copy_with_chapters(source, "原小说 - 副本")
+    copied_chapters = db_session.query(Chapter).filter(
+        Chapter.novel_id == copied.id
+    ).order_by(Chapter.number).all()
+
+    assert copied.id != source.id
+    assert copied.title == "原小说 - 副本"
+    assert copied.author == "原作者"
+    assert copied.description == "原描述"
+    assert copied.chapter_count == 2
+    assert [(chapter.number, chapter.title, chapter.content) for chapter in copied_chapters] == [
+        (1, "第一章", "第一章正文"),
+        (2, "第二章", "第二章正文"),
+    ]
+    assert all(chapter.parsed_data is None for chapter in copied_chapters)
+    assert all(chapter.final_video is None for chapter in copied_chapters)

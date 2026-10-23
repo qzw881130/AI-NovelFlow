@@ -5,6 +5,7 @@ import { Server, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { SettingsFormData } from '../types';
 import { healthApi } from '../../../api/health';
+import { DEFAULT_CONFIG } from '../../../constants/llm';
 
 interface ComfyUIConfigProps {
   formData: SettingsFormData;
@@ -115,13 +116,16 @@ export default function ComfyUIConfig({ formData, onFormDataChange, onUserModifi
           ComfyUI 超时时间
         </label>
         <select
-          value={formData.comfyUITimeout || 900}
+          value={formData.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout}
           onChange={(e) => { onUserModified(); onFormDataChange({ ...formData, comfyUITimeout: Number(e.target.value) }); }}
           className="input-field max-w-xs"
         >
           <option value={900}>15 分钟</option>
           <option value={1200}>20 分钟</option>
           <option value={1800}>30 分钟</option>
+          <option value={2700}>45 分钟</option>
+          <option value={3600}>60 分钟</option>
+          <option value={7200}>120 分钟</option>
         </select>
         <p className="mt-1 text-xs text-gray-500">
           用于视频等长任务完成后，等待后端保存结果的超时阈值。

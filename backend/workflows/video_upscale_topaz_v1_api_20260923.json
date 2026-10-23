@@ -1,0 +1,105 @@
+{
+  "2": {
+    "inputs": {
+      "file": "shot_009_079b2a7d_20260923_184816.mp4",
+      "video-preview": ""
+    },
+    "class_type": "LoadVideo",
+    "_meta": {
+      "title": "#2 Load Video"
+    }
+  },
+  "3": {
+    "inputs": {
+      "filename_prefix": "video/ComfyUI",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#3 Save Video"
+    }
+  },
+  "6": {
+    "inputs": {
+      "model_id": "prob-4",
+      "scale": [
+        "15",
+        0
+      ],
+      "vram_fraction": 0.8,
+      "parameters_json": "{}",
+      "size_mode": "scale",
+      "target_width": 0,
+      "target_height": 0,
+      "output_directory": "",
+      "custom_model_id": "",
+      "output_profile": "delivery_h264",
+      "parameter_mode": "model_defaults",
+      "auto_estimate_frames": 8,
+      "preblur": 0,
+      "noise": 0.5,
+      "details": 0.5,
+      "halo": 0.5,
+      "sharpen": 0.5,
+      "compression": 0.5,
+      "add_noise": 0,
+      "grain": 0,
+      "grain_size": 0,
+      "keep_color": true,
+      "input_blend": 0,
+      "engine_instances": 0,
+      "gpu_device_index": 0,
+      "topaz_runtime": [
+        "7",
+        0
+      ],
+      "source_video": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3TopazVideoEXPT8",
+    "_meta": {
+      "title": "#6 #-1 Official Topaz · 视频高清增强 (T8 EXP)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "install_directory": "C:\\Program Files\\Topaz Labs LLC\\Topaz Video",
+      "model_definitions_directory": "E:\\AI_Studio\\ComfyUI\\models\\topaz-models\\model_definitions_directory\\models",
+      "model_data_directory": "E:\\AI_Studio\\ComfyUI\\models\\topaz-models\\model_data_directory\\models"
+    },
+    "class_type": "MiniMaxH3TopazEnvironmentEXPT8",
+    "_meta": {
+      "title": "#7 #-1 Official Topaz · 环境检查 (T8 EXP)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "text": [
+        "6",
+        3
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#-1 Show Text 🐍"
+    }
+  },
+  "15": {
+    "inputs": {
+      "text": "2x"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "#-1 🔤 CR Text(Scale 2x 4x 8x)"
+    }
+  }
+}

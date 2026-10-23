@@ -1,0 +1,857 @@
+{
+  "115": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "171",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#115 Resolution Selector (Size)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#119 Load VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#120 Load VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#121 VAE Decode Audio"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#122 VAE Decode"
+    }
+  },
+  "123": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#123 KSamplerSelect"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#124 BasicScheduler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#125 SamplerCustomAdvanced"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "141",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#126 Basic Guider"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#127 Load Diffusion Model"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#128 Load CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": 1180471013
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#129 RandomNoise"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "codec": "none",
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#130 Create Video"
+    }
+  },
+  "131": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "219",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#131 Math Expression"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "137",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "139",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "172",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "173",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "175",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "174",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "176",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "177",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "178",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#136 MiniMax H3 Reference to Video"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "01_Picture 1 _ DIRECTOR_VISUAL_ANCHOR_shot_dc6e1625_c899d8ed-40b9-402d-aab1-446ea316e8ff_quality1_20261020_040809.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#137 Reference Image 1"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": "subject_definitions:\n<Subject 1> is 康大叔, the existing character whose stable identity is bound exclusively to <Picture 3>; recorded stable features: A broad, square face crowded with fleshy features, a dark raised mole beside the left nostril, thick joined eyebrows, a hard contour protruding slightly along the right jaw, and a dense short black full beard.; the identity reference does not determine current costume, pose, or floor position.\n<Subject 2> is 华老栓, the existing character whose stable identity is bound exclusively to <Picture 4>; recorded stable features: Deep wrinkles across the forehead and around the eyes, prominent cheekbones, shoulders drawn slightly inward, and a small sparse section at the outer end of the left eyebrow.; the identity reference does not determine current costume, pose, or floor position.\n\nsummary:\nA 17-second execution of the current Canonical Clip.\n\nretention_analysis:\nThe current Canonical visual state owns clothing, poses, floor positions, and action; identity references cannot override it.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF1: selected visual composition guidance; Canonical action and staging remain authoritative.\n<Picture 2> — SCENE / Town Execution Ground: environment appearance only; incidental people are not additional Subjects.\n<Picture 3> — CHARACTER_IDENTITY for <Subject 1>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 4> — CHARACTER_IDENTITY for <Subject 2>: stable identity only; not current clothing, pose, blocking, or action.\n<Picture 5> — PROP / human-blood steamed bun: prop appearance only; Canonical state owns placement and use.\n<Picture 6> — PROP / coin pouch: prop appearance only; Canonical state owns placement and use.\n<Picture 7> — PROP / Hua family silver dollar: prop appearance only; Canonical state owns placement and use.\nDirector-selected Anchor arrivals use GENERATION_LOCAL_SECONDS: generated-fragment time starts at 0s, including any verified Previous AV shared prefix.\nKF1 (<Picture 1>): reach its Canonical visual target at 0.0s in GENERATION_LOCAL_SECONDS; BEFORE D1 (starts at 1.0s).\nKF2: reach its Canonical visual target at 2.7s in GENERATION_LOCAL_SECONDS; DURING D3 (2.65–3.65s).\nKF3: reach its Canonical visual target at 4.9s in GENERATION_LOCAL_SECONDS; AFTER D4 (ends at 4.85s).\nKF4: reach its Canonical visual target at 7.8s in GENERATION_LOCAL_SECONDS; AFTER D5 (ends at 7.8s).\nKF5: reach its Canonical visual target at 9.3s in GENERATION_LOCAL_SECONDS; DURING D6 (8.0–11.5s).\nKF6: reach its Canonical visual target at 11.4s in GENERATION_LOCAL_SECONDS; DURING D6 (8.0–11.5s).\nKF7: reach its Canonical visual target at 12.8s in GENERATION_LOCAL_SECONDS; DURING D7 (11.7–13.2s).\nKF8: reach its Canonical visual target at 17.0s in GENERATION_LOCAL_SECONDS; AFTER D8 (ends at 15.9s).\n\ndetailed_description:\nOpen at the outskirts of the Town Execution Ground in cold dawn light, in a side-front medium two-shot with exactly two visible figures. Keep <Subject 1> on frame right, facing <Subject 2>, wearing the black short jacket and coarse-cloth sash and holding the dark-red-stained human-blood steamed bun at chest height with a smug expression. Keep <Subject 2> on frame left, facing him with both hands poised near the chest, tense and urgently fixed on the bun. After a brief still beat, begin one continuous, slow push along the established axis. <Subject 1> remains clearly identifiable with an unobstructed mouth and delivers <Subject 1> (S1) [D1 @ 1-1.5s generated-clip] says, <d>[Chinese] 老栓！</d> with synchronized Chinese lip movement while starting to extend the bun toward frame center; <Subject 2> listens anxiously without speaking. As the first utterance ends, attention passes naturally to <Subject 2>, who steps one pace closer, leans forward, raises trembling hands beneath the bun, and delivers <Subject 2> (S2) [D2 @ 1.7-2.45s generated-clip] says, <d>[Chinese] 康大叔……</d> with synchronized Chinese lip movement while <Subject 1> holds the offering steady and watches impatiently. When that reply ends, <Subject 1> takes the turn without a cut and delivers <Subject 1> (S1) [D3 @ 2.65-3.65s generated-clip] says, <d>[Chinese] 拿着！趁热！</d> with synchronized Chinese lip movement, extending his right arm fully while keeping his feet and torso largely fixed. By the early part of this utterance, <Subject 2> has stopped one step closer with both hands suspended below the bun but not yet touching it. Continue the measured push as <Subject 2>'s fingertips meet the underside and both palms cautiously support it; <Subject 1> still grips one side, his brow tightening. After <Subject 1> finishes, <Subject 2> keeps his gaze on the dark-red stains and delivers <Subject 2> (S2) [D4 @ 3.85-4.85s generated-clip] says, <d>[Chinese] 这……这就是……</d> with synchronized Chinese lip movement, his expression shifting from urgency to shock and hesitation while both figures maintain the shared hold. As that hesitant turn ends, visual attention returns smoothly to <Subject 1>. He remains visible and delivers <Subject 1> (S1) [D5 @ 5.05-7.8s generated-clip] says, <d>[Chinese] 人血馒头！治痨病的好东西！</d> with synchronized Chinese lip movement in an impatient, assured manner while <Subject 2> draws the bun slowly toward his own side. <Subject 1> releases it and retracts his arm slightly; <Subject 2> secures it in one arm, then uses the freed hand to take the coin pouch from his front and open its mouth between them. During the same uninterrupted push, <Subject 1> leans slightly closer and shifts his gaze from the bun to the pouch. Lower the framing subtly toward their hands without crossing the axis, revealing the Hua family silver dollar at the pouch opening as the utterance finishes. Maintain the close hand-focused composition. With no artificial stop between consecutive turns, <Subject 1> continues naturally into <Subject 1> (S1) [D6 @ 8-11.5s generated-clip] says, <d>[Chinese] 回去用火烤一烤，给你儿子吃下去。</d> with synchronized Chinese lip movement while <Subject 2> keeps the bun protected in one arm, supports the silver dollar at the pouch mouth with the other hand, and offers it toward frame right. The opened pouch drops naturally against his front. <Subject 1> reaches in firmly and clamps his fingers around the silver dollar while <Subject 2> still supports its edge. Continue the instruction as <Subject 1> draws the coin cleanly into his palm; <Subject 2> releases it, withdraws that hand, and encloses the bun with both hands as the pouch settles against his clothing. Begin a gentle pullback on the same axis. <Subject 1> gives the coin one small weighing motion in his palm and settles into a satisfied, certain expression while <Subject 2> remains hunched and attentive. Near the end of the instruction, ownership is unmistakable: the silver dollar is in <Subject 1>'s palm and the bun is enclosed by <Subject 2>. Without breaking his speaking continuity, <Subject 1> places the silver dollar inside his coarse-cloth sash, lifts the freed hand, and delivers <Subject 1> (S1) [D7 @ 11.7-13.2s generated-clip] says, <d>[Chinese] 保管药到病除！</d> with synchronized Chinese lip movement as he reaches across for a short, firm pat-press on <Subject 2>'s shoulder. Settle into a medium-close two-shot with more of the empty execution ground and cold dawn light returning behind them. <Subject 1> leaves his hand resting on the shoulder, raises his chin slightly, and finishes with boastful confidence; <Subject 2> tightens under the pressure, lowers his gaze, and holds the bun more closely with fearful hope. After <Subject 1> completes the boast, pass the turn naturally to <Subject 2>. Keeping his slightly bowed posture and the bun tight against his chest, <Subject 2> delivers <Subject 2> (S2) [D8 @ 13.4-15.9s generated-clip] says, <d>[Chinese] 谢谢康大叔，谢谢康大叔……</d> with synchronized Chinese lip movement and small continuous nods, showing gratitude, fear, and desperate hope. <Subject 1> listens with a pleased expression. As the reply continues, shift the compositional emphasis subtly toward <Subject 2> without changing either figure's position; <Subject 1> removes his hand from the shoulder and lowers it calmly at his own side, while the silver dollar remains secured inside his sash. After the final utterance, <Subject 2> stops nodding but keeps his head slightly lowered, shoulders bowed, both arms locked protectively around the stained bun, and the coin pouch against his front. Hold the final medium-close two-shot with <Subject 2> as the visual center and <Subject 1> still on frame right, facing him with satisfied smugness. Preserve natural breathing and minute expression changes as the cold dawn light becomes fully legible and all settled prop relationships remain clear.\n\noverall_soundscape:\nSparse dawn air across the empty Town Execution Ground, with a faint natural breeze and subdued open-ground ambience. Grounded Foley includes one soft foot scuff as <Subject 2> steps closer, restrained cloth movement from sleeves and jackets, gentle handling of the human-blood steamed bun, the coin pouch opening and settling against clothing, a light metallic touch as the silver dollar changes hands and is placed inside the coarse-cloth sash, and a muted cloth impact from the brief shoulder pat. No music, background speech, or unrelated vocal sounds.\n\nnon_diegetic_music:\nN/A"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#138 Input Text (Prompt)"
+    }
+  },
+  "139": {
+    "inputs": {
+      "image": "02_Picture 2 _ SCENE_镇上刑场_20261020_033002.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#139 Reference Image 2"
+    }
+  },
+  "141": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "149",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#141 Model Preview Override"
+    }
+  },
+  "142": {
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#142 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "147": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#147 Load LoRA"
+    }
+  },
+  "149": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#149 ModelSamplingMiniMaxH3"
+    }
+  },
+  "169": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#169 Save Video（低分辨率）"
+    }
+  },
+  "171": {
+    "inputs": {
+      "value": 0.52
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#171 Megapixels"
+    }
+  },
+  "172": {
+    "inputs": {
+      "image": "03_Picture 3 _ CHARACTER_IDENTITY_康大叔_20261020_030230.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#172 Reference Image 3"
+    }
+  },
+  "173": {
+    "inputs": {
+      "image": "04_Picture 4 _ CHARACTER_IDENTITY_华老栓_20261020_025831.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#173 Reference Image 4"
+    }
+  },
+  "174": {
+    "inputs": {
+      "image": "06_Picture 6 _ PROP_钱币布包_20261020_034006.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#174 Reference Image 6"
+    }
+  },
+  "175": {
+    "inputs": {
+      "image": "05_Picture 5 _ PROP_人血馒头_20261020_033112.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#175 Reference Image 5"
+    }
+  },
+  "176": {
+    "inputs": {
+      "image": "07_Picture 7 _ PROP_华家银元_20261020_033146.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#176 Reference Image 7"
+    }
+  },
+  "177": {
+    "inputs": {
+      "image": "002_宫廷总管.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#177 #-1 Reference Image 8"
+    }
+  },
+  "178": {
+    "inputs": {
+      "image": "001_高背宝座.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#178 #-1 Reference Image 9"
+    }
+  },
+  "185": {
+    "inputs": {
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "mode": "scale by multiplier",
+      "mode.scale": [
+        "230",
+        0
+      ],
+      "align": 32,
+      "keep_proportion": true,
+      "device": "cuda",
+      "precision": "fp16",
+      "latent": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "MinimaxH3LatentUpscaler3D",
+    "_meta": {
+      "title": "#185 MiniMax H3 3D Latent Upscaler 2x"
+    }
+  },
+  "186": {
+    "inputs": {
+      "model": [
+        "227",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#186 #-1 Basic Guider"
+    }
+  },
+  "187": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#187 #-1 KSamplerSelect"
+    }
+  },
+  "188": {
+    "inputs": {
+      "noise": [
+        "189",
+        0
+      ],
+      "guider": [
+        "186",
+        0
+      ],
+      "sampler": [
+        "187",
+        0
+      ],
+      "sigmas": [
+        "195",
+        0
+      ],
+      "latent_image": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#188 #-1 SamplerCustomAdvanced"
+    }
+  },
+  "189": {
+    "inputs": {},
+    "class_type": "DisableNoise",
+    "_meta": {
+      "title": "#189 #-1 DisableNoise"
+    }
+  },
+  "190": {
+    "inputs": {
+      "samples": [
+        "188",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#190 #-1 VAE Decode"
+    }
+  },
+  "194": {
+    "inputs": {
+      "noise_seed": 1180471013
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#194 #-1 RandomNoise"
+    }
+  },
+  "195": {
+    "inputs": {
+      "steps": [
+        "221",
+        0
+      ],
+      "denoise": 0.5,
+      "rho": 7,
+      "shape": "karras",
+      "reference_steps": 6,
+      "base_scheduler": "simple",
+      "model": [
+        "227",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3Pass2StaggeredScheduler",
+    "_meta": {
+      "title": "#195 #-1 MiniMax H3 Pass-2 Staggered Scheduler"
+    }
+  },
+  "196": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "codec": "none",
+      "images": [
+        "190",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#196 #-1 Create Video"
+    }
+  },
+  "197": {
+    "inputs": {
+      "filename_prefix": "video/ComfyUI",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "196",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#197 Save Video(高清放大)"
+    }
+  },
+  "211": {
+    "inputs": {
+      "image": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "#211 #-1 Get Image Size"
+    }
+  },
+  "212": {
+    "inputs": {
+      "text": "1984",
+      "anything": [
+        "211",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#212 #-1 Show Any"
+    }
+  },
+  "213": {
+    "inputs": {
+      "text": "1088",
+      "anything": [
+        "211",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#213 #-1 Show Any"
+    }
+  },
+  "214": {
+    "inputs": {
+      "image": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "#214 #-1 Get Image Size"
+    }
+  },
+  "215": {
+    "inputs": {
+      "text": "992",
+      "anything": [
+        "214",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#215 #-1 Show Any"
+    }
+  },
+  "216": {
+    "inputs": {
+      "text": "544",
+      "anything": [
+        "214",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#216 #-1 Show Any"
+    }
+  },
+  "217": {
+    "inputs": {
+      "text": "73",
+      "anything": [
+        "211",
+        2
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#217 #-1 Show Any"
+    }
+  },
+  "218": {
+    "inputs": {
+      "text": "73",
+      "anything": [
+        "214",
+        2
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#218 #-1 Show Any"
+    }
+  },
+  "219": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#219 Float(时长)"
+    }
+  },
+  "221": {
+    "inputs": {
+      "Number": "4"
+    },
+    "class_type": "Int",
+    "_meta": {
+      "title": "#221 二采放大Step"
+    }
+  },
+  "222": {
+    "inputs": {
+      "av_latent": [
+        "125",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "#222 LTXVSeparateAVLatent"
+    }
+  },
+  "223": {
+    "inputs": {
+      "upscaled_video": [
+        "185",
+        0
+      ],
+      "source_audio": [
+        "222",
+        1
+      ],
+      "model": [
+        "227",
+        0
+      ],
+      "noise": [
+        "194",
+        0
+      ],
+      "sigmas": [
+        "195",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainPass2Prepare",
+    "_meta": {
+      "title": "#223 MiniMaxH3ChainPass2Prepare"
+    }
+  },
+  "225": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#225 Pass 2 LoraLoaderModelOnly"
+    }
+  },
+  "226": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "225",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#226 Pass 2 MiniMaxH3SigmaShift"
+    }
+  },
+  "227": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "226",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#227 Pass 2 ModelPreviewOverrideKJ"
+    }
+  },
+  "228": {
+    "inputs": {
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "#228 #-1 Preview Audio"
+    }
+  },
+  "230": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#230 二采放大scale"
+    }
+  },
+  "231": {
+    "inputs": {
+      "empty_cache": true,
+      "gc_collect": true,
+      "unload_all_models": true,
+      "any_input": [
+        "222",
+        0
+      ]
+    },
+    "class_type": "VRAM_Debug",
+    "_meta": {
+      "title": "#231 Release VRAM Before 3D Upscale"
+    }
+  }
+}

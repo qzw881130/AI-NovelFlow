@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -73,6 +74,7 @@ async def list_characters(
             "endChapter": c.end_chapter,
             "isIncremental": c.is_incremental,
             "isNarrator": c.is_narrator or False,
+            "isProtagonist": bool(c.is_protagonist),
             "sourceRange": c.source_range,
             "lastParsedAt": format_datetime(c.last_parsed_at),
             "createdAt": format_datetime(c.created_at),
@@ -85,6 +87,63 @@ async def list_characters(
     return {"success": True, "data": result}
 
 
+@router.get("/export")
+async def export_characters(
+    novel_id: str = Query(...),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+):
+    """导出指定小说的全部角色信息 JSON。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    characters = character_repo.list_by_novel(novel_id)
+    payload = {
+        "version": 1,
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "novel": {
+            "id": novel.id,
+            "title": novel.title,
+            "author": novel.author,
+        },
+        "total": len(characters),
+        "characters": [
+            {
+                "id": character.id,
+                "novelId": character.novel_id,
+                "name": character.name,
+                "description": character.description,
+                "appearance": character.appearance,
+                "stableIdentityFeatures": character.stable_identity_features,
+                "stableIdentitySource": character.stable_identity_source,
+                "voicePrompt": character.voice_prompt,
+                "referenceAudioUrl": character.reference_audio_url,
+                "imageUrl": character.image_url,
+                "generatingStatus": character.generating_status,
+                "portraitTaskId": character.portrait_task_id,
+                "startChapter": character.start_chapter,
+                "endChapter": character.end_chapter,
+                "isIncremental": character.is_incremental,
+                "isNarrator": character.is_narrator or False,
+                "isProtagonist": bool(character.is_protagonist),
+                "sourceRange": character.source_range,
+                "lastParsedAt": format_datetime(character.last_parsed_at),
+                "createdAt": format_datetime(character.created_at),
+                "updatedAt": format_datetime(character.updated_at),
+            }
+            for character in characters
+        ],
+    }
+    content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    filename = f"characters_{novel.id[:8]}.json"
+    return Response(
+        content=content,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/generate-missing-portraits", response_model=dict)
 async def generate_missing_character_portraits(
     novel_id: str = Query(...),
@@ -93,6 +152,23 @@ async def generate_missing_character_portraits(
     """Queue portrait tasks for characters without images or with failed generation."""
     character_service = CharacterService(db)
     return character_service.create_missing_character_portrait_tasks(novel_id)
+
+
+@router.post("/auto-set-protagonists", response_model=dict)
+async def auto_set_protagonists(
+    novel_id: str = Query(...),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+):
+    """将指定小说中名称不含数字的非旁白角色批量设为主角。"""
+    if not novel_repo.get_by_id(novel_id):
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    assigned_ids, updated_count = character_repo.auto_set_protagonists(novel_id)
+    return {
+        "success": True,
+        "data": {"assignedIds": assigned_ids, "updatedCount": updated_count},
+    }
 
 
 @router.get("/{character_id}", response_model=dict)
@@ -112,6 +188,8 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "referenceAudioUrl": character.reference_audio_url,
             "imageUrl": character.image_url,
@@ -122,6 +200,7 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "endChapter": character.end_chapter,
             "isIncremental": character.is_incremental,
             "isNarrator": character.is_narrator or False,
+            "isProtagonist": bool(character.is_protagonist),
             "sourceRange": character.source_range,
             "lastParsedAt": format_datetime(character.last_parsed_at),
             "createdAt": format_datetime(character.created_at),
@@ -148,6 +227,10 @@ async def create_character(
         description=data.description or "",
         appearance=data.appearance or ""
     )
+    if data.stable_identity_features is not None:
+        character = character_repo.update(character, stable_identity_features=data.stable_identity_features)
+    if data.is_protagonist and not character.is_narrator:
+        character = character_repo.update_from_schema(character, is_protagonist=True)
     
     return {
         "success": True,
@@ -157,7 +240,10 @@ async def create_character(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "imageUrl": character.image_url,
+            "isProtagonist": bool(character.is_protagonist),
             "novelName": novel.title,
             "createdAt": format_datetime(character.created_at),
         }
@@ -181,7 +267,9 @@ async def update_character(
         name=data.name,
         description=data.description,
         appearance=data.appearance,
-        voice_prompt=data.voice_prompt
+        stable_identity_features=data.stable_identity_features,
+        voice_prompt=data.voice_prompt,
+        is_protagonist=False if character.is_narrator else data.is_protagonist,
     )
     
     novel = novel_repo.get_by_id(character.novel_id)
@@ -194,8 +282,11 @@ async def update_character(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "imageUrl": character.image_url,
+            "isProtagonist": bool(character.is_protagonist),
             "novelName": novel.title if novel else None,
             "updatedAt": format_datetime(character.updated_at),
         }
@@ -274,13 +365,8 @@ async def get_character_prompt(
     novel = novel_repo.get_by_id(character.novel_id)
 
     # 获取提示词模板
-    template = None
-    if novel and novel.prompt_template_id:
-        template = prompt_template_repo.get_by_id(novel.prompt_template_id)
-
-    # 如果没有指定模板，使用默认系统模板
-    if not template:
-        template = prompt_template_repo.get_first_system_template()
+    template = prompt_template_repo.resolve_for_type(
+        novel.prompt_template_id if novel else None, "character")
 
     # 获取风格提示词
     style, style_template = get_style(db, novel, "character")
@@ -303,6 +389,8 @@ async def get_character_prompt(
             "isSystem": template.is_system if template else False,
             "template": template.template if template else None,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "description": character.description
         }
     }
@@ -407,6 +495,8 @@ async def upload_character_image(
                 "name": character.name,
                 "description": character.description,
                 "appearance": character.appearance,
+                "stableIdentityFeatures": character.stable_identity_features,
+                "stableIdentitySource": character.stable_identity_source,
                 "imageUrl": character.image_url,
                 "generatingStatus": character.generating_status,
                 "novelName": novel.title if novel else None,
@@ -552,6 +642,8 @@ async def replace_character_image(
             "name": character.name,
             "description": character.description,
             "appearance": character.appearance,
+            "stableIdentityFeatures": character.stable_identity_features,
+            "stableIdentitySource": character.stable_identity_source,
             "voicePrompt": character.voice_prompt,
             "referenceAudioUrl": character.reference_audio_url,
             "imageUrl": character.image_url,

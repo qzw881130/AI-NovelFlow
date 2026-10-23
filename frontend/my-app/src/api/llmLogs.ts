@@ -1,7 +1,34 @@
+export interface LLMImageInput {
+  request_order: number;
+  logical_id: string;
+  reference_type?: string;
+  role?: string;
+  binding?: string | Record<string, unknown> | null;
+  source_path?: string;
+  source_asset_id?: string;
+  source_dimensions?: number[];
+  submitted_dimensions?: number[];
+  mime_type?: string;
+  is_proxy?: boolean;
+  size_bytes?: number;
+  sha256?: string;
+  request_id?: string;
+  submitted_url?: string | null;
+  status?: string;
+  unavailable_reason?: string;
+}
+
 /**
  * LLM 日志相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
+
+export const LLM_CANCELLED_MESSAGE = '任务被用户取消，LLM 响应已忽略';
+
+export interface LLMLogCancellationResult {
+  cancelled_ids: string[];
+  skipped_ids: string[];
+}
 
 export interface LLMLog {
   id: string;
@@ -12,15 +39,33 @@ export interface LLMLog {
   system_prompt: string | null;
   user_prompt: string;
   request_info?: string | null;
+  image_inputs?: LLMImageInput[];
   response: string | null;
   status: 'pending' | 'success' | 'error';
   error_message: string | null;
   task_type: string | null;
   novel_id: string | null;
+  novel_title?: string | null;
   chapter_id: string | null;
+  chapter_number?: number | null;
+  chapter_title?: string | null;
+  shot_id?: string | null;
+  shot_index?: number | null;
   character_id: string | null;
   used_proxy: boolean;
   duration: number | null;
+  metrics?: LLMLogMetrics | null;
+}
+
+export interface LLMLogMetrics {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  cached_input_tokens?: number | null;
+  reasoning_tokens?: number | null;
+  finish_reason?: string | null;
+  output_tokens_per_second?: number | null;
+  raw_usage?: Record<string, unknown> | null;
 }
 
 export interface Pagination {
@@ -64,7 +109,52 @@ export interface LLMLogStatsResponse {
   items: LLMLogStatsItem[];
 }
 
+export interface LLMLogTokenStatsItem {
+  key: string;
+  label: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface LLMLogTokenStatsResponse {
+  group_by: LLMLogStatsGroupBy;
+  range_value: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  items: LLMLogTokenStatsItem[];
+}
+
+export interface TokenUsageNode {
+  id: string | null;
+  label: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  call_count: number;
+  missing_usage_count: number;
+  partial_usage_count: number;
+}
+
+export interface ShotTokenUsage extends TokenUsageNode {}
+export interface ChapterTokenUsage extends TokenUsageNode { shots: ShotTokenUsage[] }
+export interface NovelTokenUsage extends TokenUsageNode { chapters: ChapterTokenUsage[] }
+export interface TokenUsageHierarchy extends TokenUsageNode { novels: NovelTokenUsage[] }
+
 export const llmLogsApi = {
+  /** 仅终止所选日志中的进行中调用，后端重新核对实时状态 */
+  cancelSelected: async (ids: string[]): Promise<LLMLogCancellationResult> => {
+    const response = await fetch(`${API_BASE}/llm-logs/cancel-selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(typeof result.detail === 'string' ? result.detail : result.message || '终止任务失败');
+    }
+    return result.data;
+  },
+
   /** 获取日志列表 */
   fetchList: (page: number, pageSize: number, filters: LLMLogFilters) => {
     const params = new URLSearchParams();
@@ -91,5 +181,44 @@ export const llmLogsApi = {
       if (value) params.append(key, value);
     });
     return api.get<LLMLogStatsResponse>(`/llm-logs/stats?${params}`);
+  },
+
+  /** 获取 Token 消耗统计 */
+  fetchTokenStats: (groupBy: LLMLogStatsGroupBy, rangeValue: number, filters: LLMLogFilters) => {
+    const params = new URLSearchParams();
+    params.append('group_by', groupBy);
+    params.append('range_value', String(rangeValue));
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    return api.get<LLMLogTokenStatsResponse>(`/llm-logs/token-stats?${params}`);
+  },
+
+  /** 按小说归档状态、章回、Shot 汇总历史日志中的供应商 Token 回执 */
+  fetchTokenUsageHierarchy: (scope: 'active' | 'archived' | 'all' = 'active') =>
+    api.get<TokenUsageHierarchy>(`/llm-logs/token-usage/hierarchy?scope=${scope}`),
+
+  /** 打包下载所选日志的完整 LLM 参数与响应 */
+  downloadSelected: async (ids: string[]) => {
+    const response = await fetch(`${API_BASE}/llm-logs/export-selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '打包下载失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] || 'llm_logs.zip';
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   },
 };

@@ -22,6 +22,18 @@ export function getAspectRatioClass(aspectRatio: string): string {
   return ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-video';
 }
 
+/** 将图片的实际像素尺寸约成宽高比。 */
+export function formatAspectRatio(width: number, height: number): string {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return '—';
+  const roundedWidth = Math.round(width);
+  const roundedHeight = Math.round(height);
+  if (!roundedWidth || !roundedHeight) return '—';
+  let a = roundedWidth;
+  let b = roundedHeight;
+  while (b !== 0) [a, b] = [b, a % b];
+  return `${roundedWidth / a}:${roundedHeight / a}`;
+}
+
 /**
  * 画面比例选项
  */

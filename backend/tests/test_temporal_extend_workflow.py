@@ -1,0 +1,433 @@
+import json
+from copy import deepcopy
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+
+from app.models.workflow import Workflow
+from app.services.comfyui.service import ComfyUIService
+from app.services.comfyui.client import ComfyUIClient
+from app.services.comfyui.workflows import WorkflowBuilder
+from app.services.task_service import TaskService
+from app.services.workflow_service import WorkflowService
+from app.services import shot_video_service
+
+
+REFERENCE_IDS = ("142", "141", "143", "137", "138", "140", "135", "136", "139")
+ANCHOR_IDS = ("117", "128", "129", "130", "131", "132", "133", "134")
+
+
+def test_shot_video_service_exposes_temporal_extend_compiler():
+    """The worker module must resolve the compiler used by its CLIP path."""
+    assert callable(shot_video_service.compile_temporal_extend_clip)
+
+
+def _workflow(db_session):
+    WorkflowService(db_session).load_default_workflows()
+    return db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 时序续生成 V1", Workflow.is_system == True).one()
+
+
+def test_temporal_extend_system_workflow_is_registered(db_session):
+    workflow = _workflow(db_session)
+    mapping = json.loads(workflow.node_mapping)
+    graph = json.loads(workflow.workflow_json)
+
+    assert workflow.name == "NovelFlow H3 AV 时序续生成 V1"
+    assert workflow.is_active
+    assert mapping["reference_to_video_node_id"] == "55"
+    assert [mapping[f"keyframe_node_{i}"] for i in range(1, 9)] == list(ANCHOR_IDS)
+    assert [mapping[f"load_image_node_{i}"] for i in range(1, 10)] == list(REFERENCE_IDS)
+    assert graph["116"]["class_type"] == "MiniMaxH3CustomKeyframes"
+    assert graph["55"]["class_type"] == "MiniMaxH3ReferenceToVideo"
+    assert sum(node.get("class_type") == "LoadImage" for node in graph.values()) == 17
+    assert TaskService.validate_workflow_node_mapping(workflow, "TEMPORAL_EXTEND") == (True, "")
+
+
+def test_existing_temporal_extend_mapping_is_upgraded_in_place(db_session):
+    workflow = _workflow(db_session)
+    workflow_id = workflow.id
+    old_mapping = json.loads(workflow.node_mapping)
+    workflow.node_mapping = json.dumps({
+        key: value for key, value in old_mapping.items()
+        if not key.startswith("load_image_node_") and key != "reference_to_video_node_id"
+    })
+    db_session.commit()
+
+    WorkflowService(db_session).load_default_workflows()
+
+    db_session.expire_all()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 时序续生成 V1").one()
+    mapping = json.loads(workflow.node_mapping)
+    assert workflow.id == workflow_id and workflow.is_active
+    assert mapping["reference_to_video_node_id"] == "55"
+    assert [mapping[f"load_image_node_{i}"] for i in range(1, 10)] == list(REFERENCE_IDS)
+    assert [mapping[f"keyframe_node_{i}"] for i in range(1, 9)] == list(ANCHOR_IDS)
+
+
+def test_temporal_extend_builder_bypasses_custom_keyframes_for_zero_anchors(db_session):
+    workflow = _workflow(db_session)
+    graph = WorkflowBuilder().build_temporal_extend_workflow(
+        workflow.workflow_json, json.loads(workflow.node_mapping), "previous.mp4", 12, [],
+        "story_test/temporal_extend", "next scene",
+    )
+
+    assert "116" not in graph
+    assert all(node_id not in graph for node_id in (*ANCHOR_IDS, *REFERENCE_IDS))
+    assert not any(key.startswith("ref_images.ref_image_") for key in graph["55"]["inputs"])
+    assert graph["66"]["inputs"]["video"] == "previous.mp4"
+    assert graph["65"]["inputs"]["filename_prefix"] == "story_test/temporal_extend"
+
+
+@pytest.mark.parametrize("anchor_count,reference_count", [(0, 0), (2, 1), (2, 4), (8, 9)])
+def test_temporal_anchors_and_visual_references_vary_independently(db_session, anchor_count, reference_count):
+    workflow = _workflow(db_session)
+    mapping = json.loads(workflow.node_mapping)
+    anchors = [{"image": f"anchor_{i}.png", "position": (i + 1) * 30} for i in range(anchor_count)]
+    references = [f"reference_{i}.png" for i in range(reference_count)]
+
+    graph = WorkflowBuilder().build_temporal_extend_workflow(
+        workflow.workflow_json, mapping, "previous.mp4", 12.5, anchors,
+        "story_test/temporal_extend", "next scene", reference_image_filenames=references,
+    )
+
+    assert graph["125"]["inputs"]["value"] == 12.5
+    assert ("116" in graph) == bool(anchor_count)
+    if anchors:
+        assert json.loads(graph["116"]["inputs"]["keyframe_state"]) == {
+            "count": anchor_count, "positions": [item["position"] for item in anchors],
+        }
+    for index, node_id in enumerate(ANCHOR_IDS):
+        if index < anchor_count:
+            assert graph[node_id]["inputs"]["image"] == anchors[index]["image"]
+        else:
+            assert node_id not in graph
+    for index, node_id in enumerate(REFERENCE_IDS):
+        key = f"ref_images.ref_image_{index}"
+        if index < reference_count:
+            assert graph[node_id]["inputs"]["image"] == references[index]
+            assert graph["55"]["inputs"][key] == [node_id, 0]
+        else:
+            assert node_id not in graph and key not in graph["55"]["inputs"]
+
+
+@pytest.mark.parametrize("anchor_count", [0, 1])
+def test_temporal_extend_updates_all_mapped_keyframe_controllers(db_session, anchor_count):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    graph["151"]["inputs"]["conditioning"] = ["116", 0]
+    graph["2"]["inputs"]["conditioning"] = ["151", 0]
+    mapping = {**json.loads(workflow.node_mapping), "custom_keyframes_node_ids": ["116", "151"]}
+    anchors = [{"image": "anchor.png", "position": 383}] if anchor_count else []
+
+    result = WorkflowBuilder().build_temporal_extend_workflow(
+        graph, mapping, "previous.mp4", 16, anchors, "test/dual-controller",
+    )
+
+    assert "134" not in result
+    if anchor_count:
+        for node_id in ("116", "151"):
+            inputs = result[node_id]["inputs"]
+            assert json.loads(inputs["keyframe_state"]) == {"count": 1, "positions": [383]}
+            assert "keyframe_image_8" not in inputs
+        assert result["117"]["inputs"]["image"] == "anchor.png"
+        assert result["2"]["inputs"]["conditioning"] == ["151", 0]
+    else:
+        assert "116" not in result and "151" not in result
+        assert result["2"]["inputs"]["conditioning"] == ["55", 0]
+    assert all(
+        not (isinstance(value, list) and len(value) == 2 and str(value[0]) not in result)
+        for node in result.values() for value in node.get("inputs", {}).values()
+    )
+
+
+def test_temporal_extend_rejects_unmapped_second_controller_before_submission(db_session):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    with pytest.raises(ValueError, match="请映射所有关键帧控制节点"):
+        WorkflowBuilder().build_temporal_extend_workflow(
+            graph, json.loads(workflow.node_mapping), "previous.mp4", 16,
+            [{"image": "anchor.png", "position": 383}], "test/unmapped-controller",
+        )
+
+
+@pytest.mark.parametrize("anchor_count", [0, 1])
+def test_temporal_extend_ui_graph_handles_two_keyframe_controllers(anchor_count):
+    graph = {
+        "nodes": [
+            {"id": node_id, "type": node_type, "inputs": inputs, "widgets_values_named": {}}
+            for node_id, node_type, inputs in [
+                (55, "MiniMaxH3ReferenceToVideo", []),
+                (66, "VHS_LoadVideoFFmpeg", []),
+                (125, "PrimitiveFloat", []),
+                (65, "VHS_VideoCombine", []),
+                (117, "LoadImage", []),
+                (134, "LoadImage", []),
+                (116, "MiniMaxH3CustomKeyframes", [
+                    {"name": "conditioning", "link": 1},
+                    {"name": "keyframe_image_1", "link": 4},
+                    {"name": "keyframe_image_8", "link": 5},
+                ]),
+                (151, "MiniMaxH3CustomKeyframes", [
+                    {"name": "conditioning", "link": 2},
+                    {"name": "keyframe_image_1", "link": 7},
+                    {"name": "keyframe_image_8", "link": 6},
+                ]),
+                (2, "BasicGuider", [{"name": "conditioning", "link": 3}]),
+            ]
+        ],
+        "links": [
+            [1, 55, 0, 116, 0, "CONDITIONING"],
+            [2, 116, 0, 151, 0, "CONDITIONING"],
+            [3, 151, 0, 2, 0, "CONDITIONING"],
+            [4, 117, 0, 116, 1, "IMAGE"],
+            [5, 134, 0, 116, 2, "IMAGE"],
+            [6, 134, 0, 151, 2, "IMAGE"],
+            [7, 117, 0, 151, 1, "IMAGE"],
+        ],
+    }
+    mapping = {
+        "load_video_node_id": "66", "duration_seconds_node_id": "125", "video_save_node_id": "65",
+        "custom_keyframes_node_id": "116", "custom_keyframes_node_ids": ["116", "151"],
+        "keyframe_node_1": "117", "keyframe_node_8": "134",
+    }
+    anchors = [{"image": "anchor.png", "position": 383}] if anchor_count else []
+
+    ui_result = WorkflowBuilder().build_temporal_extend_workflow(
+        graph, mapping, "previous.mp4", 16, anchors, "test/dual-controller",
+    )
+    result = WorkflowBuilder().convert_ui_to_api(ui_result)
+    assert "134" not in result
+    if anchor_count:
+        for node_id in ("116", "151"):
+            assert json.loads(result[node_id]["inputs"]["keyframe_state"]) == {"count": 1, "positions": [383]}
+            assert "keyframe_image_8" not in result[node_id]["inputs"]
+        assert result["2"]["inputs"]["conditioning"] == ["151", 0]
+    else:
+        assert "116" not in result and "151" not in result
+        assert result["2"]["inputs"]["conditioning"] == ["55", 0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [0, 4, 9])
+async def test_temporal_extend_service_submits_only_requested_references(db_session, monkeypatch, count):
+    workflow = _workflow(db_session)
+    service = ComfyUIService()
+    queued = []
+
+    async def upload_video(_path):
+        return {"success": True, "filename": "previous.mp4"}
+
+    async def upload_image(path):
+        return {"success": True, "filename": path.rsplit("/", 1)[-1]}
+
+    async def queue_prompt(graph):
+        queued.append(graph)
+        return {"success": True, "prompt_id": "test-job"}
+
+    async def wait_for_result(*_args, **_kwargs):
+        return {"success": True, "video_url": "result.mp4"}
+
+    monkeypatch.setattr(service.client, "upload_video", upload_video)
+    monkeypatch.setattr(service.client, "upload_image", upload_image)
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", wait_for_result)
+
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="next scene", workflow_json=workflow.workflow_json,
+        node_mapping=json.loads(workflow.node_mapping), previous_video_path="/videos/previous.mp4",
+        duration_seconds=5, filename_prefix="test/temporal", capability="TEMPORAL_EXTEND",
+        anchors=[{"image_path": "/images/anchor.png", "position": 30}],
+        reference_image_paths=[f"/images/ref_{i}.png" for i in range(count)],
+    )
+
+    assert result["success"] and len(queued) == 1
+    assert queued[0]["117"]["inputs"]["image"] == "anchor.png"
+    assert len([key for key in queued[0]["55"]["inputs"] if key.startswith("ref_images.ref_image_")]) == count
+
+
+@pytest.mark.asyncio
+async def test_temporal_extend_service_submits_both_keyframe_controllers(db_session, monkeypatch):
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph["151"] = deepcopy(graph["116"])
+    graph["151"]["inputs"]["conditioning"] = ["116", 0]
+    graph["2"]["inputs"]["conditioning"] = ["151", 0]
+    mapping = {**json.loads(workflow.node_mapping), "custom_keyframes_node_ids": ["116", "151"]}
+    service = ComfyUIService()
+    queued = []
+    monkeypatch.setattr(service.client, "upload_video", AsyncMock(return_value={"success": True, "filename": "previous.mp4"}))
+    monkeypatch.setattr(service.client, "upload_image", AsyncMock(return_value={"success": True, "filename": "anchor.png"}))
+
+    async def queue_prompt(submitted):
+        queued.append(submitted)
+        return {"success": True, "prompt_id": "dual-controller"}
+
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", AsyncMock(return_value={"success": True, "video_url": "result.mp4"}))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="next scene", workflow_json=graph, node_mapping=mapping,
+        previous_video_path="/videos/previous.mp4", duration_seconds=16,
+        filename_prefix="test/dual-controller", capability="TEMPORAL_EXTEND",
+        anchors=[{"image_path": "/images/anchor.png", "position": 383}], reference_image_paths=[],
+    )
+    assert result["success"] and len(queued) == 1
+    for node_id in ("116", "151"):
+        assert json.loads(queued[0][node_id]["inputs"]["keyframe_state"]) == {"count": 1, "positions": [383]}
+        assert "keyframe_image_8" not in queued[0][node_id]["inputs"]
+    assert "134" not in queued[0]
+
+
+@pytest.mark.asyncio
+async def test_temporal_extend_returns_native_node65_without_changing_anchor_contract(db_session, monkeypatch):
+    workflow = _workflow(db_session)
+    service = ComfyUIService()
+    captured = {}
+
+    async def upload_video(_path): return {"success": True, "filename": "previous.mp4"}
+    async def upload_image(path): return {"success": True, "filename": path.rsplit("/", 1)[-1]}
+    async def queue_prompt(graph): captured["graph"] = graph; return {"success": True, "prompt_id": "temporal-output"}
+    async def wait_for_result(prompt_id, graph, node_id, timeout, strict_output_node=False):
+        captured.update({"prompt_id": prompt_id, "node_id": node_id, "timeout": timeout, "strict": strict_output_node})
+        return {"success": True, "video_url": "node-39.mp4" if node_id == "39" else "node-65.mp4"}
+
+    monkeypatch.setattr(service.client, "upload_video", upload_video)
+    monkeypatch.setattr(service.client, "upload_image", upload_image)
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", wait_for_result)
+    monkeypatch.setattr("app.services.comfyui.service.get_settings", lambda: SimpleNamespace(COMFYUI_TIMEOUT=1234))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="temporal semantic prompt", workflow_json=workflow.workflow_json,
+        node_mapping=json.loads(workflow.node_mapping), previous_video_path="/videos/previous.mp4",
+        duration_seconds=8, filename_prefix="probe/temporal", capability="TEMPORAL_EXTEND",
+        anchors=[{"image_path": "/images/anchor.png", "position": 96}],
+        reference_image_paths=[],
+    )
+    assert result["success"] is True
+    assert captured["node_id"] == "65"
+    assert captured["strict"] is True
+    assert captured["timeout"] == 1234
+    assert result["video_url"] == "node-65.mp4"
+    assert result["physical_output_role"] == "NATIVE_CONTINUITY_OUTPUT"
+    assert captured["graph"]["65"]["inputs"]["filename_prefix"] == "probe/temporal"
+    assert captured["graph"]["116"]["inputs"]["keyframe_state"] == '{"count":1,"positions":[96]}'
+    assert captured["graph"]["116"]["inputs"]["indexing"] == "1-based"
+
+
+@pytest.mark.asyncio
+async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatch):
+    WorkflowService(db_session).load_default_workflows()
+    workflow = db_session.query(Workflow).filter(Workflow.name == "NovelFlow H3 AV 视频续生成 Minimal V1", Workflow.is_system == True).one()
+    assert json.loads(workflow.workflow_json)['99']['inputs']=={'filenames':['65',0]}
+    service = ComfyUIService()
+    captured = {}
+
+    async def upload_video(_path): return {"success": True, "filename": "previous.mp4"}
+    async def upload_image(path): return {"success": True, "filename": path.rsplit("/", 1)[-1]}
+    async def queue_prompt(_graph): return {"success": True, "prompt_id": "extend-output"}
+    async def wait_for_result(prompt_id, graph, node_id, timeout, strict_output_node=False):
+        captured.update({"node_id": node_id, "strict": strict_output_node})
+        return {"success": True, "video_url": "existing-extend-output.mp4"}
+
+    monkeypatch.setattr(service.client, "upload_video", upload_video)
+    monkeypatch.setattr(service.client, "upload_image", upload_image)
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", wait_for_result)
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="frozen extend prompt", workflow_json=workflow.workflow_json,
+        node_mapping={**json.loads(workflow.node_mapping), "video_save_node_id": "65"},
+        previous_video_path="/videos/previous.mp4", duration_seconds=8,
+        filename_prefix="probe/extend", capability="VIDEO_CONTINUATION",
+        reference_image_paths=[],
+    )
+    assert result["success"] is True
+    assert captured["node_id"] == "65"
+    assert captured["strict"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('missing',['sink','native_output'])
+async def test_native_output_is_bound_by_mapping_without_inspecting_internal_sink(db_session,monkeypatch,missing):
+    from unittest.mock import AsyncMock
+    workflow=_workflow(db_session)
+    graph=json.loads(workflow.workflow_json)
+    if missing=='sink':graph.pop('99')
+    else:graph.pop('65')
+    service=ComfyUIService()
+    monkeypatch.setattr(service.client,'upload_video',AsyncMock(return_value={'success':True,'filename':'previous.mp4'}))
+    queued=AsyncMock(return_value={'success':True,'prompt_id':'native-missing'})
+    monkeypatch.setattr(service.client,'queue_prompt',queued)
+    async def wait(_prompt,_graph,node_id,**kwargs):
+        assert node_id=='65' and kwargs['strict_output_node']
+        parsed=service.client._parse_outputs({'39':{'gifs':[{'filename':'raw.mp4'}]}},save_image_node_id=node_id,strict_output_node=True)
+        assert parsed is None
+        return {'success':False,'message':'completed without node65'}
+    monkeypatch.setattr(service.client,'wait_for_result',wait)
+    result=await service.generate_video_continuation_with_workflow(
+        prompt='unchanged',workflow_json=graph,node_mapping=json.loads(workflow.node_mapping),
+        previous_video_path='/previous.mp4',duration_seconds=8,filename_prefix='test/native',
+        capability='TEMPORAL_EXTEND',anchors=[],reference_image_paths=[],require_native_output=True)
+    assert result['success'] is False
+    assert ('NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE' if missing=='sink' else '映射不完整') in result['message']
+    assert not result.get('video_url')
+    assert queued.await_count==(1 if missing=='sink' else 0)
+
+
+@pytest.mark.asyncio
+async def test_changed_internal_continuation_graph_can_use_mapped_output(db_session, monkeypatch):
+    from unittest.mock import AsyncMock
+    workflow = _workflow(db_session)
+    graph = json.loads(workflow.workflow_json)
+    graph.pop('99')
+    graph['65']['class_type'] = 'CustomCumulativeAVOutput'
+    service = ComfyUIService()
+    monkeypatch.setattr(service.client, 'upload_video', AsyncMock(return_value={
+        'success': True, 'filename': 'previous.mp4'}))
+    monkeypatch.setattr(service.client, 'queue_prompt', AsyncMock(return_value={
+        'success': True, 'prompt_id': 'custom-output'}))
+    monkeypatch.setattr(service.client, 'wait_for_result', AsyncMock(return_value={
+        'success': True, 'video_url': 'cumulative.mp4'}))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt='unchanged', workflow_json=graph,
+        node_mapping=json.loads(workflow.node_mapping),
+        previous_video_path='/previous.mp4', duration_seconds=8,
+        filename_prefix='test/native', capability='TEMPORAL_EXTEND',
+        anchors=[], reference_image_paths=[], require_native_output=True,
+    )
+    assert result['success'] is True
+    assert result['output_node_id'] == '65'
+    assert result['physical_output_role'] == 'NATIVE_CONTINUITY_OUTPUT'
+    assert service.client.queue_prompt.await_count == 1
+
+
+def test_strict_native_output_parsing_uses_node65_and_never_scans_raw39():
+    client = ComfyUIClient(runtime_mode="standalone")
+    outputs = {
+        "39": {"gifs": [{"filename": "generated.mp4", "subfolder": "probe", "type": "output"}]},
+        "65": {"gifs": [{"filename": "cumulative.mp4", "subfolder": "probe", "type": "output"}]},
+    }
+    result = client._parse_outputs(outputs, save_image_node_id="65", strict_output_node=True)
+    assert result["video_url"].endswith("filename=cumulative.mp4&subfolder=probe&type=output")
+
+
+def test_strict_native_output_parsing_fails_when_node65_missing_or_malformed():
+    client = ComfyUIClient(runtime_mode="standalone")
+    raw_only = {"39": {"gifs": [{"filename": "generated.mp4"}]}}
+    assert client._parse_outputs(raw_only, save_image_node_id="65", strict_output_node=True) is None
+    malformed = {
+        "65": {"gifs": [{"filename": "not-a-video.bin"}]},
+        "39": {"gifs": [{"filename": "generated.mp4"}]},
+    }
+    assert client._parse_outputs(malformed, save_image_node_id="65", strict_output_node=True) is None
+
+
+def test_non_strict_output_parsing_keeps_generic_fallback():
+    client = ComfyUIClient(runtime_mode="standalone")
+    result = client._parse_outputs(
+        {"65": {"gifs": [{"filename": "cumulative.mp4"}]}},
+        save_image_node_id="39",
+        strict_output_node=False,
+    )
+    assert result["video_url"].endswith("filename=cumulative.mp4&type=output")

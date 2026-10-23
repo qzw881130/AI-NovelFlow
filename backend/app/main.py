@@ -3,19 +3,115 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 import asyncio
+import json
 
-from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
-from app.api import novels, chapters, shots
+from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
+from app.api import novels, chapters, shots, hd_repaint
+from app.api import clip_execution_inspector, notifications, image_reviews, events, youtube
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
+from app.models.background_job import BackgroundJob
 from app.models.test_case import TestCase
 from app.models.prompt_template import PromptTemplate
 from app.models.llm_log import LLMLog
 from app.models.system_config import SystemConfig  # 导入系统配置模型
+from app.models.notification import NotificationSettings, NotificationDelivery
 from app.models.shot import Shot
+from app.models.image_quality_review import ImageQualityReview
+from app.models.youtube_config import YoutubeConfig
+
+
+def backfill_llm_log_shot_ids(conn):
+    """Link legacy logs through verified structured IDs or persisted task/review relations."""
+    shot_context = {
+        shot_id: (chapter_id, novel_id)
+        for shot_id, chapter_id, novel_id in conn.execute(text(
+            "SELECT shots.id, shots.chapter_id, chapters.novel_id "
+            "FROM shots JOIN chapters ON chapters.id = shots.chapter_id"
+        ))
+    }
+    pending = {}
+
+    def assign(log_id, shot_id):
+        context = shot_context.get(shot_id) if isinstance(shot_id, str) else None
+        current = pending.get(log_id)
+        if not current or not context:
+            return
+        novel_id, chapter_id = current
+        if (chapter_id and chapter_id != context[0]) or (novel_id and novel_id != context[1]):
+            return
+        conn.execute(text(
+            "UPDATE llm_logs SET shot_id=:shot_id, chapter_id=COALESCE(chapter_id, :chapter_id), "
+            "novel_id=COALESCE(novel_id, :novel_id) WHERE id=:id AND shot_id IS NULL"
+        ), {"id": log_id, "shot_id": shot_id, "chapter_id": context[0], "novel_id": context[1]})
+        pending.pop(log_id, None)
+
+    for log_id, novel_id, chapter_id, prompt in conn.execute(text(
+        "SELECT id, novel_id, chapter_id, user_prompt FROM llm_logs WHERE shot_id IS NULL"
+    )):
+        pending[log_id] = (novel_id, chapter_id)
+        if not prompt or 'shot' not in prompt:
+            continue
+        start = prompt.find('{')
+        if start < 0:
+            continue
+        try:
+            data, end = json.JSONDecoder().raw_decode(prompt[start:])
+        except (TypeError, ValueError):
+            continue
+        if prompt[start + end:].strip() or not isinstance(data, dict):
+            continue
+        shot = data.get("shot")
+        shot_id = (shot.get("id") or shot.get("shot_id")) if isinstance(shot, dict) else data.get("shot_id")
+        assign(log_id, shot_id)
+
+    review_candidates = {}
+    for log_id, shot_id in conn.execute(text(
+        "SELECT reviews.llm_log_id, tasks.shot_id FROM image_quality_reviews AS reviews "
+        "JOIN tasks ON tasks.id = reviews.task_id "
+        "WHERE reviews.llm_log_id IS NOT NULL AND tasks.shot_id IS NOT NULL"
+    )):
+        if log_id in pending:
+            review_candidates.setdefault(log_id, set()).add(shot_id)
+    for log_id, shot_ids in review_candidates.items():
+        if len(shot_ids) == 1:
+            assign(log_id, next(iter(shot_ids)))
+
+    candidates = {}
+
+    def collect_log_ids(value, shot_id):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"llm_log_id", "log_id"} and isinstance(child, str) and child in pending:
+                    candidates.setdefault(child, set()).add(shot_id)
+                elif isinstance(child, (dict, list)):
+                    collect_log_ids(child, shot_id)
+        elif isinstance(value, list):
+            for child in value:
+                collect_log_ids(child, shot_id)
+
+    for shot_id, raw in conn.execute(text(
+        "SELECT shot_id, metadata_json FROM tasks WHERE shot_id IS NOT NULL AND metadata_json IS NOT NULL"
+    )):
+        if shot_id not in shot_context:
+            continue
+        try:
+            collect_log_ids(json.loads(raw), shot_id)
+        except (TypeError, ValueError):
+            continue
+    for shot_id, raw in conn.execute(text(
+        "SELECT id, video_director_plan FROM shots WHERE video_director_plan IS NOT NULL"
+    )):
+        try:
+            collect_log_ids(json.loads(raw), shot_id)
+        except (TypeError, ValueError):
+            continue
+    for log_id, shot_ids in candidates.items():
+        if len(shot_ids) == 1:
+            assign(log_id, next(iter(shot_ids)))
 
 
 def ensure_schema_updates():
@@ -32,23 +128,112 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
             if "shot_image_prompt" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
+            if "hd_video_url" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_url VARCHAR"))
+            if "hd_video_status" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_status VARCHAR DEFAULT 'pending'"))
+            if "hd_video_task_id" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_task_id VARCHAR"))
+            if "hd_video_source_task_id" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_source_task_id VARCHAR"))
+            if "hd_video_megapixels" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_megapixels REAL"))
+            if "current_video_variant" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN current_video_variant VARCHAR DEFAULT 'draft'"))
+
+            character_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(characters)"))]
+            if "is_protagonist" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN is_protagonist BOOLEAN NOT NULL DEFAULT 0"))
+            if "stable_identity_features" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN stable_identity_features TEXT"))
+            if "stable_identity_source" not in character_columns:
+                conn.execute(text("ALTER TABLE characters ADD COLUMN stable_identity_source VARCHAR"))
+            from app.utils.identity_features import extract_identity_features
+            for character_id, appearance in conn.execute(text(
+                "SELECT id, appearance FROM characters WHERE stable_identity_features IS NULL AND appearance IS NOT NULL"
+            )):
+                features = extract_identity_features(appearance)
+                if features:
+                    conn.execute(text("UPDATE characters SET stable_identity_features=:features, "
+                                      "stable_identity_source='APPEARANCE_CLAUSE' WHERE id=:id"),
+                                 {"features": features, "id": character_id})
+
+            config_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(system_configs)"))]
+            if "auto_approve_first_appearance_names" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
+            if "generation_quality_policy" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+
+            result = conn.execute(text("PRAGMA table_info(props)"))
+            prop_columns = [row[1] for row in result.fetchall()]
+            if "existence" not in prop_columns:
+                conn.execute(text("ALTER TABLE props ADD COLUMN existence VARCHAR NOT NULL DEFAULT 'REAL'"))
+            conn.execute(text("""
+                UPDATE props
+                SET existence = 'FICTIONAL_OR_NONEXISTENT'
+                WHERE existence = 'REAL'
+                  AND (
+                    description LIKE '%不存在%'
+                    OR description LIKE '%并不真实%'
+                    OR description LIKE '%仅为谎言%'
+                  )
+            """))
+            conn.execute(text("""
+                UPDATE shots
+                SET merged_prop_image = NULL
+                WHERE chapter_id IN (
+                    SELECT chapters.id
+                    FROM chapters
+                    WHERE chapters.novel_id IN (
+                        SELECT DISTINCT novel_id FROM props
+                        WHERE existence = 'FICTIONAL_OR_NONEXISTENT'
+                    )
+                )
+            """))
 
             result = conn.execute(text("PRAGMA table_info(novels)"))
             novel_columns = [row[1] for row in result.fetchall()]
+            if "is_archived" not in novel_columns:
+                conn.execute(text("ALTER TABLE novels ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0"))
             novel_prompt_columns = [
+                "story_world_context_prompt_template_id",
                 "keyframe_description_prompt_template_id",
                 "shot_image_prompt_template_id",
-                "video_mode_recommender_prompt_template_id",
                 "keyframe_planner_prompt_template_id",
                 "keyframe_image_prompt_template_id",
                 "keyframe_transition_prompt_template_id",
-                "h3_single_frame_prompt_template_id",
-                "h3_first_last_frame_prompt_template_id",
                 "h3_multi_keyframe_prompt_template_id",
+                "h3_multi_keyframe_director_phase_b_template_id",
+                "h3_execution_optimizer_prompt_template_id",
+                "h3_preflight_repair_prompt_template_id",
+                "scene_setting_prompt_template_id",
+                "prop_appearance_prompt_template_id",
+                "temporal_reference_selector_prompt_template_id",
+                "image_quality_review_prompt_template_id",
+                "clip_execution_planner_prompt_template_id",
             ]
             for column in novel_prompt_columns:
                 if column not in novel_columns:
                     conn.execute(text(f"ALTER TABLE novels ADD COLUMN {column} VARCHAR"))
+            # Remove bindings for prompt types that are no longer part of any generation path.
+            for column in (
+                "video_mode_recommender_prompt_template_id",
+                "h3_single_frame_prompt_template_id",
+                "h3_first_last_frame_prompt_template_id",
+            ):
+                if column in novel_columns:
+                    conn.execute(text(f"ALTER TABLE novels DROP COLUMN {column}"))
+            if "story_world_context" not in novel_columns:
+                conn.execute(text("ALTER TABLE novels ADD COLUMN story_world_context TEXT"))
+            if "story_world_context_locked" not in novel_columns:
+                conn.execute(text("ALTER TABLE novels ADD COLUMN story_world_context_locked BOOLEAN DEFAULT 0"))
+            if "story_world_context_updated_at" not in novel_columns:
+                conn.execute(text("ALTER TABLE novels ADD COLUMN story_world_context_updated_at DATETIME"))
+
+            result = conn.execute(text("PRAGMA table_info(chapters)"))
+            chapter_columns = [row[1] for row in result.fetchall()]
+            if "hd_final_video" not in chapter_columns:
+                conn.execute(text("ALTER TABLE chapters ADD COLUMN hd_final_video VARCHAR"))
 
             result = conn.execute(text("PRAGMA table_info(tasks)"))
             task_columns = [row[1] for row in result.fetchall()]
@@ -62,6 +247,37 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN batch_order INTEGER"))
             if "metadata_json" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
+            result = conn.execute(text("PRAGMA table_info(system_configs)"))
+            config_columns = [row[1] for row in result.fetchall()]
+            if "auto_image_review_enabled" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 1"))
+            if "auto_image_review_enabled_at" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
+            if "seed" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN seed INTEGER"))
+            if "source_task_id" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN source_task_id VARCHAR"))
+            if "execution_scope" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN execution_scope VARCHAR"))
+            if "clip_index" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN clip_index INTEGER"))
+            # Backfill old JSON metadata once; subsequent lookups use typed columns.
+            for task_id, task_type, order, metadata_json in conn.execute(text(
+                "SELECT id, type, batch_order, metadata_json FROM tasks "
+                "WHERE execution_scope IS NULL AND type IN ('shot_video', 'shot_video_batch')"
+            )):
+                import json
+                try:
+                    metadata = json.loads(metadata_json or "{}")
+                except (TypeError, ValueError):
+                    metadata = {}
+                metadata = metadata if isinstance(metadata, dict) else {}
+                scope = ("BATCH" if task_type == "shot_video_batch" else
+                         "SHOT" if order is not None else
+                         "CLIP" if metadata.get("execution_scope") == "CLIP" else "SHOT")
+                clip_index = metadata.get("clip_index") if scope == "CLIP" else None
+                conn.execute(text("UPDATE tasks SET execution_scope=:scope, clip_index=:clip_index WHERE id=:id"),
+                             {"scope": scope, "clip_index": clip_index, "id": task_id})
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]
@@ -69,6 +285,12 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN request_info TEXT"))
             if "prompt_template_name" not in llm_log_columns:
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN prompt_template_name VARCHAR"))
+            if "usage_metrics" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN usage_metrics JSON"))
+            if "shot_id" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN shot_id VARCHAR"))
+            backfill_llm_log_shot_ids(conn)
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_llm_logs_novel_chapter_shot ON llm_logs (novel_id, chapter_id, shot_id)"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")
@@ -77,18 +299,17 @@ def ensure_schema_updates():
 async def reconcile_active_tasks_loop():
     """Periodically reconcile active tasks so stale ComfyUI states are corrected after restarts."""
     from app.core.database import SessionLocal
-    from app.repositories import TaskRepository
     from app.services.task_service import TaskService
 
     while True:
         db = SessionLocal()
         try:
-            task_repo = TaskRepository(db)
-            active_tasks = task_repo.list_active_tasks()
-            if active_tasks:
-                updated_count = await TaskService(db).reconcile_active_tasks(active_tasks, db=db)
-                if updated_count:
-                    print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+            # Also recover receipts previously marked failed solely by a restart.
+            updated_count = await TaskService(db).reconcile_active_tasks(db=db)
+            if updated_count:
+                print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+            from app.services.background_workers import worker_manager
+            worker_manager.reconcile_terminal_jobs()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -103,9 +324,12 @@ async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
     ensure_schema_updates()
+    from app.services.business_events import install_business_event_hooks
+    remove_event_hooks = install_business_event_hooks()
+    from app.services.notification_service import notification_dispatch_loop
+    notification_task = asyncio.create_task(notification_dispatch_loop())
     
-    # 初始化预设数据和系统配置
-    from app.api.test_cases import init_preset_test_cases
+    # 初始化系统配置；示例小说仅在用户主动导入时创建。
     from app.api.prompt_templates import init_system_prompt_templates
     from app.api.config import init_system_config  # 导入配置初始化函数
     from app.core.database import SessionLocal
@@ -114,7 +338,6 @@ async def lifespan(app: FastAPI):
         # 从数据库加载系统配置
         init_system_config(db)
         init_system_prompt_templates(db)
-        await init_preset_test_cases(db)
     finally:
         db.close()
     
@@ -123,20 +346,49 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     
     monitor = init_monitor(settings.COMFYUI_HOST)
-    await monitor.start()
-    from app.api.shots import resume_active_shot_image_batches
+    if settings.COMFYUI_MONITOR_ENABLED:
+        await monitor.start()
+    from app.services.background_workers import resume_legacy_asset_jobs, worker_manager
+    worker_manager.resume_persisted()
+    resume_legacy_asset_jobs()
+    from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches, resume_active_chapter_video_merges
     resume_active_shot_image_batches()
+    resume_active_shot_video_batches()
+    resume_active_chapter_video_merges()
+    from app.services.novel_video_merge_service import resume_active_novel_video_merges
+    resume_active_novel_video_merges()
+    from app.services.novel_video_cover_service import resume_active_novel_video_covers
+    resume_active_novel_video_covers()
+    from app.services.youtube_upload_service import resume_active_uploads
+    resume_active_uploads()
+    from app.services.hd_repaint_service import resume_active_hd_repaints
+    resume_active_hd_repaints()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
+    from app.services.image_review_worker import auto_review_loop
+    image_review_task = asyncio.create_task(auto_review_loop())
+    app.state.image_review_task = image_review_task
     
     yield
     
     # Shutdown
     task_reconcile_task.cancel()
+    image_review_task.cancel()
+    notification_task.cancel()
+    try:
+        await notification_task
+    except asyncio.CancelledError:
+        pass
+    remove_event_hooks()
+    try:
+        await image_review_task
+    except asyncio.CancelledError:
+        pass
     try:
         await task_reconcile_task
     except asyncio.CancelledError:
         pass
+    await worker_manager.stop()
     await monitor.stop()
 
 
@@ -166,19 +418,27 @@ app.add_middleware(
 # Routers
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
+app.include_router(events.router, prefix="/api/events", tags=["events"])
 # 小说相关路由（拆分为多个模块）
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
+app.include_router(hd_repaint.router, prefix="/api/novels", tags=["hd-repaint"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(props.router, prefix="/api/props", tags=["props"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(image_reviews.router, prefix="/api/tasks", tags=["image-reviews"])
 app.include_router(test_cases.router, prefix="/api/test-cases", tags=["test-cases"])
+app.include_router(examples.router, prefix="/api/examples", tags=["examples"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
+app.include_router(novel_videos.router, prefix="/api", tags=["novel-videos"])
+app.include_router(youtube.router, prefix="/api", tags=["youtube"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
+app.include_router(clip_execution_inspector.router, prefix="/api/clip-execution-inspector", tags=["clip-execution-inspector"])
 
 
 @app.get("/")

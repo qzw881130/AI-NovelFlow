@@ -4,7 +4,6 @@
 封装分镜台词音频生成相关的业务逻辑
 """
 import json
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -17,6 +16,42 @@ from app.repositories.character_repository import CharacterRepository
 from app.repositories.shot_repository import ShotRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
+from app.services.background_workers import persistent_job, worker_manager, ensure_task_active
+
+
+async def run_shot_audio_job(
+    task_id: str,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    character_name: str,
+    text: str,
+    emotion_prompt: str,
+    reference_audio_url: str,
+    workflow_id: str,
+    dialogue_type: str = "character",
+) -> None:
+    await ShotAudioService()._generate_audio_task(
+        task_id=task_id,
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        shot_index=shot_index,
+        character_name=character_name,
+        text=text,
+        emotion_prompt=emotion_prompt,
+        reference_audio_url=reference_audio_url,
+        workflow_id=workflow_id,
+        dialogue_type=dialogue_type,
+    )
+
+
+def enqueue_shot_audio_task(**payload) -> None:
+    worker_manager.worker("shot_audio").enqueue(persistent_job(
+        payload["task_id"],
+        "app.services.shot_audio_service:run_shot_audio_job",
+        payload,
+        lambda: run_shot_audio_job(**payload),
+    ))
 
 
 class ShotAudioService:
@@ -157,20 +192,17 @@ class ShotAudioService:
                 "type": dialogue_type
             })
 
-            # 启动后台任务
-            asyncio.create_task(
-                self._generate_audio_task(
-                    task_id=task.id,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    shot_index=shot_index,
-                    character_name=character_name,
-                    text=text,
-                    emotion_prompt=emotion_prompt,
-                    reference_audio_url=character.reference_audio_url,
-                    workflow_id=workflow.id,
-                    dialogue_type=dialogue_type
-                )
+            enqueue_shot_audio_task(
+                task_id=task.id,
+                novel_id=novel_id,
+                chapter_id=chapter_id,
+                shot_index=shot_index,
+                character_name=character_name,
+                text=text,
+                emotion_prompt=emotion_prompt,
+                reference_audio_url=character.reference_audio_url,
+                workflow_id=workflow.id,
+                dialogue_type=dialogue_type,
             )
 
         return {
@@ -332,20 +364,17 @@ class ShotAudioService:
                     "type": dialogue_type
                 })
 
-                # 启动后台任务
-                asyncio.create_task(
-                    self._generate_audio_task(
-                        task_id=task.id,
-                        novel_id=novel_id,
-                        chapter_id=chapter_id,
-                        shot_index=shot_index,
-                        character_name=character_name,
-                        text=text,
-                        emotion_prompt=emotion_prompt,
-                        reference_audio_url=character.reference_audio_url,
-                        workflow_id=workflow.id,
-                        dialogue_type=dialogue_type
-                    )
+                enqueue_shot_audio_task(
+                    task_id=task.id,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    shot_index=shot_index,
+                    character_name=character_name,
+                    text=text,
+                    emotion_prompt=emotion_prompt,
+                    reference_audio_url=character.reference_audio_url,
+                    workflow_id=workflow.id,
+                    dialogue_type=dialogue_type,
                 )
 
         return {
@@ -401,88 +430,100 @@ class ShotAudioService:
             if not task:
                 return
 
-            # 获取工作流
-            workflow = workflow_repo.get_by_id(workflow_id)
-
-            # 记录工作流信息
-            if workflow:
-                task.workflow_id = workflow.id
-                task.workflow_name = workflow.name
-                task.current_step = f"使用工作流: {workflow.name}"
+            if task.status not in {"pending", "running"}:
+                return
+            if task.comfyui_prompt_id:
+                submitted_workflow = json.loads(task.workflow_json or "null")
+                if not isinstance(submitted_workflow, dict) or not submitted_workflow:
+                    raise ValueError("已提交音频任务缺少 workflow 快照，拒绝重新提交")
+                node_mapping = json.loads(task.metadata_json or "{}").get("audio_attempt", {})
+                prompt_id = task.comfyui_prompt_id
             else:
-                task.current_step = "使用默认工作流"
+                # 获取工作流
+                workflow = workflow_repo.get_by_id(workflow_id)
 
-            # 更新任务状态为运行中
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            db.commit()
+                # 记录工作流信息
+                if workflow:
+                    task.workflow_id = workflow.id
+                    task.workflow_name = workflow.name
+                    task.current_step = f"使用工作流: {workflow.name}"
+                else:
+                    task.current_step = "使用默认工作流"
 
-            # 获取工作流JSON和节点映射
-            workflow_json_str = workflow.workflow_json if workflow else None
-            node_mapping = None
-            if workflow and workflow.node_mapping:
-                try:
-                    node_mapping = json.loads(workflow.node_mapping)
-                    print(f"[AudioTask] Using node mapping: {node_mapping}")
-                except Exception as e:
-                    print(f"[AudioTask] Failed to parse node_mapping: {e}")
-
-            # 下载参考音频到本地（如果需要）
-            local_audio_path = await self._download_reference_audio(
-                reference_audio_url, novel_id, character_name
-            )
-
-            if not local_audio_path:
-                task.status = "failed"
-                task.error_message = "无法下载参考音频"
-                task.current_step = "下载参考音频失败"
+                # 更新任务状态为运行中
+                task.status = "running"
+                task.started_at = datetime.utcnow()
                 db.commit()
-                return
 
-            # 上传参考音频到 ComfyUI
-            upload_result = await self.comfyui_service.client.upload_audio(local_audio_path)
-            if not upload_result.get("success"):
-                task.status = "failed"
-                task.error_message = f"上传参考音频失败: {upload_result.get('message', '')}"
-                task.current_step = "上传参考音频失败"
+                # 获取工作流JSON和节点映射
+                workflow_json_str = workflow.workflow_json if workflow else None
+                node_mapping = None
+                if workflow and workflow.node_mapping:
+                    try:
+                        node_mapping = json.loads(workflow.node_mapping)
+                        print(f"[AudioTask] Using node mapping: {node_mapping}")
+                    except Exception as e:
+                        print(f"[AudioTask] Failed to parse node_mapping: {e}")
+
+                # 下载参考音频到本地（如果需要）
+                local_audio_path = await self._download_reference_audio(
+                    reference_audio_url, novel_id, character_name
+                )
+
+                if not local_audio_path:
+                    task.status = "failed"
+                    task.error_message = "无法下载参考音频"
+                    task.current_step = "下载参考音频失败"
+                    db.commit()
+                    return
+
+                # 上传参考音频到 ComfyUI
+                upload_result = await self.comfyui_service.client.upload_audio(local_audio_path)
+                if not upload_result.get("success"):
+                    task.status = "failed"
+                    task.error_message = f"上传参考音频失败: {upload_result.get('message', '')}"
+                    task.current_step = "上传参考音频失败"
+                    db.commit()
+                    return
+
+                reference_audio_filename = upload_result.get("filename")
+                print(f"[AudioTask] Uploaded reference audio: {reference_audio_filename}")
+
+                # 构建音频生成工作流
+                submitted_workflow = self.comfyui_service.builder.build_audio_workflow(
+                    text=text,
+                    workflow_json=workflow_json_str,
+                    novel_id=novel_id,
+                    character_name=character_name,
+                    node_mapping=node_mapping,
+                    reference_audio_filename=reference_audio_filename,
+                    emotion_prompt=emotion_prompt
+                )
+
+                # 保存构建后的完整工作流到任务
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                if dialogue_type == "narration":
+                    task.prompt_text = f"类型: 旁白\n台词: {text}\n情感: {emotion_prompt}"
+                else:
+                    task.prompt_text = f"角色: {character_name}\n台词: {text}\n情感: {emotion_prompt}"
+                task.current_step = "正在生成音频..."
                 db.commit()
-                return
 
-            reference_audio_filename = upload_result.get("filename")
-            print(f"[AudioTask] Uploaded reference audio: {reference_audio_filename}")
+                # 提交到 ComfyUI 队列
+                queue_result = await self.comfyui_service.client.queue_prompt(submitted_workflow)
+                if not queue_result.get("success"):
+                    task.status = "failed"
+                    task.error_message = queue_result.get("error", "提交任务失败")
+                    task.current_step = "提交任务失败"
+                    db.commit()
+                    return
 
-            # 构建音频生成工作流
-            submitted_workflow = self.comfyui_service.builder.build_audio_workflow(
-                text=text,
-                workflow_json=workflow_json_str,
-                novel_id=novel_id,
-                character_name=character_name,
-                node_mapping=node_mapping,
-                reference_audio_filename=reference_audio_filename,
-                emotion_prompt=emotion_prompt
-            )
-
-            # 保存构建后的完整工作流到任务
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            if dialogue_type == "narration":
-                task.prompt_text = f"类型: 旁白\n台词: {text}\n情感: {emotion_prompt}"
-            else:
-                task.prompt_text = f"角色: {character_name}\n台词: {text}\n情感: {emotion_prompt}"
-            task.current_step = "正在生成音频..."
-            db.commit()
-
-            # 提交到 ComfyUI 队列
-            queue_result = await self.comfyui_service.client.queue_prompt(submitted_workflow)
-            if not queue_result.get("success"):
-                task.status = "failed"
-                task.error_message = queue_result.get("error", "提交任务失败")
-                task.current_step = "提交任务失败"
+                prompt_id = queue_result.get("prompt_id")
+                task.comfyui_prompt_id = prompt_id
+                metadata = json.loads(task.metadata_json or "{}")
+                metadata["audio_attempt"] = {"save_audio_node_id": node_mapping.get("save_audio_node_id") if node_mapping else None}
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 db.commit()
-                return
-
-            prompt_id = queue_result.get("prompt_id")
-            task.comfyui_prompt_id = prompt_id
-            db.commit()
 
             # 等待结果
             save_audio_node_id = node_mapping.get("save_audio_node_id") if node_mapping else None
@@ -492,6 +533,7 @@ class ShotAudioService:
 
             print(f"[AudioTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
+            ensure_task_active(db, task)
             if result.get("success"):
                 audio_url = result.get("audio_url")
 
@@ -520,6 +562,7 @@ class ShotAudioService:
                     task.result_url = audio_url
                     task.current_step = "生成完成，使用远程音频"
 
+                ensure_task_active(db, task)
                 task.status = "completed"
                 task.progress = 100
                 task.completed_at = datetime.utcnow()
@@ -543,6 +586,7 @@ class ShotAudioService:
             traceback.print_exc()
             task = task_repo.get_by_id(task_id)
             if task:
+                ensure_task_active(db, task)
                 task.status = "failed"
                 task.error_message = str(e)
                 task.current_step = "任务异常"

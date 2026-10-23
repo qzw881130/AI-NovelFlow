@@ -4,19 +4,29 @@
 封装任务相关的业务逻辑和后台任务
 """
 import json
+from app.services.video_result_mode import is_candidate, validate_candidate_source
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Tuple
 
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from app.core.database import SessionLocal
 from app.core.config import get_settings
 from app.utils.time_utils import format_datetime
 from app.models.task import Task
-from app.models.novel import Novel
+from app.services.canonical_execution_invalidation import CanonicalExecutionConflict
+from app.services.clip_result_recovery import INTERRUPTED_CLIP_ERROR, recover_completed_clip
+from app.services.required_visual_state_images import (
+    commit_visual_state_image, task_provenance, validate_image_provenance,
+)
+from app.models.novel import Novel, Chapter
 from app.models.workflow import Workflow
+from app.constants.workflow import RETIRED_H3_WORKFLOW_TYPES
+from app.constants.h3_prompt_pipeline import persisted_h3_prompt_pipeline
 from app.models.llm_log import LLMLog
 from app.repositories import TaskRepository, WorkflowRepository
 from app.repositories.shot_repository import ShotRepository
@@ -25,8 +35,10 @@ from app.repositories.scene_repository import SceneRepository
 from app.repositories.prop_repository import PropRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import task_comfyui_error, persist_task_comfyui_error
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.services.file_storage import file_storage
+from app.services.video_director_ai import safe_json_dict
 from app.services.prompt_builder import (
     build_character_prompt,
     build_scene_prompt,
@@ -73,7 +85,6 @@ class TaskService:
 
         # 根据任务类型检查必需的字段
         required_fields = {
-            "character": ["prompt_node_id", "save_image_node_id"],
             "scene": ["prompt_node_id", "save_image_node_id"],
             "shot_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "scene_reference_image_node_id"],
             "shot_character_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "character_reference_image_node_id", "scene_reference_image_node_id"],
@@ -83,9 +94,23 @@ class TaskService:
             "first_last_video": ["prompt_node_id", "first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "three_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2"],
             "four_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2", "keyframe_node_3"],
+            "VIDEO_CONTINUATION": ["load_video_node_id", "duration_seconds_node_id", "prompt_node_id", "video_save_node_id", "reference_to_video_node_id", *(f"load_image_node_{i}" for i in range(1, 10))],
+            "TEMPORAL_EXTEND": ["load_video_node_id", "duration_seconds_node_id", "prompt_node_id", "custom_keyframes_node_id", "video_save_node_id", "reference_to_video_node_id", *(f"keyframe_node_{i}" for i in range(1, 9)), *(f"load_image_node_{i}" for i in range(1, 10))],
+            "multi_reference_video": ["prompt_node_id", "video_save_node_id", "duration_seconds_node_id", "reference_to_video_node_id", *(f"load_image_node_{i}" for i in range(1, 10))],
             "transition": ["first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "character_audio": ["reference_audio_node_id", "text_node_id"]
         }
+
+        if task_type == "character":
+            has_save = bool(node_mapping.get("save_image_node_id"))
+            has_legacy_prompt = bool(node_mapping.get("prompt_node_id"))
+            has_split_inputs = bool(node_mapping.get("appearance_node_id") and node_mapping.get("style_node_id"))
+            if has_save and (has_split_inputs or has_legacy_prompt):
+                return True, ""
+            return False, (
+                f"工作流 '{workflow.name}' 的映射配置不完整。人设生成需要图片保存节点，"
+                "并配置人物外貌节点和风格节点；旧工作流可继续使用原提示词输入节点。"
+            )
 
         fields = required_fields.get(task_type)
         if task_type == "shot" and node_mapping.get("output_node_id"):
@@ -103,6 +128,7 @@ class TaskService:
             "width_node_id": "宽度节点",
             "height_node_id": "高度节点",
             "reference_image_node_id": "参考图片节点1",
+            "reference_to_video_node_id": "MiniMax H3 Reference to Video 节点",
             "character_reference_image_node_id": "角色参考图节点",
             "scene_reference_image_node_id": "场景参考图节点",
             "prop_reference_image_node_id": "道具参考图节点",
@@ -116,6 +142,7 @@ class TaskService:
             "keyframe_node_2": "参考图片节点3",
             "keyframe_node_3": "参考图片节点4",
         }
+        field_names.update({f"load_image_node_{i}": f"参考图片节点{i}" for i in range(1, 10)})
 
         for field in fields:
             if not node_mapping.get(field):
@@ -124,7 +151,7 @@ class TaskService:
         if missing_fields:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
-        if task_type in {"video", "three_frame_video", "four_frame_video"} and not node_mapping.get("video_output_node_id"):
+        if task_type in {"video", "three_frame_video", "four_frame_video", "multi_reference_video"} and not node_mapping.get("video_output_node_id"):
             has_max_side = bool(node_mapping.get("max_side_node_id"))
             has_megapixels = bool(node_mapping.get("megapixels_node_id"))
             if has_max_side == has_megapixels:
@@ -145,6 +172,8 @@ class TaskService:
     @staticmethod
     def _mark_related_task_failed(task: Task, db: Session) -> None:
         """Keep entity generation status in sync when a task is cancelled."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return
         if task.type == "character_portrait" and task.character_id:
             character = CharacterRepository(db).get_by_id(task.character_id)
             if character and character.portrait_task_id == task.id:
@@ -161,10 +190,14 @@ class TaskService:
             shot = ShotRepository(db).get_by_id(task.shot_id)
             if shot and shot.video_task_id == task.id:
                 shot.video_status = "failed"
+        elif task.type == "shot_video_hd" and task.shot_id:
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if shot and shot.hd_video_task_id == task.id:
+                shot.hd_video_status = "failed"
 
     @staticmethod
     def _cleanup_cancelled_video_task(task: Task, db: Session) -> None:
-        if task.type != "shot_video" or not task.shot_id:
+        if task.type != "shot_video" or not task.shot_id or is_candidate(safe_json_dict(task.metadata_json)):
             return
         shot_repo = ShotRepository(db)
         shot = shot_repo.get_by_id(task.shot_id)
@@ -208,9 +241,8 @@ class TaskService:
         if task.type != "shot_video" or not task.chapter_id:
             return
         h3_task_types = [
-            "h3_single_frame_prompt",
-            "h3_first_last_frame_prompt",
             "h3_multi_keyframe_prompt",
+            "h3_multi_keyframe_director_phase_b",
         ]
         query = db.query(LLMLog).filter(
             LLMLog.chapter_id == task.chapter_id,
@@ -243,7 +275,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type == "shot_image_batch":
+        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -389,6 +421,102 @@ class TaskService:
             "details": cancel_result
         }
     
+    def _enqueue_shot_video_retry(self, task, shot, metadata, db, *, selected_mode, clip_only):
+        """Claim one explicit retry, preserving the prior attempt for inspection.
+
+        The conditional Task update and WorkerManager.persist share a transaction.
+        Normal enqueue/restart never creates or increments this attempt identity.
+        """
+        from app.models.background_job import BackgroundJob
+        from app.services.shot_video_service import enqueue_shot_video_task
+
+        if task.comfyui_prompt_id and not (task.status == "completed" and task.result_url):
+            # A failure/timeout is not proof that a submitted GPU job failed.
+            # Do not erase a receipt whose result still needs reconciliation.
+            return {"success": False, "status_code": 409,
+                    "message": "已有 ComfyUI 回执尚未完成结果确认，请先恢复或核验原执行；未重新提交"}
+
+        old_metadata_json = task.metadata_json
+        metadata = dict(metadata)
+        history = list(metadata.get("background_job_history") or [])
+        prior = {key: getattr(task, key) for key in (
+            "status", "progress", "current_step", "error_message", "result_url",
+            "comfyui_prompt_id", "workflow_json", "seed", "prompt_text",
+        )}
+        prior.update(
+            attempt_id=metadata.get("background_job_attempt"),
+            archived_at=datetime.utcnow().isoformat(),
+            started_at=task.started_at.isoformat() if task.started_at else None,
+            completed_at=task.completed_at.isoformat() if task.completed_at else None,
+            metadata={key: value for key, value in metadata.items() if key != "background_job_history"},
+        )
+        history.append(prior)
+        metadata.update(background_job_attempt=str(uuid.uuid4()), background_job_history=history)
+        metadata.pop("comfyui_error", None)
+        if is_candidate(metadata):
+            metadata.pop("candidate_result", None)
+        if clip_only:
+            metadata.update(prompt_text="", approval_status="GENERATING")
+            metadata.pop("actual_duration", None)
+
+        # Preserve the actual prior dispatch options (including window and route
+        # flags), rather than silently replacing them with enqueue defaults.
+        last_job = db.query(BackgroundJob).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.queue_name == "shot_video",
+            BackgroundJob.handler == "app.services.shot_video_service:generate_shot_video_task",
+        ).order_by(BackgroundJob.created_at.desc(), BackgroundJob.id.desc()).first()
+        prior["background_job_id"] = last_job.id if last_job else None
+        payload = safe_json_dict(last_job.payload_json) if last_job else {}
+        options = {key: payload[key] for key in (
+            "use_keyframes", "use_reference_audio", "selected_mode", "only_window_index",
+            "auto_merge_clips", "skip_llm_when_prompt_exists", "optimize_h3_prompt",
+        ) if key in payload}
+        options.setdefault("selected_mode", selected_mode)
+        if clip_only:
+            options["clip_metadata"] = metadata
+
+        active_job = db.query(BackgroundJob.id).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.status.in_(["queued", "running"]),
+        ).exists()
+        claimed = db.query(Task).filter(
+            Task.id == task.id,
+            Task.status == task.status,
+            Task.status.in_(["failed", "completed"]),
+            Task.metadata_json == old_metadata_json,
+            Task.comfyui_prompt_id == task.comfyui_prompt_id,
+            ~active_job,
+        ).update({
+            Task.status: "pending", Task.progress: 0,
+            Task.current_step: "等待重新处理同一 Clip" if clip_only else None,
+            Task.error_message: None, Task.result_url: None,
+            Task.started_at: None, Task.completed_at: None,
+            Task.comfyui_prompt_id: None, Task.workflow_json: None,
+            Task.seed: None, Task.prompt_text: None,
+            Task.metadata_json: json.dumps(metadata, ensure_ascii=False),
+        }, synchronize_session=False)
+        if not claimed:
+            db.rollback()
+            return {"success": False, "status_code": 409,
+                    "message": "任务状态已变化或仍有后台执行，请勿重复重试"}
+        db.refresh(task)
+        if not clip_only:
+            # Keep the legacy Shot-level publication behavior, in the same commit.
+            shot.video_url = None
+            shot.video_status = "generating"
+            shot.video_task_id = task.id
+        try:
+            enqueue_shot_video_task(
+                task.id, task.novel_id, task.chapter_id, shot.index,
+                task.workflow_id, shot.image_url or "", retry_db=db, **options,
+            )
+        except Exception:
+            db.rollback()
+            raise
+        return {"success": True, "message": "任务已重新启动",
+                "data": {"taskId": task.id, "status": "pending"}}
+
     def retry_task(self, task_id: str, db: Session = None) -> Dict[str, Any]:
         """
         重试失败的任务
@@ -412,6 +540,159 @@ class TaskService:
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
 
+        if task.type == "shot_video" and task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.type in RETIRED_H3_WORKFLOW_TYPES:
+                return {"success": False, "status_code": 410,
+                        "message": "该任务使用已退役工作流，历史结果保留；请通过 Canonical Clip 入口新建生成。"}
+
+        try:
+            clip_metadata = json.loads(task.metadata_json or "{}")
+        except (TypeError, ValueError):
+            clip_metadata = {}
+        if task.type == "shot_video":
+            try:
+                route = persisted_h3_prompt_pipeline(clip_metadata)
+            except ValueError as exc:
+                return {"success": False, "message": str(exc), "status_code": 409}
+        if task.type == "shot_export":
+            from app.services.shot_export_service import create_export
+            try:
+                data = create_export(db, task.novel_id, task.chapter_id, task.shot_id, clip_metadata.get("sections"))
+            except HTTPException as exc:
+                return {"success": False, "message": str(exc.detail), "status_code": exc.status_code}
+            retry = task_repo.get_by_id(data["task_id"])
+            retry.source_task_id = task.id
+            db.commit()
+            return {"success": True, "message": "已重新加入导出队列",
+                    "data": {"taskId": retry.id, "retryOfTaskId": task.id, "status": retry.status}}
+        if task.type == "shot_video" and clip_metadata.get("execution_scope") == "CLIP":
+            required = (
+                "clip_id", "clip_index", "clip_plan_revision", "capability",
+                "planned_duration", "requested_duration", "dialogue_assignment",
+            )
+            if any(key not in clip_metadata for key in required):
+                return {"success": False, "message": "Clip 重试失败：semantic Clip metadata 不完整", "status_code": 400}
+            if not task.novel_id or not task.chapter_id or not task.shot_id or not task.workflow_id:
+                return {"success": False, "message": "Clip 重试失败：缺少 Novel、Chapter、Shot 或 Workflow 关联", "status_code": 400}
+
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id)
+            chapter = db.query(Chapter).filter(Chapter.id == task.chapter_id).first()
+            if not shot or shot.chapter_id != task.chapter_id or not chapter or chapter.novel_id != task.novel_id:
+                return {"success": False, "message": "Clip 重试失败：Novel、Chapter 与 Shot 关联不一致", "status_code": 400}
+
+            try:
+                shot_plan = json.loads(shot.video_director_plan or "{}")
+            except (TypeError, ValueError):
+                shot_plan = {}
+            plan_clip = next((
+                item for item in shot_plan.get("clip_plan", [])
+                if int(item.get("clip_index") or 0) == int(clip_metadata["clip_index"])
+            ), None)
+            if (
+                int(shot_plan.get("clip_plan_revision") or 0) != int(clip_metadata["clip_plan_revision"])
+                or not plan_clip
+                or f"{shot.id}:clip:{clip_metadata['clip_index']}" != clip_metadata["clip_id"]
+            ):
+                return {"success": False, "message": "Clip 重试失败：Shot 中已不存在相同 revision/Clip identity", "status_code": 409}
+
+            from app.services.effective_execution import task_execution_projection, continuation_mode
+            try:
+                validate_candidate_source(shot, clip_metadata)
+                task_execution_projection(shot_plan, plan_clip, clip_metadata)
+            except ValueError as exc:
+                return {"success": False, "message": str(exc), "status_code": 409}
+            capability = clip_metadata.get("capability")
+            if shot_plan.get("canonical_visual_plan") is True:
+                from app.services.clip_execution_compiler import get_canonical_execution_readiness
+                readiness = get_canonical_execution_readiness(shot, shot_plan, [plan_clip], continuation_mode=continuation_mode(clip_metadata))
+                if not readiness["ready"]:
+                    return {"success": False, "message": readiness["message"], "status_code": 409}
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            phase_b = route == "phase_b"
+            # Semantic capability and physical workflow type are independent of
+            # the Phase B/legacy prompt route. Older physical names still work.
+            expected_type = {"GENERATE": "multi_reference_video", "EXTEND": "VIDEO_CONTINUATION",
+                             "TEMPORAL_EXTEND": "TEMPORAL_EXTEND"}.get(capability, capability)
+            if not workflow or workflow.type != expected_type:
+                return {"success": False, "message": "Clip 重试失败：原 Workflow 不存在或与 Clip capability 不匹配", "status_code": 400}
+            if phase_b:
+                if not workflow.is_active:
+                    return {"success": False, "message": "Phase B 原物理工作流已不可用", "status_code": 400}
+            if capability in {"EXTEND", "TEMPORAL_EXTEND"} and (phase_b or clip_metadata.get("execution_contract")):
+                from app.services.shot_video_service import resolve_extend_previous_av
+                try:
+                    resolve_extend_previous_av(db, task.novel_id, task.chapter_id, shot, plan_clip,
+                        (clip_metadata.get("execution_contract") or {}).get("previous_clip"))
+                except ValueError as exc:
+                    return {"success": False, "message": str(exc), "status_code": 409}
+            elif capability in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+                previous_task_id = clip_metadata.get("previous_approved_task_id")
+                previous_video_url = clip_metadata.get("previous_approved_video_url")
+                previous_task = task_repo.get_by_id(previous_task_id) if previous_task_id else None
+                previous_metadata = {}
+                try:
+                    previous_metadata = json.loads(previous_task.metadata_json or "{}") if previous_task else {}
+                except (TypeError, ValueError):
+                    pass
+                previous_video_path = url_to_local_path(previous_video_url) if previous_video_url else None
+                previous_assembled_url = (previous_metadata.get("assembled_result") or {}).get("url")
+                valid_previous = (
+                    previous_task
+                    and previous_task.type == "shot_video"
+                    and previous_task.status == "completed"
+                    and previous_video_url in {previous_task.result_url, previous_assembled_url}
+                    and previous_task.shot_id == task.shot_id
+                    and previous_task.chapter_id == task.chapter_id
+                    and previous_task.novel_id == task.novel_id
+                    and previous_metadata.get("execution_scope") == "CLIP"
+                    and previous_metadata.get("clip_plan_revision") == clip_metadata.get("clip_plan_revision")
+                    and int(previous_metadata.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0) - 1
+                    and previous_metadata.get("approval_status") == "APPROVED"
+                    and previous_metadata.get("capability") in {"SINGLE_FRAME", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+                    and bool(previous_video_path and Path(previous_video_path).is_file())
+                )
+                if not valid_previous:
+                    return {"success": False, "message": "Clip 重试失败：原 Previous AV dependency 不再是有效的 upstream approved Clip", "status_code": 400}
+
+            return self._enqueue_shot_video_retry(
+                task, shot, clip_metadata, db, clip_only=True,
+                selected_mode="MULTI_KEYFRAME" if phase_b else "SINGLE_FRAME",
+            )
+
+        if task.type == "shot_video":
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
+            if not shot and task.chapter_id:
+                match = re.search(r"镜\s*(\d+)", task.name or "")
+                if match:
+                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
+            if not shot or not task.novel_id or not task.chapter_id or not task.workflow_id:
+                return {"success": False, "message": "重试失败：缺少分镜或执行关联", "status_code": 400}
+            plan = safe_json_dict(shot.video_director_plan)
+            return self._enqueue_shot_video_retry(
+                task, shot, clip_metadata, db, clip_only=False,
+                selected_mode=plan.get("selected_mode") or "SINGLE_FRAME",
+            )
+
+        if task.type == "shot_video_hd" and task.shot_id:
+            from app.services.hd_repaint_service import clone_hd_task_for_retry, enqueue_hd_repaint_task
+
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if not shot:
+                return {"success": False, "message": "重试失败：找不到关联分镜", "status_code": 400}
+            retry_task = clone_hd_task_for_retry(db, task)
+            shot.hd_video_status = "pending"
+            shot.hd_video_task_id = retry_task.id
+            db.commit()
+            enqueue_hd_repaint_task(retry_task.id)
+            return {
+                "success": True,
+                "message": "已创建新的高清重绘 Execution",
+                "data": {"taskId": retry_task.id, "retryOfTaskId": task.id, "status": "pending"},
+            }
+
         # 重置任务状态
         task.status = "pending"
         task.progress = 0
@@ -421,6 +702,10 @@ class TaskService:
         task.completed_at = None
         task.comfyui_prompt_id = None
         task.workflow_json = None
+        task.seed = None
+        if "comfyui_error" in clip_metadata:
+            clip_metadata.pop("comfyui_error")
+            task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
         db.commit()
 
         # 根据任务类型重新执行
@@ -456,7 +741,8 @@ class TaskService:
 
             prop_repo = PropRepository(db)
             prop = prop_repo.get_by_id(task.prop_id)
-            if prop:
+            from app.services.prop_policy import is_prop_visual_eligible
+            if prop and is_prop_visual_eligible(prop):
                 enqueue_prop_image_task(
                     task.id,
                     prop.id,
@@ -499,46 +785,6 @@ class TaskService:
                 task.workflow_id,
             )
             restarted = True
-        elif task.type == "shot_video" and task.novel_id and task.chapter_id and task.workflow_id:
-            from app.services.shot_video_service import enqueue_shot_video_task
-
-            shot_repo = ShotRepository(db)
-            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
-            if not shot:
-                match = re.search(r"镜\s*(\d+)", task.name or "")
-                if match:
-                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
-
-            if not shot:
-                task.status = "failed"
-                task.error_message = "重试失败：找不到关联分镜"
-                task.current_step = "重试失败"
-                db.commit()
-                return {"success": False, "message": task.error_message, "status_code": 400}
-
-            shot_repo.update(
-                shot,
-                video_url=None,
-                video_status="generating",
-                video_task_id=task.id,
-            )
-
-            try:
-                video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
-            except Exception:
-                video_director_plan = {}
-
-            enqueue_shot_video_task(
-                task.id,
-                task.novel_id,
-                task.chapter_id,
-                shot.index,
-                task.workflow_id,
-                shot.image_url or "",
-                selected_mode=video_director_plan.get("selected_mode") or "SINGLE_FRAME",
-            )
-            restarted = True
-
         if not restarted:
             task.status = "failed"
             task.error_message = "当前任务类型暂不支持重试，或缺少必要关联数据"
@@ -561,14 +807,21 @@ class TaskService:
         """校准本地 running/pending 任务，避免 ComfyUI 已无任务但本地假死。"""
         db = db or self.db
         task_repo = TaskRepository(db)
-        tasks = tasks if tasks is not None else task_repo.list_active_tasks()
-        active_tasks = [task for task in tasks if task.status in ["pending", "running"]]
+        if tasks is None:
+            tasks = task_repo.list_active_tasks() + db.query(Task).filter(
+                Task.type == "shot_video", Task.status == "failed",
+                Task.error_message.in_([INTERRUPTED_CLIP_ERROR, "CLIP_RECOVERY_PLAN_CHANGED"]),
+                Task.comfyui_prompt_id.isnot(None),
+            ).all()
+        active_tasks = [task for task in tasks if task.status in ["pending", "running"]
+                        or task.status == "failed" and task.error_message in {
+                            INTERRUPTED_CLIP_ERROR, "CLIP_RECOVERY_PLAN_CHANGED"}]
         if not active_tasks:
             return 0
 
         queue_info = await self.comfyui_service.get_queue_info()
         now = datetime.utcnow()
-        comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 900) or 900)
+        comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 3600) or 3600)
         llm_timeout = int(getattr(get_settings(), "LLM_TIMEOUT", 300) or 300)
         updated_count = 0
 
@@ -589,8 +842,25 @@ class TaskService:
             return (now - updated_at).total_seconds()
 
         for task in active_tasks:
+            # Explicit receipt acceptance owns this Task; the ordinary worker
+            # must not race its download or turn it into another generation.
+            if safe_json_dict(task.metadata_json).get("manual_receipt_recovery"):
+                continue
             age_seconds = task_age_seconds(task)
+            def is_clip_only_task() -> bool:
+                try:
+                    metadata = json.loads(task.metadata_json or "{}")
+                except (TypeError, ValueError):
+                    return False
+                contract = metadata.get("execution_contract") or {}
+                return (
+                    metadata.get("execution_scope") == "CLIP"
+                    and contract.get("artifact_kind") in {"CLIP_ONLY", "NATIVE_CONTINUITY_OUTPUT"}
+                )
+
             def mark_related_shot_failed() -> None:
+                if is_clip_only_task():
+                    return
                 if not task.shot_id:
                     return
                 shot = ShotRepository(db).get_by_id(task.shot_id)
@@ -598,12 +868,33 @@ class TaskService:
                     return
                 if task.type == "shot_video":
                     ShotRepository(db).update(shot, video_status="failed")
+                elif task.type == "shot_video_hd":
+                    ShotRepository(db).update(shot, hd_video_status="failed")
                 elif task.type == "shot_image":
                     ShotRepository(db).update(shot, image_status="failed")
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child:
+            from app.models.background_job import BackgroundJob
+            from app.services.background_workers import worker_manager
+            persisted_jobs = db.query(BackgroundJob.id).filter(
+                BackgroundJob.task_id == task.id,
+                BackgroundJob.status.in_(["queued", "running"]),
+            ).all()
+            has_persisted_job = any(worker_manager.is_live(job_id) for (job_id,) in persisted_jobs)
+            if task.type == "shot_image" and task.parent_task_id and not task.comfyui_prompt_id and not has_persisted_job:
+                parent = db.query(Task).filter(Task.id == task.parent_task_id).first()
+                if parent and parent.type == "shot_image_batch" and parent.status in {"completed", "failed", "cancelled"}:
+                    task.status = "failed"
+                    task.error_message = "批量任务已结束，但该分镜图任务没有完成；请重新提交"
+                    task.current_step = "批量任务结束，生成未完成"
+                    task.completed_at = now
+                    shot = ShotRepository(db).get_by_id(task.shot_id) if task.shot_id else None
+                    if shot and shot.image_task_id == task.id and not shot.image_url:
+                        shot.image_status = "failed"
+                    updated_count += 1
+                    continue
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child and not has_persisted_job:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -611,8 +902,9 @@ class TaskService:
                 continue
 
             if task.comfyui_prompt_id:
+                checked_prompt_id = task.comfyui_prompt_id
                 prompt_state = await self.comfyui_service.client.get_prompt_state(
-                    task.comfyui_prompt_id,
+                    checked_prompt_id,
                     queue_info=queue_info,
                 )
                 state = prompt_state.get("state")
@@ -620,17 +912,54 @@ class TaskService:
                     continue
 
                 if state == "completed":
-                    if task.type == "shot_image" and inactive_seconds(task) > 60:
-                        recovered = await self._recover_completed_shot_image_prompt(task, prompt_state.get("history"), db)
-                        if recovered:
+                    if task.type == "shot_image" and persisted_jobs:
+                        # The durable image worker owns #15 review and quality retries.
+                        # Legacy receipt recovery would publish the image before review.
+                        continue
+                    if task.type in {"shot_image", "keyframe_image"} and inactive_seconds(task) > 60:
+                        try:
+                            recover = self._recover_completed_shot_image_prompt if task.type == "shot_image" else self._recover_completed_keyframe_prompt
+                            recovered = await recover(task, prompt_state.get("history"), db)
+                        except CanonicalExecutionConflict as exc:
+                            task.status = "failed"
+                            task.error_message = str(exc)
+                            task.current_step = "图片回写被拒绝"
+                            task.completed_at = datetime.utcnow()
+                            db.commit()
                             updated_count += 1
                             continue
-                    if task.type == "keyframe_image" and inactive_seconds(task) > 60:
-                        recovered = await self._recover_completed_keyframe_prompt(task, prompt_state.get("history"), db)
                         if recovered:
                             updated_count += 1
                             continue
                     if task.type == "shot_video" and inactive_seconds(task) > 60:
+                        if is_clip_only_task():
+                            if not has_persisted_job:
+                                # Reuse the canonical worker's persistence path;
+                                # never enter legacy Shot recovery or resubmit GPU work.
+                                recovery_prompt_id = task.comfyui_prompt_id
+                                try:
+                                    recovered = await recover_completed_clip(task, prompt_state.get("history"), db, self.comfyui_service)
+                                    if recovered:
+                                        updated_count += 1
+                                        continue
+                                    error = "CLIP_RECOVERY_RESULT_UNAVAILABLE:原提交工作流的输出节点没有可用视频"
+                                except (CanonicalExecutionConflict, ValueError) as exc:
+                                    error = str(exc)
+                                db.refresh(task)
+                                if task.status in {"cancelled", "completed"} or task.comfyui_prompt_id != recovery_prompt_id:
+                                    continue
+                                if error == "CLIP_RECOVERY_PLAN_CHANGED":
+                                    from app.services.clip_recovery_diagnostics import recovery_plan_mismatches
+                                    shot = ShotRepository(db).get_by_id(task.shot_id)
+                                    details = recovery_plan_mismatches(db, task, shot)
+                                    if details:
+                                        error += ":" + json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+                                task.status = "failed"
+                                task.error_message = error
+                                task.current_step = "Clip 结果恢复被拒绝"
+                                task.completed_at = datetime.utcnow()
+                                updated_count += 1
+                            continue
                         clip_state = self._shot_video_clip_state_for_prompt(task, task.comfyui_prompt_id)
                         if clip_state.get("has_prompt_building_clip"):
                             if inactive_seconds(task) > llm_timeout + 60:
@@ -673,6 +1002,7 @@ class TaskService:
 
                 if state == "error":
                     task.status = "failed"
+                    persist_task_comfyui_error(task, prompt_state)
                     task.error_message = prompt_state.get("message") or "ComfyUI 执行失败"
                     task.current_step = "生成失败"
                     mark_related_shot_failed()
@@ -680,6 +1010,16 @@ class TaskService:
                     continue
 
                 if state == "missing" and age_seconds > 60:
+                    # The active worker still owns the submitted prompt and may
+                    # receive its result even when ComfyUI briefly omits it from
+                    # both queue and history. Let that worker decide the outcome.
+                    # A descriptor may be running in another process, so allow
+                    # its normal timeout before treating a missing read as final.
+                    if has_persisted_job or (persisted_jobs and inactive_seconds(task) <= comfyui_timeout):
+                        continue
+                    db.refresh(task)
+                    if task.status not in {"pending", "running"} or task.comfyui_prompt_id != checked_prompt_id:
+                        continue
                     task.status = "failed"
                     task.error_message = "ComfyUI 队列和 history 中均找不到该任务，可能已被清理、取消或 ComfyUI 异常退出"
                     task.current_step = "任务异常"
@@ -721,6 +1061,9 @@ class TaskService:
         if not shot:
             return False
 
+        db.refresh(shot)
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
+
         node_mapping = {}
         if task.workflow_id:
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
@@ -743,7 +1086,7 @@ class TaskService:
         local_path = await file_storage.download_image(
             url=result["image_url"],
             novel_id=task.novel_id,
-            character_name=f"shot_{shot.id[:8]}",
+            character_name=f"shot_{shot.id[:8]}_{task.id}" if task_provenance(task) else f"shot_{shot.id[:8]}",
             image_type="shot",
             chapter_id=task.chapter_id,
         )
@@ -751,7 +1094,10 @@ class TaskService:
             return False
 
         local_url = local_path_to_url(local_path)
-        shot_repo.update(shot, image_url=local_url, image_path=str(local_path), image_status="completed", image_task_id=task.id)
+        if task_provenance(task):
+            commit_visual_state_image(db, shot, local_url, frame_index=None, expected_provenance=task_provenance(task), task_id=task.id, local_path=str(local_path))
+        else:
+            shot_repo.update(shot, image_url=local_url, image_path=str(local_path), image_status="completed", image_task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = local_url
@@ -759,6 +1105,8 @@ class TaskService:
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
         return True
 
     async def _recover_completed_keyframe_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
@@ -785,6 +1133,8 @@ class TaskService:
                 return False
         except Exception:
             return False
+
+        validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
 
         node_mapping = {}
         if task.workflow_id:
@@ -816,33 +1166,16 @@ class TaskService:
             return False
 
         local_url = local_path_to_url(local_path)
-        keyframes[frame_index]["image_url"] = local_url
-        keyframes[frame_index]["image_task_id"] = task.id
-
-        plan_changed = False
-        try:
-            plan_keyframe_index = keyframes[frame_index].get("plan_keyframe_index")
-            if plan_keyframe_index is not None and shot.video_director_plan:
-                plan = json.loads(shot.video_director_plan or "{}")
-                if isinstance(plan, dict) and isinstance(plan.get("keyframes"), list):
-                    for plan_keyframe in plan["keyframes"]:
-                        if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
-                            plan_keyframe["image_url"] = local_url
-                            plan_keyframe["image_task_id"] = task.id
-                            plan_changed = True
-                            break
-                    if plan_changed:
-                        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        except Exception:
-            pass
-
-        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+        commit_visual_state_image(db, shot, local_url, frame_index=frame_index,
+                                  expected_provenance=task_provenance(task), task_id=task.id)
         task.status = "completed"
         task.result_url = local_url
         task.error_message = None
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
         return True
 
     @staticmethod
@@ -911,6 +1244,20 @@ class TaskService:
             return
 
         shot_image_url = shot.image_url or ""
+        from app.models.background_job import BackgroundJob
+        from app.services.background_workers import worker_manager
+        prior_jobs = db.query(BackgroundJob).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.handler == "app.services.shot_video_service:generate_shot_video_task",
+            BackgroundJob.status.in_(["queued", "running"]),
+        ).all()
+        for job in prior_jobs:
+            if worker_manager.is_live(job.id):
+                return
+            # TaskService has recovered this prompt and selected the next
+            # window. Close the old execution before persisting that descriptor.
+            job.status = "completed"
+            job.completed_at = datetime.utcnow()
         task.comfyui_prompt_id = None
         task.status = "running"
         task.current_step = f"已重新入队，准备继续生成 Clip {window_index}..."
@@ -937,6 +1284,9 @@ class TaskService:
 
     async def _recover_completed_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed ComfyUI video prompt when the original worker missed persistence."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return False
+
         if not task.shot_id or not prompt_history:
             return False
 
@@ -1067,6 +1417,9 @@ class TaskService:
 
     async def _recover_completed_single_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed single-clip shot video prompt when the worker missed persistence."""
+        if is_candidate(safe_json_dict(task.metadata_json)):
+            return False
+
         if task.type != "shot_video" or not task.shot_id or not prompt_history:
             return False
         try:
@@ -1139,8 +1492,10 @@ class TaskService:
             格式化后的任务列表
         """
         import json
+        from app.utils.workflow_seed import extract_workflow_seed
 
         shots = shots or {}
+        shot_plans = {}
 
         def parse_reference_images(value: str):
             if not value:
@@ -1151,8 +1506,44 @@ class TaskService:
             except Exception:
                 return []
 
+        def nameplate_preview(task: Task):
+            if task.type != "chapter_video":
+                return None
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            return {
+                "url": metadata.get("nameplate_preview_url"),
+                "status": metadata.get("nameplate_status"),
+                "warnings": metadata.get("nameplate_warnings") or [],
+                "autoApproved": bool(metadata.get("nameplate_auto_approved")),
+            }
+
+        def clip_execution_metadata(task: Task):
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except Exception:
+                return None
+            if metadata.get("execution_scope") != "CLIP":
+                return None
+            keys = (
+                "result_mode", "candidate_result", "source_revision", "source_clip_plan_fingerprint",
+                "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+                "capability", "planned_duration", "requested_duration", "optimized_duration", "effective_duration",
+                "duration_delta", "actual_duration", "actual_duration_delta", "assembled_media_duration", "assembled_result",
+                "approval_status", "approval_mode", "previous_approved_task_id",
+                "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
+                "artifact_kind", "physical_output", "execution_contract",
+                "clip_playback", "h3_prompt_pipeline", "video_prompt_language", "generation_quality_warnings", "continuation_mode", "execution_projection",
+                "planned_capability", "effective_capability", "suppressed_temporal_anchor_ids",
+            )
+            return {key: metadata.get(key) for key in keys if key in metadata}
+
         def format_video_director_clips(task: Task):
-            if task.type != "shot_video":
+            if task.type not in {"shot_video", "shot_video_hd"}:
                 return []
             window_plans = []
             if task.video_director_clips:
@@ -1166,7 +1557,9 @@ class TaskService:
                 if not shot or not shot.video_director_plan:
                     return []
                 try:
-                    plan = json.loads(shot.video_director_plan)
+                    if shot.id not in shot_plans:
+                        shot_plans[shot.id] = json.loads(shot.video_director_plan)
+                    plan = shot_plans[shot.id]
                 except Exception:
                     return []
                 if plan.get("selected_mode") != "MULTI_KEYFRAME":
@@ -1180,6 +1573,17 @@ class TaskService:
                 status = window.get("status")
                 if task.status != "running" and str(status or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
                     status = "SUCCEEDED" if video_url else ("FAILED" if task.status == "failed" else None)
+                normalized_status = str(status or '').upper()
+                # A persisted reference_images list can belong to a previous
+                # Clip attempt. Do not show it while this Clip is waiting for
+                # execution; bind/display references only after the worker has
+                # entered prompt-building/running, or after success.
+                visible_reference_images = (
+                    window.get("reference_images")
+                    if normalized_status in {"PROMPT_BUILDING", "RUNNING", "SUCCEEDED"}
+                    and isinstance(window.get("reference_images"), list)
+                    else []
+                )
                 clips.append({
                     "windowIndex": window.get("window_index"),
                     "status": status,
@@ -1188,9 +1592,10 @@ class TaskService:
                     "workflowType": window.get("workflow_type"),
                     "workflowName": window.get("workflow_name"),
                     "promptId": window.get("prompt_id"),
+                    "seed": window["seed"] if window.get("seed") is not None else extract_workflow_seed(window.get("workflow_json")),
                     "promptText": window.get("prompt_text"),
-                    "hasWorkflowJson": window.get("workflow_json") is not None,
-                    "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
+                    "hasWorkflowJson": any(window.get(key) is not None for key in ("workflow_json", "replay_workflow_json", "source_workflow_json")),
+                    "referenceImages": visible_reference_images,
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
                     "errorMessage": window.get("error_message") or (task.error_message if task.status == "failed" and status == "FAILED" else None),
@@ -1198,6 +1603,11 @@ class TaskService:
                     "dialogueCount": len(window.get("clip_dialogues") or []) if isinstance(window.get("clip_dialogues"), list) else None,
                 })
             return clips
+
+        formatted_clips_by_task = {}
+        for task in tasks:
+            if task.type in {"shot_video", "shot_video_hd"}:
+                formatted_clips_by_task[task.id] = format_video_director_clips(task)
 
         return [
             {
@@ -1209,23 +1619,32 @@ class TaskService:
                 "progress": t.progress,
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
+                "nameplatePreview": nameplate_preview(t),
+                "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
+                "comfyuiError": task_comfyui_error(t),
+                "canonicalImageProvenance": task_provenance(t),
                 "workflowId": t.workflow_id,
                 "workflowName": t.workflow_name,
                 "workflowIsSystem": workflows.get(
                     t.workflow_id).is_system if t.workflow_id and t.workflow_id in workflows else False,
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
-                "referenceImages": parse_reference_images(t.reference_images),
-                "videoDirectorClips": format_video_director_clips(t),
+                "seed": t.seed if t.seed is not None else extract_workflow_seed(t.workflow_json),
+                # Multi-Clip tasks expose references per Clip. The task-level
+                # snapshot may be stale while another Clip is waiting.
+                "referenceImages": [] if formatted_clips_by_task.get(t.id) else parse_reference_images(t.reference_images),
+                "videoDirectorClips": formatted_clips_by_task.get(t.id, []),
                 "novelId": t.novel_id,
                 "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,
+                "chapterNumber": chapters.get(t.chapter_id).number if t.chapter_id and t.chapter_id in chapters else None,
                 "chapterTitle": chapters.get(t.chapter_id).title if t.chapter_id and t.chapter_id in chapters else None,
                 "characterId": t.character_id,
                 "sceneId": t.scene_id,
                 "shotId": t.shot_id,
                 "parentTaskId": getattr(t, "parent_task_id", None),
+                "sourceTaskId": getattr(t, "source_task_id", None),
                 "batchOrder": getattr(t, "batch_order", None),
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
@@ -1246,11 +1665,20 @@ class TaskService:
             格式化后的任务详情
         """
         import json
+        from app.utils.workflow_seed import extract_workflow_seed
 
         try:
             reference_images = json.loads(task.reference_images) if task.reference_images else []
         except Exception:
             reference_images = []
+        try:
+            metadata = json.loads(task.metadata_json or "{}")
+            metadata = metadata if isinstance(metadata, dict) else {}
+            clip_metadata = metadata if metadata.get("execution_scope") == "CLIP" else None
+        except (ValueError, TypeError):
+            metadata = {}
+            clip_metadata = None
+        clip_execution = clip_metadata
 
         return {
             "id": task.id,
@@ -1261,10 +1689,20 @@ class TaskService:
             "progress": task.progress,
             "currentStep": task.current_step,
             "resultUrl": task.result_url,
+            "nameplatePreview": ({"url": metadata.get("nameplate_preview_url"),
+                                  "status": metadata.get("nameplate_status"),
+                                  "warnings": metadata.get("nameplate_warnings"),
+                                  "autoApproved": bool(metadata.get("nameplate_auto_approved"))} if task.type == "chapter_video" else None),
+            "metadata": clip_metadata,
+            "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
+            "clipExecution": clip_execution,
             "errorMessage": task.error_message,
+            "comfyuiError": task_comfyui_error(task),
+            "canonicalImageProvenance": task_provenance(task),
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
             "workflowJson": task.workflow_json,
+            "seed": task.seed if task.seed is not None else extract_workflow_seed(task.workflow_json),
             "promptText": task.prompt_text,
             "referenceImages": reference_images,
             "novelId": task.novel_id,
@@ -1273,6 +1711,7 @@ class TaskService:
             "sceneId": task.scene_id,
             "shotId": task.shot_id,
             "parentTaskId": getattr(task, "parent_task_id", None),
+            "sourceTaskId": getattr(task, "source_task_id", None),
             "batchOrder": getattr(task, "batch_order", None),
             "comfyuiPromptId": task.comfyui_prompt_id,
             "createdAt": format_datetime(task.created_at),

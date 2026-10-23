@@ -112,9 +112,14 @@ export const getTypeNames = (t: any) => ({
   audio: t('systemSettings.workflow.audio'),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
+  multi_image_edit: t('systemSettings.workflow.multiImageEdit'),
   first_last_video: t('systemSettings.workflow.firstLastVideo'),
   three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
-  four_frame_video: t('systemSettings.workflow.fourFrameVideo')
+  four_frame_video: t('systemSettings.workflow.fourFrameVideo'),
+  multi_reference_video: t('systemSettings.workflow.multiReferenceVideo'),
+  video_upscale: t('systemSettings.workflow.videoUpscale', { defaultValue: '高清放大' }),
+  TEMPORAL_EXTEND: t('systemSettings.workflow.temporalExtend', { defaultValue: '时序续生成' }),
+  VIDEO_CONTINUATION: t('systemSettings.workflow.videoContinuation', { defaultValue: '视频续生成' })
 });
 
 /**
@@ -146,7 +151,12 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
   const mapping = workflow.nodeMapping;
 
   switch (workflow.type) {
-    case 'character':
+    case 'character': {
+      const hasLegacyPrompt = mapping.prompt_node_id && mapping.prompt_node_id !== 'auto';
+      const hasSplitInputs = mapping.appearance_node_id && mapping.appearance_node_id !== 'auto'
+        && mapping.style_node_id && mapping.style_node_id !== 'auto';
+      return !!(mapping.save_image_node_id && mapping.save_image_node_id !== 'auto' && (hasSplitInputs || hasLegacyPrompt));
+    }
     case 'scene':
     case 'prop':
       return !!(
@@ -221,6 +231,21 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         (mapping as any).prop_reference_image_node_id &&
         (mapping as any).prop_reference_image_node_id !== 'auto'
       );
+    case 'multi_reference_video': {
+      const videoMapping = mapping as any;
+      const hasMaxSide = Boolean(videoMapping.max_side_node_id && videoMapping.max_side_node_id !== 'auto');
+      const hasMegapixels = Boolean(videoMapping.megapixels_node_id && videoMapping.megapixels_node_id !== 'auto');
+      const imageNodes = Array.from({ length: 9 }, (_, index) => videoMapping[`load_image_node_${index + 1}`]);
+      return !!(
+        videoMapping.prompt_node_id && videoMapping.prompt_node_id !== 'auto' &&
+        videoMapping.video_save_node_id && videoMapping.video_save_node_id !== 'auto' &&
+        videoMapping.duration_seconds_node_id && videoMapping.duration_seconds_node_id !== 'auto' &&
+        videoMapping.reference_to_video_node_id && videoMapping.reference_to_video_node_id !== 'auto' &&
+        hasMaxSide !== hasMegapixels &&
+        imageNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(imageNodes).size === 9
+      );
+    }
     case 'video':
     case 'three_frame_video':
     case 'four_frame_video':
@@ -311,6 +336,55 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         mapping.prompt_node_id !== 'auto' &&
         mapping.save_image_node_id &&
         mapping.save_image_node_id !== 'auto'
+      );
+    case 'multi_image_edit':
+      const multiImageEditMapping = mapping as any;
+      return !!(
+        multiImageEditMapping.prompt_node_id &&
+        multiImageEditMapping.prompt_node_id !== 'auto' &&
+        multiImageEditMapping.save_image_node_id &&
+        multiImageEditMapping.save_image_node_id !== 'auto' &&
+        multiImageEditMapping.width_node_id &&
+        multiImageEditMapping.width_node_id !== 'auto' &&
+        multiImageEditMapping.height_node_id &&
+        multiImageEditMapping.height_node_id !== 'auto' &&
+        Array.from({ length: 9 }).every((_, index) => {
+          const nodeId = multiImageEditMapping[`load_image_node_${index + 1}`];
+          return nodeId && nodeId !== 'auto';
+        })
+      );
+    case 'video_upscale':
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.scale_node_id && mapping.scale_node_id !== 'auto' &&
+        ['2x', '4x', '8x'].includes(mapping.scale_value || '2x') &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto'
+      );
+    case 'TEMPORAL_EXTEND':
+      const temporalReferenceNodes = Array.from({ length: 9 }, (_, index) => (mapping as any)[`load_image_node_${index + 1}`]);
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
+        mapping.custom_keyframes_node_id && mapping.custom_keyframes_node_id !== 'auto' &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto' &&
+        mapping.reference_to_video_node_id && mapping.reference_to_video_node_id !== 'auto' &&
+        temporalReferenceNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(temporalReferenceNodes).size === 9 &&
+        Array.from({ length: 8 }).every((_, index) => {
+          const nodeId = mapping[`keyframe_node_${index + 1}`];
+          return nodeId && nodeId !== 'auto';
+        })
+      );
+    case 'VIDEO_CONTINUATION':
+      const continuationNodes = Array.from({ length: 9 }, (_, index) => (mapping as any)[`load_image_node_${index + 1}`]);
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
+        mapping.prompt_node_id && mapping.prompt_node_id !== 'auto' &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto' &&
+        mapping.reference_to_video_node_id && mapping.reference_to_video_node_id !== 'auto' &&
+        continuationNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(continuationNodes).size === 9
       );
     default:
       return false;

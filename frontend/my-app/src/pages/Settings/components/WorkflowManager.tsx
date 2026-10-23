@@ -13,6 +13,7 @@ import { UploadModal } from './UploadModal';
 import { EditModal } from './EditModal';
 import { MappingModal } from './MappingModal';
 import { WorkflowCard } from './WorkflowCard';
+import { WorkflowTemplateGraphModal } from './WorkflowTemplateGraphModal';
 
 const typeIcons: Record<string, typeof User> = {
   character: User,
@@ -25,15 +26,20 @@ const typeIcons: Record<string, typeof User> = {
   first_last_video: Film,
   three_frame_video: Film,
   four_frame_video: Film,
+  multi_reference_video: Film,
+  video_upscale: Film,
+  TEMPORAL_EXTEND: Film,
+  VIDEO_CONTINUATION: Film,
   transition: Film,
   prop: Box,
   voice_design: Mic,
   audio: Music,
   keyframe_image: Clapperboard,
   single_image_edit: ImageIcon,
+  multi_image_edit: ImageIcon,
 };
 
-const workflowTypeOrder = ['character', 'scene', 'prop', 'shot_scene', 'shot_character_scene', 'shot_scene_prop', 'shot', 'keyframe_image', 'single_image_edit', 'video', 'first_last_video', 'three_frame_video', 'four_frame_video', 'transition', 'voice_design', 'audio'] as const;
+const workflowTypeOrder = ['character', 'scene', 'prop', 'shot_scene', 'shot_character_scene', 'shot_scene_prop', 'shot', 'keyframe_image', 'single_image_edit', 'multi_image_edit', 'video', 'first_last_video', 'three_frame_video', 'four_frame_video', 'multi_reference_video', 'VIDEO_CONTINUATION', 'TEMPORAL_EXTEND', 'video_upscale', 'transition', 'voice_design', 'audio'] as const;
 
 interface WorkflowManagerProps {
   onRefresh?: () => void;
@@ -45,6 +51,8 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   // 工作流列表
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
+  const [showRetiredWorkflows, setShowRetiredWorkflows] = useState(false);
+  const [generationTypes, setGenerationTypes] = useState<string[]>([]);
   const [exportingWorkflows, setExportingWorkflows] = useState(false);
   const [exportingActiveWorkflows, setExportingActiveWorkflows] = useState(false);
   const [importingWorkflows, setImportingWorkflows] = useState(false);
@@ -55,6 +63,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
   const [mappingWorkflow, setMappingWorkflow] = useState<Workflow | null>(null);
+  const [graphWorkflow, setGraphWorkflow] = useState<Workflow | null>(null);
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<WorkflowImportPreview | null>(null);
@@ -68,6 +77,9 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   useEffect(() => {
     fetchWorkflows();
     fetchExtensionConfigs();
+    workflowApi.fetchGenerationTypes().then(result => {
+      if (result.success && result.data) setGenerationTypes(result.data);
+    }).catch(error => console.error('加载可用工作流类型失败:', error));
   }, []);
 
   const fetchExtensionConfigs = async () => {
@@ -298,8 +310,12 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       </div>
 
       {/* 按类型分组显示工作流 */}
+      <label className="flex items-center gap-2 text-sm text-gray-600">
+        <input type="checkbox" checked={showRetiredWorkflows} onChange={event => setShowRetiredWorkflows(event.target.checked)} />
+        显示已退役工作流（历史查看与导出）
+      </label>
       {workflowTypeOrder.map(type => {
-        const typeWorkflows = getWorkflowsByType(type);
+        const typeWorkflows = getWorkflowsByType(type).filter(workflow => showRetiredWorkflows || workflow.availableForNewTasks !== false);
         if (typeWorkflows.length === 0) return null;
         
         const TypeIcon = typeIcons[type] || Clapperboard;
@@ -320,6 +336,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                   onSetDefault={handleSetDefault}
                   onOpenEdit={setEditingWorkflow}
                   onOpenMapping={setMappingWorkflow}
+                  onOpenGraph={setGraphWorkflow}
                   onDelete={handleDelete}
                   onDownload={handleDownload}
                 />
@@ -336,6 +353,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
         onSuccess={fetchWorkflows}
         extensionConfigs={extensionConfigs}
         typeNames={typeNames}
+        generationTypes={generationTypes}
       />
 
       {showExportModal && (
@@ -441,6 +459,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
         onClose={() => setMappingWorkflow(null)}
         onSuccess={fetchWorkflows}
       />
+      <WorkflowTemplateGraphModal workflow={graphWorkflow} onClose={() => setGraphWorkflow(null)} />
     </div>
   );
 }

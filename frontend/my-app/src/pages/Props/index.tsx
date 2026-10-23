@@ -4,17 +4,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, Loader2, Package, Image, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import type { Prop, Novel, PromptTemplate } from '../../types';
+import type { Prop, Novel } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { propApi } from '../../api/props';
-import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, PropCard } from './components';
 import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
-import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
+import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import { useLibraryImageQuality } from '../../hooks/useLibraryImageQuality';
 
 export default function Props() {
   const { t } = useTranslation();
@@ -44,14 +44,13 @@ export default function Props() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadPropId, setCurrentUploadPropId] = useState<string | null>(null);
-  const [propPrompts, setPropPrompts] = useState<Record<string, PropPrompt>>({});
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     appearance: '',
+    existence: 'REAL' as Prop['existence'],
     novelId: '',
   });
 
@@ -67,7 +66,6 @@ export default function Props() {
   useEffect(() => {
     fetchProps();
     fetchNovels();
-    fetchPromptTemplates();
   }, [selectedNovel]);
 
   useEffect(() => {
@@ -79,25 +77,6 @@ export default function Props() {
       }
     }
   }, [highlightedId, props]);
-
-  const fetchPromptTemplates = async () => {
-    try {
-      const data = await promptTemplateApi.fetchList('prop');
-      if (data.success && data.data) {
-        setPromptTemplates(data.data);
-      }
-    } catch (error) {
-      console.error('加载提示词模板失败:', error);
-    }
-  };
-
-  const getTemplateDisplayName = (template: PromptTemplate | undefined): string => {
-    if (!template) return t('novels.default');
-    if (template.isSystem) {
-      return t(`promptConfig.templateNames.${template.name}`, { defaultValue: template.name });
-    }
-    return template.name;
-  };
 
   const fetchProps = async () => {
     if (!selectedNovel) {
@@ -111,34 +90,11 @@ export default function Props() {
       const data = await propApi.fetchList(selectedNovel);
       if (data.success) {
         setProps(data.data || []);
-        const propList = data.data || [];
-        for (const prop of propList) {
-          fetchPropPrompt(prop.id);
-        }
       }
     } catch (error) {
       console.error('获取道具失败:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchPropPrompt = async (propId: string) => {
-    try {
-      const data = await propApi.fetchPrompt(propId);
-      if (data.success) {
-        setPropPrompts(prev => ({
-          ...prev,
-          [propId]: {
-            prompt: data.data!.prompt,
-            templateName: data.data!.templateName,
-            templateId: data.data!.templateId,
-            isSystem: data.data!.isSystem
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('获取道具提示词失败:', error);
     }
   };
 
@@ -174,11 +130,12 @@ export default function Props() {
         name: formData.name,
         description: formData.description,
         appearance: formData.appearance,
+        existence: formData.existence,
       });
       if (data.success) {
         setProps([data.data!, ...props]);
         setShowCreateModal(false);
-        setFormData({ name: '', description: '', appearance: '', novelId: '' });
+        setFormData({ name: '', description: '', appearance: '', existence: 'REAL', novelId: '' });
         toast.success(t('common.create') + t('common.success'));
       }
     } catch (error) {
@@ -239,6 +196,10 @@ export default function Props() {
   };
 
   const generateAppearance = async (prop: Prop) => {
+    if (prop.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不会生成视觉资产');
+      return;
+    }
     if (!prop.description) {
       toast.warning(t('props.appearanceTip'));
       return;
@@ -264,6 +225,10 @@ export default function Props() {
   };
 
   const generatePropImage = async (prop: Prop) => {
+    if (prop.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不能生成实体参考图');
+      return;
+    }
     if (prop.generatingStatus === 'pending' || prop.generatingStatus === 'running') {
       toast.info(t('props.generatingStatus'));
       return;
@@ -329,7 +294,7 @@ export default function Props() {
       return;
     }
 
-    const propsToGenerate = filteredProps.filter(p => p.generatingStatus !== 'pending' && p.generatingStatus !== 'running');
+    const propsToGenerate = filteredProps.filter(p => p.existence !== 'FICTIONAL_OR_NONEXISTENT' && p.generatingStatus !== 'pending' && p.generatingStatus !== 'running');
 
     if (propsToGenerate.length === 0) {
       toast.info(t('props.generatingStatus'));
@@ -387,6 +352,7 @@ export default function Props() {
     if (!selectedNovel) return;
     const propsToGenerate = props.filter(prop => (
       (!prop.imageUrl || prop.generatingStatus === 'failed') &&
+      prop.existence !== 'FICTIONAL_OR_NONEXISTENT' &&
       prop.generatingStatus !== 'pending' &&
       prop.generatingStatus !== 'running'
     ));
@@ -440,6 +406,11 @@ export default function Props() {
   };
 
   const triggerFileUpload = (propId: string) => {
+    const prop = props.find((item) => item.id === propId);
+    if (prop?.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不能上传实体参考图');
+      return;
+    }
     setCurrentUploadPropId(propId);
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -586,6 +557,9 @@ export default function Props() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) && matchesStatusFilter(p));
+  const { getQuality } = useLibraryImageQuality(filteredProps
+    .filter(prop => Boolean(prop.imageUrl) && prop.existence !== 'FICTIONAL_OR_NONEXISTENT')
+    .map(prop => ({ taskId: prop.propTaskId || null, imageUrl: prop.imageUrl! })));
 
   const propStats = props.reduce((stats, prop) => {
     stats.total += 1;
@@ -648,7 +622,7 @@ export default function Props() {
           )}
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', appearance: '', novelId: selectedNovel });
+              setFormData({ name: '', description: '', appearance: '', existence: 'REAL', novelId: selectedNovel });
               setShowCreateModal(true);
             }}
             className="btn-primary"
@@ -707,31 +681,25 @@ export default function Props() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProps.map((prop) => {
-            const currentNovel = novels.find(n => n.id === selectedNovel);
-            const template = promptTemplates.find(pt => pt.id === currentNovel?.propPromptTemplateId);
-
-            return (
-              <PropCard
-                key={prop.id}
-                prop={prop}
-                aspectRatio={getNovelAspectRatio(prop.novelId)}
-                highlightedId={highlightedId}
-                generatingId={generatingId}
-                generatingAppearanceId={generatingAppearanceId}
-                uploadingId={uploadingId}
-                propPrompt={propPrompts[prop.id]}
-                templateDisplayName={getTemplateDisplayName(template)}
-                onDelete={handleDelete}
-                onEdit={setEditingProp}
-                onGenerateImage={generatePropImage}
-                onGenerateAppearance={generateAppearance}
-                onUploadImage={triggerFileUpload}
-                onEditImage={openImageEdit}
-                onImageClick={openImagePreview}
-              />
-            );
-          })}
+          {filteredProps.map((prop) => (
+            <PropCard
+              key={prop.id}
+              prop={prop}
+              imageQuality={getQuality(prop.imageUrl, prop.propTaskId)}
+              aspectRatio={getNovelAspectRatio(prop.novelId)}
+              highlightedId={highlightedId}
+              generatingId={generatingId}
+              generatingAppearanceId={generatingAppearanceId}
+              uploadingId={uploadingId}
+              onDelete={handleDelete}
+              onEdit={setEditingProp}
+              onGenerateImage={generatePropImage}
+              onGenerateAppearance={generateAppearance}
+              onUploadImage={triggerFileUpload}
+              onEditImage={openImageEdit}
+              onImageClick={openImagePreview}
+            />
+          ))}
         </div>
       )}
 
@@ -829,6 +797,11 @@ export default function Props() {
                   rows={3}
                   placeholder={t('props.appearancePlaceholder')}
                 />
+                <label className="mt-3 block text-sm font-medium text-gray-700">存在性</label>
+                <select value={formData.existence} onChange={(e) => setFormData({ ...formData, existence: e.target.value as Prop['existence'] })} className="input-field mt-1">
+                  <option value="REAL">真实存在</option>
+                  <option value="FICTIONAL_OR_NONEXISTENT">故事中虚构/不存在</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('props.novel')} *</label>
@@ -891,6 +864,11 @@ export default function Props() {
                   rows={3}
                   placeholder={t('props.appearancePlaceholder')}
                 />
+                <label className="mt-3 block text-sm font-medium text-gray-700">存在性</label>
+                <select value={editingProp.existence || 'REAL'} onChange={(e) => setEditingProp({ ...editingProp, existence: e.target.value as Prop['existence'] })} className="input-field mt-1">
+                  <option value="REAL">真实存在</option>
+                  <option value="FICTIONAL_OR_NONEXISTENT">故事中虚构/不存在</option>
+                </select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setEditingProp(null)} className="btn-secondary">{t('common.cancel')}</button>

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
+from app.constants.prompt_template import NOVEL_PROMPT_TEMPLATE_FIELDS
 
 
 class NovelRepository:
@@ -82,7 +83,11 @@ class NovelRepository:
                 "description": n.description,
                 "cover": cover,
                 "status": n.status,
+                "isArchived": bool(n.is_archived),
                 "chapterCount": n.chapter_count,
+                "storyWorldContextPromptTemplateId": n.story_world_context_prompt_template_id,
+                "hasStoryWorldContext": bool(n.story_world_context),
+                "storyWorldContextLocked": bool(n.story_world_context_locked),
                 "stylePromptTemplateId": n.style_prompt_template_id,
                 "characterParsePromptTemplateId": n.character_parse_prompt_template_id,
                 "sceneParsePromptTemplateId": n.scene_parse_prompt_template_id,
@@ -90,16 +95,21 @@ class NovelRepository:
                 "promptTemplateId": n.prompt_template_id,
                 "scenePromptTemplateId": n.scene_prompt_template_id,
                 "propPromptTemplateId": n.prop_prompt_template_id,
+                "sceneSettingPromptTemplateId": n.scene_setting_prompt_template_id,
+                "propAppearancePromptTemplateId": n.prop_appearance_prompt_template_id,
                 "chapterSplitPromptTemplateId": n.chapter_split_prompt_template_id,
                 "keyframeDescriptionPromptTemplateId": n.keyframe_description_prompt_template_id,
                 "shotImagePromptTemplateId": n.shot_image_prompt_template_id,
-                "videoModeRecommenderPromptTemplateId": n.video_mode_recommender_prompt_template_id,
                 "keyframePlannerPromptTemplateId": n.keyframe_planner_prompt_template_id,
                 "keyframeImagePromptTemplateId": n.keyframe_image_prompt_template_id,
+                "temporalReferenceSelectorPromptTemplateId": n.temporal_reference_selector_prompt_template_id,
+                "imageQualityReviewPromptTemplateId": n.image_quality_review_prompt_template_id,
                 "keyframeTransitionPromptTemplateId": n.keyframe_transition_prompt_template_id,
-                "h3SingleFramePromptTemplateId": n.h3_single_frame_prompt_template_id,
-                "h3FirstLastFramePromptTemplateId": n.h3_first_last_frame_prompt_template_id,
+                "clipExecutionPlannerPromptTemplateId": n.clip_execution_planner_prompt_template_id,
                 "h3MultiKeyframePromptTemplateId": n.h3_multi_keyframe_prompt_template_id,
+                "h3MultiKeyframeDirectorPhaseBTemplateId": n.h3_multi_keyframe_director_phase_b_template_id,
+                "h3ExecutionOptimizerPromptTemplateId": n.h3_execution_optimizer_prompt_template_id,
+                "h3PreflightRepairPromptTemplateId": n.h3_preflight_repair_prompt_template_id,
                 "aspectRatio": n.aspect_ratio if n.aspect_ratio and n.aspect_ratio.strip() else "16:9",
                 "createdAt": n.created_at.isoformat() if n.created_at else None,
                 "updatedAt": n.updated_at.isoformat() if n.updated_at else None,
@@ -153,6 +163,39 @@ class NovelRepository:
         self.db.commit()
         self.db.refresh(novel)
         return novel
+
+    def copy_with_chapters(self, source: Novel, title: str) -> Novel:
+        """Copy source text, basic settings and valid prompt references only."""
+        from app.services.novel_prompt_templates import resolve_novel_prompt_template
+        chapters = self.db.query(Chapter).filter(
+            Chapter.novel_id == source.id
+        ).order_by(Chapter.number, Chapter.id).all()
+        copied = Novel(
+            title=title,
+            author=source.author,
+            description=source.description,
+            aspect_ratio=source.aspect_ratio or "16:9",
+            chapter_count=len(chapters),
+            chapters=[
+                Chapter(number=chapter.number, title=chapter.title, content=chapter.content or "")
+                for chapter in chapters
+            ],
+        )
+        for template_type, field in NOVEL_PROMPT_TEMPLATE_FIELDS.items():
+            if getattr(source, field, None):
+                selected = resolve_novel_prompt_template(self.db, source, template_type)
+                # A missing/deactivated version returns to default through a null
+                # reference. Do not materialize the system default in the copy.
+                if selected and selected.id == getattr(source, field):
+                    setattr(copied, field, selected.id)
+        try:
+            self.db.add(copied)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        self.db.refresh(copied)
+        return copied
     
     def update(self, novel: Novel, **kwargs) -> Novel:
         """更新小说"""
@@ -192,7 +235,11 @@ class NovelRepository:
             "description": novel.description,
             "cover": novel.cover,
             "status": novel.status,
+            "isArchived": bool(novel.is_archived),
             "chapterCount": novel.chapter_count,
+            "storyWorldContextPromptTemplateId": novel.story_world_context_prompt_template_id,
+            "hasStoryWorldContext": bool(novel.story_world_context),
+            "storyWorldContextLocked": bool(novel.story_world_context_locked),
             "stylePromptTemplateId": novel.style_prompt_template_id,
             "characterParsePromptTemplateId": novel.character_parse_prompt_template_id,
             "sceneParsePromptTemplateId": novel.scene_parse_prompt_template_id,
@@ -200,16 +247,21 @@ class NovelRepository:
             "promptTemplateId": novel.prompt_template_id,
             "scenePromptTemplateId": novel.scene_prompt_template_id,
             "propPromptTemplateId": novel.prop_prompt_template_id,
+            "sceneSettingPromptTemplateId": novel.scene_setting_prompt_template_id,
+            "propAppearancePromptTemplateId": novel.prop_appearance_prompt_template_id,
             "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": novel.shot_image_prompt_template_id,
-            "videoModeRecommenderPromptTemplateId": novel.video_mode_recommender_prompt_template_id,
             "keyframePlannerPromptTemplateId": novel.keyframe_planner_prompt_template_id,
             "keyframeImagePromptTemplateId": novel.keyframe_image_prompt_template_id,
+            "temporalReferenceSelectorPromptTemplateId": novel.temporal_reference_selector_prompt_template_id,
+            "imageQualityReviewPromptTemplateId": novel.image_quality_review_prompt_template_id,
             "keyframeTransitionPromptTemplateId": novel.keyframe_transition_prompt_template_id,
-            "h3SingleFramePromptTemplateId": novel.h3_single_frame_prompt_template_id,
-            "h3FirstLastFramePromptTemplateId": novel.h3_first_last_frame_prompt_template_id,
+            "clipExecutionPlannerPromptTemplateId": novel.clip_execution_planner_prompt_template_id,
             "h3MultiKeyframePromptTemplateId": novel.h3_multi_keyframe_prompt_template_id,
+            "h3MultiKeyframeDirectorPhaseBTemplateId": novel.h3_multi_keyframe_director_phase_b_template_id,
+            "h3ExecutionOptimizerPromptTemplateId": novel.h3_execution_optimizer_prompt_template_id,
+            "h3PreflightRepairPromptTemplateId": novel.h3_preflight_repair_prompt_template_id,
             "aspectRatio": novel.aspect_ratio or "16:9",
             "createdAt": novel.created_at.isoformat() if novel.created_at else None,
             "updatedAt": novel.updated_at.isoformat() if novel.updated_at else None,

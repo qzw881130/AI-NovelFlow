@@ -16,6 +16,10 @@ import {
 // API 基础 URL
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
+// Share requests while they are pending, including StrictMode effect replays.
+let configLoadRequest: Promise<SystemConfig | null> | null = null;
+let connectionCheckRequest: Promise<{ llm: boolean; comfyui: boolean }> | null = null;
+
 // 从后端加载配置
 const fetchConfigFromBackend = async () => {
   try {
@@ -30,10 +34,13 @@ const fetchConfigFromBackend = async () => {
         llmApiUrl: data.data.llmApiUrl || DEFAULT_CONFIG.llmApiUrl,
         llmMaxTokens: data.data.llmMaxTokens,
         llmTemperature: data.data.llmTemperature,
+        videoPromptLanguage: data.data.videoPromptLanguage ?? 'en',
         proxy: data.data.proxyEnabled !== undefined ? {
           enabled: data.data.proxyEnabled,
           httpProxy: data.data.httpProxy || '',
           httpsProxy: data.data.httpsProxy || '',
+          youtubeEnabled: data.data.youtubeProxyEnabled ?? false,
+          youtubeProxyUrl: data.data.youtubeProxyUrl || '',
         } : DEFAULT_CONFIG.proxy,
         comfyUIHost: data.data.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
         comfyUITimeout: data.data.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,
@@ -102,23 +109,25 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     return preset?.models.find(m => m.id === llmModel);
   },
   
-  checkConnection: async () => {
+  checkConnection: () => {
+    if (connectionCheckRequest) return connectionCheckRequest;
     set({ isLoading: true, error: null });
-    try {
-      // 检查 LLM API
-      const llmRes = await fetch(`${API_BASE}/health/llm/`);
-      const llm = llmRes.ok;
-      
-      // 检查 ComfyUI
-      const comfyRes = await fetch(`${API_BASE}/health/comfyui/`);
-      const comfyui = comfyRes.ok;
-      
+    connectionCheckRequest = Promise.allSettled([
+      fetch(`${API_BASE}/health/llm`),
+      fetch(`${API_BASE}/health/comfyui`),
+    ]).then(([llm, comfyui]) => {
+      if (llm.status === 'rejected' || comfyui.status === 'rejected') {
+        set({ error: '连接检查失败' });
+      }
+      return {
+        llm: llm.status === 'fulfilled' && llm.value.ok,
+        comfyui: comfyui.status === 'fulfilled' && comfyui.value.ok,
+      };
+    }).finally(() => {
+      connectionCheckRequest = null;
       set({ isLoading: false });
-      return { llm, comfyui };
-    } catch (error) {
-      set({ isLoading: false, error: '连接检查失败' });
-      return { llm: false, comfyui: false };
-    }
+    });
+    return connectionCheckRequest;
   },
   
   loadConfig: async () => {
@@ -131,6 +140,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
         llmApiUrl: get().llmApiUrl,
         llmMaxTokens: get().llmMaxTokens,
         llmTemperature: get().llmTemperature,
+        videoPromptLanguage: get().videoPromptLanguage,
         proxy: get().proxy,
         comfyUIHost: get().comfyUIHost,
         comfyUITimeout: get().comfyUITimeout,
@@ -138,14 +148,18 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       };
     }
     
-    const backendConfig = await fetchConfigFromBackend();
-    if (backendConfig) {
-      set({ ...backendConfig, isLoaded: true });
+    if (configLoadRequest) return configLoadRequest;
+    configLoadRequest = fetchConfigFromBackend().then(backendConfig => {
+      if (backendConfig) {
+        set({ ...backendConfig, isLoaded: true });
+      } else {
+        set({ isLoaded: true });
+      }
       return backendConfig;
-    } else {
-      set({ isLoaded: true });
-      return null;
-    }
+    }).finally(() => {
+      configLoadRequest = null;
+    });
+    return configLoadRequest;
   },
 }));
 

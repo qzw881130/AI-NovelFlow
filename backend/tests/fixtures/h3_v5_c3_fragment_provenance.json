@@ -1,0 +1,900 @@
+{
+  "raw_prompt": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸、高额头、圆厚下颌与短下巴，浅蓝灰色微垂双眼皮眼，左眼下方有细小褐痣，冷调浅肤色并带自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略带虚荣感的独特主体身份。\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦长脸、高额头、清晰颧骨、锐利下颌与略前伸的下巴，深蓝灰色狭长内双眼，右侧太阳穴有指尖大小的浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，保留整齐的深灰色短山羊胡。保持谨慎、干练而克制的独特主体身份。\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、略高颧骨、清晰下颌与稍尖下巴，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁有小褐痣，暖调浅肤色，深棕色微卷短发后梳，保留修剪整齐的深棕色小胡子。保持精明、从容的独特主体身份。\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实但灵便的人类男性；圆中带方的脸、较宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方有明显小黑痣，暖调浅麦色皮肤与自然红润双颊，栗褐色浓密短卷发从左侧分开，面部干净无须。保持殷勤、活络的独特主体身份。\n所有 Subject 的当前服装连续性仅由实际时间视觉锚点建立；身份参考中的历史或基础造型不得取代、叠加或混合到当前服装。\n\nofficial_character_identity_lock:\n所引用的视觉锚点是其对应时间上当前已建立人物视觉身份的首要视觉权威。官方人物描述仅作为防止跨帧身份漂移的身份保持约束，用于补充视觉锚点，但不得覆盖视觉锚点清楚建立的身份特征。\n\n四个 Subject 在整个 Clip 中必须分别保持同一且唯一的主体身份、相同年龄段、脸部结构、身体比例、头发或胡须轮廓、肤色、永久标记、稳定身体特征及身份定义配饰。当前服装属于独立的连续性域：保持权威时间视觉锚点建立的当前服装，不恢复、不叠穿、不混合、不局部显露任何冲突的历史或默认服装。不得重新设计、美化、老化、年轻化、换脸、替换、重新着色或交换身份。\n\n不得把阴影、暗光、冷暖调色、距离、环境照明或运动模糊解释为肤色、发色或当前服装颜色发生变化。因姿态、遮挡、距离或光线而暂时不可见的稳定身份细节，在重新可见时必须保持一致。若文字身份描述与视觉锚点中清晰可见的当前身份事实直接冲突，以视觉锚点为准；当前服装细节始终以实际时间视觉锚点为准。\n\n允许姿态、表情、视线方向、身体朝向、空间位置以及符合 transition 的自然动作发生变化。保持四个 Subject 的人数和唯一性，不复制、不交换、不无依据消失或出现，不镜像翻转既有左右关系，不重置场景。群像关系持续稳定，不新增人物、实体布料或无依据道具；仅保留已建立的高背宝座、台阶及当前视觉条件中确实存在的物件。画面中不得出现字幕、标题、说明文字、气泡、标志、水印或界面元素。\n\nkeyframe_timeline:\n- KF4 | INTERMEDIATE | Clip-local 10.95s | <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。\n- <Picture 2>：王宫大厅的场景环境参考。\n- <Picture 3>：<Subject 1> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 4>：<Subject 3> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 5>：<Subject 4> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 6>：<Subject 2> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 7>：高背宝座的道具外观参考。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD11:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 1.85s\n  exact_dialogue: 真的有这样的布？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 1.85s to 2.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD12:\n  speaker: <Subject 3>\n  start_time: 2.05s\n  end_time: 6.05s\n  exact_dialogue: 陛下，语言只能形容它美丽的十分之一。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 6.05s to 6.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD13:\n  speaker: <Subject 4>\n  start_time: 6.25s\n  end_time: 10.75s\n  exact_dialogue: 只有亲眼看见，才能知道它究竟有多么神奇。\n  segment: complete assigned span.\n  Only <Subject 4> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 10.75s to 10.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD14:\n  speaker: <Subject 1>\n  start_time: 10.95s\n  end_time: 13.95s\n  exact_dialogue: 那么，它真的能分辨愚蠢的人？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 13.95s to 14.15s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD15:\n  speaker: <Subject 3>\n  start_time: 14.15s\n  end_time: 14.65s\n  exact_dialogue: 当然。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 2>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延伸，保持四个 Subject 已建立的身份、当前服装、左右站位、空间关系、既有物件状态及正在进行的低角度镜头运动。王宫大厅、宝座与台阶维持同一连续空间，不发生切镜或场景重置。\n\ndetailed_description:\n[Shot 1]\nClip-local 0.00s–10.95s：承接 carry-in visual context，并继续从 carry-in → KF4 的既有 transition。摄影机在原有低角度机位和同一轴线上持续、缓慢向前推进，自然收紧群像，不越轴、不突然变焦、不改变人物左右关系；高背宝座和台阶始终作为空间结构保留在构图中。\n\n<Subject 4> 从双手相隔、掌心向上的展示轮廓开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示姿态。<Subject 3> 保持左侧站位和从容神情，身体从略向同伴及宝座方向倾斜逐渐恢复稳定，双手动作克制地收束到身前。两者之间始终保持空置，不生成任何实体布料。\n\n<Subject 1> 保持坐在高背宝座上，起初视线落向 <Subject 4> 展开的双手，随后沿宝座坐面自然向前调整重心，上身持续前倾，双手分别移近扶手前端；视线逐渐覆盖 <Subject 3> 与 <Subject 4>，面部神情从谨慎审视自然转为浓厚兴趣。<Subject 2> 始终垂手站在台阶侧方，不改变站位，仅将谨慎视线稳定移向 <Subject 1>。\n\n推进过程中，摄影机逐步使 <Subject 1>、<Subject 3> 与 <Subject 4> 在同一群像内更加清晰，同时保留 <Subject 2> 与宫殿空间关系。动作连续、节制且符合身体惯性，没有瞬移、突然换位或无依据的肢体动作。至 10.95s 准确到达 KF4。\n\nClip-local 10.95s–14.75s：摄影机在 KF4 的更紧密低角度群像构图中自然稳定。四个 Subject 保持 KF4 已建立的站位、姿态、视线关系和当前表情趋势，仅保留轻微自然呼吸、衣料随身体重心产生的细小变化以及稳定的眼神反应；不展开新的动作阶段，不引入新剧情，直至 Clip 结束。\n\noverall_soundscape:\n宽阔王宫大厅内具有柔和、真实的室内空间混响与低沉 room tone。低角度推进伴随轻微平稳的摄影设备移动声；身体重心调整产生克制的衣料摩擦声，手掌与扶手接近或轻触时带有细小材质声，鞋履与石质台阶附近偶有极轻的落地和重心变化声。所有声音保持自然距离感，不添加无依据的音乐、物体声源或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF4: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 2> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 7> — PROP / 高背宝座: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n<Picture 6> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 3> identity to the existing/current body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the existing/current body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the existing/current body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 6> identity to the existing/current body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.10–10.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition.\n10.95–14.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition.",
+  "output": {
+    "optimized_prompt": "subject_definitions:\n<Subject 1> is 皇帝, a slightly stout male monarch around fifty-five with a broad oval face, high forehead, pale blue-gray eyes, a small brown mole beneath his left eye, swept-back silver-gray hair, and a neat silver-gray short beard and pointed goatee; <Picture 3> supplies identity only for this Subject.\n<Subject 2> is 宫廷总管, a lean, composed male court steward around forty-eight with a long face, narrow dark blue-gray eyes, a light-brown mark at his right temple, slicked-back dark-gray hair tied low, and a neat short goatee; <Picture 6> supplies identity only for this Subject.\n<Subject 3> is 骗子1, a tall, slender man around thirty-five with a long narrow face, gray-green upturned eyes, a small brown mole beside his right nostril, swept-back wavy dark-brown hair, and a neat dark-brown mustache; <Picture 4> supplies identity only for this Subject.\n<Subject 4> is 骗子2, a shorter, sturdy man around thirty-two with a rounded-square face, amber-brown eyes, a distinct dark mole below the left corner of his mouth, warm light-tan skin, thick chestnut curls, and no facial hair; <Picture 5> supplies identity only for this Subject.\n\nsummary:\nAn 18-second continuous extension of the incoming palace-hall shot, carrying forward the established low-angle axis, costumes, poses, spatial relationships, throne, steps, and ongoing camera movement without a cut or scene reset. The camera smoothly redirects emphasis among the seated emperor and the two standing swindlers while preserving every established floor position.\n\nretention_analysis:\nPreserve the current costumes and bodies from the incoming video and the useful ensemble-state guidance of <Picture 1>; the palace hall follows <Picture 2>, and the established high-backed throne follows <Picture 7>. <Subject 1> remains seated on the throne through the principal exchange, <Subject 3> stays on the left, <Subject 4> stays on the right, and <Subject 2> remains beside the steps. The space between the swindlers' hands stays empty, with no materialized cloth. Identity pictures establish permanent identity only and do not overwrite current costume, pose, staging, or blocking.\n\ndetailed_description:\nContinue directly from the incoming low-angle ensemble view and its slow forward motion. The shared opening posture, clothing, left-right order, throne, steps, and palace architecture remain continuous. Once the incoming view has cleared, the camera gently carries emphasis past the two foreground swindlers toward <Subject 1>, keeping him seated in his established place and obtaining a readable view of his face and mouth. <Subject 2>, <Subject 3>, and <Subject 4> listen naturally with relaxed closed lips and no speech-like articulation. With the emperor clearly acquired, <Subject 1> (S1) asks, <d>[Chinese] 真的有这样的布？</d>\n\n<Subject 1> finishes articulating and relaxes his lips, becoming an attentive listener. Without moving either man from his established place, a shallow lateral drift and foreground clearance transfer emphasis from <Subject 1> to <Subject 3> on the left, bringing <Subject 3>'s face and mouth into a readable scale while the low-angle axis continues forward. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With that view established, <Subject 3> (S2) replies, <d>[Chinese] 陛下，语言只能形容它美丽的十分之一。</d>\n\n<Subject 3> ends his articulation, closes his lips naturally, and listens. A smooth lateral composition adjustment transfers emphasis from <Subject 3> to <Subject 4> on the right without changing their sides or floor positions, giving <Subject 4> a clear face-and-mouth view. <Subject 4> slowly draws his inner hand toward his chest while his other hand maintains the open, presenting gesture; the space between both swindlers remains visibly empty. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. Once the right-side view is settled, <Subject 4> (S3) says, <d>[Chinese] 只有亲眼看见，才能知道它究竟有多么神奇。</d>\n\n<Subject 4> completes the line, lets his lips close, and turns into a responsive listener. The continuing low-angle progression transfers emphasis from <Subject 4> back to <Subject 1>, using a measured composition shift rather than character movement. <Subject 1> remains seated and advances his weight along the throne seat, leaning forward with both hands near the front of the armrests as his scrutiny becomes strong interest; <Subject 3> stays composed on the left with restrained hands, <Subject 4> holds one presenting hand with the other near his chest on the right, and <Subject 2> stands beside the steps watching cautiously. The progression then reaches the useful state guided by <Picture 1>: a tighter ensemble with throne and steps visible, unchanged left-right relations, and <Subject 1>'s face and mouth clearly readable. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With the emperor's forward-seated view established, <Subject 1> (S1) asks, <d>[Chinese] 那么，它真的能分辨愚蠢的人？</d>\n\n<Subject 1> stops articulating and settles his mouth, retaining his intent gaze. A restrained drift transfers emphasis from <Subject 1> to <Subject 3>, preserving the emperor's seated state and <Subject 3>'s left-side floor position while restoring a readable view of <Subject 3>'s face and mouth. <Subject 1>, <Subject 2>, and <Subject 4> listen naturally with relaxed closed lips and no speech-like articulation. When that view is secure, <Subject 3> (S2) answers, <d>[Chinese] 当然。</d>\n\nAfter the answer, every mouth relaxes. The camera remains on the same axis and begins a slight accommodating ease-back as <Subject 1> braces at the armrest fronts and starts shifting weight toward his feet, initiating but not completing the later rise. <Subject 2> begins only a small side-back clearance beside the steps; <Subject 3> and <Subject 4> remain on their established left and right positions and lift their attention toward the emperor. End on this controlled, unfinished transition with natural breathing and eye reactions.\n\noverall_soundscape:\nSoft, realistic palace-hall reverberation and low room tone continue across the seam. Include restrained camera-movement sound, subtle clothing friction from weight and hand adjustments, delicate contact near the throne armrests, and extremely light foot or stone-step sounds where authorized movement occurs. No extra voices, vocalizations, subtitles, captions, or off-screen events.\n\nnon_diegetic_music:\nN/A",
+    "duration": {
+      "original_duration": 14.75,
+      "optimized_duration": 18.0,
+      "duration_delta": 3.25,
+      "duration_changed": true,
+      "reason": "The 1.625-second preserved continuation prefix prevents new dialogue at the original 0.10-second start. Extending to 18.0 seconds preserves every fixed utterance duration while providing executable first-speaker readiness, four camera-supported speaker handoffs, the retimed ensemble-state arrival, partial continuation into the next canonical transition, and a brief final settle."
+    },
+    "complexity": {
+      "level": "HIGH",
+      "reasons": [
+        "Five fixed-duration utterances require four different-speaker visual handoffs in one continuous ensemble take.",
+        "The 1.625-second preserved video prefix invalidates the original first-dialogue start and requires global retiming without changing utterance duration or order.",
+        "Speaker emphasis repeatedly transfers between a seated central/rear emperor and left/right foreground speakers while floor positions and the low-angle axis remain fixed.",
+        "The useful ensemble anchor must be retimed coherently while preserving the canonical action independently of its exact composition.",
+        "The clip begins the following sit-to-stand transition but must not prematurely complete its later standing outcome."
+      ]
+    },
+    "risks": [
+      {
+        "code": "CONTINUATION_DIALOGUE_RETIMED",
+        "detail": "All new dialogue is moved beyond the shared context prefix; downstream review must confirm that no new vocalization or matching mouth articulation appears before 1.625 seconds."
+      },
+      {
+        "code": "SPEAKER_VISUAL_HANDOFF_RISK",
+        "detail": "The foreground-to-background transfer from <Subject 4> to the seated <Subject 1> is the hardest handoff. The camera must clear foreground salience without walking, standing, or exchanging character positions."
+      },
+      {
+        "code": "ENSEMBLE_LIP_SYNC_RISK",
+        "detail": "Four visible listeners remain in the ensemble during several lines. Review every turn for correct active-speaker articulation and relaxed non-speaking mouths with natural reactions."
+      },
+      {
+        "code": "PARTIAL_CANONICAL_TRANSITION_RISK",
+        "detail": "The final action may initiate the emperor's later rise but must end before the later canonical standing outcome is completed."
+      }
+    ],
+    "changes": [
+      {
+        "area": "duration",
+        "before": "14.75 seconds total clip-local duration",
+        "after": "18.0 seconds total clip-local duration",
+        "reason": "Accounts once for the preserved context prefix and provides feasible readiness, handoff, action, and final-settle time without compressing dialogue."
+      },
+      {
+        "area": "dialogue timing",
+        "before": "D11 began at 0.10 seconds inside the preserved context; later lines used 0.20-second gaps.",
+        "after": "D11 begins at 2.00 seconds; subsequent lines begin at 4.25, 8.70, 13.75, and 17.20 seconds with unchanged durations.",
+        "reason": "New speech must begin after 1.625 seconds, and each different-speaker turn requires visible readiness before articulation."
+      },
+      {
+        "area": "visual anchor timing",
+        "before": "KF4 targeted 10.95 seconds.",
+        "after": "KF4 is retained and retimed to 13.60 seconds.",
+        "reason": "The canonical transition and dialogue rhythm shift together after the preserved context, allowing the tighter ensemble state to support the return to the emperor before D14."
+      },
+      {
+        "area": "post-anchor action",
+        "before": "The raw execution prose held the KF4 state nearly static through the end.",
+        "after": "After the retained state, the next authorized sit-to-stand transition begins but remains unfinished.",
+        "reason": "The canonical transition source governs action progression beyond KF4 and explicitly spans later footage."
+      }
+    ],
+    "timing_recommendations": [
+      "Keep all new speech and corresponding mouth articulation at or after 1.625 seconds.",
+      "Treat the planned dialogue seconds as internal targets; verify actual Mandarin duration, speaker identity, and lip synchronization in generated video.",
+      "During the <Subject 4>-to-<Subject 1> handoff, favor a measured composition shift and foreground clearance rather than continuing a push that would enlarge <Subject 4> and suppress the emperor.",
+      "Preserve a short non-vocal final settle after D15 so the incomplete rise preparation reads as intentional rather than as an abrupt freeze."
+    ],
+    "canonical_visual_requirements": [
+      {
+        "id": "CVR1",
+        "requirement": "Carry forward all four unique identities, current costumes, established bodies, left-right order, depth relations, and existing floor positions from the previous video.",
+        "source_id": "opening_state",
+        "source_excerpt": "保持四个 Subject 已建立的身份、当前服装、左右站位、空间关系",
+        "prompt_excerpt": "The shared opening posture, clothing, left-right order, throne, steps, and palace architecture remain continuous."
+      },
+      {
+        "id": "CVR2",
+        "requirement": "<Subject 1> remains seated on the high-backed throne during the principal exchange, shifts forward, leans toward the swindlers, brings both hands near the armrest fronts, and changes from scrutiny to strong interest.",
+        "source_id": "transition_1",
+        "source_excerpt": "皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端",
+        "prompt_excerpt": "<Subject 1> remains seated and advances his weight along the throne seat, leaning forward with both hands near the front of the armrests as his scrutiny becomes strong interest"
+      },
+      {
+        "id": "CVR3",
+        "requirement": "<Subject 3> stays on the left, settles from a slight lean into a composed stance, and gathers restrained hand gestures in front.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前",
+        "prompt_excerpt": "<Subject 3> stays composed on the left with restrained hands"
+      },
+      {
+        "id": "CVR4",
+        "requirement": "<Subject 4> stays on the right, moves the inner hand toward his chest, keeps the other hand in a presenting pose, and never produces physical cloth.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓；两人之间始终空置，不出现实体布料",
+        "prompt_excerpt": "<Subject 4> slowly draws his inner hand toward his chest while his other hand maintains the open, presenting gesture; the space between both swindlers remains visibly empty."
+      },
+      {
+        "id": "CVR5",
+        "requirement": "<Subject 2> remains standing beside the steps with hands down and cautiously redirects his gaze toward <Subject 1>.",
+        "source_id": "transition_1",
+        "source_excerpt": "宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝",
+        "prompt_excerpt": "<Subject 2> stands beside the steps watching cautiously."
+      },
+      {
+        "id": "CVR6",
+        "requirement": "Continue the same low-angle axis in one take, gradually tightening the ensemble while retaining the throne, steps, both swindlers, and unchanged left-right relations.",
+        "source_id": "transition_1",
+        "source_excerpt": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间",
+        "prompt_excerpt": "The progression then reaches the useful state guided by <Picture 1>: a tighter ensemble with throne and steps visible, unchanged left-right relations"
+      },
+      {
+        "id": "CVR7",
+        "requirement": "After reaching the forward-seated state, begin the next authorized sit-to-stand transition but do not complete the later standing outcome in this clip.",
+        "source_id": "transition_2",
+        "source_excerpt": "皇帝先保持前倾，双手在扶手前端形成支撑，随后将重心由宝座前缘移到双脚，连续起身",
+        "prompt_excerpt": "<Subject 1> braces at the armrest fronts and starts shifting weight toward his feet, initiating but not completing the later rise."
+      },
+      {
+        "id": "CVR8",
+        "requirement": "As the later transition starts, <Subject 2> begins a small side-back clearance while the two swindlers remain at their established left and right positions and raise their attention toward the emperor.",
+        "source_id": "transition_2",
+        "source_excerpt": "宫廷总管仍处于台阶侧方，只向侧后方小幅挪步，为皇帝可能下行的方向让出路径",
+        "prompt_excerpt": "<Subject 2> begins only a small side-back clearance beside the steps; <Subject 3> and <Subject 4> remain on their established left and right positions and lift their attention toward the emperor."
+      }
+    ],
+    "reference_projection": [
+      {
+        "source_picture": "<Picture 1>",
+        "picture": "<Picture 1>"
+      },
+      {
+        "source_picture": "<Picture 2>",
+        "picture": "<Picture 2>"
+      },
+      {
+        "source_picture": "<Picture 3>",
+        "picture": "<Picture 3>"
+      },
+      {
+        "source_picture": "<Picture 4>",
+        "picture": "<Picture 4>"
+      },
+      {
+        "source_picture": "<Picture 5>",
+        "picture": "<Picture 5>"
+      },
+      {
+        "source_picture": "<Picture 6>",
+        "picture": "<Picture 6>"
+      },
+      {
+        "source_picture": "<Picture 7>",
+        "picture": "<Picture 7>"
+      }
+    ],
+    "authority_echo": {
+      "generation_mode": "EXTEND",
+      "dialogue_events": [
+        {
+          "id": "D11",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "真的有这样的布？",
+          "duration": 1.75,
+          "order": 1
+        },
+        {
+          "id": "D12",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "陛下，语言只能形容它美丽的十分之一。",
+          "duration": 4.0,
+          "order": 2
+        },
+        {
+          "id": "D13",
+          "speaker": "<Subject 4>",
+          "exact_dialogue": "只有亲眼看见，才能知道它究竟有多么神奇。",
+          "duration": 4.5,
+          "order": 3
+        },
+        {
+          "id": "D14",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "那么，它真的能分辨愚蠢的人？",
+          "duration": 3.0,
+          "order": 4
+        },
+        {
+          "id": "D15",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "当然。",
+          "duration": 0.5,
+          "order": 5
+        }
+      ],
+      "subject_bindings": {
+        "<Subject 1>": "皇帝",
+        "<Subject 2>": "宫廷总管",
+        "<Subject 3>": "骗子1",
+        "<Subject 4>": "骗子2"
+      },
+      "reference_bindings": [
+        {
+          "picture": "<Picture 1>",
+          "type": "DIRECTOR_VISUAL_ANCHOR",
+          "subject": null,
+          "source_name": null,
+          "source_id": null,
+          "state_index": 4,
+          "role": "INTERMEDIATE"
+        },
+        {
+          "picture": "<Picture 2>",
+          "type": "SCENE",
+          "subject": null,
+          "source_name": "王宫大厅",
+          "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 3>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 1>",
+          "source_name": "皇帝",
+          "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 3>",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 5>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 4>",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 6>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 2>",
+          "source_name": "宫廷总管",
+          "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 7>",
+          "type": "PROP",
+          "subject": null,
+          "source_name": "高背宝座",
+          "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+          "state_index": null,
+          "role": null
+        }
+      ],
+      "visual_anchor_order": [
+        {
+          "id": "KF4",
+          "order": 1,
+          "declaration_prefix": "INTERMEDIATE | Clip-local",
+          "visual_target": "| <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。",
+          "picture": "<Picture 1>"
+        }
+      ],
+      "temporal_anchor_order": [],
+      "allowed_dialogue_overlaps": [],
+      "continuation": {
+        "mode": "VIDEO_CONTINUATION",
+        "binding_verified": true,
+        "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+        "source_sha256": "380d46f1bdd7d099cb7db4cdc70cbd00d5c9b4479508cdd961b90d7e83756906",
+        "previous_frames": 685,
+        "fps": 24,
+        "context_frames": 39,
+        "overlap_frames": 39,
+        "overlap_seconds": 1.625,
+        "source_start_frame": 646,
+        "source_end_frame_exclusive": 685,
+        "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+        "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+        "cumulative_start_frame": 646,
+        "earliest_new_dialogue": 1.625,
+        "audio_hard_preserve_until": 1.425,
+        "audio_feather_until": 1.625,
+        "audio_feather_ticks": 8,
+        "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+        "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "assembly": "previous_frames + target_frames - context_frames",
+        "video_overlap": "blend source tail with decoded preserved prefix",
+        "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+      },
+      "anchor_policy": {
+        "version": 1,
+        "catalog": [
+          {
+            "anchor_id": "KF4",
+            "original_time": 10.95,
+            "source_picture": "<Picture 1>",
+            "source_kind": "DIRECTOR_VISUAL_ANCHOR",
+            "visual_reference_description": "| <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。",
+            "role": "INTERMEDIATE | Clip-local",
+            "linked_anchor_id": null
+          }
+        ],
+        "canonical_visual_sources": [
+          {
+            "id": "opening_state",
+            "text": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸、高额头、圆厚下颌与短下巴，浅蓝灰色微垂双眼皮眼，左眼下方有细小褐痣，冷调浅肤色并带自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略带虚荣感的独特主体身份。\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦长脸、高额头、清晰颧骨、锐利下颌与略前伸的下巴，深蓝灰色狭长内双眼，右侧太阳穴有指尖大小的浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，保留整齐的深灰色短山羊胡。保持谨慎、干练而克制的独特主体身份。\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、略高颧骨、清晰下颌与稍尖下巴，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁有小褐痣，暖调浅肤色，深棕色微卷短发后梳，保留修剪整齐的深棕色小胡子。保持精明、从容的独特主体身份。\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实但灵便的人类男性；圆中带方的脸、较宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方有明显小黑痣，暖调浅麦色皮肤与自然红润双颊，栗褐色浓密短卷发从左侧分开，面部干净无须。保持殷勤、活络的独特主体身份。\n所有 Subject 的当前服装连续性仅由实际时间视觉锚点建立；身份参考中的历史或基础造型不得取代、叠加或混合到当前服装。\n\nofficial_character_identity_lock:\n所引用的视觉锚点是其对应时间上当前已建立人物视觉身份的首要视觉权威。官方人物描述仅作为防止跨帧身份漂移的身份保持约束，用于补充视觉锚点，但不得覆盖视觉锚点清楚建立的身份特征。\n\n四个 Subject 在整个 Clip 中必须分别保持同一且唯一的主体身份、相同年龄段、脸部结构、身体比例、头发或胡须轮廓、肤色、永久标记、稳定身体特征及身份定义配饰。当前服装属于独立的连续性域：保持权威时间视觉锚点建立的当前服装，不恢复、不叠穿、不混合、不局部显露任何冲突的历史或默认服装。不得重新设计、美化、老化、年轻化、换脸、替换、重新着色或交换身份。\n\n不得把阴影、暗光、冷暖调色、距离、环境照明或运动模糊解释为肤色、发色或当前服装颜色发生变化。因姿态、遮挡、距离或光线而暂时不可见的稳定身份细节，在重新可见时必须保持一致。若文字身份描述与视觉锚点中清晰可见的当前身份事实直接冲突，以视觉锚点为准；当前服装细节始终以实际时间视觉锚点为准。\n\n允许姿态、表情、视线方向、身体朝向、空间位置以及符合 transition 的自然动作发生变化。保持四个 Subject 的人数和唯一性，不复制、不交换、不无依据消失或出现，不镜像翻转既有左右关系，不重置场景。群像关系持续稳定，不新增人物、实体布料或无依据道具；仅保留已建立的高背宝座、台阶及当前视觉条件中确实存在的物件。画面中不得出现字幕、标题、说明文字、气泡、标志、水印或界面元素。\n\nkeyframe_timeline:\n- KF4 | INTERMEDIATE | Clip-local 10.95s | <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。\n- <Picture 2>：王宫大厅的场景环境参考。\n- <Picture 3>：<Subject 1> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 4>：<Subject 3> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 5>：<Subject 4> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 6>：<Subject 2> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 7>：高背宝座的道具外观参考。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD11:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 1.85s\n  exact_dialogue: 真的有这样的布？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 1.85s to 2.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD12:\n  speaker: <Subject 3>\n  start_time: 2.05s\n  end_time: 6.05s\n  exact_dialogue: 陛下，语言只能形容它美丽的十分之一。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 6.05s to 6.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD13:\n  speaker: <Subject 4>\n  start_time: 6.25s\n  end_time: 10.75s\n  exact_dialogue: 只有亲眼看见，才能知道它究竟有多么神奇。\n  segment: complete assigned span.\n  Only <Subject 4> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 10.75s to 10.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD14:\n  speaker: <Subject 1>\n  start_time: 10.95s\n  end_time: 13.95s\n  exact_dialogue: 那么，它真的能分辨愚蠢的人？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 13.95s to 14.15s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD15:\n  speaker: <Subject 3>\n  start_time: 14.15s\n  end_time: 14.65s\n  exact_dialogue: 当然。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 2>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延伸，保持四个 Subject 已建立的身份、当前服装、左右站位、空间关系、既有物件状态及正在进行的低角度镜头运动。王宫大厅、宝座与台阶维持同一连续空间，不发生切镜或场景重置。\n\ndetailed_description:\n[Shot 1]\nClip-local 0.00s–10.95s：承接 carry-in visual context，并继续从 carry-in → KF4 的既有 transition。摄影机在原有低角度机位和同一轴线上持续、缓慢向前推进，自然收紧群像，不越轴、不突然变焦、不改变人物左右关系；高背宝座和台阶始终作为空间结构保留在构图中。\n\n<Subject 4> 从双手相隔、掌心向上的展示轮廓开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示姿态。<Subject 3> 保持左侧站位和从容神情，身体从略向同伴及宝座方向倾斜逐渐恢复稳定，双手动作克制地收束到身前。两者之间始终保持空置，不生成任何实体布料。\n\n<Subject 1> 保持坐在高背宝座上，起初视线落向 <Subject 4> 展开的双手，随后沿宝座坐面自然向前调整重心，上身持续前倾，双手分别移近扶手前端；视线逐渐覆盖 <Subject 3> 与 <Subject 4>，面部神情从谨慎审视自然转为浓厚兴趣。<Subject 2> 始终垂手站在台阶侧方，不改变站位，仅将谨慎视线稳定移向 <Subject 1>。\n\n推进过程中，摄影机逐步使 <Subject 1>、<Subject 3> 与 <Subject 4> 在同一群像内更加清晰，同时保留 <Subject 2> 与宫殿空间关系。动作连续、节制且符合身体惯性，没有瞬移、突然换位或无依据的肢体动作。至 10.95s 准确到达 KF4。\n\nClip-local 10.95s–14.75s：摄影机在 KF4 的更紧密低角度群像构图中自然稳定。四个 Subject 保持 KF4 已建立的站位、姿态、视线关系和当前表情趋势，仅保留轻微自然呼吸、衣料随身体重心产生的细小变化以及稳定的眼神反应；不展开新的动作阶段，不引入新剧情，直至 Clip 结束。\n\noverall_soundscape:\n宽阔王宫大厅内具有柔和、真实的室内空间混响与低沉 room tone。低角度推进伴随轻微平稳的摄影设备移动声；身体重心调整产生克制的衣料摩擦声，手掌与扶手接近或轻触时带有细小材质声，鞋履与石质台阶附近偶有极轻的落地和重心变化声。所有声音保持自然距离感，不添加无依据的音乐、物体声源或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF4: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 2> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 7> — PROP / 高背宝座: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n<Picture 6> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 3> identity to the existing/current body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the existing/current body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the existing/current body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 6> identity to the existing/current body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.10–10.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition.\n10.95–14.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition."
+          },
+          {
+            "id": "transition_1",
+            "text": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间。前半段以左侧骗子1和右侧骗子2为主要视觉重心：骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓；骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前。两人之间始终空置，不出现实体布料。皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端，视线逐渐覆盖两名骗子，神情由审视自然转为浓厚兴趣。宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝。约从26秒起，摄影机在原有推进中自然收紧群像，使皇帝与两名骗子共同成为清晰主体，同时不改变人物左右关系；最终停在更紧密的低角度群像构图：皇帝坐至宝座前缘并明显前倾，双手靠近扶手前端，骗子1在左侧镇定地将手势收于身前，骗子2在右侧以一手继续展示、另一手靠近胸前，宫廷总管仍位于台阶侧方，宝座和台阶保持可见。"
+          },
+          {
+            "id": "transition_2",
+            "text": "延续原有低角度机位与轴线，皇帝先保持前倾，双手在扶手前端形成支撑，随后将重心由宝座前缘移到双脚，连续起身并在宝座正前方的台阶顶端站稳，身体始终朝向台阶下方的两名骗子，神情逐渐转为兴奋而盘算。宫廷总管仍处于台阶侧方，只向侧后方小幅挪步，为皇帝可能下行的方向让出路径，随后垂手停住。骗子1留在台阶下方左侧，收束手势并随皇帝起身略微抬高视线；骗子2留在右侧，将原有展示手缓缓收回，与另一只手一同停在身前，并同样抬眼保持对皇帝的关注。摄影机不切换机位、不跳轴，沿原轴线平稳微调并轻缓后移，以容纳皇帝由坐到站的垂直变化及宝座台阶的纵深，同时维持皇帝与两名骗子的群像关系；接近终点时，构图的视觉重心自然集中到已经站立的皇帝。最终停在皇帝立于台阶顶端、空置高背宝座位于其身后，宫廷总管在侧方让路，两名骗子分别站在台阶下方左右两侧的清晰上下空间状态。"
+          }
+        ],
+        "drop_binding": {
+          "supported": true,
+          "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+          "reference_node_id": "55"
+        },
+        "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+      }
+    },
+    "av_timeline": {
+      "original_duration": 14.75,
+      "optimized_duration": 18.0,
+      "duration_delta": 3.25,
+      "duration_changed": true,
+      "reason": "The shared context occupies the opening 1.625 seconds. Dialogue is retimed without duration changes, and the extended budget supports speaker readiness, four visual handoffs, a retimed anchor arrival, partial canonical action progression, and final settling.",
+      "dialogue_events": [
+        {
+          "id": "D11",
+          "speaker": "<Subject 1>",
+          "original_start": 0.1,
+          "original_end": 1.85,
+          "duration": 1.75,
+          "optimized_start": 2.0,
+          "optimized_end": 3.75
+        },
+        {
+          "id": "D12",
+          "speaker": "<Subject 3>",
+          "original_start": 2.05,
+          "original_end": 6.05,
+          "duration": 4.0,
+          "optimized_start": 4.25,
+          "optimized_end": 8.25
+        },
+        {
+          "id": "D13",
+          "speaker": "<Subject 4>",
+          "original_start": 6.25,
+          "original_end": 10.75,
+          "duration": 4.5,
+          "optimized_start": 8.7,
+          "optimized_end": 13.2
+        },
+        {
+          "id": "D14",
+          "speaker": "<Subject 1>",
+          "original_start": 10.95,
+          "original_end": 13.95,
+          "duration": 3.0,
+          "optimized_start": 13.75,
+          "optimized_end": 16.75
+        },
+        {
+          "id": "D15",
+          "speaker": "<Subject 3>",
+          "original_start": 14.15,
+          "original_end": 14.65,
+          "duration": 0.5,
+          "optimized_start": 17.2,
+          "optimized_end": 17.7
+        }
+      ],
+      "handoffs": [
+        {
+          "from": "D11",
+          "to": "D12",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 3>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.5,
+          "complexity": "HIGH",
+          "complexity_reasoning": "The outgoing emperor is seated centrally and deeper in the composition while the incoming speaker stands at the left foreground edge. A short silent interval is needed to release the emperor's mouth, clear foreground composition, and make the left speaker readable without reblocking.",
+          "spatial_relation": "<Subject 1> is central on the throne; <Subject 3> remains on the established left.",
+          "depth_relation": "<Subject 1> is deeper and seated; <Subject 3> is nearer the foreground.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": true,
+          "camera_strategy": "Use a shallow lateral drift and foreground clearance from the seated emperor toward the left speaker while continuing the low-angle axis.",
+          "previous_speaker_release": "<Subject 1> finishes articulation, closes his lips naturally, and becomes an attentive listener.",
+          "next_speaker_readiness": "<Subject 3> is acquired at readable face-and-mouth scale before D12 while retaining his left floor position.",
+          "reason": "The incoming face is not the dominant readable face at the end of D11.",
+          "strategy": "Perform release, lateral composition transfer, listener settlement, and then dialogue entry.",
+          "visibility": "Keep the emperor, right swindler, steward, throne, and steps contextually visible while improving <Subject 3>'s readability.",
+          "readiness": "<Subject 3>'s face and mouth are unobstructed and compositionally emphasized before speech.",
+          "listener_state": "<Subject 1>, <Subject 2>, and <Subject 4> have relaxed closed lips and natural listening reactions.",
+          "gaze_blocking": "Preserve established gazes and floor positions; use camera clearance rather than walking or side exchange.",
+          "visual_attention": "Transfer active salience from the emperor to the left swindler while retaining ensemble context.",
+          "camera_action_coordination": "The lateral drift occurs during silence and remains compatible with the continuing slow forward progression.",
+          "anchor_proximity": "The handoff occurs well before the retained anchor arrival and does not compete with it.",
+          "prompt_evidence": {
+            "release": "<Subject 1> finishes articulating and relaxes his lips, becoming an attentive listener.",
+            "acquisition": "Without moving either man from his established place, a shallow lateral drift and foreground clearance transfer emphasis from <Subject 1> to <Subject 3> on the left, bringing <Subject 3>'s face and mouth into a readable scale while the low-angle axis continues forward.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With that view established,"
+          }
+        },
+        {
+          "from": "D12",
+          "to": "D13",
+          "from_subject": "<Subject 3>",
+          "to_subject": "<Subject 4>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.45,
+          "complexity": "MEDIUM",
+          "complexity_reasoning": "Both speakers occupy the foreground but on opposite sides. Their similar depth makes the transfer executable through a smooth lateral composition adjustment, although the right speaker's hands and face must both remain readable.",
+          "spatial_relation": "<Subject 3> is left and <Subject 4> is right, with sides fixed.",
+          "depth_relation": "Both speakers occupy broadly similar foreground depth.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": true,
+          "camera_strategy": "Use a smooth lateral adjustment from left to right while preserving the same axis and ensemble continuity.",
+          "previous_speaker_release": "<Subject 3> ends articulation and becomes a natural listener.",
+          "next_speaker_readiness": "<Subject 4>'s face and mouth are readable before D13 while his authorized hand transition remains visible.",
+          "reason": "The incoming speaker is in a different lateral visual region and needs current emphasis.",
+          "strategy": "Release <Subject 3>, drift to <Subject 4>, settle all listeners, then begin D13.",
+          "visibility": "Retain the emperor, steward, left swindler, throne, and steps as ensemble context.",
+          "readiness": "<Subject 4> is clearly visible with a settled mouth view before speaking.",
+          "listener_state": "<Subject 1>, <Subject 2>, and <Subject 3> listen with relaxed closed lips and natural reactions.",
+          "gaze_blocking": "No character changes side or floor position; the camera performs the transfer.",
+          "visual_attention": "Shift active emphasis from the left swindler to the right swindler while preserving the empty hand-space action.",
+          "camera_action_coordination": "The lateral move accompanies <Subject 4>'s slow hand adjustment but finishes before his line begins.",
+          "anchor_proximity": "The anchor remains later, so this handoff can prioritize the right speaker without forcing early anchor composition.",
+          "prompt_evidence": {
+            "release": "<Subject 3> ends his articulation, closes his lips naturally, and listens.",
+            "acquisition": "A smooth lateral composition adjustment transfers emphasis from <Subject 3> to <Subject 4> on the right without changing their sides or floor positions, giving <Subject 4> a clear face-and-mouth view.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "Once the right-side view is settled,"
+          }
+        },
+        {
+          "from": "D13",
+          "to": "D14",
+          "from_subject": "<Subject 4>",
+          "to_subject": "<Subject 1>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.55,
+          "complexity": "HIGH",
+          "complexity_reasoning": "The transfer moves from a visually large right foreground speaker to the smaller seated emperor at central depth while simultaneously completing the canonical forward lean and approaching the retained ensemble state.",
+          "spatial_relation": "<Subject 4> remains right; <Subject 1> remains central on the throne.",
+          "depth_relation": "<Subject 4> is foreground; <Subject 1> is deeper and seated.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": true,
+          "camera_strategy": "Use a measured composition shift and controlled foreground clearance toward the emperor, moderating the forward push so it does not further enlarge <Subject 4>.",
+          "previous_speaker_release": "<Subject 4> closes his lips and becomes a responsive listener.",
+          "next_speaker_readiness": "<Subject 1> is acquired in a readable forward-seated view before D14, with both hands near the armrest fronts.",
+          "reason": "A hard depth transfer and nearby retained anchor arrival require more silent camera work than the original gap allows.",
+          "strategy": "Release the foreground speaker, continue the emperor's canonical lean, arrive at the useful ensemble state, settle all listeners, then enter D14.",
+          "visibility": "Keep both swindlers, the steward, throne, and steps visible while making the emperor's face and mouth sufficiently readable.",
+          "readiness": "<Subject 1> remains seated and reaches clear visual emphasis before speaking.",
+          "listener_state": "<Subject 2>, <Subject 3>, and <Subject 4> listen with relaxed closed lips and natural reactions.",
+          "gaze_blocking": "Preserve the emperor's seated throne position and both swindlers' fixed left-right blocking.",
+          "visual_attention": "Shift primary speaking salience from the right foreground to the central emperor without losing ensemble continuity.",
+          "camera_action_coordination": "The handoff completes the retimed useful anchor state before D14 begins.",
+          "anchor_proximity": "KF4 arrives at 13.60 seconds during this handoff, 0.15 seconds before D14.",
+          "prompt_evidence": {
+            "release": "<Subject 4> completes the line, lets his lips close, and turns into a responsive listener.",
+            "acquisition": "The continuing low-angle progression transfers emphasis from <Subject 4> back to <Subject 1>, using a measured composition shift rather than character movement. <Subject 1> remains seated and advances his weight along the throne seat, leaning forward with both hands near the front of the armrests as his scrutiny becomes strong interest; <Subject 3> stays composed on the left with restrained hands, <Subject 4> holds one presenting hand with the other near his chest on the right, and <Subject 2> stands beside the steps watching cautiously. The progression then reaches the useful state guided by <Picture 1>: a tighter ensemble with throne and steps visible, unchanged left-right relations, and <Subject 1>'s face and mouth clearly readable.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With the emperor's forward-seated view established,"
+          }
+        },
+        {
+          "from": "D14",
+          "to": "D15",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 3>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.45,
+          "complexity": "HIGH",
+          "complexity_reasoning": "The camera must return from the seated central emperor to the left speaker while preserving the emperor's forward posture and avoiding premature completion of the following rise.",
+          "spatial_relation": "<Subject 1> is central; <Subject 3> remains left.",
+          "depth_relation": "<Subject 1> is deeper on the throne; <Subject 3> is nearer the foreground.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": true,
+          "camera_strategy": "Use a restrained lateral drift toward the left speaker while retaining the emperor's forward-seated state in the ensemble.",
+          "previous_speaker_release": "<Subject 1> stops articulation and settles his mouth while retaining his intent gaze.",
+          "next_speaker_readiness": "<Subject 3> is restored to a readable face-and-mouth view before his brief answer.",
+          "reason": "The incoming speaker is in a different depth and lateral region and is not sufficiently emphasized at the end of D14.",
+          "strategy": "Release the emperor, drift toward the left speaker, settle all listeners, then deliver the brief answer.",
+          "visibility": "Maintain the throne and other characters as context while making the left speaker unmistakably readable.",
+          "readiness": "<Subject 3> is visibly acquired before the half-second line starts.",
+          "listener_state": "<Subject 1>, <Subject 2>, and <Subject 4> listen with relaxed closed lips and no speech-like articulation.",
+          "gaze_blocking": "The emperor stays seated and <Subject 3> stays at his left floor position; camera motion performs the handoff.",
+          "visual_attention": "Transfer speaking salience back to the left swindler for the concise response.",
+          "camera_action_coordination": "The drift finishes before D15; the partial rise preparation waits until after the answer.",
+          "anchor_proximity": "The retained anchor has already arrived, so the camera may depart gently without resetting composition.",
+          "prompt_evidence": {
+            "release": "<Subject 1> stops articulating and settles his mouth, retaining his intent gaze.",
+            "acquisition": "A restrained drift transfers emphasis from <Subject 1> to <Subject 3>, preserving the emperor's seated state and <Subject 3>'s left-side floor position while restoring a readable view of <Subject 3>'s face and mouth.",
+            "listeners": "<Subject 1>, <Subject 2>, and <Subject 4> listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "When that view is secure,"
+          }
+        }
+      ],
+      "anchors": [
+        {
+          "id": "KF4",
+          "original_time": 10.95,
+          "optimized_time": 13.6,
+          "delta": 2.65,
+          "decision": "RETIME",
+          "reason": "The image remains useful for current costume, seated forward posture, left-right relations, throne and step continuity, and the tighter ensemble. Retiming resolves the continuation-prefix and speaker-handoff conflict while placing the state immediately before the emperor's D14 line.",
+          "preserved_visual_requirements": [
+            "CVR1",
+            "CVR2",
+            "CVR3",
+            "CVR4",
+            "CVR5",
+            "CVR6"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "The progression then reaches the useful state guided by <Picture 1>: a tighter ensemble with throne and steps visible, unchanged left-right relations, and <Subject 1>'s face and mouth clearly readable.",
+          "arrival_relation": {
+            "dialogue_id": "D14",
+            "position": "BEFORE",
+            "prompt_excerpt": "The progression then reaches the useful state guided by <Picture 1>: a tighter ensemble with throne and steps visible, unchanged left-right relations, and <Subject 1>'s face and mouth clearly readable."
+          }
+        }
+      ],
+      "execution_phases": [
+        {
+          "id": "P00",
+          "start": 0.0,
+          "end": 1.625,
+          "type": "CONTEXT",
+          "description": "Preserved incoming video context; no new dialogue, acquisition, or newly scheduled action."
+        },
+        {
+          "id": "P01",
+          "start": 1.625,
+          "end": 2.0,
+          "type": "READINESS",
+          "description": "Continue the incoming camera state, acquire the seated emperor, and settle all visible listeners."
+        },
+        {
+          "id": "P02",
+          "start": 2.0,
+          "end": 3.75,
+          "type": "DIALOGUE",
+          "description": "D11 by <Subject 1> with readable articulation."
+        },
+        {
+          "id": "P03",
+          "start": 3.75,
+          "end": 4.25,
+          "type": "HANDOFF",
+          "description": "Release <Subject 1> and acquire <Subject 3> through a shallow lateral drift."
+        },
+        {
+          "id": "P04",
+          "start": 4.25,
+          "end": 8.25,
+          "type": "DIALOGUE",
+          "description": "D12 by <Subject 3> with the emperor and other visible characters listening."
+        },
+        {
+          "id": "P05",
+          "start": 8.25,
+          "end": 8.7,
+          "type": "HANDOFF",
+          "description": "Release <Subject 3> and acquire <Subject 4> through a smooth left-to-right composition adjustment."
+        },
+        {
+          "id": "P06",
+          "start": 8.7,
+          "end": 13.2,
+          "type": "DIALOGUE",
+          "description": "D13 by <Subject 4> while his authorized hand adjustment develops and the imaginary cloth space remains empty."
+        },
+        {
+          "id": "P07",
+          "start": 13.2,
+          "end": 13.75,
+          "type": "HANDOFF",
+          "description": "Release <Subject 4>, complete the emperor's forward-seated action, acquire his readable face, and settle listeners."
+        },
+        {
+          "id": "P08",
+          "start": 13.6,
+          "end": 13.6,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "Retimed arrival for anchor_id KF4 and decision id KF4."
+        },
+        {
+          "id": "P09",
+          "start": 13.75,
+          "end": 16.75,
+          "type": "DIALOGUE",
+          "description": "D14 by <Subject 1> in the forward-seated ensemble state."
+        },
+        {
+          "id": "P10",
+          "start": 16.75,
+          "end": 17.2,
+          "type": "HANDOFF",
+          "description": "Release <Subject 1> and restore a readable left-side view of <Subject 3>."
+        },
+        {
+          "id": "P11",
+          "start": 17.2,
+          "end": 17.7,
+          "type": "DIALOGUE",
+          "description": "D15 by <Subject 3> with all other visible mouths settled."
+        },
+        {
+          "id": "P12",
+          "start": 17.7,
+          "end": 18.0,
+          "type": "FINAL_SETTLE",
+          "description": "All mouths relax; begin but do not complete the emperor's later rise transition and allow natural reactions."
+        },
+        {
+          "id": "P13",
+          "start": 1.625,
+          "end": 13.6,
+          "type": "CAMERA",
+          "description": "Continue the low-angle axis with controlled forward progression and speaker-supporting lateral adjustments toward the tighter ensemble."
+        },
+        {
+          "id": "P14",
+          "start": 1.625,
+          "end": 13.6,
+          "type": "ACTION",
+          "description": "Develop the swindlers' restrained hand states, the empty cloth space, the emperor's forward lean, and the steward's cautious gaze."
+        },
+        {
+          "id": "P15",
+          "start": 13.6,
+          "end": 18.0,
+          "type": "ACTION",
+          "description": "Preserve the achieved ensemble state, then begin the next canonical sit-to-stand transition without reaching the standing outcome."
+        }
+      ]
+    }
+  },
+  "authority": {
+    "generation_mode": "EXTEND",
+    "dialogue_events": [
+      {
+        "id": "D11",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "真的有这样的布？",
+        "duration": 1.75,
+        "order": 1
+      },
+      {
+        "id": "D12",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "陛下，语言只能形容它美丽的十分之一。",
+        "duration": 4.0,
+        "order": 2
+      },
+      {
+        "id": "D13",
+        "speaker": "<Subject 4>",
+        "exact_dialogue": "只有亲眼看见，才能知道它究竟有多么神奇。",
+        "duration": 4.5,
+        "order": 3
+      },
+      {
+        "id": "D14",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "那么，它真的能分辨愚蠢的人？",
+        "duration": 3.0,
+        "order": 4
+      },
+      {
+        "id": "D15",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "当然。",
+        "duration": 0.5,
+        "order": 5
+      }
+    ],
+    "subject_bindings": {
+      "<Subject 1>": "皇帝",
+      "<Subject 2>": "宫廷总管",
+      "<Subject 3>": "骗子1",
+      "<Subject 4>": "骗子2"
+    },
+    "reference_bindings": [
+      {
+        "picture": "<Picture 1>",
+        "type": "DIRECTOR_VISUAL_ANCHOR",
+        "subject": null,
+        "source_name": null,
+        "source_id": null,
+        "state_index": 4,
+        "role": "INTERMEDIATE"
+      },
+      {
+        "picture": "<Picture 2>",
+        "type": "SCENE",
+        "subject": null,
+        "source_name": "王宫大厅",
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 3>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 1>",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 4>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 3>",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 5>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 4>",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 6>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 2>",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 7>",
+        "type": "PROP",
+        "subject": null,
+        "source_name": "高背宝座",
+        "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+        "state_index": null,
+        "role": null
+      }
+    ],
+    "visual_anchor_order": [
+      {
+        "id": "KF4",
+        "order": 1,
+        "declaration_prefix": "INTERMEDIATE | Clip-local",
+        "visual_target": "| <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。",
+        "picture": "<Picture 1>"
+      }
+    ],
+    "temporal_anchor_order": [],
+    "allowed_dialogue_overlaps": [],
+    "continuation": {
+      "mode": "VIDEO_CONTINUATION",
+      "binding_verified": true,
+      "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+      "source_sha256": "380d46f1bdd7d099cb7db4cdc70cbd00d5c9b4479508cdd961b90d7e83756906",
+      "previous_frames": 685,
+      "fps": 24,
+      "context_frames": 39,
+      "overlap_frames": 39,
+      "overlap_seconds": 1.625,
+      "source_start_frame": 646,
+      "source_end_frame_exclusive": 685,
+      "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+      "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+      "cumulative_start_frame": 646,
+      "earliest_new_dialogue": 1.625,
+      "audio_hard_preserve_until": 1.425,
+      "audio_feather_until": 1.625,
+      "audio_feather_ticks": 8,
+      "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+      "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "assembly": "previous_frames + target_frames - context_frames",
+      "video_overlap": "blend source tail with decoded preserved prefix",
+      "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+    },
+    "anchor_policy": {
+      "version": 1,
+      "catalog": [
+        {
+          "anchor_id": "KF4",
+          "original_time": 10.95,
+          "source_picture": "<Picture 1>",
+          "source_kind": "DIRECTOR_VISUAL_ANCHOR",
+          "visual_reference_description": "| <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。",
+          "role": "INTERMEDIATE | Clip-local",
+          "linked_anchor_id": null
+        }
+      ],
+      "canonical_visual_sources": [
+        {
+          "id": "opening_state",
+          "text": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸、高额头、圆厚下颌与短下巴，浅蓝灰色微垂双眼皮眼，左眼下方有细小褐痣，冷调浅肤色并带自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略带虚荣感的独特主体身份。\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦长脸、高额头、清晰颧骨、锐利下颌与略前伸的下巴，深蓝灰色狭长内双眼，右侧太阳穴有指尖大小的浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，保留整齐的深灰色短山羊胡。保持谨慎、干练而克制的独特主体身份。\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、略高颧骨、清晰下颌与稍尖下巴，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁有小褐痣，暖调浅肤色，深棕色微卷短发后梳，保留修剪整齐的深棕色小胡子。保持精明、从容的独特主体身份。\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实但灵便的人类男性；圆中带方的脸、较宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方有明显小黑痣，暖调浅麦色皮肤与自然红润双颊，栗褐色浓密短卷发从左侧分开，面部干净无须。保持殷勤、活络的独特主体身份。\n所有 Subject 的当前服装连续性仅由实际时间视觉锚点建立；身份参考中的历史或基础造型不得取代、叠加或混合到当前服装。\n\nofficial_character_identity_lock:\n所引用的视觉锚点是其对应时间上当前已建立人物视觉身份的首要视觉权威。官方人物描述仅作为防止跨帧身份漂移的身份保持约束，用于补充视觉锚点，但不得覆盖视觉锚点清楚建立的身份特征。\n\n四个 Subject 在整个 Clip 中必须分别保持同一且唯一的主体身份、相同年龄段、脸部结构、身体比例、头发或胡须轮廓、肤色、永久标记、稳定身体特征及身份定义配饰。当前服装属于独立的连续性域：保持权威时间视觉锚点建立的当前服装，不恢复、不叠穿、不混合、不局部显露任何冲突的历史或默认服装。不得重新设计、美化、老化、年轻化、换脸、替换、重新着色或交换身份。\n\n不得把阴影、暗光、冷暖调色、距离、环境照明或运动模糊解释为肤色、发色或当前服装颜色发生变化。因姿态、遮挡、距离或光线而暂时不可见的稳定身份细节，在重新可见时必须保持一致。若文字身份描述与视觉锚点中清晰可见的当前身份事实直接冲突，以视觉锚点为准；当前服装细节始终以实际时间视觉锚点为准。\n\n允许姿态、表情、视线方向、身体朝向、空间位置以及符合 transition 的自然动作发生变化。保持四个 Subject 的人数和唯一性，不复制、不交换、不无依据消失或出现，不镜像翻转既有左右关系，不重置场景。群像关系持续稳定，不新增人物、实体布料或无依据道具；仅保留已建立的高背宝座、台阶及当前视觉条件中确实存在的物件。画面中不得出现字幕、标题、说明文字、气泡、标志、水印或界面元素。\n\nkeyframe_timeline:\n- KF4 | INTERMEDIATE | Clip-local 10.95s | <Picture 1>：王宫大厅内，摄影机沿既有低角度轴线推进至更紧密的群像构图，高背宝座、台阶以及左右两侧的 <Subject 3> 与 <Subject 4> 仍然可见。<Subject 1> 坐在高背宝座前缘，上身明显前倾，双手靠近扶手前端，目光专注覆盖 <Subject 3> 与 <Subject 4>，神情由审视转为浓厚兴趣。<Subject 2> 垂手站在台阶侧方，谨慎视线朝向 <Subject 1>。<Subject 3> 位于左侧，姿态镇定，手势收束在身前。<Subject 4> 位于右侧，一手保持展示姿态，另一手靠近胸前。前倾姿态与镜头推进缩短 <Subject 1> 同两侧人物之间的视觉距离，人物左右关系不变。\n- <Picture 2>：王宫大厅的场景环境参考。\n- <Picture 3>：<Subject 1> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 4>：<Subject 3> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 5>：<Subject 4> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 6>：<Subject 2> 的稳定身份参考，不作为当前服装替换依据。\n- <Picture 7>：高背宝座的道具外观参考。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD11:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 1.85s\n  exact_dialogue: 真的有这样的布？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 1.85s to 2.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD12:\n  speaker: <Subject 3>\n  start_time: 2.05s\n  end_time: 6.05s\n  exact_dialogue: 陛下，语言只能形容它美丽的十分之一。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 6.05s to 6.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD13:\n  speaker: <Subject 4>\n  start_time: 6.25s\n  end_time: 10.75s\n  exact_dialogue: 只有亲眼看见，才能知道它究竟有多么神奇。\n  segment: complete assigned span.\n  Only <Subject 4> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 10.75s to 10.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD14:\n  speaker: <Subject 1>\n  start_time: 10.95s\n  end_time: 13.95s\n  exact_dialogue: 那么，它真的能分辨愚蠢的人？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 13.95s to 14.15s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD15:\n  speaker: <Subject 3>\n  start_time: 14.15s\n  end_time: 14.65s\n  exact_dialogue: 当然。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 2>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延伸，保持四个 Subject 已建立的身份、当前服装、左右站位、空间关系、既有物件状态及正在进行的低角度镜头运动。王宫大厅、宝座与台阶维持同一连续空间，不发生切镜或场景重置。\n\ndetailed_description:\n[Shot 1]\nClip-local 0.00s–10.95s：承接 carry-in visual context，并继续从 carry-in → KF4 的既有 transition。摄影机在原有低角度机位和同一轴线上持续、缓慢向前推进，自然收紧群像，不越轴、不突然变焦、不改变人物左右关系；高背宝座和台阶始终作为空间结构保留在构图中。\n\n<Subject 4> 从双手相隔、掌心向上的展示轮廓开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示姿态。<Subject 3> 保持左侧站位和从容神情，身体从略向同伴及宝座方向倾斜逐渐恢复稳定，双手动作克制地收束到身前。两者之间始终保持空置，不生成任何实体布料。\n\n<Subject 1> 保持坐在高背宝座上，起初视线落向 <Subject 4> 展开的双手，随后沿宝座坐面自然向前调整重心，上身持续前倾，双手分别移近扶手前端；视线逐渐覆盖 <Subject 3> 与 <Subject 4>，面部神情从谨慎审视自然转为浓厚兴趣。<Subject 2> 始终垂手站在台阶侧方，不改变站位，仅将谨慎视线稳定移向 <Subject 1>。\n\n推进过程中，摄影机逐步使 <Subject 1>、<Subject 3> 与 <Subject 4> 在同一群像内更加清晰，同时保留 <Subject 2> 与宫殿空间关系。动作连续、节制且符合身体惯性，没有瞬移、突然换位或无依据的肢体动作。至 10.95s 准确到达 KF4。\n\nClip-local 10.95s–14.75s：摄影机在 KF4 的更紧密低角度群像构图中自然稳定。四个 Subject 保持 KF4 已建立的站位、姿态、视线关系和当前表情趋势，仅保留轻微自然呼吸、衣料随身体重心产生的细小变化以及稳定的眼神反应；不展开新的动作阶段，不引入新剧情，直至 Clip 结束。\n\noverall_soundscape:\n宽阔王宫大厅内具有柔和、真实的室内空间混响与低沉 room tone。低角度推进伴随轻微平稳的摄影设备移动声；身体重心调整产生克制的衣料摩擦声，手掌与扶手接近或轻触时带有细小材质声，鞋履与石质台阶附近偶有极轻的落地和重心变化声。所有声音保持自然距离感，不添加无依据的音乐、物体声源或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF4: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 2> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 7> — PROP / 高背宝座: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n<Picture 6> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 3> identity to the existing/current body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the existing/current body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the existing/current body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 6> identity to the existing/current body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.10–10.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition.\n10.95–14.75s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3>, <Subject 4> within the established composition."
+        },
+        {
+          "id": "transition_1",
+          "text": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间。前半段以左侧骗子1和右侧骗子2为主要视觉重心：骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓；骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前。两人之间始终空置，不出现实体布料。皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端，视线逐渐覆盖两名骗子，神情由审视自然转为浓厚兴趣。宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝。约从26秒起，摄影机在原有推进中自然收紧群像，使皇帝与两名骗子共同成为清晰主体，同时不改变人物左右关系；最终停在更紧密的低角度群像构图：皇帝坐至宝座前缘并明显前倾，双手靠近扶手前端，骗子1在左侧镇定地将手势收于身前，骗子2在右侧以一手继续展示、另一手靠近胸前，宫廷总管仍位于台阶侧方，宝座和台阶保持可见。"
+        },
+        {
+          "id": "transition_2",
+          "text": "延续原有低角度机位与轴线，皇帝先保持前倾，双手在扶手前端形成支撑，随后将重心由宝座前缘移到双脚，连续起身并在宝座正前方的台阶顶端站稳，身体始终朝向台阶下方的两名骗子，神情逐渐转为兴奋而盘算。宫廷总管仍处于台阶侧方，只向侧后方小幅挪步，为皇帝可能下行的方向让出路径，随后垂手停住。骗子1留在台阶下方左侧，收束手势并随皇帝起身略微抬高视线；骗子2留在右侧，将原有展示手缓缓收回，与另一只手一同停在身前，并同样抬眼保持对皇帝的关注。摄影机不切换机位、不跳轴，沿原轴线平稳微调并轻缓后移，以容纳皇帝由坐到站的垂直变化及宝座台阶的纵深，同时维持皇帝与两名骗子的群像关系；接近终点时，构图的视觉重心自然集中到已经站立的皇帝。最终停在皇帝立于台阶顶端、空置高背宝座位于其身后，宫廷总管在侧方让路，两名骗子分别站在台阶下方左右两侧的清晰上下空间状态。"
+        }
+      ],
+      "drop_binding": {
+        "supported": true,
+        "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+        "reference_node_id": "55"
+      },
+      "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+    }
+  },
+  "initial": {
+    "duration": 14.75,
+    "dialogue_events": [
+      {
+        "id": "D11",
+        "speaker": "<Subject 1>",
+        "start_time": 0.1,
+        "end_time": 1.85,
+        "exact_dialogue": "真的有这样的布？"
+      },
+      {
+        "id": "D12",
+        "speaker": "<Subject 3>",
+        "start_time": 2.05,
+        "end_time": 6.05,
+        "exact_dialogue": "陛下，语言只能形容它美丽的十分之一。"
+      },
+      {
+        "id": "D13",
+        "speaker": "<Subject 4>",
+        "start_time": 6.25,
+        "end_time": 10.75,
+        "exact_dialogue": "只有亲眼看见，才能知道它究竟有多么神奇。"
+      },
+      {
+        "id": "D14",
+        "speaker": "<Subject 1>",
+        "start_time": 10.95,
+        "end_time": 13.95,
+        "exact_dialogue": "那么，它真的能分辨愚蠢的人？"
+      },
+      {
+        "id": "D15",
+        "speaker": "<Subject 3>",
+        "start_time": 14.15,
+        "end_time": 14.65,
+        "exact_dialogue": "当然。"
+      }
+    ],
+    "visual_anchors": [
+      {
+        "id": "KF4",
+        "time": 10.95,
+        "picture": "<Picture 1>"
+      }
+    ],
+    "temporal_anchors": []
+  },
+  "limits": {
+    "minimum": 4.0,
+    "maximum": 20.0,
+    "absolute_maximum": 20.0,
+    "frame_rule": "existing frozen workflow duration-to-frames conversion"
+  }
+}

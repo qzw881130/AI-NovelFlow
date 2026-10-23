@@ -11,6 +11,25 @@ export const characterApi = {
     return res.json() as Promise<{ success: boolean; data?: Character[]; message?: string }>;
   },
 
+  /** 导出当前小说的全部角色信息 */
+  exportAll: async (novelId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/characters/export?novel_id=${encodeURIComponent(novelId)}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '导出角色信息失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch?.[1] || `characters_${novelId.slice(0, 8)}.json`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   /** 获取单个角色 */
   fetch: async (id: string) => {
     const res = await fetch(`${API_BASE}/characters/${id}`, { cache: 'no-store' });
@@ -22,6 +41,10 @@ export const characterApi = {
 
   /** 更新角色 */
   update: (id: string, data: Partial<Character>) => api.put<Character>(`/characters/${id}/`, data),
+
+  /** 将当前小说中名称不含数字的角色设为主角 */
+  autoSetProtagonists: (novelId: string) =>
+    api.post<{ assignedIds: string[]; updatedCount: number }>(`/characters/auto-set-protagonists?novel_id=${encodeURIComponent(novelId)}`),
 
   /** 删除角色 */
   delete: (id: string) => api.delete(`/characters/${id}/`),

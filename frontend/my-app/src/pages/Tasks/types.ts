@@ -1,8 +1,9 @@
-import type { Task } from '../../types';
+import type { Task, ClipExecutionMetadata } from '../../types';
 
 export type TaskFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type TaskType = Task['type'];
+export type TaskTypeFilter = 'all' | TaskType | string;
 
 export type TaskStatus = Task['status'];
 
@@ -14,7 +15,21 @@ export interface ImageInfo {
 
 export interface WorkflowData {
   workflow: any;
+  nodeMapping?: Record<string, string | number | null>;
   prompt: string;
+  seed?: number | null;
+  windowIndex?: number;
+  referenceImages?: Array<{ label?: string; url: string }>;
+  referenceVideo?: string | null;
+  resultImage?: string | null;
+  executionDuration?: Pick<ClipExecutionMetadata, 'original_duration' | 'optimized_duration' | 'effective_duration' | 'duration_source'>;
+  promptItems?: Array<{
+    nodeId: string;
+    role: 'layout' | 'style' | 'appearance';
+    label: string;
+    nodeTitle: string;
+    content: string;
+  }>;
 }
 
 export interface TaskStats {

@@ -8,13 +8,16 @@
  */
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
-import { Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { AlertTriangle, Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
-import { taskApi } from '../../../api/tasks';
+import { taskApi, type Task } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
+import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
+import { ImageQualityBadge, useImageQuality } from './ImageQualityStatus';
 import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
@@ -28,6 +31,32 @@ interface ShotImageGenTabProps {
   children?: React.ReactNode;
   onImageClick?: (url: string) => void;
 }
+
+const getShotImagePhysicalReadiness = (
+  shot: Shot | undefined,
+  characters: Array<{ name: string; imageUrl?: string | null }>,
+  scenes: Array<{ name: string; imageUrl?: string | null }>,
+  props: Array<{ name: string; imageUrl?: string | null; existence?: string }>,
+) => {
+  const boundCharacters = shot?.characters || [];
+  const missingCharacters = boundCharacters.filter(name => !characters.find(item => item.name === name)?.imageUrl);
+  const missingScenes = shot?.scene && !scenes.find(item => item.name === shot.scene)?.imageUrl ? [shot.scene] : [];
+  const boundRealProps = (shot?.props || []).filter(name => (
+    props.some(item => item.name === name && item.existence === 'REAL')
+  ));
+  const missingProps = boundRealProps.filter(name => !props.find(item => item.name === name)?.imageUrl);
+  const availableReferenceCount = Number(boundCharacters.length > missingCharacters.length)
+    + Number(Boolean(shot?.scene) && missingScenes.length === 0)
+    + Number(boundRealProps.length > missingProps.length);
+
+  return {
+    availableReferenceCount,
+    hardBlocked: Boolean(shot) && availableReferenceCount === 0,
+    missingCharacters,
+    missingScenes,
+    missingProps,
+  };
+};
 
 export function ShotImageGenTab({
   chapter,
@@ -58,6 +87,9 @@ export function ShotImageGenTab({
   const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
   const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
+  const characters = useChapterGenerateStore((state) => state.characters);
+  const scenes = useChapterGenerateStore((state) => state.scenes);
+  const props = useChapterGenerateStore((state) => state.props);
 
   // 直接使用 store 状态
   const shotImages = storeShotImages;
@@ -88,6 +120,10 @@ export function ShotImageGenTab({
   const [previewImageSize, setPreviewImageSize] = useState<{ width: number; height: number } | null>(null);
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [isReplacingImage, setIsReplacingImage] = useState(false);
+  const [currentImageTask, setCurrentImageTask] = useState<Task | null>(null);
+  const [imageReviewTarget, setImageReviewTarget] = useState<{ task: { id: string; name: string }; imageUrl: string } | null>(null);
+  const [batchTaskId, setBatchTaskId] = useState<string | null>(null);
+  const [batchProgressText, setBatchProgressText] = useState('');
 
   // 统一使用 shots prop（来自 store.shots）
   const shotsList = shots;
@@ -97,7 +133,42 @@ export function ShotImageGenTab({
   // 获取当前分镜对象
   const currentShotObj = shots.find(s => s.index === currentShotIndex);
   const currentShotId = currentShotObj?.id || shotsList[currentShotIndex - 1]?.id || '';
+
+  useEffect(() => {
+    const taskId = currentShotObj?.imageTaskId;
+    if (!taskId) { setCurrentImageTask(null); return; }
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await taskApi.fetch(taskId);
+        if (active && result.success && result.data) setCurrentImageTask(result.data);
+      } catch { /* Keep the last known review state during a temporary API error. */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [currentShotObj?.imageTaskId]);
+
+  useEffect(() => {
+    if (!batchTaskId) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await taskApi.fetch(batchTaskId);
+        if (active && result.success && result.data) setBatchProgressText(result.data.currentStep || '批量生成中');
+      } catch { /* Keep the last known batch counts during a temporary API error. */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [batchTaskId]);
   const currentImageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
+  const currentImageTaskId = currentShotObj?.imageTaskId || null;
+  const { current: imageQualities } = useImageQuality(
+    currentImageUrl && currentImageTaskId ? [{ taskId: currentImageTaskId, imageUrl: currentImageUrl }] : [],
+    imageReviewTarget,
+  );
+  const currentImageQuality = imageQualities[0];
 
   const hasImage = !!currentImageUrl;
   const hasCompletedCurrentImage = hasImage && currentShotObj?.imageStatus === 'completed';
@@ -111,16 +182,27 @@ export function ShotImageGenTab({
       : '';
   const currentPromptText = shotImagePrompts[currentShotId] ?? currentShotObj?.shotImagePrompt ?? currentShotData?.shotImagePrompt ?? '';
   const hasCurrentPromptText = currentPromptText.trim().length > 0;
+  const currentPhysicalReadiness = getShotImagePhysicalReadiness(currentShotObj, characters, scenes, props);
+  const physicalReferencesBlocked = currentPhysicalReadiness.hardBlocked;
+  const hasPartialReferenceWarning = !physicalReferencesBlocked && (
+    currentPhysicalReadiness.missingCharacters.length > 0
+    || currentPhysicalReadiness.missingScenes.length > 0
+    || currentPhysicalReadiness.missingProps.length > 0
+  );
   const isShotQueuedOrGenerating = (shotId: string) => generatingShots.has(shotId) || pendingShots.has(shotId);
   const selectableShotIds = shots
-    .filter((shot) => !isShotQueuedOrGenerating(shot.id))
+    .filter((shot) => !isShotQueuedOrGenerating(shot.id) && !getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked)
     .map((shot) => shot.id);
-  const selectedRunnableShotIds = Array.from(selectedShotIds).filter((shotId) => !isShotQueuedOrGenerating(shotId));
+  const selectedRunnableShotIds = Array.from(selectedShotIds).filter((shotId) => {
+    const shot = shots.find(item => item.id === shotId);
+    return !isShotQueuedOrGenerating(shotId) && !getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked;
+  });
 
   // 处理单张分镜图生成
   const handleGenerateShot = async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!novelId || !chapterId || !currentShotId) return;
     if (isGeneratingCurrent) return;
+    if (physicalReferencesBlocked) return;
     if (mode === 'image_only' && !hasCurrentPromptText) return;
     setShowGenerateMenu(false);
     setSubmittingShotIds(prev => new Set([...prev, currentShotId]));
@@ -142,6 +224,7 @@ export function ShotImageGenTab({
       await checkShotTaskStatus(chapterId);
     } catch (error) {
       console.error(t('chapterGenerate.generateFailed') + ':', error);
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.generateFailed'));
     } finally {
       setSubmittingShotIds(prev => {
         const next = new Set(prev);
@@ -160,7 +243,7 @@ export function ShotImageGenTab({
   const handleOpenBatchSelect = () => {
     // 初始化选择：默认选中所有待生成的分镜（没有图片的）
     const pendingShotIds = shots
-      .filter((shot) => !shot.imageUrl && !shotImages[shot.id])
+      .filter((shot) => !shot.imageUrl && !shotImages[shot.id] && !getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked)
       .map((shot) => shot.id);
     setSelectedShotIds(new Set(pendingShotIds));
     setShowBatchSelectModal(true);
@@ -245,7 +328,10 @@ export function ShotImageGenTab({
     const pendingOnlyIds = shots
       .filter((shot) => {
         const shotImageUrl = shot.imageUrl || shotImages[shot.id];
-        return !shotImageUrl && !generatingShots.has(shot.id) && !pendingShots.has(shot.id);
+        return !shotImageUrl
+          && !generatingShots.has(shot.id)
+          && !pendingShots.has(shot.id)
+          && !getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked;
       })
       .map((shot) => shot.id);
     setSelectedShotIds(new Set(pendingOnlyIds));
@@ -254,12 +340,18 @@ export function ShotImageGenTab({
   // 处理批量分镜图生成
   const handleGenerateAll = async () => {
     if (!novelId || !chapterId) return;
-    const selectedIds = Array.from(selectedShotIds).filter((shotId) => !isShotQueuedOrGenerating(shotId));
+    const selectedIds = Array.from(selectedShotIds).filter((shotId) => {
+      const shot = shots.find(item => item.id === shotId);
+      return !isShotQueuedOrGenerating(shotId) && !getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked;
+    });
     if (selectedIds.length === 0) return;
 
     setIsGeneratingAll(true);
     batchCancelRequestedRef.current = false;
     batchShotIdsRef.current = selectedIds;
+    setShotImagePrompts(current => Object.fromEntries(
+      Object.entries(current).filter(([shotId]) => !selectedIds.includes(shotId))
+    ));
     setShowBatchSelectModal(false);
     useChapterGenerateStore.setState(state => ({
       pendingShots: new Set([...state.pendingShots, ...selectedIds]),
@@ -276,8 +368,11 @@ export function ShotImageGenTab({
         skip_llm_when_prompt_exists: skipBatchLlmWhenPromptExists,
       });
       if (!result.success) {
-        throw new Error(result.detail || result.message || '批量生成分镜图失败');
+        const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
+        throw new Error(result.message || detailMessage || '批量生成分镜图失败');
       }
+      setBatchTaskId(result.data?.batchTaskId || null);
+      setBatchProgressText('批量生成中');
       await checkShotTaskStatus(chapterId);
       toast.success(result.message || '批量分镜图任务已创建，关闭页面后会继续执行');
     } catch (error) {
@@ -535,7 +630,8 @@ export function ShotImageGenTab({
           <div className="relative inline-flex">
             <button
               onClick={() => handleGenerateShot('llm')}
-              disabled={isGeneratingCurrent || !chapterId || !currentShotId}
+              disabled={isGeneratingCurrent || physicalReferencesBlocked || !chapterId || !currentShotId}
+              title={physicalReferencesBlocked ? '请先准备至少一个角色、场景或道具参考图片' : undefined}
               className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {isGeneratingCurrent ? (
@@ -556,7 +652,7 @@ export function ShotImageGenTab({
                 event.stopPropagation();
                 setShowGenerateMenu(prev => !prev);
               }}
-              disabled={isGeneratingCurrent || !chapterId || !currentShotId}
+              disabled={isGeneratingCurrent || physicalReferencesBlocked || !chapterId || !currentShotId}
               className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
               aria-label="选择分镜生成方式"
             >
@@ -567,14 +663,15 @@ export function ShotImageGenTab({
                 <button
                   type="button"
                   onClick={() => handleGenerateShot('llm')}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50"
+                  disabled={physicalReferencesBlocked}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
                 >
                   LLM+生成分镜
                 </button>
                 <button
                   type="button"
                   onClick={() => handleGenerateShot('image_only')}
-                  disabled={!hasCurrentPromptText}
+                  disabled={!hasCurrentPromptText || physicalReferencesBlocked}
                   className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
                   title={!hasCurrentPromptText ? '当前分镜没有主分镜图 AI 提示词' : undefined}
                 >
@@ -634,7 +731,7 @@ export function ShotImageGenTab({
           <button
             onClick={handleDownloadShotImageData}
             disabled={isDownloadingShotImageData || !chapterId}
-            className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="hidden px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors items-center gap-2"
           >
             {isDownloadingShotImageData ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -667,6 +764,35 @@ export function ShotImageGenTab({
         </div>
       </div>
 
+      {currentImageTask?.shotImageQuality && currentImageTask.id === currentShotObj?.imageTaskId && (
+        <div data-testid="shot-image-quality-status" className="mb-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+          AI 审核：{currentImageTask.shotImageQuality.status || '进行中'} · 已生成次数：{currentImageTask.shotImageQuality.generation_count || 0}/{currentImageTask.shotImageQuality.max_generations || 3}
+          {currentImageTask.shotImageQuality.status === 'FAIL' && currentImageTask.status === 'completed' && ' · 需人工处理，可点击“LLM+生成分镜”手动重新生成'}
+          {currentImageTask.shotImageQuality.status === 'ERROR' && ' · 审核未完成，图片已保留'}
+        </div>
+      )}
+      {batchProgressText && <div data-testid="shot-image-batch-progress" className="mb-3 text-xs text-gray-600">{batchProgressText}</div>}
+
+      {physicalReferencesBlocked && (
+        <div data-testid="shot-image-reference-blocker" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4" />
+            主分镜参考素材未准备
+          </div>
+          <div className="mt-2">请先准备至少一个角色、场景或道具参考图片。</div>
+          <div className="mt-2 space-y-1 text-xs text-amber-800">
+            {currentPhysicalReadiness.missingCharacters.length > 0 && <div>缺少角色参考：{currentPhysicalReadiness.missingCharacters.join('、')}</div>}
+            {currentPhysicalReadiness.missingScenes.length > 0 && <div>缺少场景参考：{currentPhysicalReadiness.missingScenes.join('、')}</div>}
+            {currentPhysicalReadiness.missingProps.length > 0 && <div>缺少道具参考：{currentPhysicalReadiness.missingProps.join('、')}</div>}
+          </div>
+        </div>
+      )}
+      {hasPartialReferenceWarning && (
+        <div data-testid="shot-image-reference-warning" className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2 text-xs text-yellow-800">
+          部分绑定素材尚无参考图，仍可生成；缺少角色身份图或场景图时，角色与场景一致性可能降低。
+        </div>
+      )}
+
       {/* 内容区 */}
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 表单编辑区 - 固定宽度 600px */}
@@ -698,7 +824,25 @@ export function ShotImageGenTab({
             />
           </div>
           <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentShotObj?.imageTaskId || !currentImageUrl) return;
+                  setImageReviewTarget({
+                    task: { id: currentShotObj.imageTaskId, name: `主分镜图 · Shot ${currentShotIndex}` },
+                    imageUrl: currentImageUrl,
+                  });
+                }}
+                disabled={!currentShotObj?.imageTaskId || !hasImage}
+                title={!hasImage ? '当前分镜暂无图片' : !currentShotObj?.imageTaskId ? '当前图片没有关联的生成任务' : '查看当前分镜图的 AI 评审记录'}
+                className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Eye className="h-3 w-3" />查看 AI 评审
+                {currentImageQuality && <ImageQualityBadge status={currentImageQuality.qualityStatus} summary={currentImageQuality.summary} />}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={openImageEdit}
@@ -786,6 +930,12 @@ export function ShotImageGenTab({
                 <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
                 <p className="text-gray-600">{currentGenerationText || t('chapterGenerate.generatingShotImage')}</p>
               </div>
+            ) : currentShotObj?.imageStatus === 'failed' ? (
+              <div className="text-center text-red-600" data-testid="shot-image-failed-state">
+                <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-70" />
+                <p className="font-medium">主分镜图生成失败</p>
+                <p className="text-xs mt-2 text-gray-500">准备好参考素材后可重新生成，或上传本地图片。</p>
+              </div>
             ) : (
               <div className="text-center text-gray-500">
                 <Image className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -798,8 +948,8 @@ export function ShotImageGenTab({
       </div>
 
       {/* 批量选择分镜弹窗 */}
-      {showBatchSelectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {showBatchSelectModal && createPortal((
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -859,7 +1009,9 @@ export function ShotImageGenTab({
                   const hasShotImage = !!shotImageUrl;
                   const isGenerating = generatingShots.has(shotId);
                   const isQueued = pendingShots.has(shotId);
-                  const isDisabled = isGenerating || isQueued;
+                  const isFailed = shot.imageStatus === 'failed' && !hasShotImage && !isGenerating && !isQueued;
+                  const isReferenceBlocked = getShotImagePhysicalReadiness(shot, characters, scenes, props).hardBlocked;
+                  const isDisabled = isGenerating || isQueued || isReferenceBlocked;
 
                   return (
                     <div
@@ -906,8 +1058,10 @@ export function ShotImageGenTab({
                             alt={`${t('chapterGenerate.shot')}${shotIndex}`}
                             className="w-full h-full object-cover rounded-lg"
                           />
-                        ) : isDisabled ? (
+                        ) : isGenerating || isQueued ? (
                           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                        ) : isFailed ? (
+                          <AlertTriangle className="w-8 h-8 text-red-500" />
                         ) : (
                           <Image className="w-8 h-8 text-gray-300" />
                         )}
@@ -915,7 +1069,12 @@ export function ShotImageGenTab({
 
                       {/* 状态标签 */}
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg">
-                        {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
+                        <span>
+                          {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : isFailed ? '失败' : isReferenceBlocked ? '缺少参考' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
+                        </span>
+                        <span className="absolute right-1 font-medium">
+                          {shot.duration}s
+                        </span>
                       </div>
                     </div>
                   );
@@ -962,6 +1121,17 @@ export function ShotImageGenTab({
             </div>
           </div>
         </div>
+      ), document.body)}
+
+      {imageReviewTarget && createPortal(
+        <ImageReviewModal
+          key={`${imageReviewTarget.task.id}:${imageReviewTarget.imageUrl}`}
+          task={imageReviewTarget.task}
+          imageUrl={imageReviewTarget.imageUrl}
+          readOnly
+          onClose={() => setImageReviewTarget(null)}
+        />,
+        document.body,
       )}
 
       {currentImageUrl && (

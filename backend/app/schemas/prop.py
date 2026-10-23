@@ -10,6 +10,7 @@ class PropBase(BaseModel):
     name: str = Field(..., description="道具名称")
     description: Optional[str] = Field("", description="道具描述")
     appearance: Optional[str] = Field("", description="道具外观描述")
+    existence: str = Field("REAL", pattern="^(REAL|FICTIONAL_OR_NONEXISTENT)$")
 
 
 class PropCreate(PropBase):
@@ -22,6 +23,7 @@ class PropUpdate(BaseModel):
     name: Optional[str] = Field(None, description="道具名称")
     description: Optional[str] = Field(None, description="道具描述")
     appearance: Optional[str] = Field(None, description="道具外观描述")
+    existence: Optional[str] = Field(None, pattern="^(REAL|FICTIONAL_OR_NONEXISTENT)$")
 
 
 class PropImageEditRequest(BaseModel):

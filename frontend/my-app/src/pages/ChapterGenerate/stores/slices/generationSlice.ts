@@ -17,6 +17,15 @@ import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
 import { formatUserFacingError } from '../../../../utils';
 
+/** Keep unchanged polling data referentially stable for image and editor state. */
+function mergePolledVideoShot(shot: Shot, patch: Partial<Shot>): Shot {
+  const unchanged = Object.entries(patch).every(([key, value]) => {
+    const previous = (shot as any)[key];
+    return previous === value || JSON.stringify(previous) === JSON.stringify(value);
+  });
+  return unchanged ? shot : { ...shot, ...patch };
+}
+
 const TRANSITION_SETTINGS_STORAGE_KEY = 'chapterGenerate_transitionSettings';
 
 const getSavedTransitionSettings = () => {
@@ -76,8 +85,8 @@ export interface GenerationSlice extends GenerationSliceState {
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
-  checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
-  fetchActiveTasks: (chapterId: string) => Promise<void>;
+  checkKeyframeTaskStatus: (chapterId: string, novelId?: string) => Promise<void>;
+  fetchActiveTasks: (chapterId: string, novelId?: string) => Promise<void>;
 
   // ========== 关键帧生成 ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
@@ -104,7 +113,9 @@ export const createGenerationSlice: StateCreator<
   [],
   [],
   GenerationSlice
-> = (set, get) => ({
+> = (set, get) => {
+  const videoStatusRequests = new Map<string, Promise<void>>();
+  return ({
   // ========== 初始状态 ==========
   // 图片生成
   generatingShots: new Set<string>(),
@@ -157,16 +168,12 @@ export const createGenerationSlice: StateCreator<
       return null;
     }
 
-    // 添加到生成中集合
+    const previousShot = { ...shot };
+
+    // 仅显示提交进度；在后端确认任务创建前保留当前主分镜图和持久化状态。
     console.log('[generateShotImage] Adding to generatingShots:', shotId);
     set(state => ({
       generatingShots: new Set([...state.generatingShots, shotId]),
-      shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
-      shots: state.shots.map(s =>
-        s.id === shotId
-          ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: null }
-          : s
-      )
     }));
 
     // 验证状态已更新
@@ -194,25 +201,29 @@ export const createGenerationSlice: StateCreator<
             ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null, shotImagePrompt: resolvedPromptText }
             : s
         );
-        set({ shots: updatedShots });
+        set(state => ({
+          shots: updatedShots,
+          shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
+        }));
         return resolvedPromptText || null;
       } else {
         throw new Error(result.message || '生成失败');
       }
     } catch (error) {
       console.error('生成分镜图片失败:', error);
-      // 从生成中集合移除
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败') || '生成失败';
+      // 请求被拒绝时恢复提交前状态，尤其不能清除仍然有效的当前图片。
       set(state => {
         const newSet = new Set(state.generatingShots);
         newSet.delete(shotId);
         return {
           generatingShots: newSet,
           shots: state.shots.map(s => (
-            s.id === shotId ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'failed' as const, imageTaskId: null } : s
+            s.id === shotId ? previousShot : s
           )),
         };
       });
-      return null;
+      throw new Error(errorMessage);
     }
   },
 
@@ -280,7 +291,7 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 视频生成方法 ==========
 
-  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => {
+  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { optimizeH3Prompt?: boolean; preflightAutoRepair?: boolean; skipLlmWhenPromptExists?: boolean }) => {
     const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
     if (refreshed.success && refreshed.data) {
       set(state => ({
@@ -303,6 +314,8 @@ export const createGenerationSlice: StateCreator<
     try {
       const result = await shotsApi.generateVideo(novelId, chapterId, shotId, {
         selected_mode: selectedMode,
+        optimize_h3_prompt: options?.optimizeH3Prompt ?? false,
+        preflight_auto_repair: options?.preflightAutoRepair,
         skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
       });
 
@@ -317,18 +330,8 @@ export const createGenerationSlice: StateCreator<
           generatingVideos: new Set([...state.generatingVideos, shotId]),
         }));
 
-        get().checkVideoTaskStatus(chapterId);
-
-        let attempts = 0;
-        const pollVideoTask = async () => {
-          if (!get().generatingVideos.has(shotId) || attempts >= 180) return;
-          attempts += 1;
-          await get().checkVideoTaskStatus(chapterId);
-          if (get().generatingVideos.has(shotId)) {
-            window.setTimeout(pollVideoTask, 2000);
-          }
-        };
-        window.setTimeout(pollVideoTask, 2000);
+        // ChapterGenerate owns the recurring poll; submission only refreshes once.
+        void get().checkVideoTaskStatus(chapterId);
       } else {
         throw new Error(result.message || (result as any).detail || '生成失败');
       }
@@ -752,6 +755,7 @@ export const createGenerationSlice: StateCreator<
         const newShotImages = { ...shotImages };
         const newGeneratingShots = new Set(generatingShots);
         const newPendingShots = new Set(pendingShots);
+        const refreshShotIds = new Set<string>();
 
         const taskTime = (task: any) => {
           const value = task.completedAt || task.startedAt || task.createdAt;
@@ -762,6 +766,20 @@ export const createGenerationSlice: StateCreator<
         const updatedShots = shots.map((shot) => {
           const shotTasks = tasksByShotId[shot.id];
           if (shotTasks && shotTasks.length > 0) {
+            const requiredStart = shot.videoDirectorPlan?.required_execution_images?.find(item => item.state_index === 1);
+            const canonicalTask = shotTasks.find(task => task.id === shot.imageTaskId && task.canonicalImageProvenance);
+            if (requiredStart && canonicalTask) {
+              const provenance = canonicalTask.canonicalImageProvenance;
+              if (provenance.clip_plan_revision !== requiredStart.provenance.clip_plan_revision
+                || provenance.state_fingerprint !== requiredStart.provenance.state_fingerprint) return shot;
+              const terminal = ['completed', 'failed', 'cancelled'].includes(canonicalTask.status);
+              if (terminal) refreshShotIds.add(shot.id);
+              if (terminal) {
+                generatingShotsUpdated = newGeneratingShots.delete(shot.id) || generatingShotsUpdated;
+                pendingShotsUpdated = newPendingShots.delete(shot.id) || pendingShotsUpdated;
+              }
+              return shot;
+            }
             // 找到最新的任务；批量子任务常同秒创建，完成/开始时间比创建时间更可靠。
             const sortedTasks = [...shotTasks].sort((a, b) =>
               taskTime(b) - taskTime(a)
@@ -780,6 +798,11 @@ export const createGenerationSlice: StateCreator<
             // 检查是否有任何任务正在运行或等待批量处理
             const hasRunningTask = activeIsCurrent && ['running', 'queued'].includes(String(latestActiveTask.status || '').toLowerCase());
             const hasPendingTask = activeIsCurrent && String(latestActiveTask.status || '').toLowerCase() === 'pending';
+            if ((activeIsCurrent && latestActiveTask.hasPromptText) || (completedIsCurrent && (
+              shot.imageTaskId !== latestCompletedTask.id || shot.imageUrl !== latestCompletedUrl
+            ))) {
+              refreshShotIds.add(shot.id);
+            }
 
             // 如果有任务正在运行，确保在 generatingShots 中
             if (hasRunningTask && !newGeneratingShots.has(shot.id)) {
@@ -846,201 +869,195 @@ export const createGenerationSlice: StateCreator<
           set({ shots: updatedShots });
           console.log('[checkShotTaskStatus] Only shots updated');
         }
+
+        const novelId = get().chapter?.novelId || get().novel?.id;
+        if (novelId && refreshShotIds.size > 0) {
+          const refreshedShots = await Promise.all(
+            Array.from(refreshShotIds).map(shotId => shotsApi.getShot(novelId, chapterId, shotId))
+          );
+          set(state => {
+            const nextShotImages = { ...state.shotImages };
+            const nextShots = state.shots.map(shot => {
+              const refreshed = refreshedShots.find(response => response.success && response.data?.id === shot.id)?.data;
+              if (!refreshed) return shot;
+              if (refreshed.imageUrl) nextShotImages[shot.id] = refreshed.imageUrl;
+              return { ...shot, ...refreshed };
+            });
+            return { shots: nextShots, shotImages: nextShotImages };
+          });
+        }
       }
     } catch (error) {
       console.error('检查图片任务状态失败:', error);
     }
   },
 
-  checkVideoTaskStatus: async (chapterId: string) => {
-    try {
-      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=shot_video`);
-      const result = await response.json();
+  checkVideoTaskStatus: (chapterId: string) => {
+    const pending = videoStatusRequests.get(chapterId);
+    if (pending) return pending;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 15000);
+    const request = (async () => {
+      try {
+        const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=shot_video&status_only=true`, { signal: controller.signal });
+        const result = await response.json();
 
-      if (result.success && result.data) {
-        const taskTime = (task: any) => {
-          const value = task.completedAt || task.startedAt || task.createdAt;
-          const time = value ? new Date(value).getTime() : 0;
-          return Number.isFinite(time) ? time : 0;
-        };
+        if (controller.signal.aborted || (get().chapter?.id && get().chapter?.id !== chapterId)) return;
+        if (result.success && result.data) {
+          const taskTime = (task: any) => {
+            const value = task.completedAt || task.startedAt || task.createdAt;
+            const time = value ? new Date(value).getTime() : 0;
+            return Number.isFinite(time) ? time : 0;
+          };
 
-        // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
-        const shotTasksMap: Record<string, any[]> = {};
-        result.data.forEach((task: any) => {
-          // 优先使用 task.shotId 字段（后端返回驼峰格式）
-          let shotId = task.shotId;
-          if (!shotId) {
-            // 兼容旧逻辑：从 task.name 中提取镜号
-            const match = task.name?.match(/镜\s*(\d+)/);
-            if (match) {
-              const shotIndex = parseInt(match[1], 10);
-              const shot = get().shots.find(s => s.index === shotIndex);
-              if (shot) {
-                shotId = shot.id;
+          // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
+          const shotTasksMap: Record<string, any[]> = {};
+          result.data.forEach((task: any) => {
+            if (task.resultMode === 'CANDIDATE_ONLY' || task.clipExecution?.result_mode === 'CANDIDATE_ONLY') return;
+            // 优先使用 task.shotId 字段（后端返回驼峰格式）
+            let shotId = task.shotId;
+            if (!shotId) {
+              // 兼容旧逻辑：从 task.name 中提取镜号
+              const match = task.name?.match(/镜\s*(\d+)/);
+              if (match) {
+                const shotIndex = parseInt(match[1], 10);
+                const shot = get().shots.find(s => s.index === shotIndex);
+                if (shot) {
+                  shotId = shot.id;
+                }
               }
             }
-          }
-          if (shotId) {
-            if (!shotTasksMap[shotId]) {
-              shotTasksMap[shotId] = [];
-            }
-            shotTasksMap[shotId].push(task);
-          }
-        });
-
-        // 为每个 shotId 选择最合适的任务：完成/开始时间优先，避免旧 pending 覆盖新 completed。
-        const taskMap: Record<string, any> = {};
-        for (const [shotId, tasks] of Object.entries(shotTasksMap)) {
-          const sortedTasks = (tasks as any[]).sort((a, b) =>
-            taskTime(b) - taskTime(a)
-          );
-
-          const latestCompletedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
-          const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
-          taskMap[shotId] = latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask))
-            ? latestCompletedTask
-            : (latestActiveTask || sortedTasks[0]);
-        }
-
-        const { shots, shotVideos, generatingVideos, pendingVideos } = get();
-        let shotVideosUpdated = false;
-        let generatingVideosUpdated = false;
-        let pendingVideosUpdated = false;
-        const terminalShotIds = new Set<string>();
-        const activeShotIds = new Set<string>();
-        const newShotVideos = { ...shotVideos };
-        const newGeneratingVideos = new Set(generatingVideos);
-        const newPendingVideos = new Set(pendingVideos);
-
-        const updatedShots = shots.map(shot => {
-            const task = taskMap[shot.id];
-            if (task) {
-              const hasExistingVideo = !!(shot.videoUrl || newShotVideos[shot.id] || (shot.videoDirectorPlan as any)?.merged_video_url);
-              const isCompleted = task.status === 'completed';
-              const isStaleFailedTask = (task.status === 'failed' || task.status === 'cancelled') && hasExistingVideo;
-              const isFailed = (task.status === 'failed' || task.status === 'cancelled') && !isStaleFailedTask;
-            const isRunning = task.status === 'running' || task.status === 'queued';
-            const isPending = task.status === 'pending';
-            const isActive = isRunning || isPending;
-            const videoStatus = isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
-            const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
-            const videoDirectorPlan = isFailed && taskErrorMessage
-              ? { ...(shot.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
-              : isCompleted || isStaleFailedTask
-                ? (() => {
-                    const nextPlan = { ...(shot.videoDirectorPlan || {}) } as any;
-                    delete nextPlan.task_error_message;
-                    delete nextPlan.error_message;
-                    return nextPlan;
-                  })()
-                : shot.videoDirectorPlan;
-
-            // 如果任务正在运行，确保在 generatingVideos 中
-            if (isRunning && !newGeneratingVideos.has(shot.id)) {
-              newGeneratingVideos.add(shot.id);
-              generatingVideosUpdated = true;
-            }
-            if (!isRunning && newGeneratingVideos.has(shot.id)) {
-              newGeneratingVideos.delete(shot.id);
-              generatingVideosUpdated = true;
-            }
-            if (isPending && !newPendingVideos.has(shot.id)) {
-              newPendingVideos.add(shot.id);
-              pendingVideosUpdated = true;
-            }
-            if (!isPending && newPendingVideos.has(shot.id)) {
-              newPendingVideos.delete(shot.id);
-              pendingVideosUpdated = true;
-            }
-            if (isActive) {
-              activeShotIds.add(shot.id);
-            }
-
-            if (isCompleted) {
-              if (task.resultUrl && newShotVideos[shot.id] !== task.resultUrl) {
-                newShotVideos[shot.id] = task.resultUrl;
-                shotVideosUpdated = true;
+            if (shotId) {
+              if (!shotTasksMap[shotId]) {
+                shotTasksMap[shotId] = [];
               }
-              if ((task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
-                terminalShotIds.add(shot.id);
-              }
-            } else if (isActive && newShotVideos[shot.id]) {
-              delete newShotVideos[shot.id];
-              shotVideosUpdated = true;
-            } else if (isFailed) {
-              if (shot.videoStatus !== 'failed') {
-                terminalShotIds.add(shot.id);
-              }
+              shotTasksMap[shotId].push(task);
             }
-
-            return {
-              ...shot,
-              videoStatus,
-              videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
-              videoTaskId: isStaleFailedTask ? null : (task.id || shot.videoTaskId),
-              videoDirectorPlan,
-            };
-          }
-          return shot;
-        });
-
-        if (shotVideosUpdated || generatingVideosUpdated || pendingVideosUpdated) {
-          set({
-            shots: updatedShots,
-            shotVideos: newShotVideos,
-            generatingVideos: newGeneratingVideos,
-            pendingVideos: newPendingVideos
           });
-        } else {
-          set({ shots: updatedShots });
-        }
 
-        const refreshShotIds = new Set([...terminalShotIds, ...activeShotIds]);
-        if (refreshShotIds.size > 0) {
-          const novelId = get().chapter?.novelId || get().novel?.id;
-          if (novelId) {
-            const refreshedShots = await Promise.all(
-              Array.from(refreshShotIds).map((shotId) => shotsApi.getShot(novelId, chapterId, shotId))
+          // 为每个 shotId 选择最合适的任务：完成/开始时间优先，避免旧 pending 覆盖新 completed。
+          const taskMap: Record<string, any> = {};
+          for (const [shotId, tasks] of Object.entries(shotTasksMap)) {
+            const sortedTasks = (tasks as any[]).sort((a, b) =>
+              taskTime(b) - taskTime(a)
             );
 
-            set(state => {
-              const nextShotVideos = { ...state.shotVideos };
-              const nextGeneratingVideos = new Set(state.generatingVideos);
-              const nextPendingVideos = new Set(state.pendingVideos);
-              const nextShots = state.shots.map(shot => {
-                const refreshed = refreshedShots.find(result => result.success && result.data?.id === shot.id)?.data;
-                if (!refreshed) return shot;
-                if (refreshed.videoUrl) {
-                  nextShotVideos[shot.id] = refreshed.videoUrl;
-                }
-                if (terminalShotIds.has(shot.id)) {
-                  nextGeneratingVideos.delete(shot.id);
-                  nextPendingVideos.delete(shot.id);
-                }
-                const task = taskMap[shot.id];
-                if (task?.status === 'failed' || task?.status === 'cancelled') {
-                  const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
-                  const videoDirectorPlan = taskErrorMessage
-                    ? { ...(refreshed.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
-                    : refreshed.videoDirectorPlan;
-                  return { ...shot, ...refreshed, videoStatus: 'failed' as const, videoDirectorPlan };
-                }
-                return { ...shot, ...refreshed };
-              });
+            const latestCompletedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+            const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running', 'processing'].includes(String(t.status || '').toLowerCase()));
+            taskMap[shotId] = latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask))
+              ? latestCompletedTask
+              : (latestActiveTask || sortedTasks[0]);
+          }
 
-              return {
-                shots: nextShots,
-                shotVideos: nextShotVideos,
-                generatingVideos: nextGeneratingVideos,
-                pendingVideos: nextPendingVideos,
-              };
+          // Task rows give quick status; only the selected active Shot needs a
+          // detail read on every tick. Other Shots refresh when they finish.
+          const current = get();
+          const selectedShotId = current.shots[current.currentShotIndex - 1]?.id;
+          const refreshShotIds = current.shots.filter(shot => {
+            const task = taskMap[shot.id];
+            if (!task) return false;
+            const status = String(task.status || '').toLowerCase();
+            const isActive = ['pending', 'queued', 'running', 'processing'].includes(status);
+            return (isActive && shot.id === selectedShotId)
+              || (status === 'completed' && (shot.videoStatus !== 'completed' || (!!task.resultUrl && shot.videoUrl !== task.resultUrl)))
+              || (['failed', 'cancelled'].includes(status)
+                && !shot.videoUrl && !current.shotVideos[shot.id] && shot.videoStatus !== 'failed');
+          }).map(shot => shot.id);
+
+          // Finish the detail reads before publishing a single coherent state.
+          // Publishing task status first and stale Shot data second caused the
+          // video workspace to alternate between two states every poll.
+          const refreshedById = new Map<string, Shot>();
+          const novelId = current.chapter?.novelId || current.novel?.id;
+          if (novelId && refreshShotIds.length > 0) {
+            const refreshedShots = await Promise.allSettled(refreshShotIds.map(shotId =>
+              shotsApi.getShot(novelId, chapterId, shotId, controller.signal)
+            ));
+            if (controller.signal.aborted || (get().chapter?.id && get().chapter?.id !== chapterId)) return;
+            refreshedShots.forEach(result => {
+              if (result.status === 'fulfilled' && result.value.success && result.value.data) {
+                refreshedById.set(result.value.data.id, result.value.data);
+              }
             });
           }
+
+          set(state => {
+            if (state.chapter?.id && state.chapter.id !== chapterId) return state;
+            const nextShotVideos = { ...state.shotVideos };
+            const nextGeneratingVideos = new Set(state.generatingVideos);
+            const nextPendingVideos = new Set(state.pendingVideos);
+            const nextShots = state.shots.map(shot => {
+              const task = taskMap[shot.id];
+              if (!task) return shot;
+
+              const refreshed = refreshedById.get(shot.id);
+              const base = refreshed ? { ...shot, ...refreshed } : shot;
+              const status = String(task.status || '').toLowerCase();
+              const isCompleted = status === 'completed';
+              const isRunning = status === 'running' || status === 'processing';
+              const isPending = status === 'pending' || status === 'queued';
+              const isActive = isRunning || isPending;
+              const isCanonical = (base.videoDirectorPlan as any)?.canonical_visual_plan === true;
+              // A completed Clip task is not a completed Shot assembly. In the
+              // canonical route the refreshed Shot owns the final media binding.
+              const hasExistingVideo = isCanonical ? !!base.videoUrl
+                : !!(shot.videoUrl || state.shotVideos[shot.id] || (base.videoDirectorPlan as any)?.merged_video_url);
+              const isStaleFailedTask = (status === 'failed' || status === 'cancelled') && hasExistingVideo;
+              const isFailed = (status === 'failed' || status === 'cancelled') && !isStaleFailedTask;
+              const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error)
+                || (status === 'cancelled' ? '视频任务已取消' : '');
+              let videoDirectorPlan = base.videoDirectorPlan;
+              if (isFailed && taskErrorMessage) {
+                videoDirectorPlan = { ...(videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage };
+              } else if (isCompleted || isStaleFailedTask) {
+                videoDirectorPlan = { ...(videoDirectorPlan || {}) };
+                delete (videoDirectorPlan as any).task_error_message;
+                delete (videoDirectorPlan as any).error_message;
+              }
+
+              if (isRunning) nextGeneratingVideos.add(shot.id);
+              else nextGeneratingVideos.delete(shot.id);
+              if (isPending) nextPendingVideos.add(shot.id);
+              else nextPendingVideos.delete(shot.id);
+              if (isCanonical) {
+                if (base.videoUrl) nextShotVideos[shot.id] = base.videoUrl;
+                else delete nextShotVideos[shot.id];
+              } else if (isCompleted && task.resultUrl) nextShotVideos[shot.id] = task.resultUrl;
+              else if (isActive) delete nextShotVideos[shot.id];
+              else if (refreshed?.videoUrl) nextShotVideos[shot.id] = refreshed.videoUrl;
+
+              return mergePolledVideoShot(shot, {
+                ...(refreshed || {}),
+                videoStatus: isCanonical && isCompleted ? base.videoStatus : isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : isPending ? 'pending' : base.videoStatus,
+                videoUrl: isCanonical ? base.videoUrl : isCompleted && task.resultUrl ? task.resultUrl : isActive ? null : base.videoUrl,
+                videoTaskId: isCanonical ? base.videoTaskId : isStaleFailedTask ? null : (task.id || base.videoTaskId),
+                videoDirectorPlan,
+              });
+            });
+
+            if (nextShots.every((shot, index) => shot === state.shots[index])
+              && JSON.stringify(nextShotVideos) === JSON.stringify(state.shotVideos)
+              && nextGeneratingVideos.size === state.generatingVideos.size
+              && [...nextGeneratingVideos].every(id => state.generatingVideos.has(id))
+              && nextPendingVideos.size === state.pendingVideos.size
+              && [...nextPendingVideos].every(id => state.pendingVideos.has(id))) return state;
+            return {
+              shots: nextShots,
+              shotVideos: nextShotVideos,
+              generatingVideos: nextGeneratingVideos,
+              pendingVideos: nextPendingVideos,
+            };
+          });
         }
+      } catch (error) {
+        console.error('检查视频任务状态失败:', error);
       }
-    } catch (error) {
-      console.error('检查视频任务状态失败:', error);
-    }
+    })().finally(() => {
+      clearTimeout(deadline);
+      videoStatusRequests.delete(chapterId);
+    });
+    videoStatusRequests.set(chapterId, request);
+    return request;
   },
 
   checkTransitionTaskStatus: async (chapterId: string) => {
@@ -1179,18 +1196,26 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  fetchActiveTasks: async (chapterId: string) => {
-    // 获取所有活跃任务
+  fetchActiveTasks: async (chapterId: string, novelId?: string) => {
+    // The Shot list already carries persisted terminal state. On page entry,
+    // avoid downloading every historical task just to discover no work is active.
+    try {
+      const response = await fetch(`/api/tasks/?chapter_id=${encodeURIComponent(chapterId)}&active_only=true&status_only=true&limit=1`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data) && result.data.length === 0) return;
+      }
+    } catch { /* Fall back to the existing reconciliation below. */ }
     await Promise.allSettled([
       get().checkShotTaskStatus(chapterId),
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),
       get().checkAudioTaskStatus(chapterId),
-      get().checkKeyframeTaskStatus(chapterId),
+      get().checkKeyframeTaskStatus(chapterId, novelId),
     ]);
   },
 
-  checkKeyframeTaskStatus: async (chapterId: string) => {
+  checkKeyframeTaskStatus: async (chapterId: string, novelId?: string) => {
     try {
       const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=keyframe_image`);
       const result = await response.json();
@@ -1202,6 +1227,7 @@ export const createGenerationSlice: StateCreator<
         let generatingKeyframesUpdated = false;
         let keyframeImageUrlsUpdated = false;
         let shotsUpdated = false;
+        const refreshShotIds = new Set<string>();
         const newKeyframeTasks = [...keyframeTasks];
         const newGeneratingKeyframes = new Set(generatingKeyframes);
         const newKeyframeImageUrls = { ...keyframeImageUrls };
@@ -1224,27 +1250,97 @@ export const createGenerationSlice: StateCreator<
             const currentShot = shotIndex >= 0 ? updatedShots[shotIndex] : undefined;
             const legacyKeyframe = currentShot?.keyframes?.find((kf: any) => kf.frame_index === frameIndex);
             const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
+            const canonical = currentShot?.videoDirectorPlan?.canonical_visual_plan === true;
+            if (canonical) {
+              const provenance = task.canonicalImageProvenance;
+              const required = currentShot?.videoDirectorPlan?.required_execution_images?.find((item: any) => item.state_index === provenance?.state_index);
+              const trackedActive = [...newKeyframeTasks].reverse().find(t => t.shotId === shotId && t.frameIndex === frameIndex && ['pending', 'queued', 'processing', 'running'].includes(t.status));
+              const currentTaskId = required?.active_task?.task_id || trackedActive?.taskId || legacyKeyframe?.image_task_id || (legacyKeyframe as any)?.imageTaskId;
+              if (currentTaskId !== task.id) return;
+              const matches = provenance && Number(provenance.clip_plan_revision) === Number(currentShot?.videoDirectorPlan?.clip_plan_revision)
+                && Number((legacyKeyframe as any)?.plan_keyframe_index) === Number(provenance.state_index)
+                && (required ? required.provenance.state_fingerprint === provenance.state_fingerprint : taskBelongsToCurrentKeyframe);
+              if (!matches) {
+                const obsolete = newKeyframeTasks.findIndex(t => t.taskId === task.id);
+                if (obsolete >= 0) { newKeyframeTasks.splice(obsolete, 1); keyframeTasksUpdated = true; }
+                if (!required?.active_task && !newKeyframeTasks.some(t => t.shotId === shotId && t.frameIndex === frameIndex
+                  && ['pending', 'queued', 'processing', 'running'].includes(t.status)
+                  && t.canonicalImageProvenance?.clip_plan_revision === currentShot?.videoDirectorPlan?.clip_plan_revision)) {
+                  generatingKeyframesUpdated = newGeneratingKeyframes.delete(keyframeKey) || generatingKeyframesUpdated;
+                }
+                return;
+              }
+              if (['completed', 'failed', 'cancelled'].includes(task.status)) refreshShotIds.add(shotId);
+            }
+            const taskPromptText = typeof task.promptText === 'string' ? task.promptText.trim() : '';
+
+            // A terminal task must never leave the UI in a permanent
+            // "generating" state. The Shot/keyframe payload can lag behind
+            // the task queue, so clear the UI marker before attempting any
+            // optional asset reconciliation.
+            if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+              if (newGeneratingKeyframes.delete(keyframeKey)) {
+                generatingKeyframesUpdated = true;
+              }
+            }
 
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
             if (taskIndex >= 0) {
-              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
+              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status, currentStep: task.currentStep, errorMessage: task.errorMessage, canonicalImageProvenance: task.canonicalImageProvenance };
               keyframeTasksUpdated = true;
-            } else if (task.status === 'pending' || task.status === 'running') {
+            } else if (['pending', 'queued', 'processing', 'running'].includes(task.status)) {
               newKeyframeTasks.push({
                 shotId,
                 frameIndex,
                 taskId: task.id,
                 status: task.status,
+                currentStep: task.currentStep,
+                errorMessage: task.errorMessage,
+                canonicalImageProvenance: task.canonicalImageProvenance,
               });
               keyframeTasksUpdated = true;
             }
 
-            if ((task.status === 'pending' || task.status === 'running') && !newGeneratingKeyframes.has(keyframeKey)) {
+            if ((['pending', 'queued', 'processing', 'running'].includes(task.status)) && !newGeneratingKeyframes.has(keyframeKey)) {
               newGeneratingKeyframes.add(keyframeKey);
               generatingKeyframesUpdated = true;
             }
 
+            // #09 完成后，后端会在图片任务仍处于 running 时保存最终生图提示词。
+            // 将它立即同步到当前 Shot，避免“仅重新生成关键帧”必须刷新页面后才可用。
+            if (
+              taskPromptText
+              && (taskIndex >= 0 || taskBelongsToCurrentKeyframe)
+              && shotIndex >= 0
+              && currentShot
+              && legacyKeyframe?.prompt_text !== taskPromptText
+            ) {
+              const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) => (
+                kf.frame_index === frameIndex
+                  ? { ...kf, prompt_text: taskPromptText }
+                  : kf
+              ));
+              const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
+              const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+              const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
+              const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
+                ? {
+                  ...currentShot.videoDirectorPlan,
+                  keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                    Number(kf.index) === Number(planKeyframeIndex)
+                      ? { ...kf, prompt_text: taskPromptText }
+                      : kf
+                  )),
+                }
+                : currentShot.videoDirectorPlan;
+              updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
+              shotsUpdated = true;
+            }
+
+            // Canonical images are committed only by the server. Terminal Tasks
+            // trigger fresh Shot/anchor/readiness rather than optimistic READY.
+            if (canonical) return;
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
               if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
@@ -1260,38 +1356,62 @@ export const createGenerationSlice: StateCreator<
               }
 
               // 更新 shot 的 keyframes
-              if (shotIndex >= 0 && currentShot) {
-                const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) =>
+               if (shotIndex >= 0 && updatedShots[shotIndex]) {
+                const latestShot = updatedShots[shotIndex];
+                const updatedKeyframes = (latestShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
-                    ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                    ? {
+                      ...kf,
+                      image_url: task.resultUrl,
+                      image_task_id: task.id,
+                      ...(taskPromptText ? { prompt_text: taskPromptText } : {}),
+                    }
                     : kf
                 );
                 const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
-                const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+                const nonStartPlanKeyframes = (latestShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
                 const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
-                const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
+                const videoDirectorPlan = latestShot.videoDirectorPlan && planKeyframeIndex !== undefined
                   ? {
-                    ...currentShot.videoDirectorPlan,
-                    keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                    ...latestShot.videoDirectorPlan,
+                    keyframes: (latestShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
                       Number(kf.index) === Number(planKeyframeIndex)
-                        ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                        ? {
+                          ...kf,
+                          image_url: task.resultUrl,
+                          image_task_id: task.id,
+                          ...(taskPromptText ? { prompt_text: taskPromptText } : {}),
+                        }
                         : kf
                     )),
                   }
-                  : currentShot.videoDirectorPlan;
-                updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
-                shotsUpdated = true;
-              }
-            } else if (task.status === 'failed') {
-              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
-              // 失败时从生成中集合移除
-              if (newGeneratingKeyframes.has(keyframeKey)) {
-                newGeneratingKeyframes.delete(keyframeKey);
-                generatingKeyframesUpdated = true;
-              }
+                  : latestShot.videoDirectorPlan;
+                updatedShots[shotIndex] = { ...latestShot, keyframes: updatedKeyframes, videoDirectorPlan };
+                 shotsUpdated = true;
+                 refreshShotIds.add(shotId);
+               }
+            } else if (task.status === 'failed' || task.status === 'cancelled') {
+              // Terminal-state cleanup already happened above. Keep this
+              // branch intentionally side-effect free for stale task rows.
             }
           }
         });
+
+        if (refreshShotIds.size > 0) {
+          const refreshedShots = await Promise.all(
+            Array.from(refreshShotIds).map(async (shotId) => {
+              if (!novelId) return null;
+              const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
+              return refreshed.success ? refreshed.data : null;
+            })
+          );
+          refreshedShots.forEach((refreshed) => {
+            if (!refreshed) return;
+            const index = updatedShots.findIndex((shot) => shot.id === refreshed.id);
+            if (index >= 0) updatedShots[index] = refreshed;
+          });
+          shotsUpdated = refreshedShots.some(Boolean) || shotsUpdated;
+        }
 
         // 只在数据变化时更新状态
         if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated || shotsUpdated) {
@@ -1364,7 +1484,14 @@ export const createGenerationSlice: StateCreator<
           status: 'pending',
         };
         set(state => ({
-          keyframeTasks: [...state.keyframeTasks, newTask]
+          // 每个关键帧只保留当前任务。重新生成时若继续保留旧的已完成任务，
+          // 后续轮询可能会把旧结果再次写回并短暂覆盖新任务的结果。
+          keyframeTasks: [
+            ...state.keyframeTasks.filter(task => !(
+              task.shotId === shotId && Number(task.frameIndex) === Number(frameIndex)
+            )),
+            newTask,
+          ]
         }));
 
         // 更新 shot 的 keyframes
@@ -1399,6 +1526,12 @@ export const createGenerationSlice: StateCreator<
       const result = await shotsApi.uploadKeyframeImage(novelId, chapterId, shotId, frameIndex, file);
 
       if (result.success && result.data?.image_url) {
+        if (get().shots.find(shot => shot.id === shotId)?.videoDirectorPlan?.canonical_visual_plan) {
+          const fresh = await shotsApi.getShot(novelId, chapterId, shotId);
+          if (!fresh.success || !fresh.data) throw new Error('上传成功，但读取当前视觉状态失败，请刷新');
+          set({ shots: get().shots.map(shot => shot.id === shotId ? fresh.data! : shot) });
+          return;
+        }
         const keyframeKey = `${shotId}-${frameIndex}`;
 
         // 更新 keyframeImageUrls
@@ -1618,4 +1751,5 @@ export const createGenerationSlice: StateCreator<
   isReferenceAudioUploading: (shotId) => {
     return get().uploadingReferenceAudios.has(shotId);
   },
-});
+  });
+};

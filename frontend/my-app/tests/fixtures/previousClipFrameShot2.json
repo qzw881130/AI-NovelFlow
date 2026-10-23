@@ -1,0 +1,211 @@
+{
+  "id": "2669e7aa-5f92-4261-b602-cae4d81f5c51",
+  "keyframes": [
+    {
+      "frame_index": 0,
+      "plan_keyframe_index": 2,
+      "image_url": null
+    },
+    {
+      "frame_index": 1,
+      "plan_keyframe_index": 3,
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261016_135314.png"
+    },
+    {
+      "frame_index": 2,
+      "plan_keyframe_index": 4,
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261016_165136.png"
+    },
+    {
+      "frame_index": 3,
+      "plan_keyframe_index": 5,
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261016_135645.png"
+    },
+    {
+      "frame_index": 4,
+      "plan_keyframe_index": 6,
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261016_135824.png"
+    },
+    {
+      "frame_index": 5,
+      "plan_keyframe_index": 7,
+      "image_url": null
+    }
+  ],
+  "videoDirectorPlan": {
+    "canonical_visual_plan": true,
+    "clip_plan_revision": 1,
+    "clip_plan_validation": {
+      "passed": true,
+      "findings": [],
+      "blocking": [],
+      "review_required": [],
+      "warnings": [],
+      "dialogue_ownership": {
+        "passed": true,
+        "findings": [],
+        "source_dialogue_count": 14,
+        "assigned_segment_count": 14
+      },
+      "duration_planning_policy": {
+        "preferred_max_duration": 15.0,
+        "preferred_max_is_soft": true,
+        "approval_mode": "AUTO_APPROVE",
+        "min_story_clip_duration": 4.0,
+        "max_story_clip_duration": 20.0,
+        "execution_budgets": {
+          "GENERATE": {
+            "workflow_id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+            "workflow_type": "multi_reference_video",
+            "mode": "STANDARD_GENERATION",
+            "max_duration": 20.0,
+            "overlap_duration": 0.0,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "EXTEND": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          },
+          "TEMPORAL_EXTEND": {
+            "workflow_id": "cb0804a7-157e-4c12-9174-5fa43838ecf4",
+            "workflow_type": "TEMPORAL_EXTEND",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": null,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding"
+          },
+          "VIDEO_CONTINUATION": {
+            "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+            "workflow_type": "VIDEO_CONTINUATION",
+            "mode": "VIDEO_CONTINUATION",
+            "max_duration": 20.0,
+            "overlap_duration": 1.625,
+            "evidence": "WORKFLOW_CONFIGURATION_ONLY; worker must verify actual source binding",
+            "overlap_frames": 39,
+            "fps": 24
+          }
+        }
+      },
+      "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+      "composition_contract": "EARLY_COMPOSITION_V2"
+    },
+    "keyframes": [
+      {
+        "index": 1,
+        "role": "START",
+        "time_seconds": 0.0,
+        "description": "",
+        "image_url": null
+      },
+      {
+        "index": 2,
+        "role": "INTERMEDIATE",
+        "time_seconds": 8.5,
+        "description": "Scene: 王宫更衣室内光线明亮，摄影机仍以略低机位沿原有轴线观察皇帝与巨大镜子。\nCharacters:\n- 皇帝: 位于画面中央，身着紫色长袍，身体转为侧对巨大镜子，一侧手臂略微抬起，目光在袖口与镜中轮廓之间审视，神情挑剔而犹豫。\n- 侍从1: 位于皇帝左侧，双手贴近衣领，保持谨慎整理姿态。\n- 侍从2: 位于皇帝右侧，双手捧着宫廷腰带，腰带靠近皇帝腰际但尚未系上。\n- 侍从3: 位于右后方，举着巨大镜子，镜面角度对准皇帝侧身。\n- 宫廷总管: 位于左后方入口内侧，身体朝向皇帝。\nAction: 紫色长袍的袖口、侧面轮廓与宫廷腰带同时处于皇帝的审视范围内，五人的空间关系保持清晰。",
+        "image_url": null
+      },
+      {
+        "index": 3,
+        "role": "INTERMEDIATE",
+        "time_seconds": 17.5,
+        "description": "Scene: 王宫更衣室内，摄影机沿原有方向平稳靠近皇帝一侧，构图由全员中景收束为皇帝与宫廷总管的双人视觉重心，其余三名侍从仍可见于画面边缘和后景。\nCharacters:\n- 皇帝: 位于巨大镜子前方，身体仍略朝镜面，目光转向已经靠近的宫廷总管。\n- 宫廷总管: 已从入口抵达皇帝侧前方，保持适当距离，低头躬身，双手恭敬置于身前。\n- 侍从1: 留在皇帝左侧，双手停在衣领附近。\n- 侍从2: 留在皇帝右侧，稳稳捧着宫廷腰带。\n- 侍从3: 位于后景，继续举稳巨大镜子并使镜面朝向皇帝。\nAction: 皇帝与宫廷总管形成明确的近距离主从关系构图，三名侍从围绕紫色长袍和巨大镜子构成后景层次。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261016_135314.png"
+      },
+      {
+        "index": 4,
+        "role": "INTERMEDIATE",
+        "time_seconds": 34.8,
+        "description": "Scene: 王宫更衣室内，摄影机保持同一侧轴线和连续靠近后的双人构图，巨大镜子占据皇帝身后的显著位置。\nCharacters:\n- 皇帝: 手部动作停在紫色长袍袖口附近，身体僵住，原本不耐烦的神情转为警觉，视线牢牢落在宫廷总管身上。\n- 宫廷总管: 面向皇帝，维持低头而谨慎的站姿。\n- 侍从1: 双手静止在皇帝衣领旁，抬眼观察皇帝的反应。\n- 侍从2: 双手稳住宫廷腰带，身体与腰带均保持静止，视线转向皇帝。\n- 侍从3: 固定巨大镜子的角度，身体静止，目光越过镜侧看向皇帝。\nAction: 皇帝与三名侍从的整理动作全部停住，静止的人物姿态与集中视线强化宫廷总管和皇帝之间的紧张关系。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_2_20261016_165136.png"
+      },
+      {
+        "index": 5,
+        "role": "INTERMEDIATE",
+        "time_seconds": 42.4,
+        "description": "Scene: 王宫更衣室内，摄影机沿既有轨迹轻微横移，使巨大镜子、皇帝本人和镜中映像共同进入连续构图，宫廷总管位于皇帝侧后方。\nCharacters:\n- 皇帝: 已站到巨大镜子近前，正面审视镜中身着紫色长袍的自己，双手垂离袖口，双眼睁大，神情震惊而高度警觉。\n- 宫廷总管: 位于皇帝侧后方，身体朝向皇帝，姿态郑重克制。\n- 侍从1: 留在镜旁左侧，双手收于身前，身体静止。\n- 侍从2: 留在镜旁右侧，仍捧着宫廷腰带，身体静止。\n- 侍从3: 稳定举着巨大镜子，使皇帝的正面映像清晰可见。\nAction: 皇帝与镜中映像形成新的视觉中心，宫廷总管和三名侍从分布在同一空间的后层与边缘。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_3_20261016_135645.png"
+      },
+      {
+        "index": 6,
+        "role": "INTERMEDIATE",
+        "time_seconds": 43.6,
+        "description": "Scene: 王宫更衣室内，摄影机保持与上一状态连续的镜前位置，皇帝、宫廷总管和巨大镜子仍处于同一轴线关系中。\nCharacters:\n- 皇帝: 已从镜面方向迅速转向宫廷总管，身体挺直，一只手形成明确有力的指示姿态，双眼明亮，神情兴奋而果断。\n- 宫廷总管: 面向皇帝，保持恭敬躬身姿态，视线压低。\n- 侍从1: 位于皇帝后侧，收手肃立。\n- 侍从2: 位于另一侧，抱稳宫廷腰带，姿态静止。\n- 侍从3: 位于巨大镜子后方，保持镜面稳定；镜中可见皇帝转身后的部分轮廓。\nAction: 皇帝的坚定姿态成为画面主导，宫廷总管在其指示方向前形成清晰的承接关系。",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_4_20261016_135824.png"
+      },
+      {
+        "index": 7,
+        "role": "END",
+        "time_seconds": 47.0,
+        "description": "Scene: 王宫更衣室内，连续镜头停留在皇帝、宫廷总管与巨大镜子组成的双人主构图上，三名侍从仍处于画面边缘和后景。\nCharacters:\n- 皇帝: 身着紫色长袍，面向宫廷总管挺直站立，手臂收回至坚定姿态，眼神明亮，表情兴奋而坚决。\n- 宫廷总管: 面向皇帝深低头躬身，双手恭敬置于身前。\n- 侍从1: 在皇帝后侧肃立，双手离开衣领并收于身前。\n- 侍从2: 稳稳捧着宫廷腰带，保持静止并看向皇帝。\n- 侍从3: 继续举稳巨大镜子，镜面映出皇帝紫色长袍的侧后轮廓。\nAction: 皇帝的兴奋坚定与宫廷总管的恭敬低头构成最终视觉关系，紫色长袍、宫廷腰带和巨大镜子的状态保持稳定。",
+        "image_url": null
+      }
+    ],
+    "clip_plan": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 12.0,
+        "visual_state_indexes": [
+          1,
+          2
+        ],
+        "carry_in_state_index": null,
+        "previous_clip_index": null,
+        "execution_status": "APPROVED",
+        "video_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_1_3027749f_20261016_140123.mp4",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_1_3027749f_20261016_140123.mp4",
+        "generated_by_task_id": "3027749f-6028-41b8-bee4-2b299a48bc66"
+      },
+      {
+        "clip_index": 2,
+        "start_time": 12.0,
+        "end_time": 23.1,
+        "visual_state_indexes": [
+          3
+        ],
+        "carry_in_state_index": 2,
+        "previous_clip_index": 1,
+        "execution_status": "APPROVED",
+        "video_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_2_c64ee62b_20261016_160150.mp4",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_2_c64ee62b_20261016_160150.mp4",
+        "generated_by_task_id": "c64ee62b-8b78-40e7-b323-44b234415961"
+      },
+      {
+        "clip_index": 3,
+        "start_time": 23.1,
+        "end_time": 35.0,
+        "visual_state_indexes": [
+          4
+        ],
+        "carry_in_state_index": 3,
+        "previous_clip_index": 2,
+        "execution_status": "APPROVED",
+        "video_url": "/api/files/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_3_77afaa5a_20261017_133101.mp4",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_59ce27c0/videos/shot_002_clip_3_77afaa5a_20261017_133101.mp4",
+        "generated_by_task_id": "77afaa5a-0e5b-4656-8ede-a8523e99a386"
+      },
+      {
+        "clip_index": 4,
+        "start_time": 35.0,
+        "end_time": 47.0,
+        "visual_state_indexes": [
+          5,
+          6,
+          7
+        ],
+        "carry_in_state_index": 4,
+        "previous_clip_index": 3,
+        "execution_status": "PLANNED",
+        "video_url": null,
+        "local_path": null,
+        "generated_by_task_id": null
+      }
+    ]
+  }
+}

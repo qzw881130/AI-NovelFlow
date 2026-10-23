@@ -10,9 +10,12 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
 from app.models.workflow import Workflow
+from app.models.task import Task
 from app.repositories import WorkflowRepository
 from app.constants.workflow import (
     WORKFLOW_TYPES,
+    RETIRED_H3_WORKFLOW_TYPES,
+    RETIRED_IMAGE_WORKFLOW_FILES,
     DEFAULT_WORKFLOWS,
     DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
@@ -52,6 +55,9 @@ class WorkflowService:
         """加载默认工作流到数据库"""
         workflows_dir = self.get_workflows_dir()
 
+        self._remove_retired_image_workflows()
+        self._promote_matching_user_workflows(workflows_dir)
+
         # 1. 加载默认工作流
         self._load_default_workflow_files(workflows_dir)
 
@@ -60,8 +66,103 @@ class WorkflowService:
 
         self.db.commit()
 
-        # 3. 确保每种类型只有一个默认激活的工作流
+        # 3. 清理从其他部署目录加载的同一系统预设
+        self._deduplicate_system_workflows(workflows_dir)
+
+        # 4. 确保每种类型只有一个默认激活的工作流
         self._ensure_single_active_workflow()
+
+    def _promote_matching_user_workflows(self, workflows_dir: str) -> None:
+        """Preserve selected workflow IDs, active choices, and task references."""
+        promoted = False
+        for config in EXTRA_SYSTEM_WORKFLOWS:
+            legacy_filename = config.get("legacy_user_filename")
+            if not legacy_filename:
+                continue
+
+            system_path = os.path.join(workflows_dir, config["filename"])
+            if (not os.path.isfile(system_path)
+                    or self.workflow_repo.get_by_file_path(system_path, is_system=True)):
+                continue
+
+            with open(system_path, "r", encoding="utf-8") as file:
+                system_json = file.read()
+            candidates = self.db.query(Workflow).filter(
+                Workflow.type == config["type"],
+                Workflow.name == config["name"],
+                Workflow.is_system.is_(False),
+            ).all()
+            for workflow in sorted(candidates, key=lambda item: not item.is_active):
+                if (not workflow.file_path
+                        or os.path.basename(workflow.file_path) != legacy_filename):
+                    continue
+                try:
+                    same_graph = json.loads(workflow.workflow_json) == json.loads(system_json)
+                except (TypeError, ValueError):
+                    continue
+                if (not same_graph
+                        or self._parse_json_field(workflow.node_mapping) != config["node_mapping"]):
+                    continue
+
+                workflow.file_path = system_path
+                workflow.workflow_json = system_json
+                workflow.is_system = True
+                workflow.created_by = None
+                if config.get("extension") and not workflow.extension:
+                    workflow.extension = json.dumps(config["extension"], ensure_ascii=False)
+                promoted = True
+                print(f"[Workflow] Promoted user workflow: {workflow.name}")
+                break
+        if promoted:
+            # Production sessions disable autoflush; subsequent path lookups
+            # must see the promoted rows before inserting system presets.
+            self.db.flush()
+
+    def _remove_retired_image_workflows(self) -> None:
+        """Remove obsolete system image presets from existing databases."""
+        retired = [
+            workflow for workflow in self.db.query(Workflow).filter(Workflow.is_system.is_(True)).all()
+            if workflow.file_path
+            and os.path.basename(workflow.file_path) in RETIRED_IMAGE_WORKFLOW_FILES
+        ]
+        for workflow in retired:
+            self.db.delete(workflow)
+        if retired:
+            self.db.commit()
+
+    def _deduplicate_system_workflows(self, workflows_dir: str) -> None:
+        """Keep the current checkout's preset when another deployment seeded it."""
+        registered_files = set(DEFAULT_WORKFLOWS.values()) | {
+            config["filename"] for config in EXTRA_SYSTEM_WORKFLOWS
+        }
+        by_type_and_file: Dict[tuple[str, str], List[Workflow]] = {}
+        for workflow in self.db.query(Workflow).filter(Workflow.is_system.is_(True)).all():
+            if not workflow.file_path:
+                continue
+            filename = os.path.basename(workflow.file_path)
+            if filename in registered_files:
+                by_type_and_file.setdefault((workflow.type, filename), []).append(workflow)
+
+        changed = False
+        for (_, filename), candidates in by_type_and_file.items():
+            if len(candidates) < 2:
+                continue
+            current_path = os.path.join(workflows_dir, filename)
+            current = next((item for item in candidates if item.file_path == current_path), None)
+            if current is None:
+                continue
+            for duplicate in candidates:
+                if duplicate is current or duplicate.workflow_json != current.workflow_json:
+                    continue
+                if duplicate.is_active:
+                    current.is_active = True
+                self.db.query(Task).filter(Task.workflow_id == duplicate.id).update(
+                    {Task.workflow_id: current.id}, synchronize_session=False
+                )
+                self.db.delete(duplicate)
+                changed = True
+        if changed:
+            self.db.commit()
 
     def _load_default_workflow_files(self, workflows_dir: str) -> None:
         """加载默认工作流文件"""
@@ -105,6 +206,17 @@ class WorkflowService:
                     if node_mapping and not existing.node_mapping:
                         existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
                         print(f"[Workflow] Updated node mapping for default: {wf_type}")
+                    elif wf_type == "TEMPORAL_EXTEND" and node_mapping:
+                        current_mapping = self._parse_json_field(existing.node_mapping)
+                        missing_slots = {
+                            key: value for key, value in node_mapping.items()
+                            if ((key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                                and not current_mapping.get(key))
+                            or (key == "clip_video_output_node_id" and key not in current_mapping)
+                        }
+                        if missing_slots:
+                            existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)
+                            print(f"[Workflow] Added temporal reference mappings for default: {wf_type}")
                     continue
 
                 workflow = Workflow(
@@ -113,7 +225,7 @@ class WorkflowService:
                     type=wf_type,
                     workflow_json=workflow_json,
                     is_system=True,
-                    is_active=True,
+                    is_active=self.workflow_repo.get_active_by_type(wf_type) is None,
                     file_path=file_path,
                     node_mapping=json.dumps(node_mapping, ensure_ascii=False) if node_mapping else None
                 )
@@ -175,6 +287,18 @@ class WorkflowService:
             if not current_mapping:
                 existing.node_mapping = json.dumps(wf_config["node_mapping"], ensure_ascii=False)
                 print(f"[Workflow] Updated node mapping: {wf_config['name']}")
+            elif wf_config["type"] in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND", "multi_reference_video"}:
+                # Upgrade the existing system record in place; preserve its
+                # video/prompt/output mappings and default status.
+                missing_slots = {
+                    key: value for key, value in wf_config["node_mapping"].items()
+                    if ((key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                        and not current_mapping.get(key))
+                    or (key == "clip_video_output_node_id" and key not in current_mapping)
+                }
+                if missing_slots:
+                    existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)
+                    print(f"[Workflow] Added continuation reference mappings: {wf_config['name']}")
 
         # 更新扩展属性（如果配置中有且未设置）
         if "extension" in wf_config:
@@ -452,6 +576,10 @@ class WorkflowService:
                 "message": "工作流不存在"
             }
 
+        if workflow.type in RETIRED_H3_WORKFLOW_TYPES:
+            return {"success": False, "status_code": 410,
+                    "message": "该工作流仅供历史查看，新 H3 任务使用多参考及现有续生成工作流。"}
+
         # 将该类型的所有工作流设为非激活
         self.workflow_repo.deactivate_all_by_type(workflow.type)
 
@@ -585,6 +713,7 @@ class WorkflowService:
                 "typeName": WORKFLOW_TYPES.get(w.type, w.type),
                 "isSystem": w.is_system,
                 "isActive": w.is_active,
+                "availableForNewTasks": w.type not in RETIRED_H3_WORKFLOW_TYPES,
                 "nodeMapping": json.loads(w.node_mapping) if w.node_mapping else None,
                 "extension": json.loads(w.extension) if w.extension else None,
                 "createdAt": format_datetime(w.created_at),
@@ -608,6 +737,7 @@ class WorkflowService:
             "workflowJson": workflow.workflow_json,
             "isSystem": workflow.is_system,
             "isActive": workflow.is_active,
+            "availableForNewTasks": workflow.type not in RETIRED_H3_WORKFLOW_TYPES,
             "nodeMapping": json.loads(workflow.node_mapping) if workflow.node_mapping else None,
             "extension": json.loads(workflow.extension) if workflow.extension else None,
             "createdAt": format_datetime(workflow.created_at),

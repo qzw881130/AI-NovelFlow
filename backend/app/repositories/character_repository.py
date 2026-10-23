@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models.novel import Character
+from app.utils.identity_features import update_identity_features
 
 
 class CharacterRepository:
@@ -21,6 +22,21 @@ class CharacterRepository:
         return self.db.query(Character).filter(
             Character.novel_id == novel_id
         ).all()
+
+    def auto_set_protagonists(self, novel_id: str) -> tuple[list[str], int]:
+        """将当前小说名称不含十进制数字的非旁白角色设为主角。"""
+        assigned_ids = []
+        updated_count = 0
+        for character in self.list_by_novel(novel_id):
+            if character.is_narrator or not character.name or any(char.isdecimal() for char in character.name):
+                continue
+            assigned_ids.append(character.id)
+            if not character.is_protagonist:
+                character.is_protagonist = True
+                updated_count += 1
+        if updated_count:
+            self.db.commit()
+        return assigned_ids, updated_count
     
     def get_by_id(self, character_id: str) -> Optional[Character]:
         """根据 ID 获取角色"""
@@ -52,6 +68,7 @@ class CharacterRepository:
             end_chapter=end_chapter,
             source_range=source_range,
         )
+        update_identity_features(character, appearance)
         self.db.add(character)
         self.db.commit()
         self.db.refresh(character)
@@ -59,9 +76,13 @@ class CharacterRepository:
     
     def update(self, character: Character, **kwargs) -> Character:
         """更新角色"""
+        appearance_changed = "appearance" in kwargs
+        explicit_features = kwargs.pop("stable_identity_features", None)
         for key, value in kwargs.items():
             if hasattr(character, key):
                 setattr(character, key, value)
+        if explicit_features is not None or appearance_changed:
+            update_identity_features(character, character.appearance, explicit_features)
         self.db.commit()
         self.db.refresh(character)
         return character
@@ -93,7 +114,8 @@ class CharacterRepository:
     
     def update_from_schema(self, character: Character, name: str = None,
                           description: str = None, appearance: str = None,
-                          voice_prompt: str = None) -> Character:
+                          voice_prompt: str = None, is_protagonist: bool = None,
+                          stable_identity_features: str = None) -> Character:
         """从 Schema 数据更新角色"""
         update_data = {}
         if name is not None:
@@ -104,6 +126,10 @@ class CharacterRepository:
             update_data["appearance"] = appearance
         if voice_prompt is not None:
             update_data["voice_prompt"] = voice_prompt
+        if is_protagonist is not None:
+            update_data["is_protagonist"] = is_protagonist
+        if stable_identity_features is not None:
+            update_data["stable_identity_features"] = stable_identity_features
         return self.update(character, **update_data)
     
     def update_appearance(self, character: Character, appearance: str) -> Character:

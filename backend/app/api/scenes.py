@@ -260,13 +260,8 @@ async def get_scene_prompt(
     novel = novel_repo.get_by_id(scene.novel_id)
 
     # 获取场景生成提示词模板
-    template = None
-    if novel and novel.scene_prompt_template_id:
-        template = prompt_template_repo.get_by_id(novel.scene_prompt_template_id)
-    if not template:
-        templates = prompt_template_repo.list_by_type('scene')
-        if templates:
-            template = templates[0]
+    template = prompt_template_repo.resolve_for_type(
+        novel.scene_prompt_template_id if novel else None, "scene")
 
     # 获取风格提示词
     style, style_template = get_style(db, novel, "scene")
@@ -317,7 +312,8 @@ async def generate_scene_setting(
         setting = await get_llm_service().generate_scene_setting(
             scene_name=scene.name,
             description=scene.description,
-            style="anime"
+            style="anime",
+            novel_id=scene.novel_id,
         )
 
         # 更新场景

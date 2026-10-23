@@ -3,6 +3,7 @@ LLM 服务封装 - 支持多厂商调用 (DeepSeek, OpenAI, Gemini, Anthropic, A
 
 对外暴露的服务层，内部使用 LLMClient 实现底层调用。
 """
+import json
 from typing import Dict, Any, List, Optional
 from app.core.config import get_settings
 from app.services.llm import LLMClient, LLMConfig
@@ -104,7 +105,9 @@ class LLMService:
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        shot_id: str = None,
+        character_id: str = None,
+        images: list | None = None,
     ) -> Dict[str, Any]:
         """
         发送对话请求
@@ -124,6 +127,9 @@ class LLMService:
         if final_max_tokens is None:
             final_max_tokens = DEFAULT_MAX_TOKENS
         final_max_tokens = self._normalize_max_tokens(final_max_tokens)
+        from app.services.story_world_context import ensure_story_world_context_rules, inject_locked_story_world_context
+        system_prompt = ensure_story_world_context_rules(system_prompt, task_type)
+        user_content = inject_locked_story_world_context(novel_id, task_type, user_content)
         print(f"[chat_completion] url: {self.api_url}, model: {self.model}, temperature: {final_temperature}, max_tokens: {final_max_tokens} \n system_prompt: {system_prompt}\n user_content: {user_content}")
 
         client = self._get_client()
@@ -137,7 +143,9 @@ class LLMService:
             prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
-            character_id=character_id
+            shot_id=shot_id,
+            character_id=character_id,
+            **({"images": images} if images else {}),
         )
 
     async def check_health(self) -> bool:
@@ -155,12 +163,20 @@ class LLMService:
 
     # ============== 业务方法 ==============
 
-    async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
+    async def parse_novel_text(
+        self,
+        text: str,
+        novel_id: str = None,
+        source_range: str = None,
+        prompt_template: str = None,
+        prompt_template_name: str = None,
+        chapter_id: str = None,
+    ) -> Dict[str, Any]:
         """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
         # 获取当前配置
         from app.core.config import get_settings
         settings = get_settings()
-        system_prompt = settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
+        system_prompt = prompt_template or settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
 
         # 替换章节范围占位符
         if source_range:
@@ -175,8 +191,9 @@ class LLMService:
             max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_characters",
-            prompt_template_name="系统配置角色解析提示词",
-            novel_id=novel_id
+            prompt_template_name=prompt_template_name or ("小说配置角色解析提示词" if prompt_template else "系统配置角色解析提示词"),
+            novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:
@@ -248,6 +265,19 @@ class LLMService:
         else:
             return prompt
 
+    def _get_asset_description_prompt(self, template_type: str, fallback: str, novel_id: str = None):
+        """Reuse registered system templates; file-backed fallback before seeding."""
+        from app.core.database import SessionLocal
+        from app.models.novel import Novel
+        from app.services.novel_prompt_templates import resolve_novel_prompt_template
+
+        with SessionLocal() as db:
+            novel = db.get(Novel, novel_id) if novel_id else None
+            template = resolve_novel_prompt_template(db, novel, template_type)
+            if template:
+                return template.template, template.name
+        return fallback, "场景设定描述" if template_type == "scene_setting" else "道具外观描述"
+
     async def generate_scene_setting(
         self,
         scene_name: str,
@@ -266,7 +296,9 @@ class LLMService:
         Returns:
             场景设定字符串（用于 AI 绘图的环境描述）
         """
-        system_prompt = get_scene_setting_prompt(style)
+        system_prompt, template_name = self._get_asset_description_prompt(
+            "scene_setting", get_scene_setting_prompt(style), novel_id
+        )
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -274,7 +306,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_scene_setting",
-            prompt_template_name=f"{style} 场景设定提示词",
+            prompt_template_name=template_name,
             novel_id=novel_id
         )
 
@@ -301,7 +333,9 @@ class LLMService:
         Returns:
             道具外观描述字符串（用于 AI 绘图）
         """
-        system_prompt = get_prop_appearance_prompt(style)
+        system_prompt, template_name = self._get_asset_description_prompt(
+            "prop_appearance", get_prop_appearance_prompt(style), novel_id
+        )
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -309,7 +343,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_prop_appearance",
-            prompt_template_name=f"{style} 道具外观提示词",
+            prompt_template_name=template_name,
             novel_id=novel_id
         )
 
@@ -325,7 +359,8 @@ class LLMService:
         chapter_content: str,
         chapter_title: str = "",
         prompt_template: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        chapter_id: str = None,
     ) -> Dict[str, Any]:
         """解析场景信息
 
@@ -355,7 +390,8 @@ class LLMService:
             response_format="json_object",
             task_type="parse_scenes",
             prompt_template_name=prompt_template_name or ("自定义场景解析提示词" if prompt_template else "默认场景解析提示词"),
-            novel_id=novel_id
+            novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:
@@ -375,8 +411,10 @@ class LLMService:
     async def parse_props(
         self,
         text: str,
+        novel_id: str = None,
         prompt_template: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        chapter_id: str = None,
     ) -> Dict[str, Any]:
         """
         解析小说文本中的道具信息
@@ -391,7 +429,7 @@ class LLMService:
         # 使用提供的模板或默认模板
         if not prompt_template:
             import os
-            template_path = os.path.join(os.path.dirname(__file__), '..', 'prompt_templates', 'prop_parse.txt')
+            template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates', 'prop_parse.txt')
             if os.path.exists(template_path):
                 with open(template_path, "r", encoding="utf-8") as f:
                     prompt_template = f.read()
@@ -403,7 +441,9 @@ class LLMService:
             max_tokens=4000,
             response_format="json_object",
             task_type="parse_props",
-            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词")
+            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词"),
+            novel_id=novel_id,
+            chapter_id=chapter_id,
         )
 
         if result["success"]:
@@ -450,7 +490,8 @@ class LLMService:
         style: str = "anime style, high quality, detailed",
         novel_id: str = None,
         chapter_id: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        story_world_context: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """使用自定义提示词将章节拆分为分镜数据结构"""
 
@@ -458,9 +499,13 @@ class LLMService:
         system_prompt = prompt_template.replace(
             "{每个分镜对应拆分故事字数}", str(word_count)
         ).replace(
-            "{图像风格}", style
+            "{图像风格} style, high quality, detailed", ""
         ).replace(
-            "##STYLE##", style
+            "##STYLE## style, high quality, detailed", ""
+        ).replace(
+            "{图像风格}", ""
+        ).replace(
+            "##STYLE##", ""
         )
 
         # 构建 allowed_characters 行
@@ -483,7 +528,15 @@ class LLMService:
         if allowed_characters_line or allowed_scenes_line or allowed_props_line:
             whitelist_lines = allowed_characters_line + allowed_scenes_line + allowed_props_line + "\n"
 
-        user_content = f"""{whitelist_lines}章节标题：{chapter_title}
+        if story_world_context is None:
+            from app.services.story_world_context import get_locked_story_world_context
+            story_world_context = get_locked_story_world_context(novel_id).model_dump()
+        story_context_json = json.dumps(story_world_context, ensure_ascii=False, indent=2)
+
+        user_content = f"""story_world_context:
+{story_context_json}
+
+{whitelist_lines}章节标题：{chapter_title}
 
 章节内容：
 {chapter_content[:CHAPTER_CONTENT_MAX_LENGTH]}

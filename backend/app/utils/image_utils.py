@@ -51,6 +51,7 @@ def _merge_labeled_images(
     filename_suffix: str,
     path_getter: Callable,
     log_prefix: str,
+    cleanup_existing: bool = True,
 ) -> Optional[str]:
     import os
     import glob
@@ -62,7 +63,7 @@ def _merge_labeled_images(
         story_dir = file_storage._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         merged_dir = story_dir / f"chapter_{chapter_short}" / folder_name
-        if merged_dir.exists():
+        if cleanup_existing and merged_dir.exists():
             old_files = glob.glob(str(merged_dir / f"shot_{shot_index:03d}_*_{filename_suffix}.png"))
             for old_file in old_files:
                 try:
@@ -182,9 +183,15 @@ def merge_character_images(
     chapter_id: str,
     shot_index: int,
     character_images: List[Tuple[str, str]],
-    file_storage
+    file_storage,
+    *,
+    character_assets: Optional[List[dict]] = None,
 ) -> Optional[str]:
     """合并多个角色图片为一个参考图"""
+    if character_assets is not None:
+        return _merge_selected_character_images(
+            novel_id, chapter_id, shot_index, character_images, character_assets, file_storage
+        )
     return _merge_labeled_images(
         novel_id,
         chapter_id,
@@ -198,14 +205,85 @@ def merge_character_images(
     )
 
 
+def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, assets, storage, *, reference_kind="character"):
+    """Cache only the selected ID + asset versions; preserve all historical variants."""
+    import hashlib
+    import json
+    import os
+    import uuid
+    from pathlib import Path
+
+    id_key = f"{reference_kind}_id"
+    plural = "characters" if reference_kind == "character" else "props"
+    get_path = storage.get_merged_characters_path if reference_kind == "character" else storage.get_merged_props_path
+    if len(images) != len(assets) or not images:
+        raise ValueError("Selected character assets do not match merge inputs")
+    if len({a[id_key] for a in assets}) != len(assets):
+        raise ValueError("Duplicate character ID in reference group")
+
+    # Stable layout/cache for the same set, independent of selector ordering.
+    selected = sorted(zip(assets, images), key=lambda pair: pair[0][id_key])
+    members = []
+    ordered_images = []
+    for asset, (name, path) in selected:
+        if hashlib.sha256(Path(path).read_bytes()).hexdigest() != asset["sha256"]:
+            raise ValueError(f"Selected character asset changed: {asset[id_key]}")
+        members.append({id_key: asset[id_key], "name": name,
+                        "url": asset["url"], "sha256": asset["sha256"]})
+        ordered_images.append((name, path))
+    identity = {"layout_version": 1, "members": members}
+    signature = hashlib.sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    output = get_path(
+        novel_id, chapter_id, shot_index, asset_signature=signature
+    )
+    metadata_path = output.with_suffix(".json")
+    if output.is_file() and metadata_path.is_file():
+        try:
+            saved = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if saved.get("identity") == identity and saved.get("image_sha256") == hashlib.sha256(output.read_bytes()).hexdigest():
+                return str(output)
+        except (ValueError, OSError):
+            pass
+
+    temporary = output.with_name(f".{output.stem}.{uuid.uuid4().hex}.png")
+    temporary_metadata = temporary.with_suffix(".json")
+    try:
+        result = _merge_labeled_images(
+            novel_id, chapter_id, shot_index, ordered_images, storage,
+            f"merged_{plural}", plural, lambda *args: temporary,
+            "MergeSelectedCharacters", cleanup_existing=False,
+        )
+        if not result:
+            raise ValueError("Could not merge selected character references")
+        # Do not publish a cache built while a source file was being replaced.
+        for asset, (_, path) in selected:
+            if hashlib.sha256(Path(path).read_bytes()).hexdigest() != asset["sha256"]:
+                raise ValueError(f"Selected character asset changed: {asset[id_key]}")
+        temporary_metadata.write_text(json.dumps({
+            "identity": identity, "image_sha256": hashlib.sha256(temporary.read_bytes()).hexdigest(),
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temporary, output)
+        os.replace(temporary_metadata, metadata_path)
+        return str(output)
+    finally:
+        temporary.unlink(missing_ok=True)
+        temporary_metadata.unlink(missing_ok=True)
+
+
 def merge_prop_images(
     novel_id: str,
     chapter_id: str,
     shot_index: int,
     prop_images: List[Tuple[str, str]],
-    file_storage
+    file_storage,
+    *, prop_assets: Optional[list] = None,
 ) -> Optional[str]:
-    """合并多个道具图片为一个参考图"""
+    """合并多个道具图片为一个参考图；显式资产使用成员/版本隔离缓存。"""
+    if prop_assets is not None:
+        return _merge_selected_character_images(
+            novel_id, chapter_id, shot_index, prop_images, prop_assets, file_storage,
+            reference_kind="prop",
+        )
     return _merge_labeled_images(
         novel_id,
         chapter_id,

@@ -1,0 +1,82 @@
+{
+  "overall": "FAIL",
+  "summary": "皇帝已站到宝座前且主要场景成立，但远处织造室清楚出现三名人物，使全画面达到五人，违反恰好四人的要求；人物朝向、总管受命姿态、额外摆钟及非Q版风格也存在偏差。",
+  "dimensions": {
+    "CHARACTER_IDENTITY": {
+      "status": "WARNING",
+      "summary": "皇帝与宫廷总管的外观基本延续Picture1，但织造室人物距离较远且出现额外人物，无法明确判断哪两位分别绑定为骗子1与骗子2。"
+    },
+    "CHARACTER_COUNT": {
+      "status": "FAIL",
+      "summary": "前景有皇帝和宫廷总管，背景织造室内可清楚分辨三名人物，全画面共五人而非要求的四人。"
+    },
+    "HUMAN_ANATOMY": {
+      "status": "PASS",
+      "summary": "可见人物未发现明确的多余肢体、身体融合或其他严重人体结构异常。"
+    },
+    "ACTION_ACCURACY": {
+      "status": "WARNING",
+      "summary": "皇帝已完整站立并抬手至胸前，但视线明显朝画面左侧而非总管；总管双手置于身后且没有完全朝向皇帝。"
+    },
+    "PROP_ACCURACY": {
+      "status": "WARNING",
+      "summary": "高背宝座的红色软包、深木雕刻和金色装饰与Picture2大体一致，但画面加入了两个当前未指定的宫廷摆钟。"
+    },
+    "SCENE_CONSISTENCY": {
+      "status": "WARNING",
+      "summary": "王宫大厅、宝座区域和暖亮织造室的空间层次基本成立，但角色采用较写实的成人比例与细密渲染，未保持要求的2D chibi、2.5至3头身视觉风格。"
+    }
+  },
+  "issues": [
+    {
+      "type": "CHARACTER_IDENTITY",
+      "severity": "WARNING",
+      "expected": "依据Picture1的SHOT_IMAGE绑定，远处亮窗内应仅有身份互不混淆的骗子1和骗子2。",
+      "observed": "织造室内出现三名远景人物，其面部与身份特征较小，无法可靠确定哪两名分别是骗子1和骗子2。",
+      "location": "生成图左侧至中左侧的远处织造室亮窗内",
+      "evidence": "Picture1由sources中的SHOT_IMAGE提供四名角色外观基线；生成图背景可见左侧站立者、中部戴帽站立者和右侧坐姿者三人，导致骗子1、骗子2的对应关系不明确。",
+      "suggestion": "仅保留与Picture1绑定外观一致的两名骗子，并让二人分别位于两架织机前、保持清楚间隔。",
+      "visibility": "UNCERTAIN"
+    },
+    {
+      "type": "CHARACTER_COUNT",
+      "severity": "FAIL",
+      "expected": "画面恰好出现皇帝、宫廷总管、骗子1、骗子2四名人物，每人仅出现一次。",
+      "observed": "前景可见皇帝和宫廷总管两人，远处织造室亮窗内另有三名彼此分离的人物，全画面共五人。",
+      "location": "额外人物位于生成图中左侧织造室区域；该区域从左到右可见三个人形",
+      "evidence": "织造室内可直接观察到左侧站在织机旁的人物、中部戴帽站立人物及其右侧坐姿人物，三者头部和身体轮廓彼此独立；加上前景两人，明确超过目标四人。",
+      "suggestion": "删除织造室中的一名额外人物，使背景严格只保留骗子1与骗子2两人。",
+      "visibility": "OBSERVED"
+    },
+    {
+      "type": "ACTION_ACCURACY",
+      "severity": "WARNING",
+      "expected": "皇帝站在宝座前，以抬手命令姿态坚定注视总管；总管完全朝向皇帝，双手收于身前受命。",
+      "observed": "皇帝已站立并将一手抬至胸前，但头部和视线朝向画面左侧；总管大致与皇帝同向站立，双手置于背后而非收于身前。",
+      "location": "生成图中央前景的皇帝与其右后方宫廷总管",
+      "evidence": "两人的头部朝向和总管手臂位置清楚可见，与current_anchor及原始提示词规定的相互注视和受命姿态不一致。",
+      "suggestion": "让皇帝转头注视总管；让总管身体完全转向皇帝，并将双手端正收在身前。",
+      "visibility": "OBSERVED"
+    },
+    {
+      "type": "PROP_ACCURACY",
+      "severity": "WARNING",
+      "expected": "保留与Picture2的PROP:高背宝座绑定一致的宝座，并避免强行加入当前画面未指定可见的宫廷摆钟。",
+      "observed": "宝座主体外观基本匹配参考，但宝座左侧后方和画面最右侧各出现一座摆钟。",
+      "location": "一座位于总管右后方靠近宝座台阶处，另一座位于画面最右侧墙边",
+      "evidence": "Picture2仅绑定高背宝座；原始提示明确要求不要强行加入当前未指定可见的宫廷摆钟，而生成图中可直接看到两个钟面与钟柜。",
+      "suggestion": "移除两座额外摆钟，同时保留高背宝座的红色软包、深色雕花木框和金色装饰结构。",
+      "visibility": "OBSERVED"
+    },
+    {
+      "type": "SCENE_CONSISTENCY",
+      "severity": "WARNING",
+      "expected": "整体采用干净圆润线条、平涂色彩和简洁赛璐璐阴影的2D chibi风格，人物保持约2.5至3头身。",
+      "observed": "人物接近写实成人比例，约六至七头身，并使用较细密的写实材质、光影和线描。",
+      "location": "生成图全画面，尤其是中央前景皇帝与宫廷总管",
+      "evidence": "与原始提示指定的Q版头身及简洁平涂语言相比，生成图的人体比例和渲染方式明显更写实；虽然宫殿、夕照和纵深关系仍与Picture1的场景基线相近。",
+      "suggestion": "将所有角色统一为2.5至3头身的2D chibi造型，并简化材质细节与阴影，保持场景和道具使用同一二维视觉语言。",
+      "visibility": "OBSERVED"
+    }
+  ]
+}

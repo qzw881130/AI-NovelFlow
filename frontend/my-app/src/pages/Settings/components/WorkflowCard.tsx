@@ -1,4 +1,4 @@
-import { Star, Edit2, Download, Trash2, Settings as SettingsIcon, User, Image as ImageIcon, Film, Mountain, Box, Music, Clapperboard, Mic } from 'lucide-react';
+import { Star, Edit2, Download, Trash2, Settings as SettingsIcon, User, Image as ImageIcon, Film, Mountain, Box, Music, Clapperboard, Mic, Workflow as WorkflowIcon } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { getWorkflowDisplayName, getWorkflowDisplayDescription, checkWorkflowMappingComplete } from '../utils';
@@ -16,12 +16,17 @@ const typeIcons: Record<string, typeof User> = {
   first_last_video: Film,
   three_frame_video: Film,
   four_frame_video: Film,
+  multi_reference_video: Film,
+  video_upscale: Film,
+  TEMPORAL_EXTEND: Film,
+  VIDEO_CONTINUATION: Film,
   transition: Film,
   prop: Box,
   voice_design: Mic,
   audio: Music,
   keyframe_image: Clapperboard,
-  single_image_edit: ImageIcon
+  single_image_edit: ImageIcon,
+  multi_image_edit: ImageIcon
 };
 
 const typeColors: Record<string, string> = {
@@ -35,12 +40,17 @@ const typeColors: Record<string, string> = {
   first_last_video: 'bg-rose-100 text-rose-600',
   three_frame_video: 'bg-fuchsia-100 text-fuchsia-600',
   four_frame_video: 'bg-purple-100 text-purple-600',
+  multi_reference_video: 'bg-indigo-100 text-indigo-600',
+  video_upscale: 'bg-sky-100 text-sky-600',
+  TEMPORAL_EXTEND: 'bg-cyan-100 text-cyan-700',
+  VIDEO_CONTINUATION: 'bg-teal-100 text-teal-700',
   transition: 'bg-purple-100 text-purple-600',
   prop: 'bg-orange-100 text-orange-600',
   voice_design: 'bg-cyan-100 text-cyan-600',
   audio: 'bg-indigo-100 text-indigo-600',
   keyframe_image: 'bg-teal-100 text-teal-600',
-  single_image_edit: 'bg-violet-100 text-violet-600'
+  single_image_edit: 'bg-violet-100 text-violet-600',
+  multi_image_edit: 'bg-blue-100 text-blue-600'
 };
 
 interface WorkflowCardProps {
@@ -49,6 +59,7 @@ interface WorkflowCardProps {
   onSetDefault: (workflow: Workflow) => void;
   onOpenEdit: (workflow: Workflow) => void;
   onOpenMapping: (workflow: Workflow) => void;
+  onOpenGraph: (workflow: Workflow) => void;
   onDelete: (workflow: Workflow) => void;
   onDownload: (workflow: Workflow) => void;
 }
@@ -59,6 +70,7 @@ export function WorkflowCard({
   onSetDefault, 
   onOpenEdit, 
   onOpenMapping, 
+  onOpenGraph,
   onDelete,
   onDownload 
 }: WorkflowCardProps) {
@@ -85,7 +97,10 @@ export function WorkflowCard({
                   {t('promptConfig.systemDefault')}
                 </span>
               )}
-              {workflow.isActive && (
+              {workflow.availableForNewTasks === false && (
+                <span className="text-xs text-gray-500">已退役 · 仅供历史查看</span>
+              )}
+              {workflow.isActive && workflow.availableForNewTasks !== false && (
                 <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
               )}
               {!isMappingComplete && (
@@ -114,7 +129,7 @@ export function WorkflowCard({
         </div>
         
         <div className="flex items-center gap-2">
-          {!workflow.isActive && (
+          {!workflow.isActive && workflow.availableForNewTasks !== false && (
             <button
               type="button"
               onClick={() => onSetDefault(workflow)}
@@ -124,6 +139,15 @@ export function WorkflowCard({
               <Star className="h-4 w-4" />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => onOpenGraph(workflow)}
+            className="p-2 text-gray-400 hover:text-blue-600"
+            title={t('tasks.workflowGraph')}
+            aria-label={`${t('tasks.workflowGraph')}: ${getWorkflowDisplayName(workflow, t)}`}
+          >
+            <WorkflowIcon className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => onOpenMapping(workflow)}

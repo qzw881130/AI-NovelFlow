@@ -35,6 +35,14 @@ export interface HealthResponse {
   };
 }
 
+export interface DiskUsage {
+  mount_point: string;
+  name: string;
+  total_bytes: number;
+  used_bytes: number;
+  used_percent: number;
+}
+
 export const healthApi = {
   /**
    * 获取 ComfyUI 状态
@@ -47,11 +55,18 @@ export const healthApi = {
     return response.json();
   },
 
-  getSystemStatus: async (): Promise<HealthResponse> => {
-    const response = await fetch('/api/health/system-status');
+  getSystemStatus: async (signal?: AbortSignal): Promise<HealthResponse> => {
+    const response = await fetch('/api/health/system-status', { signal });
     if (!response.ok) {
       return { status: 'error' };
     }
     return response.json();
+  },
+
+  getDisks: async (signal?: AbortSignal): Promise<DiskUsage[]> => {
+    const response = await fetch('/api/health/disks', { signal });
+    if (!response.ok) throw new Error(`Disk usage request failed: ${response.status}`);
+    const data: { disks: DiskUsage[] } = await response.json();
+    return data.disks;
   },
 };

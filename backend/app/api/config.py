@@ -5,7 +5,9 @@
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
+from datetime import datetime, timezone
+from urllib.parse import urlparse
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,8 @@ from app.core.database import get_db
 from app.core.config import get_settings, update_settings
 from app.core.security import encrypt_value, decrypt_value
 from app.models.system_config import SystemConfig as SystemConfigModel
+from app.services.generation_preflight import catalog, config_policy, normalize_policy
+import json
 
 router = APIRouter()
 
@@ -33,6 +37,8 @@ class ProxyConfig(BaseModel):
     enabled: bool
     httpProxy: Optional[str] = None
     httpsProxy: Optional[str] = None
+    youtubeEnabled: Optional[bool] = None
+    youtubeProxyUrl: Optional[str] = None
 
 
 class SystemConfigUpdate(BaseModel):
@@ -47,24 +53,74 @@ class SystemConfigUpdate(BaseModel):
     parseCharactersPrompt: Optional[str] = None
     language: Optional[str] = None
     timezone: Optional[str] = None
+    autoImageReviewEnabled: Optional[bool] = None
+    videoPromptLanguage: Optional[Literal["en", "zh"]] = None
+    showFirstAppearanceNames: Optional[bool] = None
+    autoApproveFirstAppearanceNames: Optional[bool] = None
+    generationQualityPolicy: Optional[dict[str, bool]] = None
+    coverProduction: Optional[str] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
     """获取或创建系统配置记录"""
     inspector = inspect(db.bind)
+    migrate_youtube_proxy = False
     if "system_configs" in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns("system_configs")}
+        migrate_youtube_proxy = "youtube_proxy_enabled" not in columns or "youtube_proxy_url" not in columns
+        if "youtube_proxy_enabled" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN youtube_proxy_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            db.commit()
+        if "youtube_proxy_url" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN youtube_proxy_url VARCHAR NOT NULL DEFAULT ''"))
+            db.commit()
+        if "video_prompt_language" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN video_prompt_language VARCHAR NOT NULL DEFAULT 'en'"))
+            db.commit()
         if "comfyui_timeout" not in columns:
-            db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 900"))
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 3600"))
+            db.commit()
+        if "auto_image_review_enabled" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 1"))
+            db.commit()
+        if "auto_image_review_enabled_at" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
+            db.commit()
+        if "show_first_appearance_names" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN show_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
+            db.commit()
+        if "auto_approve_first_appearance_names" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
+            db.commit()
+        if "generation_quality_policy" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
+        if "cover_production" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN cover_production VARCHAR NOT NULL DEFAULT '旺仔有声小说'"))
             db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
     if not config:
-        config = SystemConfigModel(id="default")
+        config = SystemConfigModel(id="default", auto_image_review_enabled_at=datetime.now(timezone.utc))
         db.add(config)
         db.commit()
         db.refresh(config)
+    elif config.auto_image_review_enabled and config.auto_image_review_enabled_at is None:
+        config.auto_image_review_enabled_at = datetime.now(timezone.utc)
+        db.commit()
+    if "system_configs" in inspector.get_table_names() and migrate_youtube_proxy and "youtube_configs" in inspector.get_table_names():
+        legacy = db.execute(text("SELECT proxy_enabled, proxy_url FROM youtube_configs WHERE id='default'")).first()
+        if legacy:
+            config.youtube_proxy_enabled = bool(legacy[0])
+            config.youtube_proxy_url = legacy[1] or ""
+            db.commit()
     return config
+
+
+@router.get("/generation-checks")
+async def get_generation_checks(db: Session = Depends(get_db)):
+    policy = config_policy(get_or_create_config(db))
+    return {"success": True, "data": {"checks": catalog(policy), "policy": policy}}
 
 
 @router.get("/")
@@ -82,13 +138,21 @@ async def get_config(db: Session = Depends(get_db)):
             "llmMaxTokens": config.llm_max_tokens,
             "llmTemperature": config.llm_temperature,
             "llmTimeout": config.llm_timeout,
+            "autoImageReviewEnabled": bool(config.auto_image_review_enabled),
+            "videoPromptLanguage": config.video_prompt_language,
+            "showFirstAppearanceNames": bool(config.show_first_appearance_names),
+            "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
+            "generationQualityPolicy": config_policy(config),
+            "coverProduction": config.cover_production or "旺仔有声小说",
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
             "httpsProxy": config.https_proxy,
+            "youtubeProxyEnabled": bool(config.youtube_proxy_enabled),
+            "youtubeProxyUrl": config.youtube_proxy_url or "",
             # ComfyUI 配置
             "comfyUIHost": config.comfyui_host,
-            "comfyUITimeout": config.comfyui_timeout or 900,
+            "comfyUITimeout": config.comfyui_timeout or 3600,
             "systemStatusSource": config.system_status_source or "comfyui",
             # 输出配置
             "outputResolution": config.output_resolution,
@@ -120,11 +184,19 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_max_tokens": config.llm_max_tokens,
             "llm_temperature": config.llm_temperature,
             "llm_timeout": config.llm_timeout,
+            "auto_image_review_enabled": bool(config.auto_image_review_enabled),
+            "video_prompt_language": config.video_prompt_language,
+            "show_first_appearance_names": bool(config.show_first_appearance_names),
+            "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
+            "generation_quality_policy": config_policy(config),
+            "cover_production": config.cover_production or "旺仔有声小说",
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
+            "youtube_proxy_enabled": bool(config.youtube_proxy_enabled),
+            "youtube_proxy_url": config.youtube_proxy_url or "",
             "comfyui_host": config.comfyui_host,
-            "comfyui_timeout": config.comfyui_timeout or 900,
+            "comfyui_timeout": config.comfyui_timeout or 3600,
             "system_status_source": config.system_status_source or "comfyui",
             "output_resolution": config.output_resolution,
             "output_frame_rate": config.output_frame_rate,
@@ -163,6 +235,28 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
                 encrypted_key = encrypt_value(api_key)
                 db_config.llm_api_key = encrypted_key
                 updates["llm_api_key"] = api_key
+
+        if config.autoImageReviewEnabled is not None:
+            if config.autoImageReviewEnabled and (not db_config.auto_image_review_enabled or db_config.auto_image_review_enabled_at is None):
+                db_config.auto_image_review_enabled_at = datetime.now(timezone.utc)
+            db_config.auto_image_review_enabled = config.autoImageReviewEnabled
+        if config.videoPromptLanguage is not None:
+            db_config.video_prompt_language = config.videoPromptLanguage
+            updates["video_prompt_language"] = config.videoPromptLanguage
+        if config.showFirstAppearanceNames is not None:
+            db_config.show_first_appearance_names = config.showFirstAppearanceNames
+        if config.autoApproveFirstAppearanceNames is not None:
+            db_config.auto_approve_first_appearance_names = config.autoApproveFirstAppearanceNames
+        if config.generationQualityPolicy is not None:
+            try:
+                db_config.generation_quality_policy = json.dumps(normalize_policy(config.generationQualityPolicy))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if config.coverProduction is not None:
+            production = config.coverProduction.strip()
+            if not production or len(production) > 80:
+                raise HTTPException(status_code=400, detail="制作名称长度必须为 1–80 个字符")
+            db_config.cover_production = production
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled
@@ -172,14 +266,29 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             updates["proxy_enabled"] = config.proxy.enabled
             updates["http_proxy"] = config.proxy.httpProxy
             updates["https_proxy"] = config.proxy.httpsProxy
+            if config.proxy.youtubeProxyUrl is not None:
+                proxy_url = config.proxy.youtubeProxyUrl.strip()
+                if proxy_url:
+                    try:
+                        parsed = urlparse(proxy_url)
+                        valid = parsed.scheme == "http" and bool(parsed.hostname) and bool(parsed.port)
+                    except ValueError:
+                        valid = False
+                    if not valid or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+                        raise HTTPException(status_code=400, detail="YouTube 代理地址必须是包含主机和端口的 http:// 地址")
+                db_config.youtube_proxy_url = proxy_url
+            if config.proxy.youtubeEnabled is not None:
+                db_config.youtube_proxy_enabled = config.proxy.youtubeEnabled
+            if db_config.youtube_proxy_enabled and not db_config.youtube_proxy_url:
+                raise HTTPException(status_code=400, detail="启用 YouTube 代理前请填写代理地址")
         
         if config.comfyUIHost:
             db_config.comfyui_host = config.comfyUIHost
             updates["comfyui_host"] = config.comfyUIHost
 
         if config.comfyUITimeout is not None:
-            if config.comfyUITimeout not in {900, 1200, 1800}:
-                raise HTTPException(status_code=400, detail="ComfyUI 超时时间必须是 15、20 或 30 分钟")
+            if config.comfyUITimeout not in {900, 1200, 1800, 2700, 3600, 7200}:
+                raise HTTPException(status_code=400, detail="ComfyUI 超时时间必须是 15、20、30、45、60 或 120 分钟")
             db_config.comfyui_timeout = config.comfyUITimeout
             updates["comfyui_timeout"] = config.comfyUITimeout
 
@@ -215,6 +324,9 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         update_settings(updates)
         
         return {"success": True, "message": "配置已更新"}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"配置更新失败: {str(e)}")
@@ -363,11 +475,12 @@ def init_system_config(db: Session) -> None:
         "llm_max_tokens": config.llm_max_tokens,
         "llm_temperature": config.llm_temperature,
         "llm_timeout": config.llm_timeout,
+        "video_prompt_language": config.video_prompt_language,
         "proxy_enabled": config.proxy_enabled,
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,
         "comfyui_host": config.comfyui_host,
-        "comfyui_timeout": config.comfyui_timeout or 900,
+        "comfyui_timeout": config.comfyui_timeout or 3600,
         "system_status_source": config.system_status_source or "comfyui",
         "output_resolution": config.output_resolution,
         "output_frame_rate": config.output_frame_rate,

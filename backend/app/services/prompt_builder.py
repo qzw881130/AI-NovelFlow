@@ -14,6 +14,16 @@ class PromptBuilder:
     DEFAULT_SCENE_STYLE = "anime style, high quality, detailed, environment"
     DEFAULT_PROP_STYLE = "anime style, high quality, detailed, item design"
     DEFAULT_STYLE = "anime style, high quality, detailed"
+    PROP_ONLY_ASSET_RULES = """【纯道具资产图约束｜必须严格遵守】
+当前任务生成的是道具资产图，不是剧情插画，也不是人物使用道具的场景图。画面唯一主体必须是当前道具本身。
+禁止出现任何人物、人形主体、角色、手、手臂、身体局部、持有者、使用者或其他生物。
+道具名称或 description 中的人名、身份、所有者、使用者和剧情行为仅表示归属或剧情关系，不代表人物应出现在画面中。
+采用产品资产图或道具设定图：道具完整可见、唯一视觉中心、无人物、无手持、无佩戴、无使用动作、无剧情表演。
+背景只能是均匀、纯色、无纹理、无空间语义的中性底色。禁止生成房间、建筑、墙面、地面、门窗、台面、展台、展示柜、箱柜、家具、布景、风景、环境光源、环境阴影或任何其他道具；不得用“产品摄影”“静物场景”补充展示环境。
+衣服、首饰、冠帽、盔甲等可穿戴物只展示物品本身；禁止真人、角色或人体模特穿戴，以完整、自然展开的物件形态居中隔离呈现，不使用衣柜、衣架场景、展示设施或其他陪衬物。
+必须保持当前道具的实体类别和加工阶段。原材料不得生成成由其制成的成品：布料不得变成服装，金属材料不得变成武器或首饰，木材不得变成家具；除非当前道具的 appearance 明确描述的就是对应成品。
+STORY_WORLD_CONTEXT 只约束道具形制、材质、工艺和文化体系，不得因此引入人物。
+PROP ONLY. ISOLATED OBJECT. PLAIN SOLID NEUTRAL BACKGROUND. NO ENVIRONMENT. NO ROOM. NO WALL. NO FLOOR. NO TABLE. NO PEDESTAL. NO DISPLAY CASE. NO SCENERY. NO OTHER OBJECTS. PRESERVE THE PROP'S OBJECT CATEGORY AND PROCESSING STAGE. RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT. NO CHARACTER. NO PERSON. NO HUMAN OR HUMANOID FIGURE. NO HANDS OR BODY PARTS."""
 
     @staticmethod
     def get_style(
@@ -50,13 +60,8 @@ class PromptBuilder:
         # 创建 PromptTemplateRepository
         repo = PromptTemplateRepository(db)
         
-        # 从小说关联的风格模板获取
-        if novel and novel.style_prompt_template_id:
-            style_template = repo.get_by_id(novel.style_prompt_template_id)
-        
-        # 如果没有找到，使用默认系统风格模板
-        if not style_template:
-            style_template = repo.get_default_system_template("style")
+        style_template = repo.resolve_for_type(
+            novel.style_prompt_template_id if novel else None, "style")
         
         # 如果找到了模板，使用模板内容
         if style_template:
@@ -190,7 +195,10 @@ class PromptBuilder:
             if "##STYLE##" in prompt:
                 final_style = style or cls.DEFAULT_PROP_STYLE
                 prompt = prompt.replace("##STYLE##", final_style)
-            return cls._clean_prompt(prompt)
+            prompt = cls._clean_prompt(prompt)
+            if "【纯道具资产图约束｜必须严格遵守】" not in prompt:
+                prompt = f"{prompt}\n\n{cls.PROP_ONLY_ASSET_RULES}"
+            return prompt
 
         # 默认提示词
         base_prompt = "item design, prop design, object, "
@@ -208,7 +216,7 @@ class PromptBuilder:
 
         base_prompt += "high quality, detailed, clean background, professional artwork"
 
-        return base_prompt
+        return f"{base_prompt}\n\n{cls.PROP_ONLY_ASSET_RULES}"
 
     @staticmethod
     def _clean_prompt(prompt: str) -> str:

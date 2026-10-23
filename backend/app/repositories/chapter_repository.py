@@ -6,6 +6,7 @@
 import json
 import os
 import subprocess
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -118,9 +119,53 @@ class ChapterRepository:
         chapter_video = self.get_final_chapter_video_info(chapter)
         if chapter_video:
             response.update(chapter_video)
+        hd_chapter_video = self.get_final_chapter_video_info(chapter, "hd")
+        if hd_chapter_video:
+            response.update(hd_chapter_video)
+        response["videoAssets"] = self.get_chapter_video_assets(chapter)
         return response
 
-    def get_final_chapter_video_info(self, chapter: Chapter) -> Optional[dict]:
+    def get_chapter_video_assets(self, chapter: Chapter) -> List[dict]:
+        """返回初稿及各目标 MP 最新的完整章回合并结果。"""
+        total_shots = self.db.query(Shot).filter(Shot.chapter_id == chapter.id).count()
+        tasks = self.db.query(Task).filter(
+            Task.chapter_id == chapter.id,
+            Task.type == "chapter_video",
+            Task.status == "completed",
+        ).order_by(Task.completed_at.desc(), Task.created_at.desc()).all()
+        assets = []
+        seen = set()
+        for task in tasks:
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except Exception:
+                metadata = {}
+            variant = metadata.get("video_variant") or "draft"
+            target = metadata.get("target_megapixels") if variant == "hd" else None
+            profile_key = f"hd:{float(target)}" if target is not None else variant
+            shot_count = metadata.get("shots_count") or len(metadata.get("shot_ids") or [])
+            if profile_key in seen or not metadata.get("is_final_video") or shot_count < total_shots:
+                continue
+            video_url = task.result_url or metadata.get("video_url")
+            path = url_to_local_path(video_url) if video_url and video_url.startswith("/api/files/") else None
+            if not video_url or (video_url.startswith("/api/files/") and not (path and os.path.isfile(path))):
+                continue
+            seen.add(profile_key)
+            assets.append({
+                "id": task.id,
+                "profileKey": profile_key,
+                "kind": variant,
+                "targetMegapixels": float(target) if target is not None else None,
+                "label": f"高清 {float(target):g} MP" if target is not None else "初稿",
+                "videoUrl": video_url,
+                "duration": metadata.get("duration"),
+                "fileSize": metadata.get("file_size"),
+                "shotCount": shot_count,
+                "completedAt": task.completed_at.isoformat() if task.completed_at else None,
+            })
+        return sorted(assets, key=lambda item: (-1 if item["kind"] == "draft" else item["targetMegapixels"]))
+
+    def get_final_chapter_video_info(self, chapter: Chapter, video_variant: str = "draft", target_megapixels: float = None) -> Optional[dict]:
         """获取章节最终视频信息；只有全分镜合并才算最终视频。"""
         total_shots = self.db.query(Shot).filter(Shot.chapter_id == chapter.id).count()
         tasks = self.db.query(Task).filter(
@@ -129,18 +174,26 @@ class ChapterRepository:
             Task.status == "completed",
         ).order_by(Task.completed_at.desc(), Task.created_at.desc()).all()
 
-        final_video_url = chapter.final_video
+        final_video_url = None if target_megapixels is not None else (chapter.hd_final_video if video_variant == "hd" else chapter.final_video)
         final_task = None
         final_metadata = {}
         generated_shots_count = self.db.query(Shot).filter(
             Shot.chapter_id == chapter.id,
-            Shot.video_url.isnot(None),
+            (Shot.hd_video_url if video_variant == "hd" else Shot.video_url).isnot(None),
         ).count()
         for task in tasks:
             try:
                 metadata = json.loads(task.metadata_json or "{}")
             except Exception:
                 metadata = {}
+            if (metadata.get("video_variant") or "draft") != video_variant:
+                continue
+            if target_megapixels is not None:
+                try:
+                    if float(metadata.get("target_megapixels")) != float(target_megapixels):
+                        continue
+                except (TypeError, ValueError):
+                    continue
             task_video_url = task.result_url or metadata.get("video_url")
             is_final_task = bool(metadata.get("is_final_video"))
             if not is_final_task and total_shots > 0:
@@ -175,15 +228,89 @@ class ChapterRepository:
 
         shot_count = final_metadata.get("shots_count") or total_shots
 
+        prefix = "hdChapterVideo" if video_variant == "hd" else "chapterVideo"
         return {
-            "finalVideo": final_video_url,
-            "chapterVideoUrl": final_video_url,
-            "chapterVideoDuration": duration,
-            "chapterVideoSize": file_size,
-            "chapterVideoShotCount": shot_count,
-            "chapterVideoTaskId": final_task.id if final_task else None,
-            "chapterVideoCompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
+            ("hdFinalVideo" if video_variant == "hd" else "finalVideo"): final_video_url,
+            f"{prefix}Url": final_video_url,
+            f"{prefix}Duration": duration,
+            f"{prefix}Size": file_size,
+            f"{prefix}ShotCount": shot_count,
+            f"{prefix}TaskId": final_task.id if final_task else None,
+            f"{prefix}CompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
+            "targetMegapixels": final_metadata.get("target_megapixels"),
         }
+
+    def get_chapter_video_merge_status(self, chapter: Chapter) -> dict:
+        """Whether current draft Shot videos need a new full-chapter merge."""
+        shots = self.db.query(Shot).filter(
+            Shot.chapter_id == chapter.id,
+            Shot.video_url.isnot(None),
+        ).all()
+        result = {
+            "needsMerge": False,
+            "reason": None,
+            "shotCount": len(shots),
+            "newerShotCount": 0,
+        }
+        if not shots:
+            return result
+
+        merge_task = None
+        if chapter.final_video:
+            merge_task = self.db.query(Task).filter(
+                Task.chapter_id == chapter.id,
+                Task.type == "chapter_video",
+                Task.status == "completed",
+                Task.result_url == chapter.final_video,
+            ).order_by(Task.completed_at.desc()).first()
+        if not chapter.final_video:
+            result.update(needsMerge=True, reason="not_merged")
+            return result
+
+        # Legacy chapter videos may not have a Task row. Their file time is the
+        # only reliable timestamp available, if the local file still exists.
+        merge_time = merge_task.completed_at if merge_task else None
+        if merge_time is None:
+            merge_path = url_to_local_path(chapter.final_video) if chapter.final_video.startswith("/api/files/") else None
+            if merge_path and os.path.isfile(merge_path):
+                merge_time = datetime.fromtimestamp(os.path.getmtime(merge_path), timezone.utc)
+        if merge_time is None:
+            result.update(needsMerge=True, reason="not_merged")
+            return result
+
+        def utc(value):
+            return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+        task_ids = {shot.video_task_id for shot in shots if shot.video_task_id}
+        video_tasks = {
+            task.id: task for task in self.db.query(Task).filter(Task.id.in_(task_ids)).all()
+        } if task_ids else {}
+        newer_count = 0
+        for shot in shots:
+            shot_time = None
+            try:
+                plan = json.loads(shot.video_director_plan or "{}")
+            except (TypeError, ValueError):
+                plan = {}
+            if plan.get("merged_video_url") == shot.video_url and plan.get("merged_at"):
+                try:
+                    shot_time = datetime.fromisoformat(plan["merged_at"].replace("Z", "+00:00"))
+                except (TypeError, ValueError):
+                    pass
+            if shot_time is None:
+                video_task = video_tasks.get(shot.video_task_id)
+                if video_task and video_task.status == "completed" and video_task.result_url == shot.video_url:
+                    shot_time = video_task.completed_at
+            if shot_time is None and shot.video_url.startswith("/api/files/"):
+                path = url_to_local_path(shot.video_url)
+                if path and os.path.isfile(path):
+                    shot_time = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc)
+            if shot_time is not None and utc(shot_time) > utc(merge_time):
+                newer_count += 1
+        result["newerShotCount"] = newer_count
+        if newer_count:
+            result.update(needsMerge=True, reason="shot_video_newer")
+        return result
 
     @staticmethod
     def _probe_video_duration(video_path: str) -> Optional[float]:
@@ -238,6 +365,7 @@ class ChapterRepository:
             "shotVideos": shot_videos,
             "transitionVideos": transition_videos,
             "finalVideo": chapter.final_video,
+            "hdFinalVideo": chapter.hd_final_video,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
         }
 

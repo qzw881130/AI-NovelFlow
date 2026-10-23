@@ -6,7 +6,8 @@ ComfyUI 工作流构建器
 import json
 import random
 import re
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
+from app.utils.workflow_seed import set_workflow_seed
 
 
 class WorkflowBuilder:
@@ -81,6 +82,365 @@ class WorkflowBuilder:
             style=style,
             **kwargs
         )
+
+    def build_temporal_extend_workflow(
+        self,
+        workflow_json: Any,
+        node_mapping: Dict[str, Any],
+        video_filename: str,
+        duration_seconds: float,
+        anchors: list[Dict[str, Any]],
+        filename_prefix: str,
+        prompt: str = "",
+        reference_image_filenames: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Build a TEMPORAL_EXTEND workflow for zero to eight temporal anchors."""
+        if len(anchors) > 8:
+            raise ValueError("时序续生成最多支持 8 个 Temporal Anchor")
+        workflow = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+        if not isinstance(workflow, dict):
+            raise ValueError("时序续生成工作流格式无效")
+        if isinstance(workflow.get("nodes"), list):
+            self._configure_temporal_extend_ui_workflow(
+                workflow, node_mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt
+            )
+        else:
+            self._configure_temporal_extend_api_workflow(
+                workflow, node_mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt
+            )
+            if node_mapping.get("load_image_node_1"):
+                self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
+        self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
+        self._set_megapixels(workflow, node_mapping)
+        return workflow
+
+    def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix, reference_image_filenames=None):
+        workflow = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+        if not isinstance(workflow, dict):
+            raise ValueError("视频续生成工作流格式无效")
+        load_id = str(node_mapping.get("load_video_node_id") or "")
+        duration_id = str(node_mapping.get("duration_seconds_node_id") or "")
+        prompt_id = str(node_mapping.get("prompt_node_id") or "")
+        save_id = str(node_mapping.get("video_save_node_id") or "")
+        if any(node_id not in workflow for node_id in [load_id, duration_id, prompt_id, save_id]):
+            raise ValueError("视频续生成工作流映射不完整")
+        workflow[load_id].setdefault("inputs", {})["video"] = video_filename
+        workflow[duration_id].setdefault("inputs", {})["value"] = float(duration_seconds)
+        self._set_prompt(workflow, prompt_id, prompt)
+        workflow[save_id].setdefault("inputs", {})["filename_prefix"] = filename_prefix
+        workflow[save_id]["inputs"]["save_output"] = True
+        if node_mapping.get("load_image_node_1"):
+            self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
+        self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
+        self._set_megapixels(workflow, node_mapping)
+        return workflow
+
+    @staticmethod
+    def _set_second_pass_upscale_step(workflow: Dict[str, Any], node_mapping: Dict[str, Any]) -> None:
+        node_id = str(node_mapping.get("second_pass_upscale_step_node_id") or "")
+        if not node_id:
+            return
+        raw_step = node_mapping.get("second_pass_upscale_step") or 2
+        try:
+            step = int(raw_step)
+        except (TypeError, ValueError):
+            raise ValueError("二采放大Step 只能是 2、3 或 4") from None
+        if str(raw_step) != str(step) or step not in {2, 3, 4}:
+            raise ValueError("二采放大Step 只能是 2、3 或 4")
+
+        if isinstance(workflow.get("nodes"), list):
+            node = next((item for item in workflow["nodes"] if isinstance(item, dict) and str(item.get("id")) == node_id), None)
+            class_type = node.get("type") if node else None
+            if class_type not in {"INTConstant", "easy int", "Int"}:
+                raise ValueError(f"二采放大Step 节点 {node_id} 不存在或类型不支持")
+            key = "Number" if class_type == "Int" else "value"
+            named = node.get("widgets_values_named")
+            if not isinstance(named, dict):
+                named = {}
+                node["widgets_values_named"] = named
+            previous = named.get(key)
+            named[key] = str(step) if isinstance(previous, str) or class_type == "Int" else step
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = named[key]
+            elif isinstance(values, list) and values:
+                values[0] = named[key]
+            return
+
+        node = workflow.get(node_id)
+        class_type = node.get("class_type") if isinstance(node, dict) else None
+        if class_type not in {"INTConstant", "easy int", "Int"}:
+            raise ValueError(f"二采放大Step 节点 {node_id} 不存在或类型不支持")
+        key = "Number" if class_type == "Int" else "value"
+        inputs = node.get("inputs") or {}
+        if key not in inputs:
+            raise ValueError(f"二采放大Step 节点 {node_id} 缺少 {key} 输入")
+        previous = inputs[key]
+        node["inputs"][key] = str(step) if isinstance(previous, str) else step
+
+    @staticmethod
+    def _set_second_pass_upscale_scale(workflow: Dict[str, Any], node_mapping: Dict[str, Any]) -> None:
+        node_id = str(node_mapping.get("second_pass_upscale_scale_node_id") or "")
+        if not node_id:
+            return
+
+        raw_scale = node_mapping.get("second_pass_upscale_scale")
+        if raw_scale is None or raw_scale == "":
+            raw_scale = 2
+        try:
+            scale = float(raw_scale)
+        except (TypeError, ValueError):
+            raise ValueError("二采放大scale 只能是 1.5、2、3 或 4") from None
+        if isinstance(raw_scale, bool) or scale not in {1.5, 2.0, 3.0, 4.0}:
+            raise ValueError("二采放大scale 只能是 1.5、2、3 或 4")
+
+        supported_types = {"PrimitiveFloat", "Float", "easy float", "JWFloat", "FloatConstant"}
+        if isinstance(workflow.get("nodes"), list):
+            node = next((item for item in workflow["nodes"] if isinstance(item, dict) and str(item.get("id")) == node_id), None)
+            class_type = node.get("type") if node else None
+            if class_type not in supported_types:
+                raise ValueError(f"二采放大scale 节点 {node_id} 不存在或类型不支持")
+            named = node.get("widgets_values_named")
+            if not isinstance(named, dict):
+                named = {}
+                node["widgets_values_named"] = named
+            key = "Number" if "Number" in named and "value" not in named else "value"
+            previous = named.get(key)
+            value = str(scale) if isinstance(previous, str) else scale
+            named[key] = value
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = value
+            elif isinstance(values, list) and values:
+                values[0] = value
+            return
+
+        node = workflow.get(node_id)
+        class_type = node.get("class_type") if isinstance(node, dict) else None
+        if class_type not in supported_types:
+            raise ValueError(f"二采放大scale 节点 {node_id} 不存在或类型不支持")
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            raise ValueError(f"二采放大scale 节点 {node_id} 缺少 value 输入")
+        key = "value" if "value" in inputs else "Number" if "Number" in inputs else None
+        if key is None:
+            raise ValueError(f"二采放大scale 节点 {node_id} 缺少 value 输入")
+        inputs[key] = str(scale) if isinstance(inputs[key], str) else scale
+
+    @staticmethod
+    def _set_megapixels(workflow: Dict[str, Any], node_mapping: Dict[str, Any]) -> None:
+        node_id = str(node_mapping.get("megapixels_node_id") or "")
+        if not node_id:
+            return
+        raw_value = node_mapping.get("megapixels_value")
+        try:
+            value = float(0.4 if raw_value is None or raw_value == "" else raw_value)
+        except (TypeError, ValueError):
+            raise ValueError("Megapixels 必须是正数") from None
+        if isinstance(raw_value, bool) or not 0 < value < float("inf"):
+            raise ValueError("Megapixels 必须是正数")
+
+        if isinstance(workflow.get("nodes"), list):
+            node = next((item for item in workflow["nodes"] if isinstance(item, dict) and str(item.get("id")) == node_id), None)
+            class_type = node.get("type") if node else None
+            if class_type not in {"PrimitiveFloat", "Float", "easy float", "JWFloat", "FloatConstant"}:
+                raise ValueError(f"Megapixels 节点 {node_id} 不存在或类型不支持")
+            named = node.get("widgets_values_named")
+            if not isinstance(named, dict):
+                named = {}
+                node["widgets_values_named"] = named
+            named["value"] = value
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values["value"] = value
+            elif isinstance(values, list) and values:
+                values[0] = value
+            return
+
+        node = workflow.get(node_id)
+        if not isinstance(node, dict) or node.get("class_type") not in {"PrimitiveFloat", "Float", "easy float", "JWFloat", "FloatConstant"}:
+            raise ValueError(f"Megapixels 节点 {node_id} 不存在或类型不支持")
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict) or "value" not in inputs or isinstance(inputs["value"], list):
+            raise ValueError(f"Megapixels 节点 {node_id} 缺少 value 输入")
+        inputs["value"] = value
+
+    @staticmethod
+    def _temporal_custom_node_ids(mapping):
+        primary = mapping.get("custom_keyframes_node_id")
+        additional = mapping.get("custom_keyframes_node_ids")
+        if additional is not None and not isinstance(additional, list):
+            raise ValueError("关键帧控制节点映射必须是节点列表")
+        ids = [str(primary)] if primary else []
+        ids.extend(str(value) for value in (additional or []) if value)
+        unique_ids = list(dict.fromkeys(ids))
+        if not unique_ids:
+            raise ValueError("时序续生成工作流缺少关键帧控制节点映射")
+        return unique_ids
+
+    @staticmethod
+    def _assert_no_removed_api_references(workflow, removed):
+        for node_id, node in workflow.items():
+            for value in node.get("inputs", {}).values():
+                if isinstance(value, list) and len(value) == 2 and str(value[0]) in removed:
+                    raise ValueError(
+                        f"节点 {node_id} 仍引用已移除的关键帧节点 {value[0]}；请映射所有关键帧控制节点"
+                    )
+
+    @staticmethod
+    def _assert_ui_links_preserved(workflow, removed_link_ids):
+        for node in workflow.get("nodes", []):
+            for item in node.get("inputs", []):
+                if isinstance(item, dict) and item.get("link") in removed_link_ids:
+                    raise ValueError(
+                        f"节点 {node.get('id')} 仍引用已移除的关键帧连接；请映射所有关键帧控制节点"
+                    )
+
+    @staticmethod
+    def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
+        nodes = {str(node.get("id")): node for node in workflow.get("nodes", []) if isinstance(node, dict)}
+        load_video_id = str(mapping.get("load_video_node_id") or "")
+        duration_id = str(mapping.get("duration_seconds_node_id") or "")
+        custom_ids = WorkflowBuilder._temporal_custom_node_ids(mapping)
+        save_id = str(mapping.get("video_save_node_id") or "")
+        keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
+        required = [load_video_id, duration_id, save_id, *custom_ids]
+        if any(not node_id or node_id not in nodes for node_id in required):
+            raise ValueError("时序续生成工作流缺少加载视频、时长、关键帧控制或保存节点")
+
+        def set_widget(node, key, value):
+            named = node.setdefault("widgets_values_named", {})
+            named[key] = value
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = value
+
+        set_widget(nodes[load_video_id], "video", video_filename)
+        set_widget(nodes[duration_id], "value", float(duration_seconds))
+        if isinstance(nodes[duration_id].get("widgets_values"), list) and nodes[duration_id]["widgets_values"]:
+            nodes[duration_id]["widgets_values"][0] = float(duration_seconds)
+        set_widget(nodes[save_id], "filename_prefix", filename_prefix)
+        set_widget(nodes[save_id], "save_output", True)
+        prompt_id = str(mapping.get("prompt_node_id") or "")
+        if prompt and prompt_id in nodes:
+            set_widget(nodes[prompt_id], "prompt", prompt)
+            set_widget(nodes[prompt_id], "text", prompt)
+
+        links = workflow.get("links", [])
+        if not anchors:
+            def bypass(source_id, output, seen=None):
+                if str(source_id) not in custom_ids:
+                    return source_id, output
+                seen = seen or set()
+                if str(source_id) in seen or output != 0:
+                    raise ValueError("关键帧控制节点连接无法安全绕过")
+                incoming = next((link for link in links if str(link[3]) == str(source_id) and int(link[4]) == 0), None)
+                if not incoming:
+                    raise ValueError(f"关键帧控制节点 {source_id} 缺少 conditioning 输入")
+                return bypass(incoming[1], incoming[2], seen | {str(source_id)})
+
+            for link in links:
+                if str(link[1]) in custom_ids and str(link[3]) not in custom_ids:
+                    link[1], link[2] = bypass(link[1], link[2])
+            removed = {*custom_ids, *keyframe_ids}
+            workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in removed]
+            workflow["links"] = [link for link in links if str(link[3]) not in removed and str(link[1]) not in removed]
+            WorkflowBuilder._assert_ui_links_preserved(workflow, {link[0] for link in links if link not in workflow["links"]})
+            return
+
+        positions = [int(anchor["position"]) for anchor in anchors]
+        state = json.dumps({"count": len(anchors), "positions": positions}, separators=(",", ":"))
+        for custom_id in custom_ids:
+            custom_node = nodes[custom_id]
+            set_widget(custom_node, "keyframe_state", state)
+            if isinstance(custom_node.get("widgets_values"), list):
+                if custom_node["widgets_values"]:
+                    custom_node["widgets_values"][0] = state
+                else:
+                    custom_node["widgets_values"] = [state, "1-based", "center"]
+            custom_node["inputs"] = [
+                item for item in custom_node.get("inputs", [])
+                if not re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", "")))
+                or int(re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", ""))).group(2)) <= len(anchors)
+            ]
+        unused_ids = set(keyframe_ids[len(anchors):])
+        workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in unused_ids]
+        workflow["links"] = [link for link in links if str(link[1]) not in unused_ids and str(link[3]) not in unused_ids]
+        WorkflowBuilder._assert_ui_links_preserved(workflow, {link[0] for link in links if link not in workflow["links"]})
+        for index, anchor in enumerate(anchors):
+            node_id = keyframe_ids[index]
+            if not node_id or node_id not in nodes:
+                raise ValueError(f"时序续生成缺少关键帧 {index + 1} LoadImage 节点")
+            set_widget(nodes[node_id], "image", anchor["image"])
+            values = nodes[node_id].get("widgets_values")
+            if isinstance(values, list) and values:
+                values[0] = anchor["image"]
+
+    @staticmethod
+    def _configure_temporal_extend_api_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
+        load_video_id = str(mapping.get("load_video_node_id") or "")
+        duration_id = str(mapping.get("duration_seconds_node_id") or "")
+        custom_ids = WorkflowBuilder._temporal_custom_node_ids(mapping)
+        save_id = str(mapping.get("video_save_node_id") or "")
+        keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
+        if any(node_id not in workflow for node_id in [load_video_id, duration_id, save_id, *custom_ids]):
+            raise ValueError("时序续生成 API 工作流节点映射不完整")
+        workflow[load_video_id].setdefault("inputs", {})["video"] = video_filename
+        workflow[duration_id].setdefault("inputs", {})["value"] = float(duration_seconds)
+        save_inputs = workflow[save_id].setdefault("inputs", {})
+        save_inputs["filename_prefix"] = filename_prefix
+        save_inputs["save_output"] = True
+        prompt_id = str(mapping.get("prompt_node_id") or "")
+        if prompt and prompt_id in workflow:
+            prompt_inputs = workflow[prompt_id].setdefault("inputs", {})
+            if "prompt" in prompt_inputs:
+                prompt_inputs["prompt"] = prompt
+            else:
+                prompt_inputs["text"] = prompt
+        if not anchors:
+            def bypass(value, seen=None):
+                if not (isinstance(value, list) and len(value) == 2 and str(value[0]) in custom_ids):
+                    return value
+                source_id, output = str(value[0]), value[1]
+                seen = seen or set()
+                if source_id in seen or output != 0:
+                    raise ValueError("关键帧控制节点连接无法安全绕过")
+                conditioning = workflow[source_id].get("inputs", {}).get("conditioning")
+                if conditioning is None:
+                    raise ValueError(f"关键帧控制节点 {source_id} 缺少 conditioning 输入")
+                return bypass(conditioning, seen | {source_id})
+
+            for node_id, node in workflow.items():
+                if node_id in custom_ids:
+                    continue
+                inputs = node.get("inputs", {}) if isinstance(node, dict) else {}
+                for key, value in list(inputs.items()):
+                    inputs[key] = bypass(value)
+            removed = {*custom_ids, *keyframe_ids}
+            for node_id in removed:
+                workflow.pop(node_id, None)
+            WorkflowBuilder._assert_no_removed_api_references(workflow, removed)
+            return
+        positions = [int(anchor["position"]) for anchor in anchors]
+        for custom_id in custom_ids:
+            workflow[custom_id].setdefault("inputs", {})["keyframe_state"] = json.dumps(
+                {"count": len(anchors), "positions": positions}, separators=(",", ":")
+            )
+        for index in range(1, 9):
+            if index <= len(anchors):
+                node_id = keyframe_ids[index - 1]
+                if node_id not in workflow:
+                    raise ValueError(f"时序续生成缺少关键帧 {index} LoadImage 节点")
+                workflow[node_id].setdefault("inputs", {})["image"] = anchors[index - 1]["image"]
+            else:
+                for custom_id in custom_ids:
+                    custom_inputs = workflow[custom_id]["inputs"]
+                    custom_inputs.pop(f"keyframe_image_{index}", None)
+                    custom_inputs.pop(f"keyframe_position_{index}", None)
+                workflow.pop(keyframe_ids[index - 1], None)
+        WorkflowBuilder._assert_no_removed_api_references(workflow, set(keyframe_ids[len(anchors):]))
     
     def build_shot_workflow(
         self,
@@ -225,7 +585,37 @@ class WorkflowBuilder:
             seed = random.randint(1, 2**32)
         self._set_random_seed(workflow, seed)
 
+        self._set_second_pass_upscale_step(workflow, node_mapping)
+        self._set_second_pass_upscale_scale(workflow, node_mapping)
+
         return workflow
+
+    @staticmethod
+    def bind_multi_reference_video_images(workflow: Dict[str, Any], node_mapping: Dict[str, str], filenames: List[str]) -> None:
+        """Bind 0–9 supplied images, disconnecting unused sample images from the submitted graph."""
+        if len(filenames) > 9:
+            raise ValueError("多参考生视频最多支持 9 张参考图")
+        reference_id = str(node_mapping.get("reference_to_video_node_id") or "")
+        reference_node = workflow.get(reference_id)
+        if not reference_node or reference_node.get("class_type") != "MiniMaxH3ReferenceToVideo":
+            raise ValueError("缺少 MiniMax H3 Reference to Video 节点映射")
+
+        for index in range(9):
+            node_id = str(node_mapping.get(f"load_image_node_{index + 1}") or "")
+            node = workflow.get(node_id)
+            if not node or node.get("class_type") != "LoadImage":
+                raise ValueError(f"缺少参考图片节点 {index + 1} (LoadImage)")
+            input_name = f"ref_images.ref_image_{index}"
+            if reference_node.get("inputs", {}).get(input_name) != [node_id, 0]:
+                raise ValueError(f"参考图片节点 {index + 1} 未连接到 MiniMax H3 Reference to Video")
+            if index < len(filenames):
+                node["inputs"]["image"] = filenames[index]
+                continue
+
+            # Remove the optional input link as well as the unused LoadImage node;
+            # otherwise the example filenames in the system JSON become live references.
+            reference_node["inputs"].pop(input_name)
+            workflow.pop(node_id)
 
     def build_voice_design_workflow(
         self,
@@ -523,7 +913,20 @@ class WorkflowBuilder:
         # 获取节点映射
         prompt_node_id = str(node_mapping.get("prompt_node_id", "")) if node_mapping else ""
         appearance_node_id = str(node_mapping.get("appearance_node_id", "")) if node_mapping else ""
+        style_node_id = str(node_mapping.get("style_node_id", "")) if node_mapping else ""
         save_image_node_id = str(node_mapping.get("save_image_node_id", "")) if node_mapping else ""
+
+        # 兼容尚未保存新映射的旧工作流：根据稳定节点标题识别专用输入。
+        if not appearance_node_id:
+            appearance_node_id = next((
+                str(node_id) for node_id, node in api_workflow.items()
+                if isinstance(node, dict) and self._is_character_appearance_node(node)
+            ), "")
+        if not style_node_id:
+            style_node_id = next((
+                str(node_id) for node_id, node in api_workflow.items()
+                if isinstance(node, dict) and self._is_character_style_node(node)
+            ), "")
         
         # 遍历所有节点进行修改
         for node_id, node in api_workflow.items():
@@ -533,8 +936,8 @@ class WorkflowBuilder:
             inputs = node.get("inputs", {})
             class_type = node.get("class_type", "")
             
-            # 设置 SaveImage 节点的 filename_prefix
-            if class_type == "SaveImage" and save_prefix:
+            # 设置标准或 Advanced 图片保存节点的 filename_prefix
+            if class_type in {"SaveImage", "SaveImageAdvanced"} and save_prefix:
                 if not save_image_node_id or str(node_id) == save_image_node_id:
                     inputs["filename_prefix"] = save_prefix
             
@@ -561,10 +964,11 @@ class WorkflowBuilder:
                     if appearance_node_id and node_id_str == appearance_node_id:
                         inputs[prompt_field] = self._apply_character_appearance_constraints(character_appearance or prompt)
                         modified_count += 1
+                    elif style_node_id and node_id_str == style_node_id:
+                        inputs[prompt_field] = style or ""
+                        modified_count += 1
                     elif prompt_node_id and node_id_str == prompt_node_id:
-                        prompt_value = character_appearance if character_appearance and self._is_character_appearance_node(node) else prompt
-                        if character_appearance and self._is_character_appearance_node(node):
-                            prompt_value = self._apply_character_appearance_constraints(prompt_value)
+                        prompt_value = prompt
                         if "##STYLE##" in current_text:
                             inputs[prompt_field] = current_text.replace("##STYLE##", style or prompt_value)
                             print(f"[Workflow] Replaced ##STYLE## in mapped prompt node {node_id_str}")
@@ -574,7 +978,7 @@ class WorkflowBuilder:
                     elif "{CHARACTER_PROMPT}" in current_text:
                         inputs[prompt_field] = prompt
                         modified_count += 1
-                    elif current_text == "" or current_text == "prompt here":
+                    elif not prompt_node_id and not appearance_node_id and not style_node_id and modified_count == 0 and (current_text == "" or current_text == "prompt here"):
                         inputs[prompt_field] = prompt
                         modified_count += 1
         
@@ -631,6 +1035,16 @@ class WorkflowBuilder:
                 load_image_count += 1
 
         return False
+
+    @staticmethod
+    def prepare_strict_reference_image(workflow: Dict[str, Any], filename: str | None = None) -> list[str]:
+        load_image_ids = [
+            str(node_id) for node_id, node in workflow.items()
+            if isinstance(node, dict) and node.get("class_type") == "LoadImage"
+        ]
+        for node_id in load_image_ids:
+            workflow[node_id].setdefault("inputs", {})["image"] = filename or ""
+        return load_image_ids
 
     # ==================== 参考图节点处理 ====================
 
@@ -905,6 +1319,11 @@ class WorkflowBuilder:
         title = str(node.get("_meta", {}).get("title", "")).lower()
         return any(keyword in title for keyword in ["人物形象", "外貌", "appearance", "character appearance"])
 
+    def _is_character_style_node(self, node: Dict[str, Any]) -> bool:
+        """判断节点是否用于接收纯视觉风格描述。"""
+        title = str(node.get("_meta", {}).get("title", "")).strip().lower()
+        return title == "style" or title.endswith(" style") or "#490 style" in title
+
     def _apply_character_appearance_constraints(self, appearance: str) -> str:
         """返回角色外貌描述。"""
         return appearance
@@ -975,20 +1394,8 @@ class WorkflowBuilder:
         return False
 
     def _set_random_seed(self, workflow: Dict[str, Any], seed: int):
-        """设置随机种子"""
-        for node_id, node in workflow.items():
-            if not isinstance(node, dict):
-                continue
-            
-            inputs = node.get("inputs", {})
-            class_type = node.get("class_type", "")
-            
-            if class_type in ["KSampler", "KSamplerAdvanced", "SamplerCustom", 
-                             "SamplerCustomAdvanced", "RandomNoise", "PainterSamplerLTXV"]:
-                if "seed" in inputs:
-                    inputs["seed"] = seed
-                if "noise_seed" in inputs:
-                    inputs["noise_seed"] = seed
+        """采样器与 Qwen 提示词改写节点共用同一个合法 seed。"""
+        set_workflow_seed(workflow, seed)
     
     def _replace_style_placeholder(self, workflow: Dict[str, Any], style: str):
         """替换 ##STYLE## 占位符"""
@@ -1108,6 +1515,19 @@ class WorkflowBuilder:
                 if link and link in link_map:
                     source_node, source_slot, _, _ = link_map[link]
                     inputs[input_name] = [str(source_node), source_slot]
+
+                widget_name = (inp.get("widget") or {}).get("name") if isinstance(inp.get("widget"), dict) else None
+                if widget_name and input_name not in inputs:
+                    named_value = node.get("widgets_values_named", {}).get(widget_name)
+                    if named_value is not None:
+                        inputs[input_name] = named_value
+
+            named_widgets = node.get("widgets_values_named") or {}
+            for widget_name, value in named_widgets.items():
+                if widget_name in {"videopreview", "upload", "choose video to upload"}:
+                    continue
+                if isinstance(value, (str, int, float, bool)) and widget_name not in inputs:
+                    inputs[widget_name] = value
             
             # 处理特殊节点
             if node_type == "CheckpointLoaderSimple":

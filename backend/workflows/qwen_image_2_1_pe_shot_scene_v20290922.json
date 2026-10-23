@@ -1,0 +1,255 @@
+{
+  "470": {
+    "inputs": {
+      "image": "shot_001_bf2c13bc_characters.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#470 Load Image （场景）"
+    }
+  },
+  "477": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#477 Load Diffusion Model"
+    }
+  },
+  "478": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#478 Load CLIP"
+    }
+  },
+  "479": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#479 Load VAE"
+    }
+  },
+  "480": {
+    "inputs": {
+      "width": [
+        "517",
+        0
+      ],
+      "height": [
+        "518",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "#480 Empty Latent Image"
+    }
+  },
+  "481": {
+    "inputs": {
+      "samples": [
+        "482",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#481 VAE Decode"
+    }
+  },
+  "482": {
+    "inputs": {
+      "seed": 999,
+      "steps": 50,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "484",
+        0
+      ],
+      "positive": [
+        "485",
+        0
+      ],
+      "negative": [
+        "485",
+        1
+      ],
+      "latent_image": [
+        "483",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#482 KSampler"
+    }
+  },
+  "483": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "485",
+        2
+      ],
+      "on_true": [
+        "480",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "#483 If/Else Switch"
+    }
+  },
+  "484": {
+    "inputs": {
+      "device": "auto",
+      "dtype": "default",
+      "model": [
+        "477",
+        0
+      ]
+    },
+    "class_type": "QwenImage21Cache",
+    "_meta": {
+      "title": "#484 Qwen Image 2.1 Cache"
+    }
+  },
+  "485": {
+    "inputs": {
+      "prompt": [
+        "501",
+        0
+      ],
+      "negative_prompt": "",
+      "resolution": 1280,
+      "clip": [
+        "478",
+        0
+      ],
+      "images.image_1": [
+        "470",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "#485 Text Encode Qwen Image 2.1"
+    }
+  },
+  "494": {
+    "inputs": {
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "481",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "#494 Save Image (Advanced)"
+    }
+  },
+  "501": {
+    "inputs": {
+      "text": "以<image1>为唯一角色身份参考，仅继承<image1>中人物的身份特征，不得带入<image1>的四视图展示排版、白色背景与展示站位，保持其面部特征（圆脸、灰白卷发、后移发际线）、灰白卷发发型、金色耳钉、年长年龄感、壮硕体型比例完全不变，生成一幅动漫风格高画质专业插画，内容为皇宫内殿的单一静态首帧：清晨柔和的暖金色阳光从画面左侧高大的雕花窗棂斜射入内，照亮殿内朱红立柱与金色帷幔；摄影机为中景，机位略低于视线水平，从殿门方向朝内拍摄；环境与建筑材质保持朱红立柱、金色帷幔、雕花窗棂的宫殿结构。画面中只出现皇帝一名可见人物，禁止第二人、路人、侍从、守卫、背景群众、模糊人影、人物剪影、镜中额外人物、反射人物、画像人物、类人形装饰。皇帝位于画面中央偏右，身体与面部朝向画面左侧的铜镜，视线落在镜中自身衣袍上，双手停在整理身上华丽新衣衣襟的单一静态瞬间，禁止侧身端详镜中自己、镜头推进的连续过程，嘴部自然闭合，保持自然静态表情，禁止说话口型。华丽新衣采用<image1>中同款紫色缎面长袍的正式外观：立领，前襟、领口、袖口、背部饰有金色刺绣纹样，长及脚踝，脚穿红色绣鞋。画面左侧的铜镜作为殿内既定陈设出现，镜面中仅映出皇帝自身衣袍与衣襟的局部倒影，禁止生成第二个完整人物、第二张脸、背后人影、额外反射人物。禁止添加武器、皇冠、未列剧情道具。禁止生成任何对白、字幕、气泡、标题、文字、logo、水印、UI、边框。禁止额外手指、多余肢体、融合脸、重复人物、多余人物、身份串图、现代物品。保持电影级构图，真实一致的人体尺度，正确透视，自然遮挡，合理景深，整体风格为动漫风格、高画质、细节丰富、专业作品。",
+      "anything": [
+        "519",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#501 Show Any"
+    }
+  },
+  "515": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "494",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#515 Save Image"
+    }
+  },
+  "516": {
+    "inputs": {
+      "prompt": "<Picture 1> 是当前 Shot 的角色合并参考图，其中包含“皇帝”的正式身份与稳定外观参考；只用于锁定皇帝的面部、发型/毛色、胡须、年龄感、体型比例、配饰与稳定身份特征，不得交换身份，不得把合并图的排版、展示站位、背景或无关元素带入最终画面。<Picture 3> 是当前 Shot 的道具合并参考图，其中包含“新衣”，仅用于“新衣”的外观、材质、纹样与形制参考；皇帝身上所穿的华丽新衣以 <Picture 3> 中“新衣”的正式外观为准，不得把道具合并图的背景、展示排版、展示台或其他未列物体带入画面。<Picture 2> 是“皇宫”的正式场景参考图，仅用于环境结构、建筑、空间、时代材质与总体视觉参考；不得从 <Picture 2> 引入人物、额外剧情道具或剧情主体。\n\n最终画面为皇宫内殿的单一静态首帧：清晨柔和的暖金色阳光从画面左侧高大的雕花窗棂斜射入内，照亮殿内朱红立柱与金色帷幔。摄影机为中景，机位略低于视线水平，从殿门方向朝内拍摄。环境结构、殿内空间、建筑材质与总体视觉与 <Picture 2> 保持一致，但最终构图、机位与空间关系以 shot.description 为准，不复制 <Picture 2> 的原始摄影机视角。\n\n画面中只出现皇帝一名可见人物，共 1 名可见人物；禁止第 2 人，禁止路人、侍从、守卫、背景群众、模糊人影、人物剪影、镜中额外人物、反射人物、画像人物或任何类人形装饰。皇帝位于画面中央偏右，身体与面部朝向画面左侧的铜镜，视线落在镜中自身衣袍上，双手停在整理身上华丽新衣衣襟的单一静态瞬间。皇帝的面部、发型、胡须、年龄感、体型比例与稳定身份特征严格继承 <Picture 1>，不得把 <Picture 1> 中展示排版或姿态当作最终剧情站位；皇帝所穿华丽新衣的外观、材质、纹样与形制以 <Picture 3> 中“新衣”为准。铜镜按 shot.description 作为殿内左侧既定陈设出现，不声称继承任何道具参考图外观，镜面中仅允许映出皇帝自身衣袍或衣襟的局部倒影，不得生成第二个完整人物、第二张脸、背后人影或额外反射人物。\n\n这是静态生图，只表现皇帝正在整理衣襟的一个瞬间，不得同时表现后续侧身端详镜中自己、镜头推进或其他连续过程。皇帝嘴部自然闭合或保持自然静态表情，不做明显说话口型；不生成任何对白、字幕、气泡、标题或画面文字。除“新衣”与 description 明确出现的铜镜外，不添加 shot.props 之外的剧情关键道具；不得因为角色身份自动添加武器、皇冠以外的未列物品或专属物件。\n\n保持 anime style, high quality, detailed, professional artwork 风格，电影级构图，真实一致的人体尺度，正确透视，自然遮挡，合理景深。禁止额外手指或肢体、融合脸、重复人物、多余人物、身份串图、现代物品、文字、字幕、logo、水印、UI、边框、拼贴画、角色设定四视图、多时间状态同屏。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#516 #-1 ⚙️ CR Prompt Text(提示词)"
+    }
+  },
+  "517": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#517 #-1 Int 宽度"
+    }
+  },
+  "518": {
+    "inputs": {
+      "value": 704
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#518 #-1 Int 高度"
+    }
+  },
+  "519": {
+    "inputs": {
+      "user_prompt": [
+        "516",
+        0
+      ],
+      "task": "edit",
+      "aspect_ratio": "16:9",
+      "output_language": "auto",
+      "transparent_rgba": false,
+      "t2i_model": "pe_t2i_heretic-Q4_K_M.gguf",
+      "edit_model": "Qwen-Image-2.1-PE-I2I.Q4_K_M.gguf",
+      "vision_model": "Auto",
+      "model_lifetime": "after_run",
+      "seed": 42,
+      "image_1": [
+        "470",
+        0
+      ]
+    },
+    "class_type": "QwenPERewriteT8",
+    "_meta": {
+      "title": "#519 Qwen Image 2.1 PE Rewrite T8"
+    }
+  }
+}

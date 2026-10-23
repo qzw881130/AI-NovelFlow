@@ -4,6 +4,8 @@ import zhCN from '../zh-CN/logs';
 export default {
   llmLogs: {
     ...zhCN.llmLogs,
+    generateSceneSetting: '生成場景設定',
+    generatePropAppearance: '生成道具外觀',
     title: '大模型日誌',
     subtitle: '檢視大模型呼叫的日誌記錄',
     clearLogs: '清空日誌',
@@ -16,7 +18,9 @@ export default {
     parseProps: '解析道具',
     splitShots: '拆分分鏡',
     generateAppearance: '生成外貌描述',
+    clipExecutionPlanner: '影片片段執行規劃',
     expandVideoPrompt: '擴寫影片提示詞',
+    firstAppearanceNameplate: '主角首次出鏡姓名牌定位',
     timestamp: '時間',
     novel: '小說',
     chapter: '章節',

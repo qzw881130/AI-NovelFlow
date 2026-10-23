@@ -2,23 +2,24 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Loader2, User, Image, X } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Trash2, Loader2, User, UserCheck, Image, X, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { characterApi } from '../../api/characters';
-import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
-import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import { useLibraryImageQuality } from '../../hooks/useLibraryImageQuality';
 
 export default function Characters() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [loadedCharactersNovelId, setLoadedCharactersNovelId] = useState<string | null>(null);
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,7 +30,6 @@ export default function Characters() {
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
-  const [characterPrompts, setCharacterPrompts] = useState<Record<string, CharacterPrompt>>({});
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
   
@@ -44,6 +44,8 @@ export default function Characters() {
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingMissing, setGeneratingMissing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isAutoSettingProtagonists, setIsAutoSettingProtagonists] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [generatingVoiceId, setGeneratingVoiceId] = useState<string | null>(null);
   const [uploadingAudioId, setUploadingAudioId] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export default function Characters() {
     name: '',
     description: '',
     appearance: '',
+    stableIdentityFeatures: '',
     novelId: '',
   });
 
@@ -89,43 +92,23 @@ export default function Characters() {
   const fetchCharacters = async () => {
     if (!selectedNovel) {
       setCharacters([]);
+      setLoadedCharactersNovelId(null);
       setIsLoading(false);
       return;
     }
     
     setIsLoading(true);
+    setLoadedCharactersNovelId(null);
     try {
       const data = await characterApi.fetchList(selectedNovel);
       if (data.success) {
         setCharacters(data.data || []);
-        const chars = data.data || [];
-        for (const char of chars) {
-          fetchCharacterPrompt(char.id);
-        }
+        setLoadedCharactersNovelId(selectedNovel);
       }
     } catch (error) {
       console.error('获取角色失败:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchCharacterPrompt = async (characterId: string) => {
-    try {
-      const data = await characterApi.fetchPrompt(characterId);
-      if (data.success) {
-        setCharacterPrompts(prev => ({
-          ...prev,
-          [characterId]: {
-            prompt: data.data!.prompt,
-            templateName: data.data!.templateName,
-            templateId: data.data!.templateId,
-            isSystem: data.data!.isSystem
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('获取角色提示词失败:', error);
     }
   };
 
@@ -161,11 +144,12 @@ export default function Characters() {
         name: formData.name,
         description: formData.description,
         appearance: formData.appearance,
+        ...(formData.stableIdentityFeatures.trim() ? { stableIdentityFeatures: formData.stableIdentityFeatures } : {}),
       });
       if (data.success) {
         setCharacters([data.data!, ...characters]);
         setShowCreateModal(false);
-        setFormData({ name: '', description: '', appearance: '', novelId: '' });
+        setFormData({ name: '', description: '', appearance: '', stableIdentityFeatures: '', novelId: '' });
       }
     } catch (error) {
       console.error('创建角色失败:', error);
@@ -181,7 +165,10 @@ export default function Characters() {
         name: editingCharacter.name,
         description: editingCharacter.description,
         appearance: editingCharacter.appearance,
+        ...(editingCharacter.stableIdentityFeatures !== characters.find(c => c.id === editingCharacter.id)?.stableIdentityFeatures
+          ? { stableIdentityFeatures: editingCharacter.stableIdentityFeatures ?? '' } : {}),
         voice_prompt: editingCharacter.voicePrompt,
+        isProtagonist: Boolean(editingCharacter.isProtagonist),
       } as Partial<Character>);
       if (data.success) {
         setCharacters(characters.map(c => c.id === data.data!.id ? { ...c, ...data.data } : c));
@@ -726,6 +713,9 @@ export default function Characters() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) && matchesStatusFilter(c));
+  const { getQuality } = useLibraryImageQuality(filteredCharacters
+    .filter(character => Boolean(character.imageUrl))
+    .map(character => ({ taskId: character.portraitTaskId || null, imageUrl: character.imageUrl! })));
 
   const characterStats = characters.reduce(
     (stats, character) => {
@@ -743,6 +733,10 @@ export default function Characters() {
     },
     { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 }
   );
+  const showNoProtagonistReminder = Boolean(selectedNovel)
+    && loadedCharactersNovelId === selectedNovel
+    && !isLoading
+    && !characters.some(character => character.isProtagonist && !character.isNarrator);
 
   const statCardClass = (filter: typeof statusFilter, className: string) =>
     `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${
@@ -754,15 +748,72 @@ export default function Characters() {
     return novel?.aspectRatio || '16:9';
   };
 
+  const exportAllCharacters = async () => {
+    if (!selectedNovel) return;
+    setIsExporting(true);
+    try {
+      await characterApi.exportAll(selectedNovel);
+      toast.success(t('characters.exportSuccess'));
+    } catch (error) {
+      console.error('导出角色信息失败:', error);
+      toast.error(error instanceof Error ? error.message : t('characters.exportFailed'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const autoSetProtagonists = async () => {
+    if (!selectedNovel || isAutoSettingProtagonists) return;
+    setIsAutoSettingProtagonists(true);
+    try {
+      const result = await characterApi.autoSetProtagonists(selectedNovel);
+      if (!result.success || !result.data) {
+        toast.error(result.message || t('characters.autoSetProtagonistsFailed'));
+        return;
+      }
+      const assignedIds = new Set(result.data.assignedIds);
+      setCharacters(current => current.map(character => assignedIds.has(character.id)
+        ? { ...character, isProtagonist: true }
+        : character));
+      toast.success(assignedIds.size > 0
+        ? t('characters.autoSetProtagonistsSuccess', { count: assignedIds.size })
+        : t('characters.autoSetProtagonistsEmpty'));
+    } catch (error) {
+      console.error('自动设置主角失败:', error);
+      toast.error(t('characters.autoSetProtagonistsFailed'));
+    } finally {
+      setIsAutoSettingProtagonists(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('characters.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('characters.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        {showNoProtagonistReminder && (
+          <div role="alert" className="flex min-w-[260px] max-w-xl flex-1 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{t('characters.noProtagonistReminder')}</span>
+          </div>
+        )}
+        <div className="ml-auto flex flex-wrap gap-3">
+          {selectedNovel && loadedCharactersNovelId === selectedNovel && !isLoading && characters.length > 0 && (
+            <button
+              onClick={autoSetProtagonists}
+              disabled={isAutoSettingProtagonists}
+              className="btn-secondary text-amber-700 border-amber-200 hover:bg-amber-50 disabled:opacity-50"
+              title={t('characters.autoSetProtagonistsHint')}
+            >
+              {isAutoSettingProtagonists
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <UserCheck className="mr-2 h-4 w-4" />}
+              {t('characters.autoSetProtagonists')}
+            </button>
+          )}
           {filteredCharacters.length > 0 && (
             <button
               onClick={generateAllPortraits}
@@ -793,6 +844,20 @@ export default function Characters() {
           )}
           {selectedNovel && characters.length > 0 && (
             <button
+              onClick={exportAllCharacters}
+              disabled={isExporting}
+              className="btn-secondary text-cyan-600 border-cyan-200 hover:bg-cyan-50 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {isExporting ? t('characters.exporting') : t('characters.exportAll')}
+            </button>
+          )}
+          {selectedNovel && characters.length > 0 && (
+            <button
               onClick={() => setDeleteAllConfirmDialog({ isOpen: true })}
               className="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
             >
@@ -802,7 +867,7 @@ export default function Characters() {
           )}
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', appearance: '', novelId: selectedNovel });
+              setFormData({ name: '', description: '', appearance: '', stableIdentityFeatures: '', novelId: selectedNovel });
               setShowCreateModal(true);
             }}
             className="btn-primary"
@@ -900,6 +965,7 @@ export default function Characters() {
             <CharacterCard
               key={character.id}
               character={character}
+              imageQuality={getQuality(character.imageUrl, character.portraitTaskId)}
               aspectRatio={getNovelAspectRatio(character.novelId)}
               highlightedId={highlightedId}
               generatingId={generatingId}
@@ -907,7 +973,6 @@ export default function Characters() {
               uploadingId={uploadingId}
               generatingVoiceId={generatingVoiceId}
               uploadingAudioId={uploadingAudioId}
-              characterPrompt={characterPrompts[character.id]}
               onDelete={handleDelete}
               onEdit={setEditingCharacter}
               onGeneratePortrait={generatePortrait}
@@ -1122,6 +1187,12 @@ export default function Characters() {
                 />
                 <p className="mt-1 text-xs text-gray-500">{t('characters.appearanceTip')}</p>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">稳定身份特征</label>
+                <textarea rows={2} value={formData.stableIdentityFeatures}
+                  onChange={e => setFormData({ ...formData, stableIdentityFeatures: e.target.value })}
+                  className="input-field mt-1" placeholder="例如：左眉尾浅痣、瘦长脸；留空时从外貌描述提取" />
+              </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.create')}</button>
@@ -1167,6 +1238,13 @@ export default function Characters() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700">稳定身份特征</label>
+                <textarea rows={2} value={editingCharacter.stableIdentityFeatures ?? ''}
+                  onChange={e => setEditingCharacter({ ...editingCharacter, stableIdentityFeatures: e.target.value })}
+                  className="input-field mt-1" placeholder="留空时以身份参考图为准" />
+                <p className="mt-1 text-xs text-gray-500">视频提示词优先使用这里明确记录的特征，不要求外貌描述使用固定短语。</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700">{t('characters.voicePromptLabel')}</label>
                 <textarea
                   rows={2}
@@ -1176,6 +1254,13 @@ export default function Characters() {
                   placeholder={t('characters.voicePromptPlaceholder')}
                 />
               </div>
+              {!editingCharacter.isNarrator && (
+                <label className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50/50 p-3 text-sm text-gray-700">
+                  <input type="checkbox" className="mt-0.5" checked={Boolean(editingCharacter.isProtagonist)}
+                    onChange={(event) => setEditingCharacter({ ...editingCharacter, isProtagonist: event.target.checked })} />
+                  <span><strong>指定为主角</strong><span className="block text-gray-500">主角首次出镜时可生成红色竖牌预览；整部小说只显示一次。</span></span>
+                </label>
+              )}
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setEditingCharacter(null)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.save')}</button>

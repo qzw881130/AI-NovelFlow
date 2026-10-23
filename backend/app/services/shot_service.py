@@ -272,6 +272,7 @@ class ShotService:
                 "scene": shot_data.get("scene", ""),
                 "props": shot_data.get("props", []),
                 "duration": shot_data.get("duration", 4),
+                "continuity_mode": shot_data.get("continuity_mode") or "NORMAL",
                 "image_url": shot_data.get("image_url"),
                 "image_path": shot_data.get("image_path"),
                 "image_status": "completed" if shot_data.get("image_url") else "pending",

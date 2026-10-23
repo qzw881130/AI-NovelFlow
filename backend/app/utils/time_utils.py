@@ -1,6 +1,21 @@
 """工具函数模块"""
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Optional
+
+
+CLIP_OWNERSHIP_TOLERANCE = Decimal("0.05")
+
+
+def clip_time_seconds(value) -> Decimal:
+    """Compare Clip times as written, without rounding away ownership deltas."""
+    try:
+        seconds = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError("Invalid Clip time") from exc
+    if not seconds.is_finite():
+        raise ValueError("Invalid Clip time")
+    return seconds
 
 
 def format_datetime(dt: Optional[datetime]) -> Optional[str]:

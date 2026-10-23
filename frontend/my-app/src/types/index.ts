@@ -1,3 +1,9 @@
+import type {
+  VideoDirectorPlan as ApiVideoDirectorPlan,
+  VideoMode as ApiVideoMode,
+} from '../api/shots';
+import type { Task as ApiTask } from '../api/tasks';
+
 // 支持的 LLM 厂商
 export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'aliyun-bailian' | 'ollama' | 'custom';
 export type SystemStatusSource = 'comfyui' | 'windows_gpu_monitor';
@@ -15,6 +21,8 @@ export interface ProxyConfig {
   enabled: boolean;
   httpProxy: string;
   httpsProxy: string;
+  youtubeEnabled: boolean;
+  youtubeProxyUrl: string;
 }
 
 export interface SystemConfig {
@@ -26,6 +34,12 @@ export interface SystemConfig {
   llmMaxTokens?: number;  // 最大token数
   llmTemperature?: string;  // 温度参数
   llmTimeout?: number;  // 请求超时（秒）
+  autoImageReviewEnabled?: boolean;
+  videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
+  autoApproveFirstAppearanceNames?: boolean;
+  generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   
   // 代理配置
   proxy: ProxyConfig;
@@ -70,7 +84,11 @@ export interface Novel {
   cover?: string;
   chapterCount: number;
   status: 'pending' | 'processing' | 'completed';
+  isArchived?: boolean;
   // 提示词模板关联（每种类型可选择不同模板）
+  storyWorldContextPromptTemplateId?: string;
+  hasStoryWorldContext?: boolean;
+  storyWorldContextLocked?: boolean;
   stylePromptTemplateId?: string;  // 风格提示词模板
   characterParsePromptTemplateId?: string;  // 角色解析提示词模板
   sceneParsePromptTemplateId?: string;  // 场景解析提示词模板
@@ -78,16 +96,21 @@ export interface Novel {
   promptTemplateId?: string;  // 角色生成提示词模板
   scenePromptTemplateId?: string;  // 场景生成提示词模板
   propPromptTemplateId?: string;  // 道具生成提示词模板
+  sceneSettingPromptTemplateId?: string;
+  propAppearancePromptTemplateId?: string;
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
   keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
   shotImagePromptTemplateId?: string;  // 主分镜图提示词模板
-  videoModeRecommenderPromptTemplateId?: string;  // 视频模式推荐提示词模板
   keyframePlannerPromptTemplateId?: string;  // 关键帧规划提示词模板
   keyframeImagePromptTemplateId?: string;  // 关键帧生图提示词模板
+  temporalReferenceSelectorPromptTemplateId?: string;
+  imageQualityReviewPromptTemplateId?: string;
   keyframeTransitionPromptTemplateId?: string;  // 关键帧过渡规划提示词模板
-  h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
-  h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
+  clipExecutionPlannerPromptTemplateId?: string;
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
+  h3MultiKeyframeDirectorPhaseBTemplateId?: string;  // H3 Phase B 单阶段导演视频提示词模板
+  h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
+  h3PreflightRepairPromptTemplateId?: string;  // H3 Preflight 自动修复模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -102,6 +125,7 @@ export interface Chapter {
   contentLength?: number;
   status: 'pending' | 'parsing' | 'generating_characters' | 'generating_shots' | 'generating_videos' | 'compositing' | 'completed' | 'failed';
   progress: number;
+  aiSplitCompleted?: boolean;
   parsedData?: ParsedData;
   characterImages?: string[];
   shotImages?: string[];
@@ -114,6 +138,27 @@ export interface Chapter {
   chapterVideoShotCount?: number | null;
   chapterVideoTaskId?: string;
   chapterVideoCompletedAt?: string | null;
+  hdFinalVideo?: string;
+  hdChapterVideoUrl?: string;
+  hdChapterVideoDuration?: number | null;
+  hdChapterVideoSize?: number | null;
+  hdChapterVideoShotCount?: number | null;
+  hdChapterVideoTaskId?: string;
+  hdChapterVideoCompletedAt?: string | null;
+  videoAssets?: ChapterVideoAsset[];
+}
+
+export interface ChapterVideoAsset {
+  id: string;
+  profileKey: string;
+  kind: 'draft' | 'hd';
+  targetMegapixels?: number | null;
+  label: string;
+  videoUrl: string;
+  duration?: number | null;
+  fileSize?: number | null;
+  shotCount?: number | null;
+  completedAt?: string | null;
 }
 
 export interface ParsedData {
@@ -142,24 +187,11 @@ export interface ShotData {
   reference_audio_type?: 'none' | 'merged' | 'uploaded' | 'character';
 }
 
-export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+/** @deprecated Historical mode authority; use canonical Visual/Clip plan fields. */
+export type VideoMode = ApiVideoMode;
 
-export interface VideoDirectorPlan {
-  selected_mode?: VideoMode;
-  recommended_mode?: VideoMode;
-  recommended_label?: string;
-  recommendation_reason?: string;
-  first_last_available?: boolean;
-  notice?: string;
-  workflow_capability?: Record<string, any>;
-  keyframes?: any[];
-  transitions?: any[];
-  clips?: any[];
-  execution_windows?: any[];
-  window_plans?: any[];
-  ai_calls?: any[];
-  validation?: Record<string, any>;
-}
+/** Shared Video Director contract; canonical and legacy compatibility fields live in api/shots.ts. */
+export type VideoDirectorPlan = ApiVideoDirectorPlan;
 
 export interface DialogueData {
   type?: 'character' | 'narration';
@@ -177,6 +209,7 @@ export interface KeyframeData {
   description: string;
   image_url?: string;
   image_task_id?: string;
+  prompt_text?: string;
   reference_image_url?: string | null;
   reference_mode?: 'auto_select' | 'custom' | 'none';
 }
@@ -186,6 +219,8 @@ export interface Character {
   name: string;
   description: string;
   appearance: string;
+  stableIdentityFeatures?: string | null;
+  stableIdentitySource?: string | null;
   voicePrompt?: string;
   referenceAudioUrl?: string;
   imageUrl?: string;
@@ -194,6 +229,7 @@ export interface Character {
   novelId: string;
   novelName?: string;
   isNarrator?: boolean;
+  isProtagonist?: boolean;
   updatedAt?: string;
 }
 
@@ -222,6 +258,7 @@ export interface Prop {
   name: string;
   description: string;
   appearance: string;
+  existence: 'REAL' | 'FICTIONAL_OR_NONEXISTENT';
   imageUrl?: string;
   generatingStatus?: 'pending' | 'running' | 'completed' | 'failed';
   propTaskId?: string;
@@ -253,6 +290,7 @@ export interface VideoDirectorTaskClip {
   workflowName?: string;
   promptId?: string;
   promptText?: string;
+  seed?: number | null;
   hasWorkflowJson?: boolean;
   referenceImages?: Array<{ label?: string; url: string }>;
   videoUrl?: string;
@@ -262,28 +300,76 @@ export interface VideoDirectorTaskClip {
   dialogueCount?: number | null;
 }
 
+export interface ClipExecutionMetadata {
+  video_prompt_language?: 'en' | 'zh' | null;
+  generation_quality_warnings?: string[];
+  result_mode?: NonNullable<ApiTask['clipExecution']>['result_mode'];
+  candidate_result?: NonNullable<ApiTask['clipExecution']>['candidate_result'];
+  planned_capability?: string;
+  effective_capability?: string;
+  continuation_mode?: 'AUTO' | 'EXTEND_ONLY';
+
+  h3_prompt_pipeline?: 'legacy' | 'phase_b';
+  h3_phase_b?: any;
+  clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;
+  execution_scope?: string;
+  clip_id?: string;
+  clip_index?: number;
+  clip_plan_revision?: number;
+  capability?: string;
+  planned_duration?: number;
+  requested_duration?: number;
+  original_duration?: number;
+  optimized_duration?: number | null;
+  effective_duration?: number;
+  duration_source?: 'ORIGINAL' | 'H3_PROMPT_OPTIMIZER' | 'H3_PHASE_B_LIMITED_V1';
+  actual_duration?: number | null;
+  approval_status?: string;
+  approval_mode?: string;
+  previous_approved_task_id?: string | null;
+  previous_approved_video_url?: string | null;
+  execution_contract?: NonNullable<ApiTask['clipExecution']>['execution_contract'];
+  temporal_anchor_ids?: string[];
+  dialogue_assignment?: Array<{
+    dialogue_id: string;
+    segment_index: number;
+    speaker: string;
+    text: string;
+    estimated_duration: number;
+    is_continuation: boolean;
+    continues_in_next_clip: boolean;
+  }>;
+}
+
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export';
   name: string;
   description?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
   progress: number;
   currentStep?: string;
   resultUrl?: string;
+  nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;
   errorMessage?: string;
   workflowId?: string;
+  comfyuiError?: ApiTask['comfyuiError'];
   workflowName?: string;
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
+  seed?: number | null;
   referenceImages?: Array<{ label?: string; url: string }>;
+  clipExecution?: ClipExecutionMetadata | null;
   videoDirectorClips?: VideoDirectorTaskClip[];
   novelId?: string;
   novelName?: string;
   chapterId?: string;
+  chapterNumber?: number | null;
+  chapterTitle?: string | null;
   characterId?: string;
   shotId?: string;
+  sourceTaskId?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -307,6 +393,7 @@ export interface PromptTemplate {
   isSystem: boolean;
   isActive: boolean;
   createdAt: string;
+  lastModifiedAt: string | null;
 }
 
 export interface TestCase {

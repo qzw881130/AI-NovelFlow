@@ -4,10 +4,31 @@
 import { api } from './index';
 
 export interface SystemConfig {
+  autoImageReviewEnabled?: boolean;
+  videoPromptLanguage?: 'en' | 'zh';
+  showFirstAppearanceNames?: boolean;
+  autoApproveFirstAppearanceNames?: boolean;
+  generationQualityPolicy?: Record<string, boolean>;
+  coverProduction?: string;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
   comfyUITimeout?: number;
   systemStatusSource?: 'comfyui' | 'windows_gpu_monitor';
+  proxyEnabled?: boolean;
+  httpProxy?: string;
+  httpsProxy?: string;
+  youtubeProxyEnabled?: boolean;
+  youtubeProxyUrl?: string;
+}
+
+export interface GenerationCheck {
+  id: string;
+  label: string;
+  description: string;
+  configurable: boolean;
+  blocking: boolean;
+  stage: 'before_queue' | 'director' | 'submission' | 'assembly';
+  error_codes?: string[];
 }
 
 export const configApi = {
@@ -24,4 +45,5 @@ export const configApi = {
   update: async (config: Partial<SystemConfig>) => {
     return api.post<SystemConfig>('/config/', config);
   },
+  generationChecks: async () => api.get<{ checks: GenerationCheck[]; policy: Record<string, boolean> }>('/config/generation-checks'),
 };
