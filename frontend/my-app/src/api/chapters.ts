@@ -45,6 +45,18 @@ export interface GenerateAllAudioData {
   total_warnings: number;
 }
 
+export interface ChapterAiSplitBatch {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  failed: number;
+  running: number;
+  pending: number;
+  createdAt?: string | null;
+  chapters: { taskId: string; chapterId: string; title: string; status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'; errorMessage?: string | null }[];
+}
+
 export const chapterApi = {
   /** 获取章节信息 */
   fetch: (novelId: string, chapterId: string) =>
@@ -94,7 +106,14 @@ export const chapterApi = {
 
   /** 拆分章节 */
   split: (novelId: string, chapterId: string) =>
-    api.post<Chapter[]>(`/novels/${novelId}/chapters/${chapterId}/split/`),
+    api.post<{ shots: unknown[] }>(`/novels/${novelId}/chapters/${chapterId}/split/`),
+
+  /** 批量拆分使用持久化后台队列，最多三个章回并行。 */
+  createAiSplitBatch: (novelId: string, chapterIds: string[]) =>
+    api.post<ChapterAiSplitBatch>(`/novels/${novelId}/chapter-ai-split-batches`, { chapter_ids: chapterIds }),
+
+  listAiSplitBatches: (novelId: string) =>
+    api.get<ChapterAiSplitBatch[]>(`/novels/${novelId}/chapter-ai-split-batches`),
 
   /** 清理章节资源 */
   clearResources: (novelId: string, chapterId: string) =>

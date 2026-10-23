@@ -175,7 +175,7 @@ export function ChapterGenerateLayout({
   // 获取分镜列表（统一使用 store.shots）
   const shots = storeShots;
   // 页面外层保留了 24px 底部内边距；导航栏固定在视口底部，预留区需扣除这段距离。
-  const bottomNavSpacerHeight = shots.length === 0 ? 'h-[6.5rem]' : bottomNavCollapsed ? 'h-4' : 'h-[10.5rem]';
+  const bottomNavSpacerHeight = shots.length === 0 ? 'h-[6.5rem]' : bottomNavCollapsed ? 'h-4' : 'h-[9.5rem]';
   const currentShotById = currentShotId ? shots.find((shot) => shot.id === currentShotId) : undefined;
   const currentShot = currentShotById || shots[currentShotIndex - 1];
   const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
@@ -517,7 +517,7 @@ export function ChapterGenerateLayout({
   }, [shots, setCurrentShot, setCurrentTab]);
 
   const renderChapterSwitch = () => (
-    <div className="flex items-center gap-2 flex-shrink-0">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <button
         type="button"
         onClick={() => goToChapter(previousChapter?.id)}
@@ -528,6 +528,20 @@ export function ChapterGenerateLayout({
         <ChevronLeft className="h-4 w-4 flex-shrink-0" />
         上一回
       </button>
+      <select
+        aria-label="跳转章回"
+        value={currentChapterIndex >= 0 ? cid : ''}
+        onChange={(event) => goToChapter(event.target.value)}
+        disabled={sortedChapters.length === 0}
+        className="w-48 max-w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      >
+        {currentChapterIndex < 0 && <option value="">选择章回</option>}
+        {sortedChapters.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.number}. {item.title}
+          </option>
+        ))}
+      </select>
       <button
         type="button"
         onClick={() => goToChapter(nextChapter?.id)}

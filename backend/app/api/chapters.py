@@ -4,19 +4,31 @@
 import io
 import re
 import zipfile
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.novel import Chapter
+from app.models.novel import Chapter, Novel
+from app.models.shot import Shot
+from app.models.task import Task
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository, PropRepository
+from app.services.background_workers import persistent_job, worker_manager
+from app.services.chapter_ai_split_service import (
+    SPLIT_HANDLER, SPLIT_QUEUE_COUNT, format_split_batch, refresh_split_batch, run_chapter_ai_split_task,
+)
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_scene_repo, get_prop_repo
 from app.utils.time_utils import format_datetime
 from app.utils.text_utils import detect_encoding, parse_chapters_from_text
 
 router = APIRouter()
+
+
+class BatchAiSplitRequest(BaseModel):
+    chapter_ids: list[str] = Field(min_length=1, max_length=200)
 
 
 def _safe_text_filename(name: str, fallback: str) -> str:
@@ -29,6 +41,7 @@ def _safe_text_filename(name: str, fallback: str) -> str:
 @router.get("/{novel_id}/chapters", response_model=dict)
 async def list_chapters(
     novel_id: str, 
+    db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo), 
     chapter_repo: ChapterRepository = Depends(get_chapter_repo)
 ):
@@ -38,10 +51,87 @@ async def list_chapters(
         raise HTTPException(status_code=404, detail="小说不存在")
     
     chapters = chapter_repo.list_by_novel(novel_id)
+    chapter_ids = [chapter.id for chapter in chapters]
+    split_chapter_ids = set()
+    if chapter_ids:
+        split_chapter_ids = {
+            chapter_id for (chapter_id,) in db.query(Shot.chapter_id)
+            .filter(Shot.chapter_id.in_(chapter_ids))
+            .group_by(Shot.chapter_id)
+            .all()
+        }
     return {
         "success": True,
-        "data": [chapter_repo.to_response(c) for c in chapters]
+        "data": [
+            {**chapter_repo.to_response(chapter), "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids}
+            for chapter in chapters
+        ]
     }
+
+
+@router.post("/{novel_id}/chapter-ai-split-batches")
+async def create_chapter_ai_split_batch(novel_id: str, request: BatchAiSplitRequest, db: Session = Depends(get_db)):
+    novel = db.get(Novel, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    chapter_ids = list(dict.fromkeys(request.chapter_ids))
+    chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id, Chapter.id.in_(chapter_ids)).all()
+    if len(chapters) != len(chapter_ids):
+        raise HTTPException(status_code=400, detail="选择的章回不存在或不属于当前小说")
+    active_batches = db.query(Task).filter(
+        Task.novel_id == novel_id, Task.type == "chapter_ai_split_batch",
+        Task.status.in_(["pending", "running"]),
+    ).all()
+    for active in active_batches:
+        refresh_split_batch(db, active.id)
+    if any(active.status in {"pending", "running"} for active in active_batches):
+        raise HTTPException(status_code=409, detail="当前小说已有正在进行的批量 AI 拆分")
+
+    by_id = {chapter.id: chapter for chapter in chapters}
+    ordered = [by_id[chapter_id] for chapter_id in chapter_ids]
+    batch = Task(type="chapter_ai_split_batch", status="running", novel_id=novel_id,
+                 name=f"批量 AI 拆分: {novel.title}", progress=0,
+                 current_step=f"等待拆分 {len(ordered)} 个章回", created_at=datetime.utcnow(), started_at=datetime.utcnow())
+    db.add(batch)
+    db.flush()
+    children = [Task(type="chapter_ai_split", status="pending", novel_id=novel_id,
+                     chapter_id=chapter.id, parent_task_id=batch.id, batch_order=index,
+                     name=chapter.title, progress=0, current_step="等待后台拆分")
+                for index, chapter in enumerate(ordered)]
+    db.add_all(children)
+    db.commit()
+
+    for index, child in enumerate(children):
+        payload = {"task_id": child.id}
+        try:
+            worker_manager.worker(f"chapter_ai_split_{index % SPLIT_QUEUE_COUNT}").enqueue(persistent_job(
+                child.id, SPLIT_HANDLER, payload, lambda task_id=child.id: run_chapter_ai_split_task(task_id),
+            ), db=db)
+        except Exception as exc:
+            db.rollback()
+            child = db.get(Task, child.id)
+            child.status = "failed"
+            child.error_message = f"加入后台队列失败: {exc}"
+            child.completed_at = datetime.utcnow()
+            db.commit()
+    refresh_split_batch(db, batch.id)
+    return {"success": True, "data": format_split_batch(batch, children)}
+
+
+@router.get("/{novel_id}/chapter-ai-split-batches")
+def list_chapter_ai_split_batches(novel_id: str, db: Session = Depends(get_db)):
+    if not db.get(Novel, novel_id):
+        raise HTTPException(status_code=404, detail="小说不存在")
+    batches = db.query(Task).filter(
+        Task.novel_id == novel_id, Task.type == "chapter_ai_split_batch",
+    ).order_by(Task.created_at.desc(), Task.id.desc()).limit(20).all()
+    children = db.query(Task).filter(
+        Task.parent_task_id.in_([batch.id for batch in batches]), Task.type == "chapter_ai_split",
+    ).all() if batches else []
+    by_batch = {batch.id: [] for batch in batches}
+    for child in children:
+        by_batch[child.parent_task_id].append(child)
+    return {"success": True, "data": [format_split_batch(batch, by_batch[batch.id]) for batch in batches]}
 
 
 @router.post("/{novel_id}/chapters/download-originals")

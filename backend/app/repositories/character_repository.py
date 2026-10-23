@@ -22,6 +22,21 @@ class CharacterRepository:
         return self.db.query(Character).filter(
             Character.novel_id == novel_id
         ).all()
+
+    def auto_set_protagonists(self, novel_id: str) -> tuple[list[str], int]:
+        """将当前小说名称不含十进制数字的非旁白角色设为主角。"""
+        assigned_ids = []
+        updated_count = 0
+        for character in self.list_by_novel(novel_id):
+            if character.is_narrator or not character.name or any(char.isdecimal() for char in character.name):
+                continue
+            assigned_ids.append(character.id)
+            if not character.is_protagonist:
+                character.is_protagonist = True
+                updated_count += 1
+        if updated_count:
+            self.db.commit()
+        return assigned_ids, updated_count
     
     def get_by_id(self, character_id: str) -> Optional[Character]:
         """根据 ID 获取角色"""

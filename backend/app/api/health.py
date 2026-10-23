@@ -8,9 +8,16 @@ from urllib.parse import urlparse
 from app.core.config import get_settings
 from app.services.comfyui_monitor import get_monitor, init_monitor
 from app.services.llm_service import LLMService
+from app.services.disk_usage import get_disk_usage
 
 router = APIRouter()
 settings = get_settings()
+
+
+@router.get("/disks")
+def get_disks():
+    """Mounted disk capacity and usage for the sidebar, independent of ComfyUI."""
+    return {"disks": get_disk_usage()}
 
 def get_gpu_monitor_host() -> str:
     """根据当前 ComfyUI 地址推导 Windows GPU 监控地址。"""

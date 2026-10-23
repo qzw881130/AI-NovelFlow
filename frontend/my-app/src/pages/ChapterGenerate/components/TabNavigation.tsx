@@ -54,6 +54,7 @@ const tabs: TabConfig[] = [
     labelKey: 'chapterGenerate.tabHdRepaint',
     icon: <Sparkles className="w-4 h-4" />,
     index: 4,
+    disabled: true,
   },
 ];
 

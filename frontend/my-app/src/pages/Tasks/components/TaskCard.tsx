@@ -282,13 +282,8 @@ export function TaskCard({
           <div className="flex items-center gap-2">
             <h3 className="font-medium text-gray-900">{getTaskDisplayName(task)}</h3>
             <span className="text-xs px-2 py-0.5 bg-white rounded-full">{getTaskTypeName(task.type)}</span>
-            {task.workflowName && (
-              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full" title={t('tasks.workflowUsed')}>
-                📋 {getWorkflowDisplayName(task)}
-              </span>
-            )}
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
             <span>{t('tasks.taskId')}:</span>
             <code className="select-all rounded bg-white/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-600">{task.id}</code>
             <button
@@ -299,6 +294,11 @@ export function TaskCard({
             >
               <Copy className="h-3.5 w-3.5" />
             </button>
+            {task.workflowName && (
+              <span className="max-w-full break-all rounded-full bg-blue-100 px-2 py-0.5 text-blue-700" title={t('tasks.workflowUsed')}>
+                📋 {getWorkflowDisplayName(task)}
+              </span>
+            )}
           </div>
           <CandidateResultSummary task={task} onPreviewVideo={onPreviewVideo} />
           {(task.clipExecution?.generation_quality_warnings?.length ?? 0) > 0 && (
@@ -654,7 +654,7 @@ export function TaskCard({
           )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
-          {(task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
+          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
             <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={task.type === 'shot_video_batch' ? '恢复未完成的 Shot' : t('tasks.retry')}>
               <Play className="h-4 w-4" />
             </button>
@@ -664,9 +664,9 @@ export function TaskCard({
               <Code className="h-4 w-4" />
             </button>
           )}
-          <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
+          {(!(task.type === 'chapter_ai_split' || task.type === 'chapter_ai_split_batch') || !['pending', 'running'].includes(task.status)) && <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
             <Trash2 className="h-4 w-4" />
-          </button>
+          </button>}
         </div>
       </div>
     </div>

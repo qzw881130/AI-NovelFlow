@@ -961,7 +961,7 @@ function ExecutionChainOverview({ plan, tasks, children, planStatus, headerActio
   const revision = Number(plan.clip_plan_revision || 0);
   if (!clips.length) return null;
   return (
-    <section data-testid="video-execution-chain" className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white p-3">
+    <section data-testid="video-execution-chain" className="!mt-2 min-w-0 max-w-full rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">执行计划 · {clips.length} Clips</h3>
           {planStatus && <span className={`rounded border px-1.5 py-0.5 text-[11px] ${plan.clip_plan_validation?.passed === false ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{planStatus}</span>}
@@ -1965,7 +1965,7 @@ function VideoDirectorPanel({
 
       <div
         data-testid="canonical-execution-summary"
-        className={`rounded-lg border px-3 py-2.5 ${semanticShotStatus === 'FAILED' ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+        className={`!mt-2 rounded-lg border px-3 py-2.5 ${semanticShotStatus === 'FAILED' ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
       >
         <div className="text-sm font-semibold">{semanticExecutionSummary}</div>
         {!hasSemanticClipPlan && optionalMissingKeyframes.length > 0 && (
@@ -4572,7 +4572,7 @@ export function VideoGenTab({
       {/* 内容区 - 主编辑区 + 右侧视频预览 */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
-        <div className="video-main-column flex-none lg:flex-1 min-w-0 flex flex-col gap-4 overflow-visible lg:overflow-y-auto pr-1">
+        <div className="video-main-column flex-none lg:flex-1 min-w-0 flex flex-col gap-2 overflow-visible lg:overflow-y-auto pr-1">
           <ShotAutoGeneration continuationMode={continuationMode} novelId={effectiveNovelId} chapterId={effectiveChapterId} shotId={currentShotId || ''} onProgress={refreshCurrentShotData} mainImageNewerThanVideo={currentShotData?.mainImageNewerThanVideo} />
           <VideoDirectorPanel
             continuationMode={continuationMode}

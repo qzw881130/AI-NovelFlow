@@ -131,6 +131,8 @@ export default function Tasks() {
       'shot_video_hd': t('tasks.types.shotVideoHd', { defaultValue: '高清重绘' }),
       'shot_video_hd_batch': t('tasks.types.shotVideoHdBatch', { defaultValue: '批量高清重绘' }),
       'chapter_video': t('tasks.types.chapterVideo'),
+      'chapter_ai_split_batch': '批量 AI 拆分章回',
+      'chapter_ai_split': 'AI 拆分章回',
       'novel_video': t('tasks.types.novelVideo', { defaultValue: '合并小说视频' }),
       'novel_video_cover': '视频封面',
       'youtube_upload': t('tasks.types.youtubeUpload', { defaultValue: '上传 YouTube' }),
@@ -143,7 +145,7 @@ export default function Tasks() {
     const supportedTypes: Task['type'][] = [
       'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
       'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
-      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'novel_video', 'novel_video_cover', 'youtube_upload', 'shot_export',
+      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'chapter_ai_split_batch', 'chapter_ai_split', 'novel_video', 'novel_video_cover', 'youtube_upload', 'shot_export',
     ];
     return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));
   }, [taskTypes]);

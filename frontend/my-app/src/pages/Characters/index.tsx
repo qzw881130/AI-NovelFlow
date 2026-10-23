@@ -2,7 +2,7 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, Plus, Search, Trash2, Loader2, User, Image, X, Download } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Trash2, Loader2, User, UserCheck, Image, X, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
@@ -45,6 +45,7 @@ export default function Characters() {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingMissing, setGeneratingMissing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isAutoSettingProtagonists, setIsAutoSettingProtagonists] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [generatingVoiceId, setGeneratingVoiceId] = useState<string | null>(null);
   const [uploadingAudioId, setUploadingAudioId] = useState<string | null>(null);
@@ -761,6 +762,30 @@ export default function Characters() {
     }
   };
 
+  const autoSetProtagonists = async () => {
+    if (!selectedNovel || isAutoSettingProtagonists) return;
+    setIsAutoSettingProtagonists(true);
+    try {
+      const result = await characterApi.autoSetProtagonists(selectedNovel);
+      if (!result.success || !result.data) {
+        toast.error(result.message || t('characters.autoSetProtagonistsFailed'));
+        return;
+      }
+      const assignedIds = new Set(result.data.assignedIds);
+      setCharacters(current => current.map(character => assignedIds.has(character.id)
+        ? { ...character, isProtagonist: true }
+        : character));
+      toast.success(assignedIds.size > 0
+        ? t('characters.autoSetProtagonistsSuccess', { count: assignedIds.size })
+        : t('characters.autoSetProtagonistsEmpty'));
+    } catch (error) {
+      console.error('自动设置主角失败:', error);
+      toast.error(t('characters.autoSetProtagonistsFailed'));
+    } finally {
+      setIsAutoSettingProtagonists(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -776,6 +801,19 @@ export default function Characters() {
           </div>
         )}
         <div className="ml-auto flex flex-wrap gap-3">
+          {selectedNovel && loadedCharactersNovelId === selectedNovel && !isLoading && characters.length > 0 && (
+            <button
+              onClick={autoSetProtagonists}
+              disabled={isAutoSettingProtagonists}
+              className="btn-secondary text-amber-700 border-amber-200 hover:bg-amber-50 disabled:opacity-50"
+              title={t('characters.autoSetProtagonistsHint')}
+            >
+              {isAutoSettingProtagonists
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <UserCheck className="mr-2 h-4 w-4" />}
+              {t('characters.autoSetProtagonists')}
+            </button>
+          )}
           {filteredCharacters.length > 0 && (
             <button
               onClick={generateAllPortraits}

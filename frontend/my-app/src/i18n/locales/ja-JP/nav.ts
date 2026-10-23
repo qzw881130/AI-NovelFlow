@@ -12,5 +12,10 @@ export default {
     promptConfig: 'プロンプト設定',
     uiConfig: 'UI設定',
     llmLogs: 'LLMログ',
+    diskUsage: 'ディスク使用状況',
+    diskTotal: 'すべてのディスク',
+    diskUsed: '使用済み',
+    diskLoading: 'ディスク情報を読み込み中...',
+    diskUnavailable: 'ディスク情報を取得できません',
   },
 };

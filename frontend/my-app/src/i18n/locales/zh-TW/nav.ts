@@ -13,5 +13,10 @@ export default {
     promptConfig: '提示詞組態',
     uiConfig: '介面組態',
     llmLogs: '大模型日誌',
+    diskUsage: '磁碟使用情況',
+    diskTotal: '全部磁碟',
+    diskUsed: '已用',
+    diskLoading: '正在讀取磁碟資訊...',
+    diskUnavailable: '暫時無法取得磁碟資訊',
   },
 };

@@ -12,5 +12,10 @@ export default {
     promptConfig: '프롬프트 설정',
     uiConfig: 'UI 설정',
     llmLogs: 'LLM 로그',
+    diskUsage: '디스크 사용량',
+    diskTotal: '모든 디스크',
+    diskUsed: '사용',
+    diskLoading: '디스크 정보를 불러오는 중...',
+    diskUnavailable: '디스크 정보를 가져올 수 없습니다',
   },
 };

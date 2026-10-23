@@ -123,7 +123,22 @@ export default {
 
   novelDetail: {
     ...enUS.novelDetail,
+    totalWordCount: '총 글자 수: {count}자',
     reParse: '재분석',
+    aiSplitCompleted: 'AI 분할 완료',
+    aiSplitPending: '미분할',
+    batchAiSplit: {
+      button: 'AI 일괄 분할',
+      title: '챕터 AI 일괄 분할',
+      selectedCount: '{count}개 챕터를 선택했습니다. 순서대로 분할합니다.',
+      resplitWarning: '{count}개 챕터는 이미 분할되었습니다. 다시 분할하면 기존 샷과 생성된 리소스가 삭제됩니다.',
+      start: '분할 시작',
+      progress: '{current} / {total}번째 챕터 분할 중',
+      keepOpen: '분할 중에는 이 페이지를 열어 두세요. 실패해도 다음 챕터를 계속 처리합니다.',
+      summary: '분할 완료: 성공 {success}개, 실패 {failed}개',
+      emptyChapter: '챕터 내용이 비어 있습니다',
+      failed: 'AI 분할에 실패했거나 샷이 생성되지 않았습니다',
+    },
     batchImport: {
       button: '장 일괄 가져오기',
       title: '장 일괄 가져오기',

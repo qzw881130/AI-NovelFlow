@@ -18,6 +18,7 @@ import {
 import clsx from 'clsx';
 import { useTranslation } from '../stores/i18nStore';
 import { useSidebar } from '../contexts/SidebarContext';
+import SidebarDiskUsage from './SidebarDiskUsage';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -70,7 +71,7 @@ export default function Sidebar() {
             <ChevronLeft className="h-4 w-4 text-gray-600" />
           )}
         </button>
-        <nav className="flex flex-1 flex-col">
+        <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ul role="list" className="flex flex-1 flex-col gap-y-7">
             <li>
               <ul role="list" className={clsx(
@@ -107,6 +108,11 @@ export default function Sidebar() {
             </li>
           </ul>
         </nav>
+        {!isCollapsed && (
+          <div className="shrink-0 border-t border-gray-100 px-3 pt-3 pb-14">
+            <SidebarDiskUsage />
+          </div>
+        )}
       </div>
     </div>
   );

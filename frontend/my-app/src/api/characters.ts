@@ -42,6 +42,10 @@ export const characterApi = {
   /** 更新角色 */
   update: (id: string, data: Partial<Character>) => api.put<Character>(`/characters/${id}/`, data),
 
+  /** 将当前小说中名称不含数字的角色设为主角 */
+  autoSetProtagonists: (novelId: string) =>
+    api.post<{ assignedIds: string[]; updatedCount: number }>(`/characters/auto-set-protagonists?novel_id=${encodeURIComponent(novelId)}`),
+
   /** 删除角色 */
   delete: (id: string) => api.delete(`/characters/${id}/`),
 

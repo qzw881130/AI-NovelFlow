@@ -83,11 +83,11 @@ Preserve authored identities, clothing, props, architecture and world details; c
     {
         "name": "Q版风格",
         "description": "稳定头身比的二维Q版角色，场景和道具保持原有结构与功能比例",
-        "template": """2D chibi cartoon rendering with clean rounded linework, flat colors and simple cel shading,
-depicted humanoid characters use stable 2.5-to-3-head-tall proportions and simplified facial features,
-retain recognizable age cues, species traits, hairstyles, clothing and identity-defining details.
-Environments and props share the same 2D linework and shading while retaining their authored structure, functional proportions and relative scale; do not give buildings or objects chibi anatomy.
-Preserve authored identities, clothing, props, architecture and world details; stylize character proportions without redesigning the story.""",
+        "template": """Unified 2D chibi cartoon rendering with clean rounded linework, flat colors and simple cel shading across the subjects specified by the current task.
+This is a rendering style, not a subject list: follow the task's visible subjects and their counts exactly; do not add people, animals, props or background extras to demonstrate the style.
+Only when the task explicitly includes humanoid characters, draw those specified characters with stable 2.5-to-3-head-tall proportions and simplified facial features while retaining recognizable age cues, species traits, hairstyles, clothing and identity-defining details.
+Render environments and props with the same 2D linework and shading while preserving their authored structure, functional proportions and relative scale; do not give buildings or objects chibi anatomy.
+Preserve authored identities, clothing, props, architecture and world details; change the rendering and, only for requested humanoid characters, their proportions without redesigning the story.""",
         "type": "style"
     },
     {

@@ -154,6 +154,23 @@ async def generate_missing_character_portraits(
     return character_service.create_missing_character_portrait_tasks(novel_id)
 
 
+@router.post("/auto-set-protagonists", response_model=dict)
+async def auto_set_protagonists(
+    novel_id: str = Query(...),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+):
+    """将指定小说中名称不含数字的非旁白角色批量设为主角。"""
+    if not novel_repo.get_by_id(novel_id):
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    assigned_ids, updated_count = character_repo.auto_set_protagonists(novel_id)
+    return {
+        "success": True,
+        "data": {"assignedIds": assigned_ids, "updatedCount": updated_count},
+    }
+
+
 @router.get("/{character_id}", response_model=dict)
 async def get_character(character_id: str, novel_repo: NovelRepository = Depends(get_novel_repo), character_repo: CharacterRepository = Depends(get_character_repo)):
     """获取角色详情"""

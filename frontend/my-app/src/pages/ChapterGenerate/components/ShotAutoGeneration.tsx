@@ -64,7 +64,7 @@ export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = fals
   const resumable = ['paused','failed','cancelled'].includes(state?.status);
   const completed = state?.status === 'completed';
   const successfulShots = state?.children?.filter((child: any) => child.status === 'completed').length ?? 0;
-  return <div data-testid="shot-auto-generation" className="my-2 flex flex-wrap items-center gap-2 rounded border border-blue-100 bg-blue-50/40 p-2 text-xs">
+  return <div data-testid="shot-auto-generation" className="mt-2 flex flex-wrap items-center gap-2 rounded border border-blue-100 bg-blue-50/40 p-2 text-xs">
     <button disabled={busy || running || disabled || completed || !novelId || !chapterId}
       onClick={() => control(resumable ? 'resume' : 'start')}
       title={completed ? '当前计划的自动生成已完成；如需重新制作视频，请使用下方 Clip 的重新生成操作' : undefined}

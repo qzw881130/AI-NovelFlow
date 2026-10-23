@@ -14,5 +14,10 @@ export default {
     promptConfig: 'Prompt Config',
     uiConfig: 'UI Config',
     llmLogs: 'LLM Logs',
+    diskUsage: 'Disk usage',
+    diskTotal: 'All disks',
+    diskUsed: 'Used',
+    diskLoading: 'Loading disk information...',
+    diskUnavailable: 'Disk information unavailable',
   },
 };
