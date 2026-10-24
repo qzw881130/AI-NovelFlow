@@ -2,6 +2,8 @@
 
 import json
 
+from sqlalchemy import or_
+
 from app.models.image_quality_review import ImageQualityReview
 from app.models.task import Task
 from app.services.image_quality_review import image_result_key
@@ -16,12 +18,11 @@ def scene_reference_review_status(db, scene) -> tuple[bool, str]:
     """
     if not scene or not scene.image_url:
         return False, "场景图不存在"
-    task = db.get(Task, scene.scene_task_id) if scene.scene_task_id else None
-    if not task or task.type != "scene_image" or image_result_key(task.result_url) != image_result_key(scene.image_url):
-        return True, "用户提供或替换的场景图"
-
-    reviews = db.query(ImageQualityReview).filter(
-        ImageQualityReview.task_id == task.id,
+    # A replacement generation changes scene_task_id before it has published a
+    # passing image. Keep the verdict for the image currently on the scene.
+    reviews = db.query(ImageQualityReview).join(Task, ImageQualityReview.task_id == Task.id).filter(
+        or_(Task.scene_id == scene.id, Task.id == scene.scene_task_id),
+        Task.type == "scene_image",
         ImageQualityReview.status == "success",
     ).order_by(ImageQualityReview.created_at.desc(), ImageQualityReview.id.desc()).all()
     for review in reviews:
