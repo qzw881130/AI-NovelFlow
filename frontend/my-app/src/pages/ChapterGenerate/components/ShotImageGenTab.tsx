@@ -10,14 +10,15 @@
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
-import { AlertTriangle, Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { AlertTriangle, Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users, Wrench } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
+import { shotRepairsApi, type ShotRepairTask } from '../../../api/shotRepairs';
 import { taskApi, type Task } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
-import { ImageQualityBadge, useImageQuality } from './ImageQualityStatus';
+import { ImageQualityBadge, ImageQualityIcon, useImageQuality } from './ImageQualityStatus';
 import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
@@ -124,6 +125,10 @@ export function ShotImageGenTab({
   const [imageReviewTarget, setImageReviewTarget] = useState<{ task: { id: string; name: string }; imageUrl: string } | null>(null);
   const [batchTaskId, setBatchTaskId] = useState<string | null>(null);
   const [batchProgressText, setBatchProgressText] = useState('');
+  const [repairTask, setRepairTask] = useState<ShotRepairTask | null>(null);
+  const [isQueueingRepair, setIsQueueingRepair] = useState(false);
+  const lastFinishedRepairId = useRef<string | null>(null);
+  const initializedRepairShots = useRef<Set<string>>(new Set());
 
   // 统一使用 shots prop（来自 store.shots）
   const shotsList = shots;
@@ -133,6 +138,45 @@ export function ShotImageGenTab({
   // 获取当前分镜对象
   const currentShotObj = shots.find(s => s.index === currentShotIndex);
   const currentShotId = currentShotObj?.id || shotsList[currentShotIndex - 1]?.id || '';
+
+  useEffect(() => {
+    if (!novelId || !chapterId || !currentShotId) { setRepairTask(null); return; }
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await shotRepairsApi.latest(novelId, chapterId, currentShotId);
+        if (!active) return;
+        const wasAlreadyWatching = initializedRepairShots.current.has(currentShotId);
+        initializedRepairShots.current.add(currentShotId);
+        setRepairTask(result);
+        if (result?.status === 'completed' && result.taskId !== lastFinishedRepairId.current) {
+          lastFinishedRepairId.current = result.taskId;
+          const updated = await shotsApi.getShot(novelId, chapterId, currentShotId);
+          if (!active || !updated.success || !updated.data) return;
+          setShots(useChapterGenerateStore.getState().shots.map(shot => shot.id === currentShotId ? { ...shot, ...updated.data } : shot));
+          setShotImages(images => ({ ...images, [currentShotId]: updated.data.imageUrl || '' }));
+          if (wasAlreadyWatching) toast.success('分镜图修复已通过 AI 评审并替换原图');
+        }
+      } catch { /* 任务状态临时不可用时保留当前显示。 */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [novelId, chapterId, currentShotId, setShots, setShotImages]);
+
+  const handleQueueRepair = async () => {
+    if (!novelId || !chapterId || !currentShotId || isQueueingRepair) return;
+    setIsQueueingRepair(true);
+    try {
+      const task = await shotRepairsApi.enqueue(novelId, chapterId, currentShotId);
+      setRepairTask(task);
+      toast.success('已加入分镜图修复队列');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '加入修复队列失败');
+    } finally {
+      setIsQueueingRepair(false);
+    }
+  };
 
   useEffect(() => {
     const taskId = currentShotObj?.imageTaskId;
@@ -169,6 +213,11 @@ export function ShotImageGenTab({
     imageReviewTarget,
   );
   const currentImageQuality = imageQualities[0];
+  const batchReviewImages = showBatchSelectModal ? shots.flatMap((shot) => {
+    const imageUrl = shot.imageUrl || shotImages[shot.id];
+    return imageUrl ? [{ taskId: shot.imageTaskId || null, imageUrl }] : [];
+  }) : [];
+  const { current: batchImageQualities } = useImageQuality(batchReviewImages, showBatchSelectModal);
 
   const hasImage = !!currentImageUrl;
   const hasCompletedCurrentImage = hasImage && currentShotObj?.imageStatus === 'completed';
@@ -842,6 +891,23 @@ export function ShotImageGenTab({
                 <Eye className="h-3 w-3" />查看 AI 评审
                 {currentImageQuality && <ImageQualityBadge status={currentImageQuality.qualityStatus} summary={currentImageQuality.summary} />}
               </button>
+              {currentImageQuality?.qualityStatus === 'FAIL' && (
+                <button
+                  type="button"
+                  onClick={handleQueueRepair}
+                  disabled={isQueueingRepair || repairTask?.status === 'pending' || repairTask?.status === 'running'}
+                  title={repairTask?.errorMessage || repairTask?.currentStep || '局部修复后 AI 评审，通过才替换原图'}
+                  className="inline-flex items-center gap-1.5 rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isQueueingRepair || repairTask?.status === 'running' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wrench className="h-3 w-3" />}
+                  {repairTask?.status === 'pending' ? '等待修复' : repairTask?.status === 'running' ? '修复中' : '加入修复队列'}
+                </button>
+              )}
+              {currentImageQuality?.qualityStatus === 'FAIL' && repairTask?.status === 'failed' && (
+                <span className="max-w-64 truncate text-xs text-red-600" title={repairTask.errorMessage || ''}>
+                  修复失败：{repairTask.errorMessage}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1007,6 +1073,9 @@ export function ShotImageGenTab({
                   // 优先使用 shot.imageUrl
                   const shotImageUrl = shot.imageUrl || shotImages[shotId];
                   const hasShotImage = !!shotImageUrl;
+                  const imageQuality = hasShotImage
+                    ? batchImageQualities.find((row) => row.taskId === (shot.imageTaskId || null) && row.imageUrl === shotImageUrl)
+                    : undefined;
                   const isGenerating = generatingShots.has(shotId);
                   const isQueued = pendingShots.has(shotId);
                   const isFailed = shot.imageStatus === 'failed' && !hasShotImage && !isGenerating && !isQueued;
@@ -1076,6 +1145,11 @@ export function ShotImageGenTab({
                           {shot.duration}s
                         </span>
                       </div>
+                      {imageQuality && (
+                        <div className="absolute bottom-1 left-1 z-10">
+                          <ImageQualityIcon status={imageQuality.qualityStatus} summary={imageQuality.summary} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

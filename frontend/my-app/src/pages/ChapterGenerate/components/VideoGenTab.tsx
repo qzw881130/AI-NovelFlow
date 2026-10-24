@@ -43,7 +43,7 @@ import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
-import { ImageQualityBadge, ImageQualitySummary, useImageQuality } from './ImageQualityStatus';
+import { ImageQualityBadge, ImageQualityIcon, ImageQualitySummary, useImageQuality } from './ImageQualityStatus';
 import type { KeyframeData } from '../../../types';
 import type { VideoResultMode, ContinuationMode, CanonicalVisualState, SemanticClipPlan, VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
@@ -2807,6 +2807,11 @@ export function VideoGenTab({
     const shotId = shot?.id ? String(shot.id) : '';
     return shot?.imageUrl || shot?.image_url || (shotId ? shotImages[shotId] : null);
   }, [shotImages]);
+  const batchReviewImages = showBatchSelectModal ? shotsList.flatMap((shot: any) => {
+    const imageUrl = getShotImageUrl(shot);
+    return imageUrl ? [{ taskId: shot.imageTaskId || null, imageUrl }] : [];
+  }) : [];
+  const { current: batchImageQualities } = useImageQuality(batchReviewImages, showBatchSelectModal);
 
   const getVideoDirectorKeyframeImageUrl = useCallback((shot: any, keyframe: any) => {
     if (!keyframe) return null;
@@ -4882,6 +4887,9 @@ export function VideoGenTab({
                     const { shot, shotIndex } = item;
                     const isSelected = executableSelectedSet.has(shotIndex);
                     const thumbnailUrl = getShotImageUrl(shot);
+                    const imageQuality = thumbnailUrl
+                      ? batchImageQualities.find((row) => row.taskId === (shot.imageTaskId || null) && row.imageUrl === thumbnailUrl)
+                      : undefined;
                     const statusMeta = BATCH_CATEGORY_META.find((category) => category.key === item.category)!;
                     const missingPrimaryImage = item.category === 'missing_preparation' && item.reason.includes('主分镜图');
 
@@ -4901,15 +4909,20 @@ export function VideoGenTab({
                             <div className="flex h-full min-h-[116px] items-center justify-center"><Film className="h-8 w-8 text-gray-300" /></div>
                           )}
                           <span className="absolute left-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-xs font-medium text-white">Shot #{shot.index || shotIndex}</span>
-                          {shot.mainImageNewerThanVideo && (
-                            <span
-                              role="img"
-                              aria-label="主分镜图晚于此前生成的 Shot 视频"
-                              title="主分镜图晚于此前生成的 Shot 视频，旧成片可能已失效"
-                              className="absolute bottom-2 left-2 rounded bg-amber-50 p-1 text-amber-700 shadow-sm"
-                            >
-                              <AlertCircle className="h-3.5 w-3.5" />
-                            </span>
+                          {(imageQuality || shot.mainImageNewerThanVideo) && (
+                            <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1">
+                              {imageQuality && <ImageQualityIcon status={imageQuality.qualityStatus} summary={imageQuality.summary} />}
+                              {shot.mainImageNewerThanVideo && (
+                                <span
+                                  role="img"
+                                  aria-label="主分镜图晚于此前生成的 Shot 视频"
+                                  title="主分镜图晚于此前生成的 Shot 视频，旧成片可能已失效"
+                                  className="rounded bg-amber-50 p-1 text-amber-700 shadow-sm"
+                                >
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col p-3">

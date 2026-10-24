@@ -21,7 +21,7 @@ from app.services.vision_inputs import vision_proxy
 from app.utils.json_parser import safe_parse_llm_json
 
 
-IMAGE_TYPES = {"character_portrait", "shot_image", "scene_image", "prop_image", "keyframe_image", "single_image_edit"}
+IMAGE_TYPES = {"character_portrait", "shot_image", "shot_image_repair_candidate", "scene_image", "prop_image", "keyframe_image", "single_image_edit"}
 DIMENSIONS = ("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY", "ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY")
 BLOCKING_DIMENSIONS = frozenset(("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY"))
 STATUSES = {"PASS", "WARNING", "FAIL"}
@@ -47,7 +47,7 @@ def _json(value, default):
 
 
 def build_review_input(task: Task, structured_target: dict | None = None, *, generation_review: bool = False) -> dict:
-    in_generation = generation_review and task.type in {"shot_image", "scene_image"} and task.status == "running"
+    in_generation = generation_review and task.type in {"shot_image", "shot_image_repair_candidate", "scene_image"} and task.status == "running"
     if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation) or not task.result_url or not task.prompt_text:
         raise ValueError("评审需要已完成生图任务、真实生成图和原始提示词")
     metadata = _json(task.metadata_json, {})
@@ -108,7 +108,7 @@ def build_review_input(task: Task, structured_target: dict | None = None, *, gen
             "counting_rule": "角色形象图按不同角色身份计数。四视图中的正面、侧面、背面和头像特写是同一角色的重复展示，不是四个人；单一形象图按目标中的单幅人物构图评审。若工作流未明确版式，结合原始提示词判断，不得仅凭同一角色的多视角展示判定多出人物。",
         }
     return {
-        "task_id": task.id, "task_type": task.type, "novel_id": task.novel_id,
+        "task_id": task.id, "task_type": "shot_image" if task.type == "shot_image_repair_candidate" else task.type, "novel_id": task.novel_id,
         "chapter_id": task.chapter_id, "shot_id": task.shot_id,
         "original_prompt": task.prompt_text, "generated_image": task.result_url,
         "target": target,
@@ -195,7 +195,7 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
         if shot:
             structured["shot"] = {"description": shot.description, "scene": shot.scene,
                                   "props": _json(shot.props, []),
-                                  "characters": _json(shot.characters, []) if task.type == "shot_image" else None}
+                                  "characters": _json(shot.characters, []) if task.type in {"shot_image", "shot_image_repair_candidate"} else None}
     for id_field, model, key, fields in (
         (task.character_id, Character, "character", ("name", "description", "appearance")),
         (task.scene_id, Scene, "scene", ("name", "description", "setting")),

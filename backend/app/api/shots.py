@@ -5281,7 +5281,7 @@ def _build_shot_image_data_response(
                     .filter(
                         Task.id == shot.image_task_id,
                         Task.shot_id == shot.id,
-                        Task.type == "shot_image",
+                        Task.type.in_(["shot_image", "shot_image_repair_candidate"]),
                         Task.workflow_json.isnot(None),
                     )
                     .first()
@@ -5291,7 +5291,7 @@ def _build_shot_image_data_response(
                     db.query(Task)
                     .filter(
                         Task.shot_id == shot.id,
-                        Task.type == "shot_image",
+                        Task.type.in_(["shot_image", "shot_image_repair_candidate"]),
                         Task.workflow_json.isnot(None),
                     )
                     .order_by(Task.created_at.desc())
@@ -6335,7 +6335,7 @@ async def get_shots(
         shot_ids = [shot.id for shot in shots]
         related_tasks = db.query(Task).filter(
             Task.shot_id.in_(shot_ids),
-            Task.type.in_(["shot_image", "keyframe_image", "shot_video_hd"]),
+            Task.type.in_(["shot_image", "shot_image_repair_candidate", "keyframe_image", "shot_video_hd"]),
         ).all() if shot_ids else []
         image_tasks = {}
         hd_tasks = []

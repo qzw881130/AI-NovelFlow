@@ -120,7 +120,9 @@ def _time_text(seconds):
     if rounded >= 60:
         minutes, rest = divmod(rounded, 60)
         return f"{minutes}分{rest}秒" if rest else f"{minutes}分"
-    return f"{seconds:g}秒"
+    if seconds < 0.1:
+        return "不足0.1秒"
+    return f"{seconds:.1f}".rstrip("0").rstrip(".") + "秒"
 
 
 def _details(row):

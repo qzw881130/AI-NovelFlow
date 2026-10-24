@@ -107,6 +107,16 @@ def test_image_review_notification_distinguishes_pass_and_review(db):
     assert "评审结果：需复核（REVIEW）" in review_message
 
 
+@pytest.mark.parametrize("elapsed, expected", [
+    (0.000006, "不足0.1秒"),
+    (1.23456, "1.2秒"),
+])
+def test_image_review_notification_formats_elapsed_time_readably(db, elapsed, expected):
+    row = record_event(db, "image.review.warning", {"details": {"elapsed_time": elapsed}}, is_test=True)
+    message = format_notification(row)
+    assert f"⏱ 耗时：{expected}" in message
+
+
 def test_image_review_notification_identifies_shot_and_canonical_visual_state(db):
     novel, chapter, shot = _business_rows(db)
     task = Task(type="keyframe_image", name=f"生成关键帧图片: {shot.id}-3", status="completed",

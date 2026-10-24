@@ -842,6 +842,11 @@ class TaskService:
             return (now - updated_at).total_seconds()
 
         for task in active_tasks:
+            if task.type in {"shot_image_repair", "shot_image_repair_candidate"}:
+                # The durable repair worker owns its ComfyUI prompt and review
+                # receipt. Generic generation recovery could publish a failed
+                # candidate or time out a still-running multi-round repair.
+                continue
             # Explicit receipt acceptance owns this Task; the ordinary worker
             # must not race its download or turn it into another generation.
             if safe_json_dict(task.metadata_json).get("manual_receipt_recovery"):
@@ -882,6 +887,11 @@ class TaskService:
                 BackgroundJob.status.in_(["queued", "running"]),
             ).all()
             has_persisted_job = any(worker_manager.is_live(job_id) for (job_id,) in persisted_jobs)
+            # A durable queued job can wait behind other work for longer than
+            # the start timeout. Its worker may also live in another process,
+            # where process-local is_live() cannot see it. Preserve the pending
+            # task while the descriptor is still active in the database.
+            has_durable_pending_job = bool(persisted_jobs)
             if task.type == "shot_image" and task.parent_task_id and not task.comfyui_prompt_id and not has_persisted_job:
                 parent = db.query(Task).filter(Task.id == task.parent_task_id).first()
                 if parent and parent.type == "shot_image_batch" and parent.status in {"completed", "failed", "cancelled"}:
@@ -894,7 +904,7 @@ class TaskService:
                         shot.image_status = "failed"
                     updated_count += 1
                     continue
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child and not has_persisted_job:
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child and not has_durable_pending_job:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"

@@ -125,6 +125,8 @@ export default function Tasks() {
       'scene_image': t('tasks.types.sceneImage'),
       'prop_image': t('tasks.types.propImage', { defaultValue: '道具图片' }),
       'shot_image': t('tasks.types.shotImage'),
+      'shot_image_repair': '主分镜图修复',
+      'shot_image_repair_candidate': '主分镜图修复候选',
       'shot_image_batch': t('tasks.types.shotImageBatch', { defaultValue: '批量分镜图片' }),
       'keyframe_image': t('tasks.types.keyframeImage', { defaultValue: '关键帧图片' }),
       'single_image_edit': t('tasks.types.singleImageEdit'),
@@ -147,7 +149,7 @@ export default function Tasks() {
   const taskTypeOptions = useMemo(() => {
     const supportedTypes: Task['type'][] = [
       'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
-      'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
+      'scene_image', 'prop_image', 'shot_image', 'shot_image_repair', 'shot_image_repair_candidate', 'shot_image_batch', 'keyframe_image',
       'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'chapter_ai_split_batch', 'chapter_ai_split', 'novel_video', 'novel_video_cover', 'youtube_upload', 'shot_export',
     ];
     return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));

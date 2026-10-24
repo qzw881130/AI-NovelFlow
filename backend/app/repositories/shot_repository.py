@@ -338,7 +338,7 @@ class ShotRepository:
         latest_hd = latest_completed_variants[-1] if latest_completed_variants else None
         video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
         if video_director_plan.get("canonical_visual_plan") is True:
-            tasks = self.db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["shot_image", "keyframe_image"])).all()
+            tasks = self.db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["shot_image", "shot_image_repair_candidate", "keyframe_image"])).all()
             required = project_required_execution_images(shot, video_director_plan, tasks, continuation_mode=continuation_mode)
             video_director_plan["required_execution_images"] = required
             video_director_plan["clip_execution_readiness"] = project_clip_execution_readiness(self.db, shot, video_director_plan, required, continuation_mode=continuation_mode)

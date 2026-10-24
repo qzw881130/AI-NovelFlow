@@ -84,7 +84,11 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
             <span className="font-medium text-gray-600">分镜图 {imageStats.generated}/{imageStats.total}</span>
             <span className="text-green-700" title="质量数量只统计当前图片已有明确评审结论的分镜">通过 {imageStats.passed}</span>
             <span className="text-amber-700">警告 {imageStats.warning}</span>
-            <span className="text-red-700">失败 {imageStats.failed}</span>
+            <span className={imageStats.failed > 0
+              ? 'inline-flex items-center rounded-md border border-red-300 bg-red-100 px-2 py-0.5 font-bold text-red-800'
+              : 'text-gray-400'}>
+              失败 {imageStats.failed}
+            </span>
           </div>
           {videoAssets.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
