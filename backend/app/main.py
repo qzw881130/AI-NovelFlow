@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from sqlalchemy import text
 import asyncio
 import json
@@ -322,6 +323,7 @@ async def reconcile_active_tasks_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    startup_cutoff = datetime.now(timezone.utc)
     Base.metadata.create_all(bind=engine)
     ensure_schema_updates()
     from app.services.business_events import install_business_event_hooks
@@ -366,7 +368,7 @@ async def lifespan(app: FastAPI):
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
     from app.services.image_review_worker import auto_review_loop
-    image_review_task = asyncio.create_task(auto_review_loop())
+    image_review_task = asyncio.create_task(auto_review_loop(startup_cutoff))
     app.state.image_review_task = image_review_task
     
     yield

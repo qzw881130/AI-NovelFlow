@@ -177,6 +177,27 @@ def test_restart_marks_interrupted_attempt_error_without_resubmitting(db_session
     assert review.status == 'error' and '手动重新评审' in review.error_message
     assert setup_review.status == 'completed'
 
+
+def test_restart_does_not_mark_new_generation_review_interrupted(db_session, setup_review):
+    from datetime import datetime, timedelta, timezone
+    from app.services.image_review_worker import auto_review_loop
+
+    cutoff = datetime(2026, 10, 24, 14, 0, tzinfo=timezone.utc)
+    old = ImageQualityReview(task_id=setup_review.id, trigger='generation', status='running',
+                             created_at=cutoff - timedelta(minutes=1))
+    new = ImageQualityReview(task_id=setup_review.id, trigger='generation', status='running',
+                             created_at=cutoff + timedelta(minutes=1))
+    db_session.add_all([old, new])
+    db_session.commit()
+    with patch('app.services.image_review_worker.SessionLocal', sessionmaker(bind=db_session.bind)), \
+         patch('app.services.image_review_worker.asyncio.sleep', new=AsyncMock(side_effect=asyncio.CancelledError)):
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(auto_review_loop(cutoff))
+    db_session.refresh(old)
+    db_session.refresh(new)
+    assert old.status == 'error'
+    assert new.status == 'running'
+
 def test_activation_cutoff_applies_to_historical_completion_notifications(db_session, setup_review):
     from datetime import datetime, timedelta
     config = db_session.get(SystemConfig, 'default')

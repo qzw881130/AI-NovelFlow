@@ -76,10 +76,16 @@ async def process_review_queue(db):
     return None
 
 
-async def auto_review_loop():
+async def auto_review_loop(startup_cutoff: datetime | None = None):
     # Never silently resubmit an LLM request interrupted by an API restart.
+    # Restored generation workers may start fresh inline reviews before this
+    # loop runs; those reviews belong to the current process.
+    startup_cutoff = startup_cutoff or datetime.now(timezone.utc)
     with SessionLocal() as db:
-        for review in db.query(ImageQualityReview).filter_by(status="running").all():
+        for review in db.query(ImageQualityReview).filter(
+            ImageQualityReview.status == "running",
+            ImageQualityReview.created_at < startup_cutoff,
+        ).all():
             review.status = "error"
             review.error_message = "评审进程中断，请手动重新评审；图片生成不受影响"
             review.completed_at = datetime.now(timezone.utc)
