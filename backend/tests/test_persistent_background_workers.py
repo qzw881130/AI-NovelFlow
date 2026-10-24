@@ -391,19 +391,34 @@ async def test_each_image_handler_resumes_frozen_graph_without_rebuilding(db_ses
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("live", [False, True])
-async def test_pending_timeout_exempts_only_live_execution(db_session, db_engine, monkeypatch, live):
+@pytest.mark.parametrize("task_type", ["prop_image", "shot_image", "shot_video", "keyframe_image"])
+async def test_pending_timeout_keeps_durable_queue_job_across_processes(db_session, monkeypatch, task_type):
     from app.services.task_service import TaskService
-    task=Task(id="pending-old",type="prop_image",status="pending",name="pending",
+    task=Task(id="pending-old",type=task_type,status="pending",name="pending",
               created_at=datetime.utcnow()-timedelta(hours=2))
-    job=BackgroundJob(id="pending-job",task_id=task.id,queue_name="image",handler="example:run",status="queued")
+    job=BackgroundJob(id="pending-job",task_id=task.id,queue_name=task_type,handler="example:run",status="queued")
     db_session.add_all([task,job]);db_session.commit()
-    monkeypatch.setattr(background_workers.worker_manager,"is_live",lambda jid:live)
+    monkeypatch.setattr(background_workers.worker_manager,"is_live",lambda jid:False)
     service=TaskService(db_session)
     service.comfyui_service.get_queue_info=AsyncMock(return_value={"queue_running":[],"queue_pending":[]})
     await service.reconcile_active_tasks([task],db=db_session)
     db_session.refresh(task)
-    assert task.status == ("pending" if live else "failed")
+    assert task.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_pending_timeout_without_durable_job_still_fails(db_session):
+    from app.services.task_service import TaskService
+    task = Task(id="orphan-image", type="shot_image", status="pending", name="orphan image",
+                created_at=datetime.utcnow() - timedelta(hours=2))
+    db_session.add(task)
+    db_session.commit()
+    service = TaskService(db_session)
+    service.comfyui_service.get_queue_info = AsyncMock(return_value={"queue_running": [], "queue_pending": []})
+
+    assert await service.reconcile_active_tasks([task], db=db_session) == 1
+    db_session.refresh(task)
+    assert task.status == "failed"
 
 
 @pytest.mark.asyncio
