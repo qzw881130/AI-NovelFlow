@@ -1,0 +1,48 @@
+"""Chapter image counts follow the current image and its current review."""
+import json
+from datetime import datetime, timedelta, timezone
+
+from app.models.image_quality_review import ImageQualityReview
+from app.models.novel import Chapter, Novel
+from app.models.shot import Shot
+
+
+def test_chapter_list_shot_image_stats(client, db_session):
+    novel = Novel(id="image-stats-novel", title="Novel")
+    first = Chapter(id="image-stats-first", novel_id=novel.id, number=1, title="First")
+    second = Chapter(id="image-stats-second", novel_id=novel.id, number=2, title="Second")
+    db_session.add_all([novel, first, second])
+    db_session.add_all([
+        Shot(id="image-stats-pass", chapter_id=first.id, index=1, image_url="/api/files/pass.png", image_task_id="task-pass"),
+        Shot(id="image-stats-warning", chapter_id=first.id, index=2, image_url="/api/files/warning.png", image_task_id="task-warning"),
+        Shot(id="image-stats-fail", chapter_id=first.id, index=3, image_url="/api/files/fail.png", image_task_id="task-fail"),
+        Shot(id="image-stats-replaced", chapter_id=first.id, index=4, image_url="/api/files/new.png", image_task_id="task-replaced"),
+        Shot(id="image-stats-pending", chapter_id=first.id, index=5),
+        Shot(id="image-stats-upload", chapter_id=second.id, index=1, image_url="/api/files/upload.png"),
+    ])
+    now = datetime.now(timezone.utc)
+
+    def review(task_id, image_url, verdict, created_at):
+        return ImageQualityReview(
+            task_id=task_id, status="success", overall=verdict,
+            input_snapshot_json=json.dumps({"generated_image": image_url}), created_at=created_at,
+        )
+
+    db_session.add_all([
+        review("task-pass", "/api/files/pass.png", "WARNING", now - timedelta(minutes=2)),
+        review("task-pass", "/api/files/pass.png", "PASS", now),
+        review("task-warning", "/api/files/warning.png", "WARNING", now),
+        review("task-fail", "/api/files/fail.png", "FAIL", now),
+        review("task-replaced", "/api/files/old.png", "FAIL", now),
+    ])
+    db_session.commit()
+
+    response = client.get(f"/api/novels/{novel.id}/chapters")
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data[0]["shotImageStats"] == {
+        "generated": 4, "total": 5, "passed": 1, "warning": 1, "failed": 1,
+    }
+    assert data[1]["shotImageStats"] == {
+        "generated": 1, "total": 1, "passed": 0, "warning": 0, "failed": 0,
+    }

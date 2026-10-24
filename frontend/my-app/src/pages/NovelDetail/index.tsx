@@ -58,10 +58,11 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
   const iconInfo = getStatusIcon(chapter.status);
   const contentLength = getChapterContentLength(chapter);
   const videoAssets = getChapterVideoAssets(chapter);
+  const imageStats = chapter.shotImageStats ?? { generated: 0, total: 0, passed: 0, warning: 0, failed: 0 };
   return (
     <div data-chapter-select-index={index} onPointerDown={onPointerDown}
       className={`flex items-center justify-between rounded-lg p-4 transition-colors ${selected ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-gray-50 hover:bg-gray-100'}`}>
-      <div className="flex items-center gap-4">
+      <div className="mr-4 flex min-w-0 flex-1 items-center gap-4">
         <input
           type="checkbox"
           checked={selected}
@@ -72,14 +73,18 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
         />
         <span className="text-sm font-medium text-gray-400 w-8">{String(index + 1).padStart(2, '0')}</span>
         <StatusIcon status={chapter.status} iconInfo={iconInfo} />
-        <div>
-          <h3 className="font-medium text-gray-900">{chapter.title}</h3>
+        <div className="min-w-0">
+          <h3 className="truncate font-medium text-gray-900">{chapter.title}</h3>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
             <span className="text-gray-500">{contentLength.toLocaleString()} 字{chapter.status !== 'pending' && ` · ${getStatusText(chapter.status)}`}{chapter.progress > 0 && ` · ${chapter.progress}%`}</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${chapter.aiSplitCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${chapter.aiSplitCompleted ? 'bg-green-600' : 'bg-gray-400'}`} aria-hidden="true" />
               {t(chapter.aiSplitCompleted ? 'novelDetail.aiSplitCompleted' : 'novelDetail.aiSplitPending')}
             </span>
+            <span className="font-medium text-gray-600">分镜图 {imageStats.generated}/{imageStats.total}</span>
+            <span className="text-green-700" title="质量数量只统计当前图片已有明确评审结论的分镜">通过 {imageStats.passed}</span>
+            <span className="text-amber-700">警告 {imageStats.warning}</span>
+            <span className="text-red-700">失败 {imageStats.failed}</span>
           </div>
           {videoAssets.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
@@ -88,7 +93,7 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
           )}
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex shrink-0 gap-2">
         {videoAssets.length > 0 && (
           <>
             <details className="relative">

@@ -4,9 +4,8 @@
 封装场景相关的业务逻辑
 """
 import json
-import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from sqlalchemy.orm import Session
 
@@ -15,12 +14,9 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository, WorkflowRepository, SceneRepository
 from app.services.comfyui import ComfyUIService
-from app.services.comfyui.errors import persist_task_comfyui_error
-from app.services.file_storage import file_storage
-from app.services.prompt_builder import build_scene_prompt, get_style
+from app.services.scene_quality_pipeline import run_scene_quality_pipeline
 from app.services.background_workers import (
     persistent_job, worker_manager, ensure_task_active,
-    save_image_prompt, resume_image_prompt,
 )
 
 
@@ -123,7 +119,11 @@ class SceneService:
             description=f"为场景 '{scene.name}' 生成图片",
             novel_id=scene.novel_id,
             scene_id=scene_id,
-            status="pending"
+            status="pending",
+            metadata_json=json.dumps({"scene_quality": {
+                "cycle": 1, "stage": "generate", "original_url": scene.image_url,
+                "attempts": [],
+            }}, ensure_ascii=False),
         )
         task_repo.create(task)
         
@@ -157,202 +157,35 @@ class SceneService:
         setting: str,
         description: str
     ):
-        """
-        后台任务：生成场景图
-        
-        Args:
-            task_id: 任务ID
-            scene_id: 场景ID
-            name: 场景名称
-            setting: 环境设置
-            description: 场景描述
-        """
+        """Generate and publish only a scene candidate that passes AI review."""
         from app.core.database import SessionLocal
         db = SessionLocal()
-        task_repo = TaskRepository(db)
-        workflow_repo = WorkflowRepository(db)
-        scene_repo = SceneRepository(db)
-        
+        task = None
         try:
-            # 获取任务
-            task = task_repo.get_by_id(task_id)
-            if not task:
+            task = TaskRepository(db).get_by_id(task_id)
+            if not task or task.status not in {"pending", "running"}:
                 return
-            if task.status not in ["pending", "running"]:
-                print(f"[SceneTask] Skip scene task {task_id}, status={task.status}")
-                return
-
-            if task.comfyui_prompt_id:
-                result = await resume_image_prompt(db, task, self.comfyui_service)
-            else:
-                # 获取当前激活的 scene 工作流
-                workflow = workflow_repo.get_active_by_type("scene")
-
-                # 记录工作流信息
-                if workflow:
-                    task.workflow_id = workflow.id
-                    task.workflow_name = workflow.name
-                    task.current_step = f"使用工作流: {workflow.name}"
-                else:
-                    task.current_step = "使用默认工作流"
-
-                # 更新任务状态为运行中
-                task.status = "running"
-                task.started_at = datetime.utcnow()
-                scene = scene_repo.get_by_id(scene_id)
-                if scene:
-                    scene.generating_status = "running"
-                db.commit()
-
-                # 获取场景所属小说
-                scene = scene_repo.get_by_id(scene_id)
-                from app.models.novel import Novel
-                novel = db.query(Novel).filter(Novel.id == scene.novel_id).first() if scene else None
-
-                # 获取场景生成提示词模板
-                from app.repositories import PromptTemplateRepository
-                template_repo = PromptTemplateRepository(db)
-                template = template_repo.resolve_for_type(
-                    novel.scene_prompt_template_id if novel else None, "scene")
-
-                # 获取风格提示词
-                style, style_template = get_style(db, novel, "scene")
-
-                print(f"[SceneTask] Final style: {style}")
-
-                # 构建提示词（只使用 setting 字段，传入 style）
-                prompt = build_scene_prompt(name, setting, "", template.template if template else None, style)
-                print(f"[SceneTask] Generated prompt: {prompt[:100]}...")
-
-                task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
-
-                # 保存提示词
-                task.prompt_text = prompt
-                db.commit()
-
-                # 获取工作流JSON字符串
-                workflow_json_str = workflow.workflow_json if workflow else None
-                print(
-                    f"[Task] Scene Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
-
-                # 获取工作流的节点映射配置
-                node_mapping = None
-                if workflow and workflow.node_mapping:
-                    try:
-                        node_mapping = json.loads(workflow.node_mapping)
-                        print(f"[Task] Using scene node mapping: {node_mapping}")
-                    except Exception as e:
-                        print(f"[Task] Failed to parse scene node_mapping: {e}")
-
-                # 构建实际提交给ComfyUI的完整工作流
-                print(f"[Task] Building scene workflow with: {workflow.name if workflow else 'default'}")
-                print(f"[Task] Novel ID: {task.novel_id}, Scene: {name}")
-
-                submitted_workflow = self.comfyui_service.builder.build_scene_workflow(
-                    prompt=prompt,
-                    workflow_json=workflow_json_str,
-                    novel_id=task.novel_id,
-                    scene_name=name,
-                    aspect_ratio=novel.aspect_ratio if novel else None,
-                    node_mapping=node_mapping,
-                    style=style
-                )
-
-                # 保存构建后的完整工作流到任务
-                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-                db.commit()
-                print(f"[Task] Saved submitted scene workflow to task")
-
-                def save_prompt_id(prompt_id: str, queued_workflow: dict = None) -> None:
-                    save_image_prompt(
-                        db, task, prompt_id, queued_workflow or submitted_workflow,
-                        node_mapping.get("save_image_node_id") if node_mapping else None,
-                        reserve_retry=True,
-                    )
-
-                # 调用 ComfyUI 生成图片
-                result = await self.comfyui_service.generate_scene_image(
-                    prompt,
-                    workflow_json=workflow_json_str,
-                    novel_id=task.novel_id,
-                    scene_name=name,
-                    aspect_ratio=novel.aspect_ratio if novel else None,
-                    node_mapping=node_mapping,
-                    workflow=submitted_workflow,
-                    on_prompt_queued=save_prompt_id,
-                )
-
-            print(f"[Task] Scene generation result: {json.dumps(result, ensure_ascii=True)}")
-
-            ensure_task_active(db, task)
-            persist_task_comfyui_error(task, result)
-            if result.get("success"):
-                image_url = result.get("image_url")
-
-                # 下载图片到本地存储
-                task.current_step = "下载图片到服务器..."
-                db.commit()
-
-                try:
-                    local_path = await file_storage.download_image(
-                        url=image_url,
-                        novel_id=task.novel_id or "default",
-                        character_name=name,
-                        image_type="scene"
-                    )
-
-                    if local_path:
-                        # 构建本地可访问的URL
-                        relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
-                        local_url = f"/api/files/{relative_path.lstrip('/')}"
-                        task.result_url = local_url
-                        task.current_step = "生成完成，图片已保存"
-                    else:
-                        # 下载失败，使用原始URL
-                        task.result_url = image_url
-                        task.current_step = "生成完成，使用远程图片"
-                except Exception as e:
-                    print(f"[Task] Failed to download scene image: {e}")
-                    task.result_url = image_url
-                    task.current_step = "生成完成，使用远程图片"
-
+            scene = SceneRepository(db).get_by_id(scene_id)
+            if not scene:
+                raise RuntimeError("场景不存在")
+            await run_scene_quality_pipeline(db, task, scene, self.comfyui_service)
+        except Exception as exc:
+            if task:
                 ensure_task_active(db, task)
-                task.status = "completed"
-                task.progress = 100
-                task.completed_at = datetime.utcnow()
-
-                # 更新场景图片和状态
-                scene = scene_repo.get_by_id(scene_id)
-                if scene:
-                    scene.image_url = task.result_url
-                    scene.generating_status = "completed"
-            else:
                 task.status = "failed"
-                task.error_message = result.get("message", "生成失败")
-                task.current_step = "生成失败"
-
-                # 更新场景状态为失败
-                scene = scene_repo.get_by_id(scene_id)
-                if scene:
-                    scene.generating_status = "failed"
-
-            db.commit()
-
-        except Exception as e:
-            ensure_task_active(db, task)
-            task.status = "failed"
-            task.error_message = str(e)
-            task.current_step = "任务异常"
-
-            # 更新场景状态为失败
-            try:
-                scene = scene_repo.get_by_id(scene_id)
-                if scene:
-                    scene.generating_status = "failed"
-            except:
-                pass
-
-            db.commit()
+                task.progress = 100
+                task.error_message = str(exc)
+                task.current_step = "场景图审核或生成失败"
+                task.completed_at = datetime.utcnow()
+                scene = SceneRepository(db).get_by_id(scene_id)
+                if scene and scene.scene_task_id == task.id:
+                    metadata = json.loads(task.metadata_json or "{}")
+                    original_url = (metadata.get("scene_quality") or {}).get("original_url")
+                    if scene.image_url == original_url:
+                        scene.generating_status = "failed"
+                    else:
+                        scene.generating_status = "completed" if scene.image_url else "failed"
+                db.commit()
         finally:
             db.close()
 

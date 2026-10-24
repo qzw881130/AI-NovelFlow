@@ -16,6 +16,7 @@ from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository, PropRepository
+from app.services.image_quality_review import current_image_reviews
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.chapter_ai_split_service import (
     SPLIT_HANDLER, SPLIT_QUEUE_COUNT, format_split_batch, refresh_split_batch, run_chapter_ai_split_task,
@@ -52,18 +53,41 @@ async def list_chapters(
     
     chapters = chapter_repo.list_by_novel(novel_id)
     chapter_ids = [chapter.id for chapter in chapters]
+    shot_image_stats = {
+        chapter_id: {"generated": 0, "total": 0, "passed": 0, "warning": 0, "failed": 0}
+        for chapter_id in chapter_ids
+    }
+    generated_images = []
     split_chapter_ids = set()
     if chapter_ids:
-        split_chapter_ids = {
-            chapter_id for (chapter_id,) in db.query(Shot.chapter_id)
-            .filter(Shot.chapter_id.in_(chapter_ids))
-            .group_by(Shot.chapter_id)
-            .all()
-        }
+        for chapter_id, image_url, image_task_id in db.query(
+            Shot.chapter_id, Shot.image_url, Shot.image_task_id
+        ).filter(Shot.chapter_id.in_(chapter_ids)).all():
+            split_chapter_ids.add(chapter_id)
+            stats = shot_image_stats[chapter_id]
+            stats["total"] += 1
+            if image_url:
+                stats["generated"] += 1
+                generated_images.append((chapter_id, image_task_id, image_url))
+
+    # Use the same current-image projection as the generation page. A review for
+    # an earlier image from the same task must not count for its replacement.
+    for start in range(0, len(generated_images), 200):
+        batch = generated_images[start:start + 200]
+        reviews = current_image_reviews(db, [
+            {"taskId": task_id, "imageUrl": image_url}
+            for _, task_id, image_url in batch
+        ])
+        for (chapter_id, _, _), review in zip(batch, reviews):
+            key = {"PASS": "passed", "WARNING": "warning", "FAIL": "failed"}.get(review["qualityStatus"])
+            if key:
+                shot_image_stats[chapter_id][key] += 1
     return {
         "success": True,
         "data": [
-            {**chapter_repo.to_response(chapter), "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids}
+            {**chapter_repo.to_response(chapter),
+             "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids,
+             "shotImageStats": shot_image_stats[chapter.id]}
             for chapter in chapters
         ]
     }

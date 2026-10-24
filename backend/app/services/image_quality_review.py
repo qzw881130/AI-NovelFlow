@@ -47,7 +47,7 @@ def _json(value, default):
 
 
 def build_review_input(task: Task, structured_target: dict | None = None, *, generation_review: bool = False) -> dict:
-    in_generation = generation_review and task.type == "shot_image" and task.status == "running"
+    in_generation = generation_review and task.type in {"shot_image", "scene_image"} and task.status == "running"
     if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation) or not task.result_url or not task.prompt_text:
         raise ValueError("评审需要已完成生图任务、真实生成图和原始提示词")
     metadata = _json(task.metadata_json, {})
@@ -95,6 +95,12 @@ def build_review_input(task: Task, structured_target: dict | None = None, *, gen
               "structured_target": metadata.get("structured_target"),
               "related_records": structured_target or {},
               "authority_note": "关键帧以当前 current_anchor 和原始提示词为目标；Shot 的角色表仅是全镜头背景，不能据此判定当前帧人数。" if task.type == "keyframe_image" else "原始提示词及本任务结构化信息是目标。"}
+    if task.type == "scene_image":
+        target["authority_note"] = (
+            "场景参考图是供后续分镜合成角色的纯环境底图，画面可见人物数量必须为 0。"
+            "场景设定中的人物、军队或活动只用于理解环境，不授权在场景参考图中画出人物。"
+            "CHARACTER_COUNT 应按可见人物、剪影及远处人群评审。"
+        )
     if task.type == "character_portrait":
         target["character_portrait_layout"] = {
             "mode": _character_portrait_layout(task.workflow_name),
