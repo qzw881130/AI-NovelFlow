@@ -57,13 +57,15 @@ async def list_chapters(
         chapter_id: {"generated": 0, "total": 0, "passed": 0, "warning": 0, "failed": 0}
         for chapter_id in chapter_ids
     }
+    estimated_durations = {}
     generated_images = []
     split_chapter_ids = set()
     if chapter_ids:
-        for chapter_id, image_url, image_task_id in db.query(
-            Shot.chapter_id, Shot.image_url, Shot.image_task_id
+        for chapter_id, duration, image_url, image_task_id in db.query(
+            Shot.chapter_id, Shot.duration, Shot.image_url, Shot.image_task_id
         ).filter(Shot.chapter_id.in_(chapter_ids)).all():
             split_chapter_ids.add(chapter_id)
+            estimated_durations[chapter_id] = estimated_durations.get(chapter_id, 0) + (duration or 0)
             stats = shot_image_stats[chapter_id]
             stats["total"] += 1
             if image_url:
@@ -87,6 +89,7 @@ async def list_chapters(
         "data": [
             {**chapter_repo.to_response(chapter),
              "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids,
+             "estimatedDuration": estimated_durations.get(chapter.id),
              "shotImageStats": shot_image_stats[chapter.id]}
             for chapter in chapters
         ]

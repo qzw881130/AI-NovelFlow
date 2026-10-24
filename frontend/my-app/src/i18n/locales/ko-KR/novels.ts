@@ -127,6 +127,7 @@ export default {
     reParse: '재분석',
     aiSplitCompleted: 'AI 분할 완료',
     aiSplitPending: '미분할',
+    estimatedFilmDuration: '예상 영상 길이 {duration}',
     batchAiSplit: {
       button: 'AI 일괄 분할',
       title: '챕터 AI 일괄 분할',

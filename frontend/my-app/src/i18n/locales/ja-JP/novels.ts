@@ -146,6 +146,7 @@ export default {
     generated: '生成済み',
     aiSplitCompleted: 'AI 分割完了',
     aiSplitPending: '未分割',
+    estimatedFilmDuration: '完成予定尺 {duration}',
     batchAiSplit: {
       button: 'AI 一括分割',
       title: '章を AI で一括分割',

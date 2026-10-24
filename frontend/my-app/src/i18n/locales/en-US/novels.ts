@@ -161,6 +161,7 @@ export default {
     generated: 'Generated',
     aiSplitCompleted: 'AI split complete',
     aiSplitPending: 'Not split',
+    estimatedFilmDuration: 'Est. runtime {duration}',
     batchAiSplit: {
       button: 'Batch AI split',
       title: 'Batch AI split chapters',

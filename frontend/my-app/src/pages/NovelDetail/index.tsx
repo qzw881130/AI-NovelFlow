@@ -19,10 +19,10 @@ function StatusIcon({ status, iconInfo }: { status: Chapter['status']; iconInfo:
   return <Loader2 className={`h-5 w-5 ${iconInfo.color} ${iconInfo.spin ? 'animate-spin' : ''}`} />;
 }
 
-function formatDuration(seconds?: number | null) {
+function formatDuration(seconds?: number | null, padMinutes = false) {
   if (!seconds || seconds <= 0) return '--:--';
   const totalSeconds = Math.round(seconds);
-  const minutes = Math.floor(totalSeconds / 60);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(padMinutes ? 2 : 1, '0');
   const remainingSeconds = totalSeconds % 60;
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
@@ -88,6 +88,9 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
               ? 'inline-flex items-center rounded-md border border-red-300 bg-red-100 px-2 py-0.5 font-bold text-red-800'
               : 'text-gray-400'}>
               失败 {imageStats.failed}
+            </span>
+            <span className="inline-flex items-center gap-1 font-medium text-gray-600">
+              <Clock className="h-3.5 w-3.5" />{t('novelDetail.estimatedFilmDuration', { duration: formatDuration(chapter.estimatedDuration, true) })}
             </span>
           </div>
           {videoAssets.length > 0 && (

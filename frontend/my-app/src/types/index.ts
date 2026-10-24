@@ -126,6 +126,7 @@ export interface Chapter {
   status: 'pending' | 'parsing' | 'generating_characters' | 'generating_shots' | 'generating_videos' | 'compositing' | 'completed' | 'failed';
   progress: number;
   aiSplitCompleted?: boolean;
+  estimatedDuration?: number | null;
   shotImageStats?: {
     generated: number;
     total: number;
