@@ -29,7 +29,7 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.workflow_seed import synchronize_prompt_rewrite_seeds
 
 
-MAX_ROUNDS = 3
+MAX_ROUNDS = 2
 REPAIR_TASK_TYPE = "shot_image_repair"
 REPAIR_CANDIDATE_TYPE = "shot_image_repair_candidate"
 REPAIR_WORKFLOW_NAME = "Qwen image 2.1图片编辑 (任意数量参考图) API V20260926.json"
@@ -87,7 +87,7 @@ def enqueue_shot_image_repair(db, novel_id: str, chapter_id: str, shot_id: str) 
     task = Task(type=REPAIR_TASK_TYPE, status="pending", novel_id=novel_id, chapter_id=chapter_id,
                 shot_id=shot_id, source_task_id=source.id,
                 name=f"修复主分镜图: 章回{chapter.number} · Shot{shot.index}",
-                description="局部多图编辑、AI 评审，最多三轮；审核非 FAIL 后替换主分镜图",
+                description="局部多图编辑、AI 评审，最多两轮；审核非 FAIL 后替换主分镜图",
                 progress=0, current_step="等待修复 worker",
                 metadata_json=json.dumps({"source_url": shot.image_url, "source_review_id": review.id,
                                           "source_provenance": state_provenance(shot, 1), "rounds": [],
@@ -323,7 +323,7 @@ async def _run_round(db, task: Task, metadata: dict, source_url: str, review_id:
             reference_guide = "\n参考图绑定：" + "；".join(
                 f'<image_{i}>={ref["kind"]}:{ref["name"]}' for i, ref in enumerate(ordered_refs, 1))
             repair_prompt = plan["prompt"] + reference_guide + "。仅修改遮罩内目标，其他参考图只用于保持身份、场景和道具一致性。"
-            denoise = (0.78, 0.88, 0.92)[round_number - 1]
+            denoise = (0.78, 0.88)[round_number - 1]
             graph, output_node = build_masked_repair_graph(service, workflow, repair_prompt,
                                                             novel.aspect_ratio or "16:9", seed, uploads, denoise)
             entry.update(seed=seed, denoise=denoise, graph=graph, workflow_id=workflow.id, output_node=output_node)
@@ -466,7 +466,7 @@ async def run_shot_image_repair(task_id: str) -> None:
                 db.commit()
                 return
         task.status, task.progress = "failed", 100
-        task.error_message = "三轮局部修复后 AI 评审仍未通过，保留原分镜图"
+        task.error_message = "两轮局部修复后 AI 评审仍未通过，保留原分镜图"
         task.current_step = task.error_message
         task.completed_at = datetime.utcnow()
         db.commit()
