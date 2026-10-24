@@ -7,9 +7,11 @@ from app.api import shots as shot_api
 from app.models.novel import Chapter, Character, Novel, Prop, Scene
 from app.models.shot import Shot
 from app.models.task import Task
+from app.models.image_quality_review import ImageQualityReview
 from app.models.workflow import Workflow
 from app.services.prop_policy import PROP_EXISTENCE_REAL
 from app.services.shot_image_service import _fail_shot_image_task
+from app.services.scene_reference_quality import scene_reference_review_status
 
 
 def _create_shot_fixture(db_session, *, existing_image=False):
@@ -155,6 +157,78 @@ def test_partial_and_complete_physical_reference_sets_remain_allowed(
     db_session.refresh(shot)
     assert shot.image_status == "generating"
     assert shot.image_task_id == response.json()["data"]["taskId"]
+
+
+@pytest.mark.parametrize("person_count_status,allowed", [
+    (None, True), ("WARNING", True), ("FAIL", False), ("PASS", True),
+])
+def test_confirmed_people_in_ai_scene_reference_block_shot_prompt(
+    db_session, person_count_status, allowed,
+):
+    novel, _, shot = _create_shot_fixture(db_session)
+    scene = Scene(
+        novel_id=novel.id, name="大厅", image_url="/api/files/scene.png",
+        scene_task_id="scene-generation",
+    )
+    scene_task = Task(
+        id="scene-generation", type="scene_image", status="completed",
+        name="生成场景图", scene_id=scene.id, novel_id=novel.id,
+        result_url=scene.image_url,
+    )
+    db_session.add_all([scene, scene_task])
+    if person_count_status:
+        db_session.add(ImageQualityReview(
+            task_id=scene_task.id, status="success", overall=person_count_status,
+            input_snapshot_json=json.dumps({"generated_image": scene.image_url}),
+            dimensions_json=json.dumps({"CHARACTER_COUNT": {"status": person_count_status}}),
+        ))
+    db_session.commit()
+
+    with patch("app.api.shots.url_to_local_path", return_value="/tmp/scene.png"):
+        if allowed:
+            readiness = shot_api._build_shot_image_reference_readiness(db_session, novel, shot)
+            assert any(item["type"] == "SCENE" for item in readiness["manifest"])
+        else:
+            with pytest.raises(shot_api.HTTPException) as exc:
+                shot_api._build_shot_image_reference_readiness(db_session, novel, shot)
+            assert exc.value.status_code == 409
+            assert "场景“大厅”" in exc.value.detail
+
+    if not allowed:
+        # An explicit user replacement is trusted; the old AI review does not
+        # certify or reject a different physical image.
+        scene.image_url = "/api/files/replacement.png"
+        db_session.commit()
+        assert scene_reference_review_status(db_session, scene)[0] is True
+
+
+def test_scene_reference_keeps_completed_verdict_after_later_review_error(db_session):
+    novel, _, _ = _create_shot_fixture(db_session)
+    scene = Scene(
+        novel_id=novel.id, name="空院", image_url="/api/files/scene.png",
+        scene_task_id="scene-generation",
+    )
+    db_session.add_all([
+        scene,
+        Task(
+            id="scene-generation", type="scene_image", status="completed",
+            name="生成场景图", scene_id=scene.id, novel_id=novel.id,
+            result_url=scene.image_url,
+        ),
+        ImageQualityReview(
+            task_id="scene-generation", status="success", overall="PASS",
+            input_snapshot_json=json.dumps({"generated_image": scene.image_url}),
+            dimensions_json=json.dumps({"CHARACTER_COUNT": {"status": "PASS"}}),
+        ),
+    ])
+    db_session.commit()
+    db_session.add(ImageQualityReview(
+        task_id="scene-generation", status="error",
+        input_snapshot_json=json.dumps({"generated_image": scene.image_url}),
+    ))
+    db_session.commit()
+
+    assert scene_reference_review_status(db_session, scene)[0] is True
 
 
 def test_zero_reference_batch_rejected_before_parent_or_child_task_creation(client, db_session):

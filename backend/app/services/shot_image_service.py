@@ -21,6 +21,7 @@ from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
+from app.services.scene_reference_quality import scene_reference_review_status
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
@@ -626,6 +627,9 @@ async def _process_scene_reference(
     if scene and scene.image_url:
         full_path = url_to_local_path(scene.image_url)
         if full_path:
+            allowed, reason = scene_reference_review_status(db, scene)
+            if not allowed:
+                raise ValueError(f"场景“{shot_scene}”不能用于分镜生图：{reason}")
             print(
                 f"[ShotTask {task_id}] Found scene image: {shot_scene} -> {full_path}"
             )

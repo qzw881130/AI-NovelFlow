@@ -66,6 +66,7 @@ from app.services.novel_service import (
 )
 from app.services.transition_service import enqueue_transition_video_task
 from app.services.shot_image_service import enqueue_shot_image_task
+from app.services.scene_reference_quality import scene_reference_review_status
 from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact, resolve_clip_reference_resources, get_semantic_clip_prompt
 from app.services.canonical_execution_invalidation import (
     CanonicalExecutionConflict,
@@ -650,6 +651,9 @@ def _build_shot_image_reference_readiness(db: Session, novel: Novel, shot):
             .first()
         )
         if scene and scene.image_url and url_to_local_path(scene.image_url):
+            allowed, reason = scene_reference_review_status(db, scene)
+            if not allowed:
+                raise HTTPException(status_code=409, detail=f"场景“{shot.scene}”不能用于分镜生图：{reason}")
             manifest.append(
                 {
                     "picture_index": picture_index,
