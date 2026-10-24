@@ -17,7 +17,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
-import { ImageQualityBadge, useImageQuality } from './ImageQualityStatus';
+import { ImageQualityBadge, ImageQualityIcon, useImageQuality } from './ImageQualityStatus';
 import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
@@ -169,6 +169,11 @@ export function ShotImageGenTab({
     imageReviewTarget,
   );
   const currentImageQuality = imageQualities[0];
+  const batchReviewImages = showBatchSelectModal ? shots.flatMap((shot) => {
+    const imageUrl = shot.imageUrl || shotImages[shot.id];
+    return imageUrl ? [{ taskId: shot.imageTaskId || null, imageUrl }] : [];
+  }) : [];
+  const { current: batchImageQualities } = useImageQuality(batchReviewImages, showBatchSelectModal);
 
   const hasImage = !!currentImageUrl;
   const hasCompletedCurrentImage = hasImage && currentShotObj?.imageStatus === 'completed';
@@ -1007,6 +1012,9 @@ export function ShotImageGenTab({
                   // 优先使用 shot.imageUrl
                   const shotImageUrl = shot.imageUrl || shotImages[shotId];
                   const hasShotImage = !!shotImageUrl;
+                  const imageQuality = hasShotImage
+                    ? batchImageQualities.find((row) => row.taskId === (shot.imageTaskId || null) && row.imageUrl === shotImageUrl)
+                    : undefined;
                   const isGenerating = generatingShots.has(shotId);
                   const isQueued = pendingShots.has(shotId);
                   const isFailed = shot.imageStatus === 'failed' && !hasShotImage && !isGenerating && !isQueued;
@@ -1076,6 +1084,11 @@ export function ShotImageGenTab({
                           {shot.duration}s
                         </span>
                       </div>
+                      {imageQuality && (
+                        <div className="absolute bottom-1 left-1 z-10">
+                          <ImageQualityIcon status={imageQuality.qualityStatus} summary={imageQuality.summary} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
