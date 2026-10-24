@@ -151,6 +151,8 @@ export function TaskCard({
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
+      case 'shot_image_repair':
+      case 'shot_image_repair_candidate': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
       case 'novel_video_cover': return <ImageIcon className="h-5 w-5" />;
@@ -531,7 +533,7 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' ? (
                 <div>
                   <div className="relative group inline-block">
                     <img
@@ -660,12 +662,12 @@ export function TaskCard({
         </div>
         <div className="flex items-center gap-2">
           {task.status === 'completed' && task.resultUrl && task.hasPromptText &&
-            ['character_portrait', 'shot_image', 'scene_image', 'prop_image', 'keyframe_image', 'single_image_edit'].includes(task.type) && (
+            ['character_portrait', 'shot_image', 'shot_image_repair_candidate', 'scene_image', 'prop_image', 'keyframe_image', 'single_image_edit'].includes(task.type) && (
               <button onClick={() => onImageReview(task)} className="rounded px-2 py-1 text-sm font-medium text-blue-600 hover:bg-blue-50">AI 评审</button>
           )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
-          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
+          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch' && task.type !== 'shot_image_repair' && task.type !== 'shot_image_repair_candidate') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
             <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={task.type === 'shot_video_batch' ? '恢复未完成的 Shot' : t('tasks.retry')}>
               <Play className="h-4 w-4" />
             </button>

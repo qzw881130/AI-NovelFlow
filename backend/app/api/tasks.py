@@ -152,7 +152,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
     return result
 
 IMAGE_TASK_TYPES = {
-    "character_portrait", "scene_image", "prop_image", "shot_image",
+    "character_portrait", "scene_image", "prop_image", "shot_image", "shot_image_repair_candidate", "shot_image_repair",
     "keyframe_image", "single_image_edit",
 }
 

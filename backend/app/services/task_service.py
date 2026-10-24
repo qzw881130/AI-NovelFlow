@@ -842,6 +842,11 @@ class TaskService:
             return (now - updated_at).total_seconds()
 
         for task in active_tasks:
+            if task.type in {"shot_image_repair", "shot_image_repair_candidate"}:
+                # The durable repair worker owns its ComfyUI prompt and review
+                # receipt. Generic generation recovery could publish a failed
+                # candidate or time out a still-running multi-round repair.
+                continue
             # Explicit receipt acceptance owns this Task; the ordinary worker
             # must not race its download or turn it into another generation.
             if safe_json_dict(task.metadata_json).get("manual_receipt_recovery"):

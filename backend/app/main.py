@@ -426,6 +426,8 @@ app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
+from app.api import shot_repairs
+app.include_router(shot_repairs.router, prefix="/api/novels", tags=["shot-repairs"])
 app.include_router(hd_repaint.router, prefix="/api/novels", tags=["hd-repaint"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
