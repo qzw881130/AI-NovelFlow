@@ -7,6 +7,7 @@ import type { Chapter, ChapterVideoAsset } from '../../../types';
 import { toast } from '../../../stores/toastStore';
 import { youtubeApi } from '../../../api/youtube';
 import { YoutubeUploadModal } from './YoutubeUploadModal';
+import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
 
 
 const chapterAssets = (chapter: Chapter): ChapterVideoAsset[] => chapter.videoAssets || [];
@@ -300,7 +301,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                       </div>
                       {musicByChapter[chapter.id]?.audioUrl && !musicByChapter[chapter.id]?.stale && <div className="mt-2" onClick={event => event.stopPropagation()}>
                         <p className="mb-1 text-xs text-violet-700">背景音乐试听</p>
-                        <audio controls preload="none" src={musicByChapter[chapter.id].audioUrl || undefined} className="h-8 w-full" />
+                        <WaveformAudioPlayer src={musicByChapter[chapter.id].audioUrl || ''} label={`第 ${chapter.number} 章背景音乐`} compact />
                       </div>}
                       {musicByChapter[chapter.id]?.stale && <p className="mt-1 text-xs text-amber-700">背景音乐对应的章回视频已变化，请重新生成</p>}
                     </div>

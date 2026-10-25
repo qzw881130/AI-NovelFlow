@@ -171,6 +171,17 @@ async def test_ace_step_prompt_passes_cue_duration_and_parses_music_metadata(db_
     assert json.loads(received["user_content"])["duration_seconds"] == 11.552
     assert (lyrics, bpm, keyscale, timesignature) == ("[inst]", 68, "D minor", "4")
     assert "descending melody" in tags
+    assert "no sound effects or environmental ambience" in tags
+
+
+def test_music_system_prompts_separate_score_from_h3_sound_effects(db_session):
+    PromptTemplateService(db_session).init_system_templates()
+    director = db_session.query(PromptTemplate).filter_by(
+        type="background_music_director", is_system=True).one()
+    generation = db_session.query(PromptTemplate).filter_by(
+        type="background_music_generation", is_system=True).one()
+    assert "MiniMax H3 视频已负责" in director.template
+    assert "sound_priority 只说明配乐应给哪些已有声音让位" in generation.template
 
 
 def test_existing_music_task_workflow_shows_saved_plan(client, db_session):

@@ -10,6 +10,7 @@ import { toast } from '../../../stores/toastStore';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 import { formatAspectRatio } from '../../../utils/aspectRatio';
+import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
 
 interface TaskCardProps {
   task: Task;
@@ -615,13 +616,12 @@ export function TaskCard({
                     <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
                       <Music className="h-5 w-5 text-purple-600" />
                     </div>
-                    <div className="flex-1">
-                      <audio
-                        src={resultAudioUrl}
-                        controls
-                        className="w-full h-8"
-                        preload="metadata"
-                      />
+                    <div className="min-w-0 flex-1">
+                      {task.type === 'chapter_background_music' ? (
+                        <WaveformAudioPlayer src={task.resultUrl!} label={`${task.chapterTitle || '章回'}背景音乐`} compact />
+                      ) : (
+                        <audio src={resultAudioUrl} controls className="h-8 w-full" preload="metadata" />
+                      )}
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-gray-500">

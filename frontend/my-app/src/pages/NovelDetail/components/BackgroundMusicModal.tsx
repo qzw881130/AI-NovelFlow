@@ -4,6 +4,7 @@ import { Loader2, Music2, RefreshCw, X } from 'lucide-react';
 import { novelApi, type ChapterBackgroundMusic } from '../../../api/novels';
 import type { Chapter } from '../../../types';
 import { toast } from '../../../stores/toastStore';
+import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
 
 export function BackgroundMusicModal({ novelId, chapters, onClose }: {
   novelId: string;
@@ -88,7 +89,7 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
                   {!eligible && <p className="mt-1 text-xs text-gray-500">缺少初稿章回视频</p>}
                   {item?.errorMessage && <p className="mt-2 text-xs text-red-700">{item.errorMessage}</p>}
                   {item?.noMusicReason && <p className="mt-2 text-xs text-gray-600">留白原因：{item.noMusicReason}</p>}
-                  {item?.audioUrl && <div className="mt-3"><p className="mb-1 text-xs font-medium text-gray-600">整章背景音乐试听轨</p><audio controls preload="none" src={item.audioUrl} className="h-9 w-full" /></div>}
+                  {item?.audioUrl && <div className="mt-3"><p className="mb-1 text-xs font-medium text-gray-600">整章背景音乐试听轨</p><WaveformAudioPlayer src={item.audioUrl} label={`第 ${chapter.number} 章整章背景音乐`} /></div>}
                   {!!item?.cues.length && <div className="mt-3 space-y-2">{item.cues.map(cue =>
                     <div key={cue.index} className="rounded border border-violet-100 bg-violet-50/50 p-3 text-xs text-gray-700">
                       <p className="font-medium">配乐 {cue.index} · Shot {cue.startShot}–{cue.endShot} · {cue.startSeconds.toFixed(1)}–{cue.endSeconds.toFixed(1)} 秒</p>
@@ -97,7 +98,7 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
                       <p className="mt-1">旋律意图：{cue.melody}</p>
                       {cue.audioUrl && <>
                         <p className="mt-2 text-gray-500">片段试听 {cue.durationSeconds.toFixed(1)} 秒{cue.rawAudioSeconds ? ` · 原始输出 ${cue.rawAudioSeconds.toFixed(1)} 秒` : ''}</p>
-                        <audio controls preload="none" src={cue.audioUrl} className="mt-1 h-8 w-full" />
+                        <WaveformAudioPlayer src={cue.audioUrl} label={`第 ${chapter.number} 章配乐 ${cue.index}`} compact className="mt-1" />
                       </>}
                     </div>)}</div>}
                 </div>

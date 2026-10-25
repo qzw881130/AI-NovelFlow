@@ -201,6 +201,8 @@ async def _prepare_generation_text(llm: LLMService, db, chapter: Chapter, cue: d
         tags = f"instrumental, {tags}"
     if "no vocals" not in tags.lower():
         tags = f"{tags.rstrip(', ')}, no vocals"
+    if "no sound effects" not in tags.lower():
+        tags = f"{tags.rstrip(', ')}, no sound effects or environmental ambience"
     bpm = parsed.get("bpm")
     bpm = int(bpm) if isinstance(bpm, (int, float)) and not isinstance(bpm, bool) and 10 <= bpm <= 300 else None
     keyscale = parsed.get("keyscale")
