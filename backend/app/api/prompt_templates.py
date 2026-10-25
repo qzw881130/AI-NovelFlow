@@ -57,6 +57,10 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
         ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
+    ("背景音乐", [
+        ("background_music_director", "背景音乐导演规划"),
+        ("background_music_generation", "ACE-Step1.5 纯器乐标签"),
+    ]),
 ]
 
 
@@ -116,7 +120,9 @@ def list_prompt_templates(
     if type and type not in PROMPT_TEMPLATE_TYPES:
         raise HTTPException(status_code=404, detail="提示词类型不存在")
     templates = service.list_templates(type)
-    templates = [template for template in templates if template.type in PROMPT_TEMPLATE_TYPES]
+    templates = [template for template in templates if template.type in PROMPT_TEMPLATE_TYPES
+                 and not (template.type == "background_music_generation" and template.is_system
+                          and template.name in {"YuE2 纯器乐生成约束 V1", "ACE-Step 纯器乐标签 V1"})]
     return {
         "success": True,
         "data": [service.to_response(t) for t in templates]

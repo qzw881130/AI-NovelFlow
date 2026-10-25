@@ -30,6 +30,10 @@ interface MappingForm {
   voicePromptNodeId: string;
   refTextNodeId: string;
   saveAudioNodeId: string;
+  musicStyleNodeId?: string;
+  musicLyricsNodeId?: string;
+  musicDurationNodeId?: string;
+  musicConditioningNodeId?: string;
   // 音频生成相关节点
   referenceAudioNodeId: string;
   textNodeId: string;
@@ -134,6 +138,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     secondPassScaleNodes: [],
     easyFloat: [],
     crPromptText: [],
+    aceStepLatentAudio: [],
+    aceStepConditioning: [],
     videoCombine: [],
     h3VideoOutputs: [],
     saveVideo: [],
@@ -186,6 +192,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const secondPassScaleNodes: string[] = [];
             const easyFloat: string[] = [];
             const crPromptText: string[] = [];
+            const aceStepLatentAudio: string[] = [];
+            const aceStepConditioning: string[] = [];
             const videoCombine: string[] = [];
             const h3VideoOutputs: string[] = [];
             const saveVideo: string[] = [];
@@ -221,6 +229,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   saveImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'easy int' || classType === 'JWInteger' || classType === 'INTConstant') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'EmptyAceStepLatentAudio' || classType === 'EmptyAceStep1.5LatentAudio') {
+                  aceStepLatentAudio.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'TextEncodeAceStepAudio1.5') {
+                  aceStepConditioning.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (isFloatValueNode(classType, metaTitle, (node as any).inputs)) {
                   easyFloat.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'CR Prompt Text') {
@@ -253,7 +265,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, secondPassScaleNodes, easyFloat, crPromptText, videoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, secondPassStepNodes, secondPassScaleNodes, easyFloat, crPromptText, aceStepLatentAudio, aceStepConditioning, videoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -473,6 +485,15 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 keyframeNodes: [],
                 durationSecondsNodeId: ''
               });
+            } else if (wf.type === 'background_music') {
+              setMappingForm(prev => ({
+                ...prev,
+                musicStyleNodeId: mapping.music_style_node_id || '',
+                musicLyricsNodeId: mapping.music_lyrics_node_id || '',
+                musicDurationNodeId: mapping.music_duration_node_id || '',
+                musicConditioningNodeId: mapping.music_conditioning_node_id || '',
+                saveAudioNodeId: mapping.save_audio_node_id || '',
+              }));
             } else if (wf.type === 'keyframe_image') {
               // 关键帧图片生成工作流
               setMappingForm({
@@ -758,6 +779,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           text_node_id: mappingForm.textNodeId || null,
           emotion_prompt_node_id: mappingForm.emotionPromptNodeId || null,
           save_audio_node_id: mappingForm.saveAudioNodeId || null
+        };
+      } else if (workflow.type === 'background_music') {
+        if (availableNodes.aceStepConditioning.length > 0 &&
+            (!mappingForm.musicDurationNodeId || !mappingForm.musicConditioningNodeId)) {
+          toast.error('ACE-Step 1.5 需要映射音乐时长节点和提示词编码节点');
+          setSavingMapping(false);
+          return;
+        }
+        nodeMapping = {
+          music_style_node_id: mappingForm.musicStyleNodeId || null,
+          music_lyrics_node_id: mappingForm.musicLyricsNodeId || null,
+          music_duration_node_id: mappingForm.musicDurationNodeId || null,
+          music_conditioning_node_id: mappingForm.musicConditioningNodeId || null,
+          save_audio_node_id: mappingForm.saveAudioNodeId || null,
         };
       } else if (workflow.type === 'keyframe_image') {
         // 关键帧图片生成工作流
@@ -1839,6 +1874,30 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                </>
+              )}
+
+              {workflow.type === 'background_music' && (
+                <>
+                  <NodeSelectField label={t('systemSettings.workflow.musicStyleNode')} nodeTypeHint="CR Prompt Text"
+                    value={mappingForm.musicStyleNodeId || ''} options={availableNodes.crPromptText}
+                    onChange={(v) => handleNodeSelect(v, 'musicStyleNodeId')} onFocus={handleNodeFocus} t={t} />
+                  <NodeSelectField label={t('systemSettings.workflow.musicLyricsNode')} nodeTypeHint="CR Prompt Text"
+                    value={mappingForm.musicLyricsNodeId || ''} options={availableNodes.crPromptText}
+                    onChange={(v) => handleNodeSelect(v, 'musicLyricsNodeId')} onFocus={handleNodeFocus} t={t} />
+                  {availableNodes.aceStepLatentAudio.length > 0 && (
+                    <NodeSelectField label={t('systemSettings.workflow.musicDurationNode')} nodeTypeHint="EmptyAceStep1.5LatentAudio.seconds (FLOAT)"
+                      value={mappingForm.musicDurationNodeId || ''} options={availableNodes.aceStepLatentAudio}
+                      onChange={(v) => handleNodeSelect(v, 'musicDurationNodeId')} onFocus={handleNodeFocus} t={t} />
+                  )}
+                  {availableNodes.aceStepConditioning.length > 0 && (
+                    <NodeSelectField label={t('systemSettings.workflow.musicConditioningNode')} nodeTypeHint="TextEncodeAceStepAudio1.5"
+                      value={mappingForm.musicConditioningNodeId || ''} options={availableNodes.aceStepConditioning}
+                      onChange={(v) => handleNodeSelect(v, 'musicConditioningNodeId')} onFocus={handleNodeFocus} t={t} />
+                  )}
+                  <NodeSelectField label={t('systemSettings.workflow.saveAudioNode')} nodeTypeHint="SaveAudio"
+                    value={mappingForm.saveAudioNodeId} options={availableNodes.saveAudio}
+                    onChange={(v) => handleNodeSelect(v, 'saveAudioNodeId')} onFocus={handleNodeFocus} t={t} />
                 </>
               )}
 

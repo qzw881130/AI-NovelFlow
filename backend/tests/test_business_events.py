@@ -20,6 +20,7 @@ from app.models.image_quality_review import ImageQualityReview
 from app.models.prompt_template import PromptTemplate
 from app.services import business_events as be
 from app.services.notification_service import NotificationService
+from app.services.notification_format import format_notification
 from app.services.image_quality_review import review_image_task, execute_image_review
 from test_image_quality_review import _response
 
@@ -64,6 +65,34 @@ def test_asset_image_result_has_its_own_event_without_generic_duplicate(ledger, 
     rows = db.query(BusinessEvent).filter_by(task_id=task.id).all()
     assert [row.event_type for row in rows] == [f'{entity}.image.generation.{suffix}']
     assert rows[0].needs_attention is (status == 'failed')
+
+
+@pytest.mark.parametrize('task_type,expected_prefix', [
+    ('chapter_background_music', 'background_music.generation'),
+    ('novel_video', 'novel.video.merge'),
+])
+@pytest.mark.parametrize('status', ['completed', 'failed'])
+def test_music_and_novel_merge_results_create_configurable_events(ledger, task_type, expected_prefix, status):
+    db, _ = ledger
+    metadata = ({'cues': [{'index': 1}], 'source_video_url': '/api/files/chapter.mp4'}
+                if task_type == 'chapter_background_music' else {'background_music_chapter_count': 1})
+    task = Task(type=task_type, name='结果测试', status='running', novel_id='novel',
+                chapter_id='chapter' if task_type == 'chapter_background_music' else None,
+                metadata_json=json.dumps(metadata))
+    db.add(task)
+    db.commit()
+    task.status = status
+    task.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    row = db.query(BusinessEvent).filter_by(task_id=task.id).one()
+    assert row.event_type == f'{expected_prefix}.{status}'
+    assert row.needs_attention is (status == 'failed')
+    assert row.notification_status == 'pending'
+    message = format_notification(row)
+    assert ('配乐段数：1' if task_type == 'chapter_background_music' else '配有背景音乐的章回：1') in message
+    task.current_step = '状态刷新'
+    db.commit()
+    assert db.query(BusinessEvent).filter_by(task_id=task.id).count() == 1
 
 
 def test_commit_only_no_duplicates_and_recovery_result(ledger):

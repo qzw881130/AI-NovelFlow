@@ -137,6 +137,11 @@ export default {
     },
     // ComfyUI 工作流
     workflow: {
+      backgroundMusic: '背景音乐',
+      musicStyleNode: '音乐风格节点',
+      musicLyricsNode: '歌词节点',
+      musicDurationNode: '音乐时长节点（秒，支持小数）',
+      musicConditioningNode: '音乐提示词编码节点',
       title: 'ComfyUI 工作流',
       subtitle: '管理 AI 生成工作流，支持系统预设和自定义上传',
       character: '人设生成',
@@ -304,10 +309,15 @@ export default {
       videoDirector: '视频导演',
       keyframeImage: '关键帧生图',
       videoGeneration: '视频生成',
+      backgroundMusic: '背景音乐',
     },
 
     // 提示词模板类型
     types: {
+      backgroundMusicDirector: '背景音乐导演规划',
+      backgroundMusicDirectorDesc: '根据剧情、对白和环境声判断何处需要配乐，也可选择留白',
+      backgroundMusicGeneration: '纯器乐生成约束',
+      backgroundMusicGenerationDesc: '将导演风格转换为 ACE-Step 标签并固定纯器乐标记',
       sceneSetting: '场景设定描述',
       sceneSettingDesc: '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
       propAppearance: '道具外观描述',
@@ -379,6 +389,9 @@ export default {
     effectiveImageReviewNotice: '系统默认模板与用户自定义版本均由提示词管理统一保存；新评审使用当前有效版本。',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
+      '背景音乐导演规划 V1': '背景音乐导演规划 V1',
+      'ACE-Step 纯器乐标签 V1': 'ACE-Step 纯器乐标签 V1',
+      'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 纯器乐标签 V1',
       '场景设定描述': '场景设定描述',
       '道具外观描述': '道具外观描述',
       '故事世界上下文推荐': '故事世界上下文推荐',
@@ -417,6 +430,9 @@ export default {
       'MiniMax H3 多关键帧视频提示词构建': 'MiniMax H3 多关键帧视频提示词构建',
     },
     templateDescriptions: {
+      '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐',
+      '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制',
+      '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制',
       '场景设定描述': '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
       '道具外观描述': '用于通过 LLM 补全道具外观文字描述，不直接生成图片',
       '故事世界上下文推荐': '根据小说名称和描述推荐统一的时代、地域、文化与物质世界边界',

@@ -98,7 +98,8 @@ class TaskService:
             "TEMPORAL_EXTEND": ["load_video_node_id", "duration_seconds_node_id", "prompt_node_id", "custom_keyframes_node_id", "video_save_node_id", "reference_to_video_node_id", *(f"keyframe_node_{i}" for i in range(1, 9)), *(f"load_image_node_{i}" for i in range(1, 10))],
             "multi_reference_video": ["prompt_node_id", "video_save_node_id", "duration_seconds_node_id", "reference_to_video_node_id", *(f"load_image_node_{i}" for i in range(1, 10))],
             "transition": ["first_image_node_id", "last_image_node_id", "video_save_node_id"],
-            "character_audio": ["reference_audio_node_id", "text_node_id"]
+            "character_audio": ["reference_audio_node_id", "text_node_id"],
+            "background_music": ["music_style_node_id", "music_lyrics_node_id", "save_audio_node_id"],
         }
 
         if task_type == "character":
@@ -138,6 +139,9 @@ class TaskService:
             "duration_seconds_node_id": "时长秒数节点",
             "reference_audio_node_id": "参考音频节点",
             "text_node_id": "文本节点",
+            "music_style_node_id": "音乐风格节点",
+            "music_lyrics_node_id": "歌词节点",
+            "save_audio_node_id": "保存音频节点",
             "keyframe_node_1": "参考图片节点2",
             "keyframe_node_2": "参考图片节点3",
             "keyframe_node_3": "参考图片节点4",

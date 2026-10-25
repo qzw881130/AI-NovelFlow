@@ -6,7 +6,7 @@ from sqlalchemy import text
 import asyncio
 import json
 
-from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
+from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos, background_music
 from app.api import novels, chapters, shots, hd_repaint
 from app.api import clip_execution_inspector, notifications, image_reviews, events, youtube
 from app.core.database import engine, Base
@@ -440,6 +440,7 @@ app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"]
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
 app.include_router(novel_videos.router, prefix="/api", tags=["novel-videos"])
+app.include_router(background_music.router, prefix="/api", tags=["background-music"])
 app.include_router(youtube.router, prefix="/api", tags=["youtube"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
 app.include_router(clip_execution_inspector.router, prefix="/api/clip-execution-inspector", tags=["clip-execution-inspector"])

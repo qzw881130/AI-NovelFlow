@@ -114,6 +114,11 @@ export default {
     // ComfyUI Workflow
     workflow: {
       ...enUS.systemSettings.workflow,
+      backgroundMusic: '背景音楽',
+      musicStyleNode: '音楽スタイルノード',
+      musicLyricsNode: '歌詞ノード',
+      musicDurationNode: '音楽の長さノード（小数秒）',
+      musicConditioningNode: '音楽プロンプトのエンコードノード',
       title: 'ComfyUI ワークフロー',
       subtitle: 'AI生成ワークフローの管理、システムプリセットとカスタムアップロードに対応',
       character: 'キャラクター生成',
@@ -260,8 +265,14 @@ export default {
     explicitBinding: '明示的に指定',
     boundNovelCount: '合計 {count} 件',
 
+    categories: { ...enUS.promptConfig.categories, backgroundMusic: '背景音楽' },
+
     // プロンプトテンプレートタイプ
     types: {
+      backgroundMusicDirector: '背景音楽ディレクション',
+      backgroundMusicDirectorDesc: '物語・台詞・環境音から必要な箇所だけを選び、無音も許可します',
+      backgroundMusicGeneration: '器楽生成の制約',
+      backgroundMusicGenerationDesc: 'ACE-Step のタグと器楽マーカーを用意します',
       sceneSetting: 'シーン設定の記述',
       sceneSettingDesc: 'LLM で環境設定の文章を補完します。画像は生成しません',
       propAppearance: '小道具の外観記述',
@@ -312,6 +323,9 @@ export default {
     resetSuccess: 'デフォルトプロンプトにリセット',
     resetSuccessFrontend: 'デフォルトプロンプトにリセット（フロントエンドのみ）',
     templateNames: {
+      '背景音乐导演规划 V1': '背景音楽ディレクター計画 V1',
+      'ACE-Step 纯器乐标签 V1': 'ACE-Step 器楽タグ V1',
+      'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 器楽タグ V1',
       '场景设定描述': 'シーン設定の記述',
       '道具外观描述': '小道具の外観記述',
       '故事世界上下文推荐': 'ストーリーワールドコンテキスト推薦',
@@ -341,6 +355,9 @@ export default {
       '标准角色解析': '標準キャラクター解析',
     },
     templateDescriptions: {
+      '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '小説本文、ショット、台詞、環境音から必要な音楽区間だけを計画し、無音も選べます',
+      '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'ディレクターのスタイルを ACE-Step 1.0 のタグに変換し、[inst] を固定します。長さはワークフローノードで制御します',
+      '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '演出のスタイルと旋律を ACE-Step1.5 のタグに変換し、[inst] を固定します。長さはワークフローノードで制御します',
       '场景设定描述': 'LLM で環境設定の文章を補完します。画像は生成しません',
       '道具外观描述': 'LLM で小道具の外観説明を補完します。画像は生成しません',
       '故事世界上下文推荐': '小説名と説明から、時代・地域・文化・物質世界の一貫した境界を推薦します',

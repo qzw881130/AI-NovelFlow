@@ -1,0 +1,15 @@
+{
+  "3": {"inputs": {"seed": 999, "steps": 8, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["78", 0], "positive": ["94", 0], "negative": ["47", 0], "latent_image": ["98", 0]}, "class_type": "KSampler", "_meta": {"title": "ACE-Step1.5 采样"}},
+  "18": {"inputs": {"samples": ["3", 0], "vae": ["106", 0]}, "class_type": "VAEDecodeAudio", "_meta": {"title": "解码音频"}},
+  "47": {"inputs": {"conditioning": ["94", 0]}, "class_type": "ConditioningZeroOut", "_meta": {"title": "零负面条件"}},
+  "78": {"inputs": {"shift": 3, "sampling": "flow", "model": ["117", 0]}, "class_type": "ModelSamplingAuraFlow", "_meta": {"title": "ModelSamplingAuraFlow"}},
+  "94": {"inputs": {"tags": ["14", 0], "lyrics": ["15", 0], "seed": 999, "bpm": 120, "duration": 30.0, "timesignature": "4", "language": "en", "keyscale": "E minor", "generate_audio_codes": true, "cfg_scale": 2, "temperature": 0.85, "top_p": 0.9, "top_k": 0, "min_p": 0, "clip": ["105", 0]}, "class_type": "TextEncodeAceStepAudio1.5", "_meta": {"title": "ACE-Step1.5 音乐提示词"}},
+  "98": {"inputs": {"seconds": 30.0, "batch_size": 1}, "class_type": "EmptyAceStep1.5LatentAudio", "_meta": {"title": "音乐时长（秒）"}},
+  "104": {"inputs": {"unet_name": "acestep_v1.5_turbo.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "ACE-Step1.5 模型"}},
+  "105": {"inputs": {"clip_name1": "qwen_0.6b_ace15.safetensors", "clip_name2": "qwen_1.7b_ace15.safetensors", "type": "ace", "device": "default"}, "class_type": "DualCLIPLoader", "_meta": {"title": "ACE-Step1.5 文本编码器"}},
+  "106": {"inputs": {"vae_name": "ace_1.5_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "ACE-Step1.5 VAE"}},
+  "117": {"inputs": {"lora_name": "adapter_model.safetensors", "strength_model": 1, "model": ["104", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "ACE-Step1.5 LoRA"}},
+  "13": {"inputs": {"filename_prefix": "audio/ace_step_1_5_background_music", "audio": ["18", 0]}, "class_type": "SaveAudio", "_meta": {"title": "保存背景音乐"}},
+  "14": {"inputs": {"prompt": "instrumental cinematic underscore, sparse arrangement, no vocals, no sound effects"}, "class_type": "CR Prompt Text", "_meta": {"title": "音乐风格 tags（动态参数）"}},
+  "15": {"inputs": {"prompt": "[inst]"}, "class_type": "CR Prompt Text", "_meta": {"title": "纯器乐标记 lyrics（动态参数）"}}
+}

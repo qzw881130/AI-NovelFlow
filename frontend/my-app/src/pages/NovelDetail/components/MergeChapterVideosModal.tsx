@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
-import { novelApi, type CoverTextStyle, type NovelVideoCover, type NovelVideoMergeHistory } from '../../../api/novels';
+import { novelApi, type ChapterBackgroundMusic, type CoverTextStyle, type NovelVideoCover, type NovelVideoMergeHistory } from '../../../api/novels';
 import { configApi } from '../../../api/config';
 import type { Chapter, ChapterVideoAsset } from '../../../types';
 import { toast } from '../../../stores/toastStore';
@@ -70,6 +70,8 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
   const eligibleIds = chapters.filter(findAsset).map(chapter => chapter.id);
   const [selectedIds, setSelectedIds] = useState<string[]>(eligibleIds);
   const [history, setHistory] = useState<NovelVideoMergeHistory[]>([]);
+  const [musicByChapter, setMusicByChapter] = useState<Record<string, ChapterBackgroundMusic>>({});
+  const [includeBackgroundMusic, setIncludeBackgroundMusic] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [playbackItem, setPlaybackItem] = useState<NovelVideoMergeHistory | null>(null);
@@ -195,8 +197,11 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
   const refreshHistory = async (silent = false) => {
     if (!silent) setHistoryLoading(true);
     try {
-      const response = await novelApi.fetchVideoMergeHistory(novelId);
+      const [response, musicResponse] = await Promise.all([
+        novelApi.fetchVideoMergeHistory(novelId), novelApi.fetchBackgroundMusic(novelId),
+      ]);
       if (response.success && response.data) setHistory(response.data);
+      if (musicResponse.success && musicResponse.data) setMusicByChapter(musicResponse.data);
     } catch (error) {
       console.error('加载章回视频合并历史失败:', error);
       if (!silent) toast.error('加载合并历史失败');
@@ -226,7 +231,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
     if (selectedIds.length < 2) return;
     setSubmitting(true);
     try {
-      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, initialProfile.kind, initialProfile.targetMegapixels);
+      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, initialProfile.kind, initialProfile.targetMegapixels, includeBackgroundMusic);
       if (!response.success) {
         const detail = (response as typeof response & { detail?: string }).detail;
         throw new Error(response.message || detail || '提交合并任务失败');
@@ -280,7 +285,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                 const videoUrl = asset?.videoUrl;
                 const selected = selectedIds.includes(chapter.id);
                 return (
-                  <label key={chapter.id} className={`flex items-center gap-3 rounded-lg border p-3 ${videoUrl ? 'cursor-pointer border-gray-200 hover:bg-blue-50/50' : 'cursor-not-allowed border-gray-100 bg-gray-50 opacity-60'}`}>
+                  <div key={chapter.id} className={`flex items-center gap-3 rounded-lg border p-3 ${videoUrl ? 'border-gray-200 hover:bg-blue-50/50' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
                     <input
                       type="checkbox"
                       checked={selected}
@@ -293,13 +298,24 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                       <div className="mt-1 text-xs text-gray-500">
                         {videoUrl ? `${formatDuration(asset?.duration)} · ${formatFileSize(asset?.fileSize)}` : `缺少${initialProfile.kind === 'hd' ? ` ${initialProfile.targetMegapixels?.toFixed(1)} MP 高清` : '初稿'}章回视频`}
                       </div>
+                      {musicByChapter[chapter.id]?.audioUrl && !musicByChapter[chapter.id]?.stale && <div className="mt-2" onClick={event => event.stopPropagation()}>
+                        <p className="mb-1 text-xs text-violet-700">背景音乐试听</p>
+                        <audio controls preload="none" src={musicByChapter[chapter.id].audioUrl || undefined} className="h-8 w-full" />
+                      </div>}
+                      {musicByChapter[chapter.id]?.stale && <p className="mt-1 text-xs text-amber-700">背景音乐对应的章回视频已变化，请重新生成</p>}
                     </div>
                     {videoUrl && <Film className="h-4 w-4 text-blue-500" />}
-                  </label>
+                  </div>
                 );
               })}
             </div>
             <div className="border-t bg-white px-5 py-4">
+              <label className="mb-3 flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={includeBackgroundMusic} onChange={event => setIncludeBackgroundMusic(event.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600" />
+                背景音乐
+                <span className="text-xs text-gray-500">已有配乐的章回会混入音乐，其余保持原声</span>
+              </label>
               <button type="button" onClick={submitMerge} disabled={selectedIds.length < 2 || submitting} className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Film className="mr-2 h-4 w-4" />}
                 {submitting ? '提交中...' : `合并 ${selectedIds.length} 个章回视频`}
@@ -324,6 +340,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
                         {item.status === 'completed' ? <CheckCircle className="h-4 w-4 text-green-600" /> : item.status === 'failed' ? <XCircle className="h-4 w-4 text-red-600" /> : <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
                         合并 {item.chapters.length} 个章回
+                        {item.withBackgroundMusic && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700">背景音乐 · {item.backgroundMusicChapterCount} 章</span>}
                         <span className={`rounded px-1.5 py-0.5 text-[10px] ${item.videoVariant === 'hd' ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{item.videoVariant === 'hd' ? `高清 ${item.targetMegapixels?.toFixed(1)} MP` : '初稿'}</span>
                       </div>
                       <p className="mt-1 truncate text-xs text-gray-500" title={item.chapters.map(chapter => `第${chapter.number}章 ${chapter.title}`).join('、')}>

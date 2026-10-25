@@ -63,6 +63,63 @@ def test_create_and_list_novel_video_merge(client, db_session, monkeypatch, tmp_
     assert history.json()["data"][0]["id"] == data["id"]
 
 
+def test_merge_snapshots_background_music_only_when_enabled(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="配乐合并")
+    db_session.add(novel)
+    db_session.flush()
+    chapters = [Chapter(novel_id=novel.id, number=index, title=f"第{index}章",
+                        final_video=f"/api/files/chapter-{index}.mp4") for index in (1, 2)]
+    db_session.add_all(chapters)
+    db_session.flush()
+    paths = {}
+    for chapter in chapters:
+        video_path = tmp_path / f"chapter-{chapter.number}.mp4"
+        video_path.write_bytes(b"video")
+        paths[chapter.final_video] = str(video_path)
+        db_session.add(Task(type="chapter_video", status="completed", novel_id=novel.id,
+                            chapter_id=chapter.id, name="chapter video", result_url=chapter.final_video,
+                            metadata_json='{"is_final_video":true,"shots_count":1}'))
+    music_path = tmp_path / "music.m4a"
+    music_path.write_bytes(b"music")
+    paths["/api/files/music.m4a"] = str(music_path)
+    db_session.add(Task(type="chapter_background_music", status="completed", novel_id=novel.id,
+                        chapter_id=chapters[0].id, name="music", result_url="/api/files/music.m4a",
+                        metadata_json=json.dumps({"source_video_url": chapters[0].final_video, "cues": [{"index": 1}]})))
+    db_session.commit()
+    monkeypatch.setattr("app.api.novel_videos.url_to_local_path", paths.get)
+    monkeypatch.setattr("app.repositories.chapter_repository.url_to_local_path", paths.get)
+    worker = MagicMock()
+    monkeypatch.setattr("app.api.novel_videos.worker_manager.worker", lambda _: worker)
+
+    enabled = client.post(f"/api/novels/{novel.id}/video-merges",
+                          json={"chapter_ids": [chapter.id for chapter in chapters]})
+    assert enabled.status_code == 200
+    enabled_data = enabled.json()["data"]
+    assert enabled_data["withBackgroundMusic"] is True
+    assert enabled_data["backgroundMusicChapterCount"] == 1
+    assert enabled_data["chapters"][0]["backgroundMusicUrl"] == "/api/files/music.m4a"
+    assert enabled_data["chapters"][1]["backgroundMusicUrl"] is None
+
+    disabled = client.post(f"/api/novels/{novel.id}/video-merges",
+                           json={"chapter_ids": [chapter.id for chapter in chapters],
+                                 "include_background_music": False})
+    assert disabled.status_code == 200
+    disabled_data = disabled.json()["data"]
+    assert disabled_data["withBackgroundMusic"] is False
+    assert all(item["backgroundMusicUrl"] is None for item in disabled_data["chapters"])
+
+    from datetime import datetime, timedelta
+    db_session.add(Task(type="chapter_background_music", status="failed", novel_id=novel.id,
+                        chapter_id=chapters[0].id, name="newer failed music",
+                        created_at=datetime.utcnow() + timedelta(days=1),
+                        metadata_json=json.dumps({"source_video_url": chapters[0].final_video})))
+    db_session.commit()
+    after_failure = client.post(f"/api/novels/{novel.id}/video-merges",
+                                json={"chapter_ids": [chapter.id for chapter in chapters]})
+    assert after_failure.status_code == 200
+    assert after_failure.json()["data"]["withBackgroundMusic"] is False
+
+
 def test_download_novel_video_merge_uses_novel_title(client, db_session, monkeypatch, tmp_path):
     novel = Novel(title="卸忌诚养王纳谏")
     other_novel = Novel(title="其他小说")

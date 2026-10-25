@@ -57,6 +57,8 @@ class PromptTemplateType:
     H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B = "h3_multi_keyframe_director_phase_b"
     H3_PREFLIGHT_REPAIR_PROMPT = "h3_preflight_repair_prompt"
     H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
+    BACKGROUND_MUSIC_DIRECTOR = "background_music_director"
+    BACKGROUND_MUSIC_GENERATION = "background_music_generation"
 
 
 # 所有提示词模板类型列表（按使用顺序排列）
@@ -84,11 +86,23 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B,
     PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
     PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR,
+    PromptTemplateType.BACKGROUND_MUSIC_GENERATION,
 ]
 
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR: {
+        "name_key": "promptConfig.types.backgroundMusicDirector",
+        "desc_key": "promptConfig.types.backgroundMusicDirectorDesc",
+        "icon": "Music", "color": "violet",
+    },
+    PromptTemplateType.BACKGROUND_MUSIC_GENERATION: {
+        "name_key": "promptConfig.types.backgroundMusicGeneration",
+        "desc_key": "promptConfig.types.backgroundMusicGenerationDesc",
+        "icon": "Music", "color": "purple",
+    },
     PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B: {
         "name_key": "promptConfig.types.h3MultiKeyframeDirectorPhaseB",
         "desc_key": "promptConfig.types.h3MultiKeyframeDirectorPhaseBDesc",

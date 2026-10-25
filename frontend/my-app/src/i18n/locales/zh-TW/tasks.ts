@@ -42,6 +42,15 @@ export default {
     videoResolution: '解析度',
     videoBitrate: '位元率',
     taskType: '任務類型',
+    allTypes: '全部類型',
+    typeGroups: {
+      characters: '角色',
+      audio: '音訊與音樂',
+      images: '圖片',
+      videos: '影片',
+      chaptersAndPublishing: '章回與發布',
+      other: '其他',
+    },
     status: '狀態',
     progress: '進度',
     createdAt: '建立時間',
@@ -95,6 +104,7 @@ export default {
     referenceImage: '參考圖',
     types: {
       characterPortrait: '人設生成',
+      chapterBackgroundMusic: '生成背景音樂',
       sceneImage: '場景圖片',
       shotImage: '分鏡圖片',
       shotVideo: '分鏡影片',
@@ -106,6 +116,9 @@ export default {
     systemDefault: '系統預設',
     custom: '自訂',
     workflowNames: {
+      'YuE2 纯器乐背景音乐 V1': 'YuE2 純器樂背景音樂 V1',
+      'ACE-Step 纯器乐背景音乐 V1': 'ACE-Step 純器樂背景音樂 V1',
+      'ACE-Step1.5 纯器乐背景音乐 V1': 'ACE-Step1.5 純器樂背景音樂 V1',
       '系统默认-人设生成': '系統預設-人設生成',
       '系统默认-场景生成': '系統預設-場景生成',
       '系统默认-分镜生图': '系統預設-分鏡生圖',
@@ -130,6 +143,9 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B 分鏡生圖雙圖參考',
     },
     workflowDescriptions: {
+      'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检': 'YuE2 背景音樂候選生成；風格與歌詞由 CR Prompt Text 節點提供，成品需人工聽檢',
+      'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检': 'ACE-Step 1.0 純器樂生成；風格、歌詞和小數秒時長均可透過節點映射動態設定，成品需人工聽檢',
+      'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检': 'ACE-Step1.5 純器樂生成；風格、旋律與時長依配樂規劃動態設定，成品需人工聽檢',
       'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 多參考生影片，支援 0～9 張參考圖',
       '系统预设的人设生成工作流': '系統預設的人設生成工作流',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '系統預設的人設生成工作流（Flux2 Klein 9B 三視圖）',

@@ -29,6 +29,7 @@ export default {
     parseScenes: '解析场景',
     parseProps: '解析道具',
     splitShots: '拆分分镜',
+    shotImageRepairPlan: '分镜图局部修复规划',
     generateAppearance: '生成外貌描述',
     clipExecutionPlanner: '视频片段执行规划',
     expandVideoPrompt: '扩写视频提示词',

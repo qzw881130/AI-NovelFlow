@@ -31,6 +31,10 @@ _EVENTS = (
     ("shot.generation.failed", "Shot 生成失败", "Shot 生成", "Shot 生成未能完成"),
     ("batch.generation.completed", "批量生成完成", "批量生成", "批量生成已完成"),
     ("batch.generation.failed", "批量生成失败", "批量生成", "批量生成未能完成"),
+    ("background_music.generation.completed", "背景音乐生成完成", "背景音乐", "章回背景音乐规划与生成已完成"),
+    ("background_music.generation.failed", "背景音乐生成失败", "背景音乐", "章回背景音乐规划或生成未能完成"),
+    ("novel.video.merge.completed", "小说视频合并完成", "小说视频合并", "所选章回视频已合并"),
+    ("novel.video.merge.failed", "小说视频合并失败", "小说视频合并", "所选章回视频未能合并"),
     ("task.review.required", "任务需要审核", "任务", "任务需要人工审核"),
     ("comfyui.connection.failed", "ComfyUI 连接失败", "系统", "ComfyUI 连接不可用"),
 )

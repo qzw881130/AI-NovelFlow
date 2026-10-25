@@ -17,6 +17,7 @@ export default {
     parseScenes: 'シーン解析',
     parseProps: '小道具解析',
     splitShots: 'ショット分割',
+    shotImageRepairPlan: 'ショット画像の部分修復プラン',
     generateAppearance: '外見を生成',
     clipExecutionPlanner: 'クリップ実行プランナー',
     expandVideoPrompt: '動画プロンプトを展開',

@@ -24,7 +24,9 @@ export type TemplateType =
   | 'h3_multi_keyframe_prompt'
   | 'h3_multi_keyframe_director_phase_b'
   | 'h3_execution_optimizer_prompt'
-  | 'h3_preflight_repair_prompt';
+  | 'h3_preflight_repair_prompt'
+  | 'background_music_director'
+  | 'background_music_generation';
 
 export type TemplateCategory =
   | 'story_context'
@@ -35,7 +37,8 @@ export type TemplateCategory =
   | 'shot_image'
   | 'video_director'
   | 'keyframe_image'
-  | 'video_generation';
+  | 'video_generation'
+  | 'background_music';
 
 export interface PromptForm {
   name: string;

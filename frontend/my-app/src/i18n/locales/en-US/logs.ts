@@ -29,6 +29,7 @@ export default {
     parseScenes: 'Parse Scenes',
     parseProps: 'Parse Props',
     splitShots: 'Split Shots',
+    shotImageRepairPlan: 'Shot Image Repair Planning',
     generateAppearance: 'Generate Appearance',
     clipExecutionPlanner: 'Clip Execution Planner',
     expandVideoPrompt: 'Expand Video Prompt',

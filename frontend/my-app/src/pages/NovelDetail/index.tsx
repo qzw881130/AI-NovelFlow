@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine, BookOpen } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine, BookOpen, Music2 } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
 import { chapterApi, type ChapterAiSplitBatch } from '../../api/chapters';
@@ -9,6 +9,7 @@ import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
 import { BatchImportModal } from './components/BatchImportModal';
 import { MergeChapterVideosModal } from './components/MergeChapterVideosModal';
+import { BackgroundMusicModal } from './components/BackgroundMusicModal';
 import { ChapterReaderModal } from './components/ChapterReaderModal';
 import { BatchAiSplitModal } from './components/BatchAiSplitModal';
 
@@ -59,6 +60,7 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
   const contentLength = getChapterContentLength(chapter);
   const videoAssets = getChapterVideoAssets(chapter);
   const imageStats = chapter.shotImageStats ?? { generated: 0, total: 0, passed: 0, warning: 0, failed: 0 };
+  const videoStats = chapter.shotVideoStats ?? { completed: 0, total: imageStats.total };
   return (
     <div data-chapter-select-index={index} onPointerDown={onPointerDown}
       className={`flex items-center justify-between rounded-lg p-4 transition-colors ${selected ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-gray-50 hover:bg-gray-100'}`}>
@@ -91,6 +93,9 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, onCheck
             </span>
             <span className="inline-flex items-center gap-1 font-medium text-gray-600">
               <Clock className="h-3.5 w-3.5" />{t('novelDetail.estimatedFilmDuration', { duration: formatDuration(chapter.estimatedDuration, true) })}
+            </span>
+            <span className="inline-flex items-center gap-1 font-medium text-gray-600">
+              <Video className="h-3.5 w-3.5" />{t('novelDetail.completedShotVideos', { completed: videoStats.completed, total: videoStats.total })}
             </span>
           </div>
           {videoAssets.length > 0 && (
@@ -136,6 +141,7 @@ export default function NovelDetail() {
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
   const [isDownloadingOriginals, setIsDownloadingOriginals] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [showBackgroundMusicModal, setShowBackgroundMusicModal] = useState(false);
   const [showReaderModal, setShowReaderModal] = useState(false);
   const [splitModalMode, setSplitModalMode] = useState<'create' | 'progress' | null>(null);
   const [latestSplitBatch, setLatestSplitBatch] = useState<ChapterAiSplitBatch | null>(null);
@@ -262,6 +268,9 @@ export default function NovelDetail() {
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => setShowBackgroundMusicModal(true)} className="btn-secondary">
+            <Music2 className="mr-2 h-4 w-4" />生成背景音乐
+          </button>
           <button
             type="button"
             onClick={() => setSplitModalMode(latestSplitBatch?.status === 'running' ? 'progress' : 'create')}
@@ -401,6 +410,9 @@ export default function NovelDetail() {
       )}
       {showMergeModal && (
         <MergeChapterVideosModal novelId={state.id!} novelTitle={state.novel.title} novelAuthor={state.novel.author} chapters={state.chapters} initialProfile={mergeProfile} onClose={() => setShowMergeModal(false)} />
+      )}
+      {showBackgroundMusicModal && state.id && (
+        <BackgroundMusicModal novelId={state.id} chapters={state.chapters} onClose={() => setShowBackgroundMusicModal(false)} />
       )}
       {showReaderModal && state.chapters.length > 0 && (
         <ChapterReaderModal novelId={state.id!} novelTitle={state.novel.title} chapters={state.chapters} onClose={() => setShowReaderModal(false)} />

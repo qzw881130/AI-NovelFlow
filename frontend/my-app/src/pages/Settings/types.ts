@@ -46,6 +46,10 @@ export interface Workflow {
     voice_prompt_node_id?: string;
     ref_text_node_id?: string;
     save_audio_node_id?: string;
+    music_style_node_id?: string;
+    music_lyrics_node_id?: string;
+    music_duration_node_id?: string;
+    music_conditioning_node_id?: string;
     // 音频生成相关节点
     reference_audio_node_id?: string;
     text_node_id?: string;
@@ -143,6 +147,8 @@ export interface AvailableNodes {
   secondPassScaleNodes: string[];
   easyFloat: string[];
   crPromptText: string[];
+  aceStepLatentAudio: string[];
+  aceStepConditioning: string[];
   videoCombine: string[];
   h3VideoOutputs: string[];
   saveVideo: string[];

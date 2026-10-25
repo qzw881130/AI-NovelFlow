@@ -17,6 +17,7 @@ export default {
     parseScenes: '장면 파싱',
     parseProps: '소품 파싱',
     splitShots: '샷 분할',
+    shotImageRepairPlan: '샷 이미지 부분 복구 계획',
     generateAppearance: '외형 생성',
     clipExecutionPlanner: '클립 실행 플래너',
     expandVideoPrompt: '비디오 프롬프트 확장',
