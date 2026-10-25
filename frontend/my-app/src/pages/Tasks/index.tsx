@@ -10,6 +10,14 @@ import { ImageReviewModal } from './components/ImageReviewModal';
 import type { Task } from '../../types';
 import { getCanonicalClipTaskDescription } from './taskExecutionDisplay';
 
+const TASK_TYPE_GROUPS: Array<{ key: string; types: Task['type'][] }> = [
+  { key: 'characters', types: ['character_portrait'] },
+  { key: 'audio', types: ['character_voice', 'character_audio', 'narrator_audio', 'chapter_background_music'] },
+  { key: 'images', types: ['scene_image', 'prop_image', 'shot_image', 'shot_image_repair', 'shot_image_repair_candidate', 'shot_image_batch', 'keyframe_image', 'single_image_edit', 'novel_video_cover'] },
+  { key: 'videos', types: ['shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video'] },
+  { key: 'chaptersAndPublishing', types: ['chapter_ai_split_batch', 'chapter_ai_split', 'chapter_video', 'novel_video', 'shot_export', 'youtube_upload'] },
+];
+
 export default function Tasks() {
   const { t, i18n } = useTranslation();
   const [pageSize, setPageSize] = useState(30);
@@ -116,12 +124,13 @@ export default function Tasks() {
     return task.description;
   };
 
-  const getTaskTypeName = (type: Task['type']) => {
+  const getTaskTypeName = (type: string) => {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
       'character_voice': t('tasks.types.characterVoice', { defaultValue: '音色设计' }),
       'character_audio': t('tasks.types.characterAudio', { defaultValue: '角色音频' }),
       'narrator_audio': t('tasks.types.narratorAudio', { defaultValue: '旁白音频' }),
+      'chapter_background_music': t('tasks.types.chapterBackgroundMusic'),
       'scene_image': t('tasks.types.sceneImage'),
       'prop_image': t('tasks.types.propImage', { defaultValue: '道具图片' }),
       'shot_image': t('tasks.types.shotImage'),
@@ -146,13 +155,12 @@ export default function Tasks() {
     return names[type] || type;
   };
 
-  const taskTypeOptions = useMemo(() => {
-    const supportedTypes: Task['type'][] = [
-      'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
-      'scene_image', 'prop_image', 'shot_image', 'shot_image_repair', 'shot_image_repair_candidate', 'shot_image_batch', 'keyframe_image',
-      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'chapter_ai_split_batch', 'chapter_ai_split', 'novel_video', 'novel_video_cover', 'youtube_upload', 'shot_export',
-    ];
-    return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));
+  const taskTypeGroups = useMemo(() => {
+    const knownTypes = new Set<string>(TASK_TYPE_GROUPS.flatMap(group => group.types));
+    const otherTypes = taskTypes.filter(type => !knownTypes.has(type));
+    return otherTypes.length > 0
+      ? [...TASK_TYPE_GROUPS, { key: 'other', types: otherTypes }]
+      : TASK_TYPE_GROUPS;
   }, [taskTypes]);
 
   const getWorkflowDisplayName = (task: Task): string => {
@@ -274,8 +282,12 @@ export default function Tasks() {
                 className="min-h-10 min-w-0 max-w-[240px] rounded-lg border border-gray-300 bg-white px-3 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">{t('tasks.allTypes', { defaultValue: '全部类型' })}</option>
-                {taskTypeOptions.map(type => (
-                  <option key={type} value={type}>{getTaskTypeName(type as Task['type'])}</option>
+                {taskTypeGroups.map(group => (
+                  <optgroup key={group.key} label={t(`tasks.typeGroups.${group.key}`)}>
+                    {group.types.map(type => (
+                      <option key={type} value={type}>{getTaskTypeName(type)}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

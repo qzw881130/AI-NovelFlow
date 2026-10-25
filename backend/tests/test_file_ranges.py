@@ -1,4 +1,6 @@
 """Video seeking must return the exact requested bytes through the file API."""
+from urllib.parse import unquote
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -46,6 +48,20 @@ def test_full_download_and_head_remain_available(media_client):
     assert head.content == b""
     assert head.headers["content-length"] == "10"
     assert head.headers["accept-ranges"] == "bytes"
+
+
+def test_custom_download_name_preserves_file_and_range(media_client):
+    url = "/api/files/preview.mp4?download_name=药-第一章-背景音乐.mp4"
+    full = media_client.get(url)
+    assert full.status_code == 200
+    assert full.content == b"0123456789"
+    assert unquote(full.headers["content-disposition"]).endswith("药-第一章-背景音乐.mp4")
+
+    partial = media_client.get(url, headers={"Range": "bytes=0-1"})
+    assert partial.status_code == 206
+    assert partial.content == b"01"
+    assert partial.headers["content-disposition"] == full.headers["content-disposition"]
+    assert media_client.get("/api/files/preview.mp4?download_name=wrong.m4a").status_code == 400
 
 
 @pytest.mark.parametrize("byte_range", ["bytes=10-", "bytes=6-3", "bytes=-0", "bytes=-", "bytes=bad"])

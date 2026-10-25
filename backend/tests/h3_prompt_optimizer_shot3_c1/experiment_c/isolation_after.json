@@ -1,0 +1,52 @@
+{
+  "status": "PASS",
+  "existing_experiment_file_count": 201,
+  "changed_existing_A_files": [],
+  "missing_existing_A_files": [],
+  "new_files_outside_experiment_c": [
+    "output/experiment_c_speaker_binding.mp4"
+  ],
+  "changed_workspace_files_outside_experiment_root": [],
+  "new_workspace_files_outside_experiment_root": [],
+  "original_references_after_generation": [
+    {
+      "picture": "<Picture 1>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 2>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 3>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 4>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 5>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 6>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 7>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 8>",
+      "unchanged_after_generation": true
+    },
+    {
+      "picture": "<Picture 9>",
+      "unchanged_after_generation": true
+    }
+  ],
+  "workspace_check_scope": "git-tracked and non-ignored untracked files outside the experiment root; existing experiment artifacts include ignored files. This is not a database audit.",
+  "formal_services_or_database_write_calls": 0,
+  "checked_at_utc": "2026-10-09T10:36:52.350894+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "tracked_and_existing_untracked_content_unchanged": true,
+  "changed_files_outside_experiment": [],
+  "new_nonignored_files_outside_experiment": [],
+  "original_reference_assets_unchanged": true,
+  "production_baseline_video_unchanged": true,
+  "database_access": "SQLite mode=ro; only pure credential decrypt utility imported; no schema/data/task writes",
+  "formal_api_calls": 0,
+  "production_task_creations": 0,
+  "comfyui_generation_submissions": 1
+}

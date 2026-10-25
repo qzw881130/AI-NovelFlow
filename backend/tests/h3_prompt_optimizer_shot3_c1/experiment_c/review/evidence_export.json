@@ -1,0 +1,9 @@
+{
+  "complete": true,
+  "full_frames_per_video": 44,
+  "dialogue_clips_with_audio": 12,
+  "llm_calls": 0,
+  "comparison_left": "A",
+  "comparison_right": "C",
+  "comparison_audio": false
+}

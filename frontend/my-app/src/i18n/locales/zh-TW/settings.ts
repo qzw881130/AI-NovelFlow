@@ -19,6 +19,11 @@ export default {
     autoImageReviewDesc: '圖片生成成功後，後台自動呼叫 AI 進行品質評審。評審結果獨立記錄，不影響圖片生成狀態，不會自動觸發重繪，也不會阻斷影片生成。',
     workflow: {
       ...zhCN.systemSettings.workflow,
+      backgroundMusic: '背景音樂',
+      musicStyleNode: '音樂風格節點',
+      musicLyricsNode: '歌詞節點',
+      musicDurationNode: '音樂時長節點（秒，支援小數）',
+      musicConditioningNode: '音樂提示詞編碼節點',
       voiceDesign: '音色設計',
       keyframeImage: '關鍵幀生圖',
       multiImageEdit: '多圖編輯',
@@ -186,11 +191,16 @@ export default {
 
     categories: {
       ...zhCN.promptConfig.categories,
+      backgroundMusic: '背景音樂',
       storyContext: '故事上下文',
     },
 
     // 提示詞模板類型
     types: {
+      backgroundMusicDirector: '背景音樂導演規劃',
+      backgroundMusicDirectorDesc: '依劇情、對白與環境聲判斷何處需要配樂，也可選擇留白',
+      backgroundMusicGeneration: '純器樂生成約束',
+      backgroundMusicGenerationDesc: '將導演風格轉為 ACE-Step 標籤並固定純器樂標記',
       sceneSetting: '場景設定描述',
       sceneSettingDesc: '透過 LLM 補全場景環境文字設定，不直接生成圖片',
       propAppearance: '道具外觀描述',
@@ -227,6 +237,9 @@ export default {
     tipStyle: '僅描述媒介、線條、色彩、材質和光影；保留角色、道具和世界觀，不指定鏡頭、動作或對白。',
     templatePlaceholderStyle: '2D anime rendering, clean linework, flat colors, crisp cel shading',
     templateNames: {
+      '背景音乐导演规划 V1': '背景音樂導演規劃 V1',
+      'ACE-Step 纯器乐标签 V1': 'ACE-Step 純器樂標籤 V1',
+      'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 純器樂標籤 V1',
       'AI 图片质量评审': 'AI 圖片品質評審',
       '场景设定描述': '場景設定描述',
       '道具外观描述': '道具外觀描述',
@@ -257,6 +270,9 @@ export default {
       '标准角色解析': '標準角色解析',
     },
     templateDescriptions: {
+      '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '依小說正文、Shot、對白與環境聲規劃少量必要配樂區間，也可不配樂',
+      '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '將導演風格轉為 ACE-Step 1.0 的 tags，固定 [inst] 純器樂標記；時長由工作流程節點控制',
+      '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '將導演風格與旋律轉為 ACE-Step1.5 的 tags，固定 [inst] 純器樂標記；時長由工作流程節點控制',
       '场景设定描述': '透過 LLM 補全場景環境文字設定，不直接生成圖片',
       '道具外观描述': '透過 LLM 補全道具外觀文字描述，不直接生成圖片',
       '故事世界上下文推荐': '依小說名稱和描述推薦統一的時代、地域、文化與物質世界邊界',

@@ -1,0 +1,55 @@
+{
+  "method": "Actual baseline MP4 ffprobe, full AV decode, timed frame inspection; no reliable audio transcription or continuous lip-sync ownership assessment.",
+  "baseline_decode": {
+    "exit_code": 0,
+    "stderr": ""
+  },
+  "optimized_video_available": false,
+  "items": [
+    {
+      "metric": "speaker_correctness",
+      "status": "NEEDS_MANUAL_REVIEW",
+      "evidence": "Canonical D4 is Subject 3 at 8.35–9.35s, while frames at 8.35 and 8.85s show only the Emperor close-up. Off-screen audio speaker cannot be determined from frames."
+    },
+    {
+      "metric": "lip_sync_ownership",
+      "status": "NEEDS_MANUAL_REVIEW",
+      "evidence": "D5 belongs to Subject 1 at 9.55–10.8s; sampled Subject 4 mouth shapes change at 9.55, 9.85, 10.175, 10.5s. This suggests unwanted non-speaker articulation, but exact spoken audio and continuous synchronization have not been established."
+    },
+    {
+      "metric": "identity",
+      "status": "LIMITED_FRAME_OBSERVATION",
+      "evidence": "The Emperor, steward, left tall scammer and right shorter scammer remain recognizable in sampled ensemble frames; no obvious duplicated bodies or exchanged left/right identities in these samples. Continuous identity stability needs manual playback."
+    },
+    {
+      "metric": "costume",
+      "status": "LIMITED_FRAME_OBSERVATION",
+      "evidence": "Sampled costumes remain Emperor blue/red/gold, steward dark coat, Subject 3 green coat/black hat, Subject 4 red coat/brown hat. No obvious costume reset in samples."
+    },
+    {
+      "metric": "blocking",
+      "status": "LIMITED_FRAME_OBSERVATION",
+      "evidence": "Subjects 3/4 occupy established left/right sides in ensemble samples; Emperor remains seated and steward beside steps. Foreground subjects become much larger late in the clip; camera-vs-body contribution needs playback."
+    },
+    {
+      "metric": "temporal_transition",
+      "status": "OBSERVED_DEVIATION",
+      "evidence": "Opening bowed Subjects become upright, and Subject 4 shows empty palms; late composition at 13s is a tight foreground view rather than Picture 3's ensemble spacing."
+    },
+    {
+      "metric": "camera",
+      "status": "OBSERVED_DEVIATION",
+      "evidence": "Frames at 7.5–8.85s show an isolated Emperor close-up. Frames at 9.35–13.4s emphasize close foreground scammers. Raw prompt requests an uninterrupted low-angle dolly with ensemble spatial legibility and no isolated portrait framing. Exact cut timing is not measured."
+    },
+    {
+      "metric": "unexpected_object",
+      "status": "LIMITED_FRAME_OBSERVATION",
+      "evidence": "Subject 4's hands appear empty in the inspected gesture frames. No obvious physical fabric, added people or duplicate bodies observed in samples; whole-video absence needs manual review."
+    },
+    {
+      "metric": "overall_execution",
+      "status": "COMPARISON_UNAVAILABLE",
+      "evidence": "No optimized video was generated, so improvement or harm cannot be compared."
+    }
+  ]
+}

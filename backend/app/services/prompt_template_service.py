@@ -425,6 +425,21 @@ SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES: List[Dict] = [
 ]
 
 # 合并所有系统模板
+SYSTEM_BACKGROUND_MUSIC_TEMPLATES: List[Dict] = [
+    {
+        "name": "背景音乐导演规划 V1",
+        "description": "根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐",
+        **file_template("background_music_director_v1.txt"),
+        "type": "background_music_director",
+    },
+    {
+        "name": "ACE-Step1.5 纯器乐标签 V1",
+        "description": "将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制",
+        **file_template("background_music_generation_v1.txt"),
+        "type": "background_music_generation",
+    },
+]
+
 SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_STORY_CONTEXT_TEMPLATES +
     SYSTEM_CLIP_PLANNER_TEMPLATES +
@@ -442,7 +457,8 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES +
     SYSTEM_KEYFRAME_PLANNING_TEMPLATES +
     SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES +
-    SYSTEM_H3_VIDEO_PROMPT_TEMPLATES
+    SYSTEM_H3_VIDEO_PROMPT_TEMPLATES +
+    SYSTEM_BACKGROUND_MUSIC_TEMPLATES
 )
 
 
@@ -471,6 +487,22 @@ class PromptTemplateService:
             "h3_single_frame_prompt",
             "h3_first_last_frame_prompt",
         ))).delete(synchronize_session=False)
+
+        # ACE-Step replaces the YuE2 generation prompt. Keep the existing row ID
+        # so saved references and log attribution continue to resolve.
+        new_music_prompt = self.template_repo.get_by_name_and_type(
+            "ACE-Step1.5 纯器乐标签 V1", "background_music_generation", is_system=True)
+        for old_name in ("ACE-Step 纯器乐标签 V1", "YuE2 纯器乐生成约束 V1"):
+            old_music_prompt = self.template_repo.get_by_name_and_type(
+                old_name, "background_music_generation", is_system=True)
+            if not old_music_prompt:
+                continue
+            if not new_music_prompt:
+                old_music_prompt.name = "ACE-Step1.5 纯器乐标签 V1"
+                new_music_prompt = old_music_prompt
+                self.db.flush()
+            else:
+                self.db.delete(old_music_prompt)
 
         for tmpl_data in SYSTEM_PROMPT_TEMPLATES:
             # 检查是否已存在同名同类型的系统模板

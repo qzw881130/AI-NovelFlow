@@ -1,0 +1,74 @@
+[
+  {
+    "label": "A",
+    "event": "D1",
+    "duration": "1.625000",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D1",
+    "duration": "1.625000",
+    "audio_present": true
+  },
+  {
+    "label": "A",
+    "event": "D2",
+    "duration": "2.916667",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D2",
+    "duration": "2.916667",
+    "audio_present": true
+  },
+  {
+    "label": "A",
+    "event": "D3",
+    "duration": "3.416667",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D3",
+    "duration": "3.416667",
+    "audio_present": true
+  },
+  {
+    "label": "A",
+    "event": "D4",
+    "duration": "1.416667",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D4",
+    "duration": "1.416667",
+    "audio_present": true
+  },
+  {
+    "label": "A",
+    "event": "D5",
+    "duration": "1.625000",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D5",
+    "duration": "1.625000",
+    "audio_present": true
+  },
+  {
+    "label": "A",
+    "event": "D6",
+    "duration": "2.375000",
+    "audio_present": true
+  },
+  {
+    "label": "C",
+    "event": "D6",
+    "duration": "2.375000",
+    "audio_present": true
+  }
+]

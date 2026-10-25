@@ -1,0 +1,20 @@
+{
+  "status": "NOT_SUBMITTED",
+  "success": false,
+  "submission_attempts": 0,
+  "prompt_id": null,
+  "reason": "Optimizer failed authentication; substituting an invented optimized prompt would invalidate this experiment.",
+  "comfyui_endpoint": "http://192.168.50.1:8288",
+  "comfyui_reachable": true,
+  "all_frozen_node_classes_available": true,
+  "reference_byte_matches": "9/9",
+  "workflow_reference": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/baseline/submitted_workflow.json",
+  "experiment_a_duration": 13.1,
+  "seed": 3720777255,
+  "resolution": [
+    864,
+    480
+  ],
+  "output_path": null,
+  "experiment_b_status": "NOT_RUN"
+}

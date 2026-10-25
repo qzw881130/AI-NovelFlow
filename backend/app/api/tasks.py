@@ -489,6 +489,10 @@ async def get_task_workflow(
         reference_images = []
     reference_video = metadata.get("previous_approved_video_url")
     result_image = task.result_url if task.type in IMAGE_TASK_TYPES and task.status == "completed" else None
+    prompt_text = task.prompt_text
+    if not prompt_text and task.type == "chapter_background_music":
+        from app.services.background_music_service import format_background_music_prompt
+        prompt_text = format_background_music_prompt(metadata)
 
     # 如果任务保存了工作流JSON，直接返回
     if task.workflow_json:
@@ -505,7 +509,7 @@ async def get_task_workflow(
                     "workflow": workflow_obj,
                     "nodeMapping": node_mapping,
                     "seed": task.seed or extract_workflow_seed(workflow_obj),
-                    "prompt": task.prompt_text or "未保存提示词",
+                    "prompt": prompt_text or "未保存提示词",
                     "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
                     "executionDuration": execution_duration,
                     "referenceImages": reference_images,
@@ -520,7 +524,7 @@ async def get_task_workflow(
                     "workflow": task.workflow_json,
                     "nodeMapping": {},
                     "seed": task.seed or extract_workflow_seed(task.workflow_json),
-                    "prompt": task.prompt_text or "未保存提示词",
+                    "prompt": prompt_text or "未保存提示词",
                     "promptItems": [],
                     "executionDuration": execution_duration,
                     "referenceImages": reference_images,
@@ -536,7 +540,7 @@ async def get_task_workflow(
             "workflow": None,
             "nodeMapping": {},
             "seed": task.seed,
-            "prompt": task.prompt_text or "未保存提示词",
+            "prompt": prompt_text or "未保存提示词",
             "promptItems": [],
             "executionDuration": execution_duration,
             "referenceImages": reference_images,

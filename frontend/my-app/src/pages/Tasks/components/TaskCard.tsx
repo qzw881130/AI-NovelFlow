@@ -10,6 +10,7 @@ import { toast } from '../../../stores/toastStore';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 import { formatAspectRatio } from '../../../utils/aspectRatio';
+import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
 
 interface TaskCardProps {
   task: Task;
@@ -45,6 +46,16 @@ const preflightCheckLabels: Record<string, string> = {
   IDENTITY_FEATURES_RECORDED: '人物稳定特征',
   IDENTITY_PORTRAIT_READY: '人物参考图',
 };
+
+function backgroundMusicFilename(task: Task): string {
+  const chapter = task.chapterTitle?.trim() || (task.chapterNumber != null ? `第${task.chapterNumber}章` : '章回');
+  const name = [task.novelName?.trim() || '小说', chapter, '背景音乐'].join('-')
+    .replace(/[\\/:*?"<>|：\x00-\x1f]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[. -]+|[. -]+$/g, '')
+    .slice(0, 150);
+  return `${name}.m4a`;
+}
 
 function videoErrorCategory(message?: string | null, currentStep?: string | null): string | null {
   if (!message) return null;
@@ -157,12 +168,14 @@ export function TaskCard({
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
       case 'novel_video_cover': return <ImageIcon className="h-5 w-5" />;
       case 'character_audio':
-      case 'narrator_audio': return <Music className="h-5 w-5" />;
+      case 'narrator_audio':
+      case 'chapter_background_music': return <Music className="h-5 w-5" />;
       case 'shot_video':
       case 'shot_video_hd':
       case 'shot_video_hd_batch':
       case 'chapter_video':
-      case 'transition_video': return <Film className="h-5 w-5" />;
+      case 'transition_video':
+      case 'novel_video': return <Film className="h-5 w-5" />;
       default: return <ListTodo className="h-5 w-5" />;
     }
   };
@@ -179,6 +192,10 @@ export function TaskCard({
   };
 
   const elapsedSeconds = getElapsedSeconds();
+  const musicDownloadName = task.type === 'chapter_background_music' ? backgroundMusicFilename(task) : null;
+  const resultAudioUrl = task.resultUrl && musicDownloadName
+    ? `${task.resultUrl}${task.resultUrl.includes('?') ? '&' : '?'}download_name=${encodeURIComponent(musicDownloadName)}`
+    : task.resultUrl;
   const videoDirectorClips = task.videoDirectorClips || [];
   const hasMultiClipDetails = videoDirectorClips.length > 0;
   const previousClip = task.clipExecution?.execution_contract?.previous_clip;
@@ -563,6 +580,15 @@ export function TaskCard({
                     </div>
                   )}
                 </div>
+              ) : task.type === 'novel_video' ? (
+                <video
+                  src={task.resultUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full max-w-2xl rounded-lg bg-black"
+                  aria-label={task.name}
+                />
               ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
                 <div>
                   <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
@@ -581,23 +607,25 @@ export function TaskCard({
                     </button>
                   </div>
                 </div>
-              ) : task.type === 'character_audio' || task.type === 'narrator_audio' ? (
+              ) : task.type === 'character_audio' || task.type === 'narrator_audio' || task.type === 'chapter_background_music' ? (
                 <div>
+                  {task.type === 'chapter_background_music' && (
+                    <p className="mb-1 text-xs font-medium text-gray-600">整章背景音乐试听轨（包含未配乐区间）</p>
+                  )}
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
                       <Music className="h-5 w-5 text-purple-600" />
                     </div>
-                    <div className="flex-1">
-                      <audio
-                        src={task.resultUrl}
-                        controls
-                        className="w-full h-8"
-                        preload="metadata"
-                      />
+                    <div className="min-w-0 flex-1">
+                      {task.type === 'chapter_background_music' ? (
+                        <WaveformAudioPlayer src={task.resultUrl!} label={`${task.chapterTitle || '章回'}背景音乐`} compact />
+                      ) : (
+                        <audio src={resultAudioUrl} controls className="h-8 w-full" preload="metadata" />
+                      )}
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    <a href={task.resultUrl} download className="text-purple-600 hover:text-purple-700 underline inline-flex items-center gap-1">
+                    <a href={resultAudioUrl} download={musicDownloadName || true} className="text-purple-600 hover:text-purple-700 underline inline-flex items-center gap-1">
                       {t('common.download')}
                     </a>
                   </div>

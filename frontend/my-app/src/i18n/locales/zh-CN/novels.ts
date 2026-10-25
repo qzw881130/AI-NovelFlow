@@ -171,6 +171,8 @@ export default {
     generated: '已生成',
     aiSplitCompleted: 'AI 拆分完成',
     aiSplitPending: '未拆分',
+    estimatedFilmDuration: '预计成片 {duration}',
+    completedShotVideos: '分镜视频 {completed}/{total}',
     batchAiSplit: {
       button: '批量 AI 拆分',
       title: '批量 AI 拆分章回',

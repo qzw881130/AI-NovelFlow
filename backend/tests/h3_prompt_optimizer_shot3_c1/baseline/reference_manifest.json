@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "references": [
+    {
+      "slot": 1,
+      "kind": "DIRECTOR_VISUAL_ANCHOR",
+      "source_type": "SHOT_IMAGE",
+      "image_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+      "source_keyframe_index": 1,
+      "source_role": "START",
+      "source_time_seconds": 0.0,
+      "source_image_task_id": "6c8d9075-32d0-4541-a35d-48f795b9c113",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+      "binding": {
+        "uploaded_filename": "shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+        "workflow_node_id": "137"
+      }
+    },
+    {
+      "slot": 2,
+      "kind": "DIRECTOR_VISUAL_ANCHOR",
+      "source_type": "KEYFRAME_IMAGE",
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_0_20261008_135435.png",
+      "source_keyframe_index": 2,
+      "source_role": "INTERMEDIATE",
+      "source_time_seconds": 4.95,
+      "source_image_task_id": "5cc9a3e1-45cb-490c-b979-e489444303c5",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_0_20261008_135435.png",
+      "binding": {
+        "uploaded_filename": "keyframe_0_20261008_135435.png",
+        "workflow_node_id": "139"
+      }
+    },
+    {
+      "slot": 3,
+      "kind": "DIRECTOR_VISUAL_ANCHOR",
+      "source_type": "KEYFRAME_IMAGE",
+      "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261008_135519.png",
+      "source_keyframe_index": 3,
+      "source_role": "INTERMEDIATE",
+      "source_time_seconds": 13.0,
+      "source_image_task_id": "917c7d2b-a392-415d-b625-af6b6b1b920a",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_1_20261008_135519.png",
+      "binding": {
+        "uploaded_filename": "keyframe_1_20261008_135519.png",
+        "workflow_node_id": "172"
+      }
+    },
+    {
+      "kind": "SCENE",
+      "source_name": "王宫大厅",
+      "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+      "source_type": "SCENE_ASSET",
+      "source_identity": {
+        "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "name": "王宫大厅"
+      },
+      "image_url": "/api/files/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+      "slot": 4,
+      "binding": {
+        "uploaded_filename": "王宫大厅_20261003_173128.png",
+        "workflow_node_id": "173"
+      }
+    },
+    {
+      "kind": "CHARACTER_IDENTITY",
+      "source_name": "皇帝",
+      "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+      "source_type": "CHARACTER_ASSET",
+      "source_identity": {
+        "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "name": "皇帝"
+      },
+      "image_url": "/api/files/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+      "slot": 5,
+      "binding": {
+        "uploaded_filename": "皇帝_20261008_135050.png",
+        "workflow_node_id": "175"
+      }
+    },
+    {
+      "kind": "CHARACTER_IDENTITY",
+      "source_name": "骗子1",
+      "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+      "source_type": "CHARACTER_ASSET",
+      "source_identity": {
+        "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "name": "骗子1"
+      },
+      "image_url": "/api/files/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+      "slot": 6,
+      "binding": {
+        "uploaded_filename": "骗子1_20261008_135109.png",
+        "workflow_node_id": "174"
+      }
+    },
+    {
+      "kind": "CHARACTER_IDENTITY",
+      "source_name": "骗子2",
+      "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+      "source_type": "CHARACTER_ASSET",
+      "source_identity": {
+        "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "name": "骗子2"
+      },
+      "image_url": "/api/files/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+      "slot": 7,
+      "binding": {
+        "uploaded_filename": "骗子2_20261008_135128.png",
+        "workflow_node_id": "176"
+      }
+    },
+    {
+      "kind": "CHARACTER_IDENTITY",
+      "source_name": "宫廷总管",
+      "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+      "source_type": "CHARACTER_ASSET",
+      "source_identity": {
+        "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "name": "宫廷总管"
+      },
+      "image_url": "/api/files/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+      "slot": 8,
+      "binding": {
+        "uploaded_filename": "宫廷总管_20261008_135015.png",
+        "workflow_node_id": "177"
+      }
+    },
+    {
+      "kind": "PROP",
+      "source_name": "高背宝座",
+      "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+      "source_type": "PROP_ASSET",
+      "source_identity": {
+        "asset_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+        "name": "高背宝座"
+      },
+      "image_url": "/api/files/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+      "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+      "slot": 9,
+      "binding": {
+        "uploaded_filename": "高背宝座_20261003_174455.png",
+        "workflow_node_id": "178"
+      }
+    }
+  ],
+  "skipped_references": [
+    {
+      "kind": "PROP",
+      "source_id": "2583d6fa-05f2-48ff-a54d-8c07bcf3327e",
+      "source_name": "宽边礼帽",
+      "reason": "ORDINARY_REFERENCE_BUDGET"
+    }
+  ]
+}

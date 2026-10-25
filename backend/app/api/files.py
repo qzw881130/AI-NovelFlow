@@ -61,7 +61,7 @@ async def options_file(request: Request, path: str):
 
 
 @router.get("/{path:path}")
-async def get_file(path: str, request: Request):
+async def get_file(path: str, request: Request, download_name: str | None = Query(None, max_length=240)):
     """
     获取用户故事目录下的文件
     
@@ -91,10 +91,17 @@ async def get_file(path: str, request: Request):
             content_type = "application/octet-stream"
         
         stat = requested_path.stat()
+        filename = requested_path.name
+        if download_name:
+            cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '-', download_name).strip('. -')
+            if not cleaned or Path(cleaned).suffix.lower() != requested_path.suffix.lower():
+                raise HTTPException(status_code=400, detail="Invalid download filename")
+            suffix = requested_path.suffix
+            filename = f"{Path(cleaned).stem[:180 - len(suffix)]}{suffix}"
         response = FileResponse(
             path=str(requested_path),
             media_type=content_type,
-            filename=requested_path.name,
+            filename=filename,
             stat_result=stat,
             headers={"Accept-Ranges": "bytes"},
         )

@@ -33,6 +33,7 @@ class MergeChapterVideosRequest(BaseModel):
     chapter_ids: list[str] = Field(min_length=2)
     video_variant: Literal["draft", "hd"] = "draft"
     target_megapixels: float | None = None
+    include_background_music: bool = True
 
 
 class GenerateNovelCoverRequest(BaseModel):
@@ -68,11 +69,22 @@ async def create_novel_video_merge(
     if request.video_variant == "hd" and request.target_megapixels is None:
         raise HTTPException(status_code=400, detail="合并高清章回必须选择明确的目标 MP")
     snapshots = []
+    music_tasks = db.query(Task).filter(Task.novel_id == novel_id,
+        Task.type == "chapter_background_music",
+        Task.chapter_id.in_(chapter_ids)).order_by(Task.created_at.desc(), Task.id.desc()).all() if request.include_background_music else []
+    latest_music = {}
+    for music_task in music_tasks:
+        latest_music.setdefault(music_task.chapter_id, music_task)
     for chapter in chapters:
         video_info = chapter_repo.get_final_chapter_video_info(chapter, request.video_variant, request.target_megapixels)
         video_url = (video_info or {}).get("hdChapterVideoUrl" if request.video_variant == "hd" else "chapterVideoUrl")
         if not video_url or not url_to_local_path(video_url):
             raise HTTPException(status_code=400, detail=f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
+        music_task = latest_music.get(chapter.id)
+        music_metadata = json.loads(music_task.metadata_json or "{}") if music_task else {}
+        music_url = music_task.result_url if (music_task and music_task.status == "completed"
+            and music_metadata.get("source_video_url") == chapter.final_video
+            and music_task.result_url and url_to_local_path(music_task.result_url)) else None
         snapshots.append({
             "id": chapter.id,
             "number": chapter.number,
@@ -80,6 +92,8 @@ async def create_novel_video_merge(
             "videoUrl": video_url,
             "chapterMergeTaskId": (video_info or {}).get("hdChapterVideoTaskId" if request.video_variant == "hd" else "chapterVideoTaskId"),
             "targetMegapixels": request.target_megapixels,
+            "backgroundMusicUrl": music_url,
+            "backgroundMusicTaskId": music_task.id if music_url else None,
         })
 
     task = Task(
@@ -94,6 +108,8 @@ async def create_novel_video_merge(
             "chapters": snapshots,
             "video_variant": request.video_variant,
             "target_megapixels": request.target_megapixels,
+            "include_background_music": request.include_background_music,
+            "background_music_chapter_count": sum(bool(item["backgroundMusicUrl"]) for item in snapshots),
         }, ensure_ascii=False),
     )
     db.add(task)

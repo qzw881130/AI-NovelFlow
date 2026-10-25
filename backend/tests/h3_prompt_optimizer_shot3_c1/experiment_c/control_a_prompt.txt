@@ -1,0 +1,80 @@
+CLIP DURATION: 13.10s. One uninterrupted shot.
+
+REFERENCE AUTHORITY
+Use <Picture 1>, <Picture 2>, and <Picture 3> as chronological visual-state authorities at their specified times. They control composition, camera perspective, blocking, pose, costume, and visible prop state. Match each anchor exactly when its time is reached.
+<Picture 4> defines only the appearance of 王宫大厅.
+<Picture 9> defines only the appearance of the 高背宝座.
+Character identity references define identity only and do not override the costumes, poses, blocking, backgrounds, or props visible in the timed anchors:
+- <Picture 5> ↔ <Subject 1> 皇帝
+- <Picture 8> ↔ <Subject 2> 宫廷总管
+- <Picture 6> ↔ <Subject 3> 骗子1
+- <Picture 7> ↔ <Subject 4> 骗子2
+
+SUBJECT IDENTITY LOCKS
+<Subject 1> 皇帝: approximately fifty-five-year-old human male monarch, slightly plump build, rounded waist, upright shoulders, broad oval face, cool fair skin, fine age lines, medium light blue-gray slightly downturned eyes, small brown mole beneath the left eye, high receding hairline, swept-back ear-length silver-gray wavy hair, and a precisely trimmed silver-gray short beard with a small pointed goatee.
+<Subject 2> 宫廷总管: approximately forty-eight-year-old human male, slim build, straight shoulders, narrow long face, cool fair skin, high forehead, defined cheekbones, sharp jawline, narrow dark blue-gray eyes, fingertip-sized light-brown mark at the right temple, swept-back dark-gray straight hair tied into a short low bundle, and a trimmed dark-gray goatee.
+<Subject 3> 骗子1: approximately thirty-five-year-old human male, tall slender build, elongated proportions, long narrow face, warm fair skin, slightly high cheekbones, narrow gray-green slightly upturned eyes, small brown mole beside the right nostril, swept-back short dark-brown wavy hair, and a neatly trimmed dark-brown mustache with a clean-shaven chin.
+<Subject 4> 骗子2: approximately thirty-two-year-old human male, shorter slightly stocky but agile build, rounded-square face, warm light-tan skin, naturally flushed cheeks, medium amber-brown round almond-shaped eyes, distinct small black mole below the left corner of the mouth, dense chestnut-brown short curls parted on the left, and a clean-shaven face.
+
+Keep these four identities distinct and singular throughout. Preserve their stable faces, ages, proportions, hair, facial hair, and permanent marks. Their current costumes come only from the timed visual anchors and remain continuous. Preserve the established left-right arrangement: <Subject 3> stays on frame left, <Subject 4> stays on frame right, <Subject 1> remains seated centrally on the elevated throne, and <Subject 2> remains beside the throne steps. All Subjects remain spatially anchored; only local posture, gaze, head, mouth, and hand movement described below is permitted.
+
+CAMERA AND CHRONOLOGICAL VISUAL EXECUTION
+0.00s — KF1, <Picture 1>: Begin exactly from the complete physical state in <Picture 1>. Maintain its central palace-hall axis, ensemble composition, camera perspective, costumes, throne placement, lighting, and all four Subjects. <Subject 3> and <Subject 4> begin in their established bowed postures before the throne.
+
+0.00–4.95s — KF1 to KF2: In one continuous take, perform a smooth, slow forward dolly along the same central axis while preserving the anchor-defined perspective. <Subject 3> on the left and <Subject 4> on the right naturally straighten from their bows into the upright postures shown in <Picture 2>. They remain in place without crossing paths. <Subject 1> remains seated centrally on the throne, appraising them. <Subject 2> remains beside the steps with hands lowered in front and a respectful, restrained posture. Give primary narrative emphasis to <Subject 3> and <Subject 4> while retaining the complete ensemble. Reach the exact composition and physical state of KF2 at 4.95s.
+
+4.95s — KF2, <Picture 2>: Match <Picture 2>: closer central-axis ensemble framing; <Subject 1> seated centrally; <Subject 2> beside the steps with hands lowered; <Subject 3> upright at left in the established wide-brimmed hat and current clothing; <Subject 4> upright at right; both face <Subject 1>.
+
+4.95–13.00s — KF2 to KF3: Continue the same uninterrupted, slow forward dolly on the unchanged central axis, using only the amount of camera advance needed to connect the anchor compositions naturally. Keep the throne and all four Subjects legible in the ensemble. From 4.95–6.00s, shift narrative emphasis smoothly from <Subject 3> and <Subject 4> toward <Subject 1>. From 6.00–10.80s, emphasize <Subject 1> without isolating him in portrait framing. He remains seated and gradually lowers his gaze toward <Subject 4>'s developing hand display. <Subject 2> remains beside the steps with hands lowered and only subtle breathing. <Subject 3> remains at left and develops the subtle inward inclination shown by KF3 while keeping a composed expression.
+
+11.00–13.00s: Return narrative emphasis to <Subject 3> and <Subject 4>. While delivering D6, <Subject 4> remains at right and raises both forearms in front of his body. His hands gradually separate and rotate until both palms face upward, arriving at the exact display pose in <Picture 3>. Both hands remain visibly empty, with clear unobstructed air between and above them. <Subject 1>'s gaze settles downward toward these empty hands. Do not independently track or isolate <Subject 4>.
+
+13.00s — KF3, <Picture 3>: Match the exact final composition, posture, gaze, hand positions, costumes, and spatial relationships in <Picture 3>.
+13.00–13.10s: Hold the KF3 state without further action or story development.
+
+DIALOGUE AND LIP SYNCHRONIZATION
+The following six events are the only permitted human speech. Speak the exact Mandarin text once, at the exact assigned times. Do not translate, paraphrase, repeat, add words, or add vocal lead-ins or trailing vocalizations. During each event, only its assigned speaker produces human vocalization and speech-synchronized mouth movement. Every other Subject keeps a relaxed, non-speaking mouth. During all gaps, no Subject performs speech-like articulation. <Subject 2> remains silent for the entire clip. Natural breathing, blinking, gaze changes, and non-speech facial reactions remain allowed. Keep the active speaker visually readable within the ensemble even when narrative emphasis rests elsewhere.
+
+D1:
+speaker: <Subject 3>
+start_time: 1.0s
+end_time: 2.25s
+exact_dialogue: 尊贵的陛下。
+
+D2:
+speaker: <Subject 4>
+start_time: 2.45s
+end_time: 4.95s
+exact_dialogue: 我们终于有幸见到您了。
+
+D3:
+speaker: <Subject 1>
+start_time: 5.15s
+end_time: 8.15s
+exact_dialogue: 听说你们会织一种特别的布？
+
+D4:
+speaker: <Subject 3>
+start_time: 8.35s
+end_time: 9.35s
+exact_dialogue: 是的，陛下。
+During D4, <Subject 3> articulates clearly at frame left while remaining inside the ensemble composition; the camera does not need to abandon its established emphasis on <Subject 1>.
+
+D5:
+speaker: <Subject 1>
+start_time: 9.55s
+end_time: 10.8s
+exact_dialogue: 它有多漂亮？
+
+D6:
+speaker: <Subject 4>
+start_time: 11.0s
+end_time: 13.0s
+exact_dialogue: 它轻得像清晨的雾。
+Synchronize D6 with <Subject 4>'s gradual empty-handed display, completing both the line and the KF3 pose at 13.00s.
+
+SOUNDSCAPE
+Natural spacious palace-hall room tone with restrained interior reverberation and faint ambient air. Add only subdued, distance-appropriate Foley supported by visible movement: subtle clothing rustle as <Subject 3> and <Subject 4> straighten, quiet rustle during <Subject 4>'s arm movement, very soft shoe settling, and minimal throne or floor contact creaks during visible weight adjustments. No music, crowd noise, extra voices, or unsupported sound sources.
+
+OUTPUT CONTINUITY
+Maintain coherent anatomy, grounded contact, stable costume colors, throne continuity, and the palace environment throughout. Keep metadata and role labels invisible. No subtitles, captions, titles, speech bubbles, logos, watermarks, interface elements, or other on-screen text.

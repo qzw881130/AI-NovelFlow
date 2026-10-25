@@ -137,6 +137,11 @@ export default {
     },
     // ComfyUI Workflow
     workflow: {
+      backgroundMusic: 'Background Music',
+      musicStyleNode: 'Music Style Node',
+      musicLyricsNode: 'Lyrics Node',
+      musicDurationNode: 'Music Duration Node (decimal seconds)',
+      musicConditioningNode: 'Music Prompt Encoding Node',
       title: 'ComfyUI Workflows',
       subtitle: 'Manage AI generation workflows, support system presets and custom uploads',
       character: 'Character Generation',
@@ -302,10 +307,15 @@ export default {
       videoDirector: 'Video Director',
       keyframeImage: 'Keyframe Image',
       videoGeneration: 'Video Generation',
+      backgroundMusic: 'Background Music',
     },
 
     // Prompt template types
     types: {
+      backgroundMusicDirector: 'Background Music Direction',
+      backgroundMusicDirectorDesc: 'Choose sparse music cues from story, dialogue and ambient sound, including silence',
+      backgroundMusicGeneration: 'Instrumental Generation Constraints',
+      backgroundMusicGenerationDesc: 'Prepare ACE-Step tags and the instrumental marker',
       sceneSetting: 'Scene Setting Description',
       sceneSettingDesc: 'Use an LLM to expand the written environment setting; does not generate images',
       propAppearance: 'Prop Appearance Description',
@@ -377,6 +387,9 @@ export default {
     effectiveImageReviewNotice: 'System and custom templates are managed here. New reviews use the active version.',
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
+      '背景音乐导演规划 V1': 'Background Music Director Plan V1',
+      'ACE-Step 纯器乐标签 V1': 'ACE-Step Instrumental Tags V1',
+      'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 Instrumental Tags V1',
       'AI 图片质量评审': 'AI Image Quality Review',
       '场景设定描述': 'Scene Setting Description',
       '道具外观描述': 'Prop Appearance Description',
@@ -407,6 +420,9 @@ export default {
       '标准角色解析': 'Standard Character Parse',
     },
     templateDescriptions: {
+      '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': 'Plan only necessary music cues from novel text, shots, dialogue and ambient sound; silence is valid',
+      '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'Convert the director style to ACE-Step 1.0 tags with [inst]; duration is controlled by the workflow node',
+      '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'Convert the director style and melody to ACE-Step1.5 tags with [inst]; duration is controlled by the workflow node',
       '场景设定描述': 'Use an LLM to expand the written environment setting; does not generate images',
       '道具外观描述': 'Use an LLM to expand the written prop appearance; does not generate images',
       '故事世界上下文推荐': 'Recommend consistent era, geography, culture, and material-world boundaries from the novel title and description',

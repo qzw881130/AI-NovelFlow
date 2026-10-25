@@ -12,10 +12,11 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   asset_parse: ['parse_characters', 'parse_scenes', 'parse_props'],
   asset_generation: ['generate_character_appearance', 'generate_scene_setting', 'generate_prop_appearance'],
   shot_planning: ['split_chapter'],
-  shot_image: ['shot_image_prompt'],
+  shot_image: ['shot_image_prompt', 'shot_image_repair_plan'],
   video_director: ['keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
   video_generation: ['expand_video_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt', 'first_appearance_nameplate'],
+  background_music: ['background_music_director', 'background_music_generation'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -28,6 +29,7 @@ const TASK_CATEGORY_OPTIONS = [
   { value: 'video_director', labelKey: 'promptConfig.categories.videoDirector' },
   { value: 'keyframe_image', labelKey: 'promptConfig.categories.keyframeImage' },
   { value: 'video_generation', labelKey: 'promptConfig.categories.videoGeneration' },
+  { value: 'background_music', labelKey: 'promptConfig.categories.backgroundMusic' },
 ];
 
 export function useLLMLogsState() {
@@ -191,7 +193,7 @@ export function useLLMLogsState() {
       parse_characters: 'assetParse', parse_scenes: 'assetParse', parse_props: 'assetParse',
       style: 'styleDesign', generate_character_appearance: 'assetGeneration',
       generate_scene_setting: 'assetGeneration', generate_prop_appearance: 'assetGeneration',
-      shot_image_prompt: 'shotImage', split_chapter: 'shotPlanning',
+      shot_image_prompt: 'shotImage', shot_image_repair_plan: 'shotImage', split_chapter: 'shotPlanning',
       keyframe_description: 'videoDirector',
       keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
       keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage', image_quality_review_prompt: 'keyframeImage',
@@ -200,6 +202,7 @@ export function useLLMLogsState() {
       h3_multi_keyframe_director_phase_b: 'videoGeneration',
       h3_preflight_repair_prompt: 'videoGeneration',
       first_appearance_nameplate: 'videoGeneration',
+      background_music_director: 'backgroundMusic', background_music_generation: 'backgroundMusic',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -217,6 +220,9 @@ export function useLLMLogsState() {
       clip_execution_planner: t('llmLogs.clipExecutionPlanner'),
       expand_video_prompt: t('llmLogs.expandVideoPrompt'),
       shot_image_prompt: t('promptConfig.types.shotImagePrompt'),
+      shot_image_repair_plan: t('llmLogs.shotImageRepairPlan'),
+      background_music_director: t('promptConfig.types.backgroundMusicDirector'),
+      background_music_generation: t('promptConfig.types.backgroundMusicGeneration'),
       keyframe_description: t('promptConfig.types.keyframeDescription'),
       keyframe_planner: t('promptConfig.types.keyframePlanner'),
       keyframe_transition: t('promptConfig.types.keyframeTransition'),

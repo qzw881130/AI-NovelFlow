@@ -30,6 +30,7 @@ WORKFLOW_TYPES = {
     "prop": "道具生成",
     "voice_design": "音色设计",
     "audio": "音频生成",
+    "background_music": "背景音乐",
     "keyframe_image": "关键帧生图",
     "single_image_edit": "单图编辑",
     "multi_image_edit": "多图编辑",
@@ -80,6 +81,7 @@ DEFAULT_WORKFLOWS = {
     "video": "video_minimax_h3_ref2va_fast.json",
     "voice_design": "Qwen3-TTS-Voice-Design.json",  # 实际是音色设计工作流
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
+    "background_music": "ace_step_background_music_v1.json",
     "keyframe_image": "qwen_image_2_1_turbo_keyframe_image_v20261018.json",
     "single_image_edit": "qwen_image_2_1_turbo_single_image_edit_v20261018.json",
     "multi_image_edit": "qwen_image_2_1_multi_image_edit_v20260926.json",
@@ -112,6 +114,13 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "emotion_prompt_node_id": "33",
         # 保存音频节点 (PreviewAudio，此工作流无 SaveAudio)
         "save_audio_node_id": "30",
+    },
+    "background_music": {
+        "music_style_node_id": "14",
+        "music_lyrics_node_id": "15",
+        "music_duration_node_id": "98",
+        "music_conditioning_node_id": "94",
+        "save_audio_node_id": "13",
     },
     "video": {
         # 提示词节点
@@ -301,6 +310,15 @@ EXTRA_SYSTEM_WORKFLOWS = [
         ("single_image_edit", "单图编辑", "使用单张原图", {"load_image_node_id": "470"}),
     ]
 ] + [
+    {
+        "filename": "ace_step_background_music_v1.json",
+        "type": "background_music",
+        "name": "ACE-Step1.5 纯器乐背景音乐 V1",
+        "nameKey": f"{NAME_KEY_PREFIX}.ACE-Step1.5 纯器乐背景音乐 V1",
+        "description": "ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["background_music"],
+    },
     {
         "filename": "multi_reference_video_minimax_h3_ref2va_20260928.json",
         "type": "multi_reference_video",

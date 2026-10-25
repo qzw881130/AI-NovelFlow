@@ -106,6 +106,11 @@ export default {
     },
     workflow: {
       ...enUS.systemSettings.workflow,
+      backgroundMusic: '배경 음악',
+      musicStyleNode: '음악 스타일 노드',
+      musicLyricsNode: '가사 노드',
+      musicDurationNode: '음악 길이 노드 (소수 초)',
+      musicConditioningNode: '음악 프롬프트 인코딩 노드',
       title: 'ComfyUI 워크플로우',
       subtitle: 'AI 생성 워크플로우 관리, 시스템 프리셋 및 사용자 정의 업로드 지원',
       character: '캐릭터 생성',
@@ -252,8 +257,14 @@ export default {
     explicitBinding: '명시적으로 지정',
     boundNovelCount: '총 {count}편',
 
+    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악' },
+
     // 프롬프트 템플릿 타입
     types: {
+      backgroundMusicDirector: '배경 음악 연출',
+      backgroundMusicDirectorDesc: '이야기, 대사, 환경음을 고려하여 필요한 구간만 선택하고 무음도 허용합니다',
+      backgroundMusicGeneration: '연주곡 생성 제약',
+      backgroundMusicGenerationDesc: 'ACE-Step 태그와 연주곡 표시를 준비합니다',
       sceneSetting: '장면 설정 설명',
       sceneSettingDesc: 'LLM으로 환경 설정 텍스트를 보완합니다. 이미지를 생성하지 않습니다',
       propAppearance: '소품 외형 설명',
@@ -304,6 +315,9 @@ export default {
     resetSuccess: '기본 프롬프트로 재설정',
     resetSuccessFrontend: '기본 프롬프트로 재설정 (프론트엔드만)',
     templateNames: {
+      '背景音乐导演规划 V1': '배경 음악 연출 계획 V1',
+      'ACE-Step 纯器乐标签 V1': 'ACE-Step 연주곡 태그 V1',
+      'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 연주곡 태그 V1',
       '场景设定描述': '장면 설정 설명',
       '道具外观描述': '소품 외형 설명',
       '故事世界上下文推荐': '스토리 월드 컨텍스트 추천',
@@ -333,6 +347,9 @@ export default {
       '标准角色解析': '표준 캐릭터 파싱',
     },
     templateDescriptions: {
+      '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '소설 본문, 샷, 대사, 환경음을 바탕으로 필요한 음악 구간만 계획하며 무음도 허용합니다',
+      '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '연출 스타일을 ACE-Step 1.0 태그로 변환하고 [inst]를 고정합니다. 길이는 워크플로 노드에서 제어합니다',
+      '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '연출 스타일과 선율을 ACE-Step1.5 태그로 변환하고 [inst]를 고정합니다. 길이는 워크플로 노드에서 제어합니다',
       '场景设定描述': 'LLM으로 환경 설정 텍스트를 보완합니다. 이미지를 생성하지 않습니다',
       '道具外观描述': 'LLM으로 소품 외형 텍스트를 보완합니다. 이미지를 생성하지 않습니다',
       '故事世界上下文推荐': '소설 제목과 설명을 바탕으로 시대, 지역, 문화 및 물질 세계의 일관된 경계를 추천합니다',

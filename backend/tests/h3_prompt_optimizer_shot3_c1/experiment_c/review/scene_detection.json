@@ -1,0 +1,17 @@
+{
+  "A": {
+    "exit_code": 0,
+    "threshold": 0.2,
+    "candidate_times_seconds": [],
+    "limitation": "Scene-score candidates indicate abrupt visual changes; not independent proof of a camera cut."
+  },
+  "C": {
+    "exit_code": 0,
+    "threshold": 0.2,
+    "candidate_times_seconds": [
+      6.083333,
+      10.541667
+    ],
+    "limitation": "No scene-score candidates is not proof that no camera cut exists."
+  }
+}

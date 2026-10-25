@@ -56,6 +56,7 @@ class WorkflowService:
         workflows_dir = self.get_workflows_dir()
 
         self._remove_retired_image_workflows()
+        self._retire_yue2_background_music_workflows()
         self._promote_matching_user_workflows(workflows_dir)
 
         # 1. 加载默认工作流
@@ -130,6 +131,21 @@ class WorkflowService:
         if retired:
             self.db.commit()
 
+    def _retire_yue2_background_music_workflows(self) -> None:
+        """Hide the retired preset while keeping rows referenced by historical tasks."""
+        retired = [
+            workflow for workflow in self.db.query(Workflow).filter(
+                Workflow.type == "background_music", Workflow.is_system.is_(True)
+            ).all()
+            if workflow.file_path and os.path.basename(workflow.file_path) == "yue2_background_music_v1.json"
+        ]
+        for workflow in retired:
+            workflow.is_active = False
+            if not self.db.query(Task.id).filter(Task.workflow_id == workflow.id).first():
+                self.db.delete(workflow)
+        if retired:
+            self.db.flush()
+
     def _deduplicate_system_workflows(self, workflows_dir: str) -> None:
         """Keep the current checkout's preset when another deployment seeded it."""
         registered_files = set(DEFAULT_WORKFLOWS.values()) | {
@@ -202,8 +218,17 @@ class WorkflowService:
                         self.db.commit()
                         print(f"[Workflow] Updated default workflow: {wf_type}")
 
-                    # 更新节点映射（如果配置中有且未设置）
-                    if node_mapping and not existing.node_mapping:
+                    # Older ACE-Step rows can already have the current graph
+                    # while still carrying the ACE-Step 1.0 display name.
+                    if wf_type == "background_music":
+                        existing.name = name
+                        existing.description = description
+
+                    # The ACE-Step 1.5 graph changes the duration/conditioning
+                    # node IDs, so its system mapping must be upgraded too.
+                    if wf_type == "background_music" and node_mapping and self._parse_json_field(existing.node_mapping) != node_mapping:
+                        existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
+                    elif node_mapping and not existing.node_mapping:
                         existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
                         print(f"[Workflow] Updated node mapping for default: {wf_type}")
                     elif wf_type == "TEMPORAL_EXTEND" and node_mapping:
@@ -367,7 +392,15 @@ class WorkflowService:
                 self.db.commit()
             elif not active_workflows:
                 # 没有激活的，找到该类型的第一个系统工作流设为默认
-                first_workflow = self.workflow_repo.get_first_system_by_type(wf_type)
+                if wf_type == "background_music":
+                    candidates = self.db.query(Workflow).filter(
+                        Workflow.type == wf_type, Workflow.is_system.is_(True)
+                    ).all()
+                    first_workflow = next((workflow for workflow in candidates
+                        if workflow.file_path and os.path.basename(workflow.file_path)
+                        == "ace_step_background_music_v1.json"), None)
+                else:
+                    first_workflow = self.workflow_repo.get_first_system_by_type(wf_type)
 
                 if first_workflow:
                     first_workflow.is_active = True
@@ -579,6 +612,10 @@ class WorkflowService:
         if workflow.type in RETIRED_H3_WORKFLOW_TYPES:
             return {"success": False, "status_code": 410,
                     "message": "该工作流仅供历史查看，新 H3 任务使用多参考及现有续生成工作流。"}
+        if (workflow.type == "background_music" and workflow.is_system and workflow.file_path
+                and os.path.basename(workflow.file_path) == "yue2_background_music_v1.json"):
+            return {"success": False, "status_code": 410,
+                    "message": "YuE2 系统工作流已停用，请使用 ACE-Step1.5。"}
 
         # 将该类型的所有工作流设为非激活
         self.workflow_repo.deactivate_all_by_type(workflow.type)

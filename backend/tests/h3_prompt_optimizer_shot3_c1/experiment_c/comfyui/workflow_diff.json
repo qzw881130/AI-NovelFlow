@@ -1,0 +1,29 @@
+{
+  "all_other_graph_bytes_semantically_identical": true,
+  "changes": [
+    {
+      "node": "138",
+      "field": "value",
+      "purpose": "six local speaker locks"
+    },
+    {
+      "node": "169",
+      "field": "filename_prefix",
+      "purpose": "isolated C output location"
+    }
+  ],
+  "topology_unchanged": true,
+  "models_lora_sigma_shift_unchanged": true,
+  "reference_order_binding_wiring_unchanged": true,
+  "all_other_parameters_unchanged": true,
+  "seed": 3720777255,
+  "duration": 13.1,
+  "resolution": [
+    864,
+    480
+  ],
+  "fps": 24,
+  "expected_frames": 328,
+  "sampling": "euler/simple/steps6/denoise1",
+  "endpoint": "http://192.168.50.1:8288"
+}

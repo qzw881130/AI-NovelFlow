@@ -2,6 +2,8 @@
 import asyncio
 import json
 import os
+import subprocess
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +29,27 @@ from app.utils.time_utils import format_datetime
 
 
 _merge_locks: dict[str, asyncio.Lock] = {}
+
+
+def _mix_chapter_background_music(video_path: str, music_path: str, output_path: str) -> None:
+    """Copy the chapter picture and mix its original audio with a quiet music bed."""
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=index", "-of", "csv=p=0", video_path],
+        capture_output=True, text=True, timeout=45)
+    if probe.returncode:
+        raise RuntimeError(f"无法检查章回视频音轨：{probe.stderr[-300:]}")
+    has_original_audio = bool(probe.stdout.strip())
+    music_filter = "[1:a:0]aresample=48000,aformat=channel_layouts=stereo,volume=-23dB[music]"
+    filter_graph = ("[0:a:0]aresample=48000,aformat=channel_layouts=stereo[base];"
+        + music_filter + ";[base][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+        "alimiter=limit=0.95:attack=5:release=50:level=0[out]") if has_original_audio else music_filter.replace("[music]", "[out]")
+    command = ["ffmpeg", "-nostdin", "-hide_banner", "-v", "error", "-xerror",
+        "-i", video_path, "-i", music_path, "-filter_complex", filter_graph,
+        "-map", "0:v:0", "-map", "[out]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart", "-y", output_path]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+    if result.returncode:
+        raise RuntimeError(f"章回背景音乐混音失败：{result.stderr[-500:]}")
 
 
 def resume_active_novel_video_merges() -> int:
@@ -68,6 +91,8 @@ def format_novel_video_merge(task: Task) -> dict:
         "chapters": metadata.get("chapters") or [],
         "videoVariant": metadata.get("video_variant") or "draft",
         "targetMegapixels": metadata.get("target_megapixels"),
+        "withBackgroundMusic": bool(metadata.get("background_music_chapter_count")),
+        "backgroundMusicChapterCount": metadata.get("background_music_chapter_count") or 0,
         "createdAt": format_datetime(task.created_at),
         "completedAt": format_datetime(task.completed_at),
     }
@@ -115,6 +140,11 @@ async def run_novel_video_merge_task(task_id: str) -> None:
             if not video_path or not Path(video_path).is_file():
                 raise RuntimeError(f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
             segments.append({"kind": "chapter", "key": chapter.id, "path": video_path})
+            if metadata.get("include_background_music") and snapshot.get("backgroundMusicUrl"):
+                music_path = url_to_local_path(snapshot["backgroundMusicUrl"])
+                if not music_path or not Path(music_path).is_file():
+                    raise RuntimeError(f"第 {chapter.number} 章的背景音乐文件已丢失")
+                segments[-1]["background_music_path"] = music_path
 
         if len(segments) < 2:
             raise RuntimeError("至少需要选择两个章回视频")
@@ -123,10 +153,15 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         task.current_step = f"已找到 {len(segments)} 个章回视频，正在计算缓存签名..."
         db.commit()
 
+        signature_inputs = []
+        for segment in segments:
+            signature_inputs.append({key: segment[key] for key in ("kind", "key", "path")})
+            if segment.get("background_music_path"):
+                signature_inputs.append({"kind": "background_music", "key": segment["key"], "path": segment["background_music_path"]})
         signature = await asyncio.to_thread(
             file_storage.get_video_merge_signature,
-            f"novel_chapters:{video_variant}:{target_megapixels}",
-            segments,
+            f"novel_chapters:{video_variant}:{target_megapixels}" + (":bgm-v1" if any(segment.get("background_music_path") for segment in segments) else ""),
+            signature_inputs,
         )
         output_dir = file_storage._get_story_dir(task.novel_id) / ("novel-hd-merged-videos" if video_variant == "hd" else "novel-merged-videos")
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -143,10 +178,17 @@ async def run_novel_video_merge_task(task_id: str) -> None:
                 db.commit()
                 temp_path = output_dir / f".novel-{uuid.uuid4().hex}.tmp.mp4"
                 try:
-                    result = await file_storage.merge_videos(
-                        [segment["path"] for segment in segments],
-                        str(temp_path),
-                    )
+                    with tempfile.TemporaryDirectory(prefix="novelflow_bgm_merge_") as temporary_dir:
+                        video_paths = []
+                        for index, segment in enumerate(segments):
+                            if segment.get("background_music_path"):
+                                mixed = str(Path(temporary_dir) / f"chapter-{index:03d}.mp4")
+                                await asyncio.to_thread(_mix_chapter_background_music,
+                                    segment["path"], segment["background_music_path"], mixed)
+                                video_paths.append(mixed)
+                            else:
+                                video_paths.append(segment["path"])
+                        result = await file_storage.merge_videos(video_paths, str(temp_path))
                     if not result.get("success"):
                         raise RuntimeError(result.get("message") or "章回视频合并失败")
                     os.replace(temp_path, output_path)
@@ -167,6 +209,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
             "video_url": video_url,
             "file_size": output_path.stat().st_size,
             "duration": chapter_repo._probe_video_duration(str(output_path)),
+            "background_music_chapter_count": sum(bool(segment.get("background_music_path")) for segment in segments),
         })
         task.status = "completed"
         task.progress = 100

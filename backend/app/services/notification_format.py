@@ -23,6 +23,8 @@ LABELS = {
     "shot.assembly.completed": "视频合并完成", "shot.assembly.failed": "视频合并失败",
     "shot.generation.completed": "视频生成完成", "shot.generation.failed": "视频生成失败",
     "batch.generation.completed": "批量生成完成", "batch.generation.failed": "批量生成失败",
+    "background_music.generation.completed": "背景音乐生成完成", "background_music.generation.failed": "背景音乐生成失败",
+    "novel.video.merge.completed": "小说视频合并完成", "novel.video.merge.failed": "小说视频合并失败",
     "task.review.required": "需要人工审核", "comfyui.connection.failed": "连接失败",
     "image.review.passed": "图片评审通过", "image.review.warning": "图片评审提醒", "image.review.failed": "图片评审未通过",
     "image.review.error": "图片评审异常",
@@ -313,6 +315,8 @@ def format_notification(row, context=None):
         target = "示例小说"
     elif code.startswith("batch."):
         target = ""
+    elif code.startswith(("background_music.", "novel.video.merge")):
+        target = ""
     elif shot:
         target = f"Shot {shot}" + (f" · C{clip}" if clip and code.startswith(("clip.", "preflight.")) else "")
     elif clip:
@@ -388,6 +392,16 @@ def format_notification(row, context=None):
         count = _nonnegative_count(details.get("chapter_count"))
         if count is not None:
             facts.append(f"章节数量：{count}")
+    if code.startswith("background_music.generation"):
+        count = _nonnegative_count(details.get("music_cue_count"))
+        if details.get("no_music_required"):
+            facts.append("配乐规划：本章无需背景音乐")
+        elif count is not None:
+            facts.append(f"配乐段数：{count}")
+    if code.startswith("novel.video.merge"):
+        count = _nonnegative_count(details.get("music_chapter_count"))
+        if count is not None:
+            facts.append(f"配有背景音乐的章回：{count}")
     if code.startswith("image.review"):
         image_type = context.get("image_task_type") or details.get("task_type")
         entity_kind = context.get("image_entity_kind")

@@ -34,7 +34,8 @@ DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "r
                "planned_duration", "optimized_duration", "actual_duration",
                "duration_delta", "actual_duration_delta", "video_duration",
                "elapsed_time", "success_count", "failure_count", "cancelled_count", "total_count",
-               "novel_name", "chapter_number"}
+               "novel_name", "chapter_number", "music_cue_count", "music_chapter_count",
+               "no_music_required"}
 DISPLAY_KEYS = {"shot_index", "clip_index", "visual_state_index", "duration_ms",
                 "actual_duration", "video_duration", "elapsed_time", "clip_count",
                 "chapter_count", "success_count", "failure_count", "cancelled_count", "total_count",
@@ -194,9 +195,20 @@ def task_events(task):
             code = f"shot.generation.{suffix}"
     elif task.type in {"shot_image_batch", "shot_video_batch"}:
         code = f"batch.generation.{suffix}"
+    elif task.type == "chapter_background_music":
+        code = f"background_music.generation.{suffix}"
+    elif task.type == "novel_video":
+        code = f"novel.video.merge.{suffix}"
     if not code:
         return []
     payload = task_context(task)
+    if task.type == "chapter_background_music":
+        payload["details"].update(
+            music_cue_count=len(meta.get("cues") or []),
+            no_music_required=not bool(meta.get("cues")) and suffix == "completed",
+        )
+    elif task.type == "novel_video":
+        payload["details"]["music_chapter_count"] = meta.get("background_music_chapter_count") or 0
     payload.update(source="task.result", raw_status=task.status,
                    message=text_summary(task.error_message) if suffix == "failed" and task.error_message
                    else EVENT_REGISTRY[code].description)

@@ -1,0 +1,9 @@
+{
+  "observed_top_level_response": "first-attempt 401 body; successful attempt_002 raw response intact",
+  "action": "copy the authentic successful attempt_002 raw bytes to current top-level response alias; preserve pre-sync bytes in logs",
+  "source": "optimizer/attempts/attempt_002/optimizer_raw_response.txt",
+  "before_sha256": "5a897c59cfc7a0eb4e568778c36a946a0f31b4a4d3cae82459422271dc9f50c6",
+  "after_sha256": "8fb550c74f47b136759a38e4d46571cf99672f19013b2f902e4914e8fbc955d1",
+  "matches_parsed_optimizer_result": true,
+  "optimized_prompt_modified": false
+}

@@ -8,6 +8,8 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
+  background_music_director: { nameKey: 'promptConfig.types.backgroundMusicDirector', descKey: 'promptConfig.types.backgroundMusicDirectorDesc', defaultTemplate: '' },
+  background_music_generation: { nameKey: 'promptConfig.types.backgroundMusicGeneration', descKey: 'promptConfig.types.backgroundMusicGenerationDesc', defaultTemplate: '' },
   scene_setting: { nameKey: 'promptConfig.types.sceneSetting', descKey: 'promptConfig.types.sceneSettingDesc', defaultTemplate: '' },
   prop_appearance: { nameKey: 'promptConfig.types.propAppearance', descKey: 'promptConfig.types.propAppearanceDesc', defaultTemplate: '' },
   story_world_context_recommender: { nameKey: 'promptConfig.types.storyWorldContextRecommender', descKey: 'promptConfig.types.storyWorldContextRecommenderDesc', defaultTemplate: '', fileNumber: '01' },
@@ -57,6 +59,8 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'h3_multi_keyframe_director_phase_b',
   'h3_execution_optimizer_prompt',
   'h3_preflight_repair_prompt',
+  'background_music_director',
+  'background_music_generation',
 ];
 
 export function usePromptConfigState() {
@@ -88,6 +92,8 @@ export function usePromptConfigState() {
     h3_multi_keyframe_director_phase_b: [],
     h3_execution_optimizer_prompt: [],
     h3_preflight_repair_prompt: [],
+    background_music_director: [],
+    background_music_generation: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
     scene_setting: true,
@@ -113,6 +119,8 @@ export function usePromptConfigState() {
     h3_multi_keyframe_director_phase_b: true,
     h3_execution_optimizer_prompt: true,
     h3_preflight_repair_prompt: true,
+    background_music_director: true,
+    background_music_generation: true,
   });
 
   // 弹窗状态

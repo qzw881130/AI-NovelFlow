@@ -1,0 +1,17 @@
+{
+  "status": "SUBMITTING",
+  "success": false,
+  "submission_attempts": 1,
+  "endpoint": "http://192.168.50.1:8288",
+  "source_a_prompt_id": "07cc1450-200f-456a-b66c-7ec56f98abd3",
+  "seed": 3720777255,
+  "requested_duration": 13.1,
+  "resolution": [
+    864,
+    480
+  ],
+  "fps": 24,
+  "expected_frames": 328,
+  "llm_calls": 0,
+  "submitted_at_utc": "2026-10-09T10:21:16.410171+00:00"
+}

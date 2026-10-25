@@ -1,0 +1,37 @@
+{
+  "novel_id": "cf65a2bd-5a15-4b65-9c94-0a7746642ec7",
+  "status": "simulation_only_manual_cues",
+  "notes": "用于验证 YuE2 音频交接与章节混音；这些位置不是正式音乐导演决策。未列出的区间保持原声、无配乐。",
+  "cues": [
+    {
+      "id": "yao_c1_predawn",
+      "chapter_number": 1,
+      "start_shot": 1,
+      "end_shot": 2,
+      "reason": "用空街和茶馆建立黎明前的不安；首段人物对白开始前结束。",
+      "style": "Instrumental cinematic underscore for an empty pre-dawn Chinese town street. Sparse low bowed strings and a distant soft xiao flute, cold restrained unease, very little pulse, no percussion accents, no vocals, no spoken words, no sound effects.",
+      "gain_db": -22,
+      "fade_seconds": 1.2
+    },
+    {
+      "id": "yao_c4_winter",
+      "chapter_number": 4,
+      "start_shot": 1,
+      "end_shot": 2,
+      "reason": "仅模拟寒冬时间流逝和日常劳作的连续音乐；病床与死亡段落保留原声。",
+      "style": "Instrumental restrained film underscore for winter passing in a small early twentieth-century Chinese town. Sparse low strings and soft sustained woodwind, slow and unsentimental, minimal rhythm, no vocals, no spoken words, no sound effects.",
+      "gain_db": -24,
+      "fade_seconds": 1.5
+    },
+    {
+      "id": "yao_c6_wreath",
+      "chapter_number": 6,
+      "start_shot": 8,
+      "end_shot": 8,
+      "reason": "只模拟花环结尾的克制希望；该镜仍有旁白，混音必须低于人声。",
+      "style": "Instrumental quiet closing film cue for a red and white wreath moving in spring wind. Fragile unresolved warmth after grief, sparse soft strings and gentle woodwind, no strong beat, no vocal melody, no singing, no spoken words, no sound effects.",
+      "gain_db": -27,
+      "fade_seconds": 1.5
+    }
+  ]
+}

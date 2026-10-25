@@ -110,6 +110,7 @@ export const getTypeNames = (t: any) => ({
   prop: t('systemSettings.workflow.prop'),
   voice_design: t('systemSettings.workflow.voiceDesign'),
   audio: t('systemSettings.workflow.audio'),
+  background_music: t('systemSettings.workflow.backgroundMusic'),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
   multi_image_edit: t('systemSettings.workflow.multiImageEdit'),
@@ -316,6 +317,13 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         audioMapping.emotion_prompt_node_id !== 'auto' &&
         audioMapping.save_audio_node_id &&
         audioMapping.save_audio_node_id !== 'auto'
+      );
+    case 'background_music':
+      return !!(
+        mapping.music_style_node_id && mapping.music_style_node_id !== 'auto' &&
+        mapping.music_lyrics_node_id && mapping.music_lyrics_node_id !== 'auto' &&
+        mapping.music_duration_node_id && mapping.music_duration_node_id !== 'auto' &&
+        mapping.save_audio_node_id && mapping.save_audio_node_id !== 'auto'
       );
     case 'keyframe_image':
       const keyframeMapping = mapping as any;

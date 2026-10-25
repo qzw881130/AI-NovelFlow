@@ -1,0 +1,34 @@
+{
+  "zero_based_native_frames": true,
+  "fps": 24,
+  "cuts": [
+    {
+      "before_frame": 145,
+      "after_frame": 146,
+      "before_pts": 6.041666666666667,
+      "after_pts": 6.083333333333333,
+      "frames": {
+        "A_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/001.jpg",
+        "C_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/001.jpg",
+        "A_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/002.jpg",
+        "C_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/002.jpg"
+      },
+      "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_145_146_A_C.jpg",
+      "candidate_only_until_visual_review": true
+    },
+    {
+      "before_frame": 252,
+      "after_frame": 253,
+      "before_pts": 10.5,
+      "after_pts": 10.541666666666666,
+      "frames": {
+        "A_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/003.jpg",
+        "C_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/003.jpg",
+        "A_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/004.jpg",
+        "C_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/004.jpg"
+      },
+      "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_252_253_A_C.jpg",
+      "candidate_only_until_visual_review": true
+    }
+  ]
+}

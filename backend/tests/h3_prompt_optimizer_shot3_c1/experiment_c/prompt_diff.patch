@@ -1,0 +1,104 @@
+--- Experiment A
++++ Experiment C
+@@ -41,11 +41,33 @@
+ end_time: 2.25s
+ exact_dialogue: 尊贵的陛下。
+ 
++During D1, ONLY <Subject 3> may speak this dialogue.
++ONLY <Subject 3> may produce human vocalization.
++ONLY <Subject 3> may perform speech-synchronized mouth and lip movement.
++
++<Subject 1>, <Subject 2>, and <Subject 4> remain non-vocal during D1
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D1 belong exclusively
++to <Subject 3>.
++
++
+ D2:
+ speaker: <Subject 4>
+ start_time: 2.45s
+ end_time: 4.95s
+ exact_dialogue: 我们终于有幸见到您了。
++
++During D2, ONLY <Subject 4> may speak this dialogue.
++ONLY <Subject 4> may produce human vocalization.
++ONLY <Subject 4> may perform speech-synchronized mouth and lip movement.
++
++<Subject 1>, <Subject 2>, and <Subject 3> remain non-vocal during D2
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D2 belong exclusively
++to <Subject 4>.
++
+ 
+ D3:
+ speaker: <Subject 1>
+@@ -53,11 +75,33 @@
+ end_time: 8.15s
+ exact_dialogue: 听说你们会织一种特别的布？
+ 
++During D3, ONLY <Subject 1> may speak this dialogue.
++ONLY <Subject 1> may produce human vocalization.
++ONLY <Subject 1> may perform speech-synchronized mouth and lip movement.
++
++<Subject 2>, <Subject 3>, and <Subject 4> remain non-vocal during D3
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D3 belong exclusively
++to <Subject 1>.
++
++
+ D4:
+ speaker: <Subject 3>
+ start_time: 8.35s
+ end_time: 9.35s
+ exact_dialogue: 是的，陛下。
++
++During D4, ONLY <Subject 3> may speak this dialogue.
++ONLY <Subject 3> may produce human vocalization.
++ONLY <Subject 3> may perform speech-synchronized mouth and lip movement.
++
++<Subject 1>, <Subject 2>, and <Subject 4> remain non-vocal during D4
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D4 belong exclusively
++to <Subject 3>.
++
+ During D4, <Subject 3> articulates clearly at frame left while remaining inside the ensemble composition; the camera does not need to abandon its established emphasis on <Subject 1>.
+ 
+ D5:
+@@ -66,11 +110,33 @@
+ end_time: 10.8s
+ exact_dialogue: 它有多漂亮？
+ 
++During D5, ONLY <Subject 1> may speak this dialogue.
++ONLY <Subject 1> may produce human vocalization.
++ONLY <Subject 1> may perform speech-synchronized mouth and lip movement.
++
++<Subject 2>, <Subject 3>, and <Subject 4> remain non-vocal during D5
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D5 belong exclusively
++to <Subject 1>.
++
++
+ D6:
+ speaker: <Subject 4>
+ start_time: 11.0s
+ end_time: 13.0s
+ exact_dialogue: 它轻得像清晨的雾。
++
++During D6, ONLY <Subject 4> may speak this dialogue.
++ONLY <Subject 4> may produce human vocalization.
++ONLY <Subject 4> may perform speech-synchronized mouth and lip movement.
++
++<Subject 1>, <Subject 2>, and <Subject 3> remain non-vocal during D6
++and must not perform speech-like mouth or lip articulation.
++
++The voice, dialogue, and lip synchronization of D6 belong exclusively
++to <Subject 4>.
++
+ Synchronize D6 with <Subject 4>'s gradual empty-handed display, completing both the line and the KF3 pose at 13.00s.
+ 
+ SOUNDSCAPE

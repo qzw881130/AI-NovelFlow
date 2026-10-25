@@ -1,0 +1,123 @@
+{
+  "status": "PASS",
+  "checks": {
+    "dialogue_event_count_unchanged": true,
+    "dialogue_speaker_unchanged": true,
+    "exact_dialogue_unchanged": true,
+    "dialogue_timing_unchanged": true,
+    "dialogue_order_unchanged": true,
+    "subject_set_unchanged": true,
+    "picture_set_unchanged": true,
+    "picture_binding_unchanged": true,
+    "kf1_kf2_kf3_timing_unchanged": true,
+    "temporal_anchor_order_unchanged": true,
+    "duration_unchanged": true,
+    "reference_authority_unchanged": true,
+    "identity_lock_unchanged": true,
+    "camera_instructions_unchanged": true,
+    "chronological_visual_execution_unchanged": true,
+    "action_timing_unchanged": true,
+    "soundscape_unchanged": true,
+    "unrelated_negative_constraints_unchanged": true,
+    "global_dialogue_rules_preserved": true,
+    "only_six_local_speaker_reinforcement_insertions": true,
+    "subject_2_has_no_dialogue": true
+  },
+  "sections_unchanged": {
+    "REFERENCE AUTHORITY": true,
+    "SUBJECT IDENTITY LOCKS": true,
+    "CAMERA AND CHRONOLOGICAL VISUAL EXECUTION": true,
+    "SOUNDSCAPE": true,
+    "OUTPUT CONTINUITY": true
+  },
+  "canonical_events": [
+    {
+      "id": "D1",
+      "subject": "<Subject 3>",
+      "start": 1.0,
+      "end": 2.25,
+      "text": "尊贵的陛下。"
+    },
+    {
+      "id": "D2",
+      "subject": "<Subject 4>",
+      "start": 2.45,
+      "end": 4.95,
+      "text": "我们终于有幸见到您了。"
+    },
+    {
+      "id": "D3",
+      "subject": "<Subject 1>",
+      "start": 5.15,
+      "end": 8.15,
+      "text": "听说你们会织一种特别的布？"
+    },
+    {
+      "id": "D4",
+      "subject": "<Subject 3>",
+      "start": 8.35,
+      "end": 9.35,
+      "text": "是的，陛下。"
+    },
+    {
+      "id": "D5",
+      "subject": "<Subject 1>",
+      "start": 9.55,
+      "end": 10.8,
+      "text": "它有多漂亮？"
+    },
+    {
+      "id": "D6",
+      "subject": "<Subject 4>",
+      "start": 11.0,
+      "end": 13.0,
+      "text": "它轻得像清晨的雾。"
+    }
+  ],
+  "c_events": [
+    {
+      "id": "D1",
+      "subject": "<Subject 3>",
+      "start": 1.0,
+      "end": 2.25,
+      "text": "尊贵的陛下。"
+    },
+    {
+      "id": "D2",
+      "subject": "<Subject 4>",
+      "start": 2.45,
+      "end": 4.95,
+      "text": "我们终于有幸见到您了。"
+    },
+    {
+      "id": "D3",
+      "subject": "<Subject 1>",
+      "start": 5.15,
+      "end": 8.15,
+      "text": "听说你们会织一种特别的布？"
+    },
+    {
+      "id": "D4",
+      "subject": "<Subject 3>",
+      "start": 8.35,
+      "end": 9.35,
+      "text": "是的，陛下。"
+    },
+    {
+      "id": "D5",
+      "subject": "<Subject 1>",
+      "start": 9.55,
+      "end": 10.8,
+      "text": "它有多漂亮？"
+    },
+    {
+      "id": "D6",
+      "subject": "<Subject 4>",
+      "start": 11.0,
+      "end": 13.0,
+      "text": "它轻得像清晨的雾。"
+    }
+  ],
+  "proof": "C is constructed by six event-local insertions into the exact submitted A bytes; removing precisely those six inserts restores all A bytes.",
+  "all_checks_pass": true
+}

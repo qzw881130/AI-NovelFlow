@@ -1,0 +1,22 @@
+{
+  "provider": "custom",
+  "model": "gpt-5.6-sol",
+  "endpoint": "http://127.0.0.1:8088/v1/chat/completions",
+  "reasoning_thinking": "not explicitly set; provider/gateway default (not observable before response)",
+  "image_count": 9,
+  "retries": 0,
+  "attempts": [
+    {
+      "attempt": 1,
+      "http_status": 401,
+      "duration_seconds": 0.10027749999426305
+    }
+  ],
+  "started_at_utc": "2026-10-09T09:11:05.034226+00:00",
+  "request_duration_seconds": 0.10045529110357165,
+  "success": false,
+  "error": {
+    "type": "HTTPStatusError",
+    "message": "Client error '401 Unauthorized' for url 'http://127.0.0.1:8088/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "method": "ffprobe、两组完整音视频解码、同时间关键帧与Dialogue中点抽查、D4/D5/D6交接和尾部多帧检查、全片scene score检测（threshold0.2），并按原生frame index检查候选切镜的相邻帧；直接检查真实MP4衍生帧。",
+  "conclusion": "Optimizer result is inconclusive",
+  "conclusion_reason": "A在连续镜头及KF2手态上有局部改善，但用户实际播放复核确认皇帝台词被骗子2说出，A的speaker ownership已经FAIL。文本Authority仍PASS，因为D3/D5和Picture binding均未改错。终帧尺度仍偏离，且Baseline同条台词的可靠音频对照尚未完成，因此不能把局部视觉改善当作总体受益，也不足以将这一次speaker错误因果归到某项优化。",
+  "limitations": "用户复核确认A至少一条皇帝台词由骗子2说出，此项不再仅标为NEEDS_MANUAL_REVIEW。用户未给出确切台词或timestamp，不将截图直接绑定为D3/D5。其余台词准确性、完整lip-sync、音频转录及Baseline同事件对照仍未完成。scene score无候选不能严格证明零切镜。",
+  "items": [
+    {
+      "metric": "Speaker correctness / 抢台词",
+      "baseline": "D4(8.35–9.35s)属于骗子1，但8.35/8.85s只有皇帝特写；实际画外音归属未知。",
+      "optimized": "用户播放复核：至少一条皇帝台词被骗子2/Subject4说出；确切event和timestamp未提供。D3/D5实际提交文本仍绑定皇帝/Subject1。",
+      "assessment": "FAIL（用户实际视频复核）；具体因果未确定"
+    },
+    {
+      "metric": "Lip-sync ownership / non-speaker mouth",
+      "baseline": "D5(9.55–10.8s)应由皇帝说，但右侧骗子2在9.55/9.85/10.175/10.5s嘴形变化。",
+      "optimized": "D5检查帧中左侧骗子1在10.175/10.5s张口，10.8s闭合，仍有非speaker articulation可疑迹象。",
+      "assessment": "两组均有可疑迹象；NEEDS_MANUAL_REVIEW，未证明改进"
+    },
+    {
+      "metric": "Exact dialogue / extra voices / Soundscape",
+      "baseline": "音轨存在、完整解码成功；没有可靠听辨或转录。",
+      "optimized": "音轨存在、完整解码成功；没有可靠听辨或转录。",
+      "assessment": "NEEDS_MANUAL_REVIEW"
+    },
+    {
+      "metric": "Identity / 人物交换 / 重复人物",
+      "baseline": "群像抽查4个Subject可辨识，未见明显身份交换或重复身体。",
+      "optimized": "抽查同样4个Subject，左骗子1/右骗子2/中皇帝/阶旁总管可辨识，无明显交换或复制。",
+      "assessment": "抽查近似；全片identity细节NEEDS_MANUAL_REVIEW"
+    },
+    {
+      "metric": "Costume continuity",
+      "baseline": "抽查保持皇帝蓝衣红披风、总管深色长衣、骗子1绿衣黑帽、骗子2红衣棕帽。",
+      "optimized": "抽查相同服装系统，未见明显恢复/混合。",
+      "assessment": "抽查近似；连续异常NEEDS_MANUAL_REVIEW"
+    },
+    {
+      "metric": "Blocking / spatial continuity",
+      "baseline": "群像中基本左右关系保留，但两次切镜破坏群像空间阅读。",
+      "optimized": "检查帧保持四人关系，前景持续放大；早段腿/脚位置变化，camera与body位移贡献不能从稀疏帧可靠分离。",
+      "assessment": "群像可读性改善；严格floor-position continuity NEEDS_MANUAL_REVIEW"
+    },
+    {
+      "metric": "KF / Temporal transition / action",
+      "baseline": "4.95s右侧骗子双手已经抬起，偏离KF2的手臂放下状态；13s有空手展示，但前景过近。",
+      "optimized": "4.95s右侧骗子双手放下更贴近KF2；11.5s仍未明显展示，12/13s出现空手展示；13s仍较Picture3明显放大。",
+      "assessment": "KF2手态与动作时段局部改善；KF3构图偏离仍存在"
+    },
+    {
+      "metric": "Camera / continuous shot",
+      "baseline": "原生帧164→165(6.833333→6.875s)从群像硬切皇帝特写；224→225(9.333333→9.375s)硬切两骗子前景。",
+      "optimized": "同原生帧对变化连续，保留群像；全片scene score>0.2候选为0，Baseline为2；仍明显推进过近，终帧不匹配Picture3尺度。",
+      "assessment": "连续镜头执行有可验证改善；不证明完全匹配Director"
+    },
+    {
+      "metric": "Unexpected object / prop state",
+      "baseline": "检查展示帧中手间可见空隙，未见实体布料或新增道具。",
+      "optimized": "12/13/13.4s手间空隙清楚，未见实体布料或新增道具。",
+      "assessment": "抽查近似；不能证明全片零瞬态对象"
+    },
+    {
+      "metric": "Overall canonical execution",
+      "baseline": "可验证切镜偏离、KF2手态提前、终帧尺度偏离，语音归属待核验。",
+      "optimized": "连续镜头和KF2手态局部改善，但核心speaker ownership已由用户复核确认失败；终帧尺度仍偏离。",
+      "assessment": "A未满足说话人正确性；Optimizer总体作用仍INCONCLUSIVE"
+    }
+  ],
+  "scene_detection": "review/scene_detection.json",
+  "native_boundary_frames": "review/boundary_frame_manifest.json",
+  "key_visual_comparison": "review/key_comparison.jpg",
+  "silent_video_comparison": "review/comparison_silent.mp4",
+  "audio_transcription_performed": false,
+  "manual_optimized_prompt_edit": false,
+  "manual_speaker_review": "review/user_speaker_review.json"
+}

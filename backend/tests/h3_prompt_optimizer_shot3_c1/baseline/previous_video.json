@@ -1,0 +1,9 @@
+{
+  "previous_video_available": false,
+  "previous_frames": [],
+  "evidence": {
+    "capability": "GENERATE",
+    "previous_approved_video_url": null,
+    "previous_clip": null
+  }
+}

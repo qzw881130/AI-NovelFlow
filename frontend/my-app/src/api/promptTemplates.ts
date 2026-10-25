@@ -28,7 +28,9 @@ export type TemplateType =
   | 'h3_multi_keyframe_prompt'
   | 'h3_multi_keyframe_director_phase_b'
   | 'h3_execution_optimizer_prompt'
-  | 'h3_preflight_repair_prompt';
+  | 'h3_preflight_repair_prompt'
+  | 'background_music_director'
+  | 'background_music_generation';
 
 export interface BoundNovel {
   novel_id: string;

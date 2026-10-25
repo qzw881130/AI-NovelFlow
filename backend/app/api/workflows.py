@@ -238,6 +238,13 @@ async def list_workflows(
     else:
         workflows = workflow_repo.list_all()
 
+    # Keep legacy records for historical task details, but do not offer the
+    # retired YuE2 system preset for new background-music tasks.
+    workflows = [w for w in workflows if not (
+        w.type == "background_music" and w.is_system and w.file_path
+        and os.path.basename(w.file_path) == "yue2_background_music_v1.json"
+    )]
+
     if for_generation:
         workflows = [w for w in workflows if w.type not in RETIRED_H3_WORKFLOW_TYPES]
     return {

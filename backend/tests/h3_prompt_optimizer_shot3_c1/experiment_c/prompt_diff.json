@@ -1,0 +1,103 @@
+{
+  "source": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/optimizer/optimized_h3_prompt.txt",
+  "source_a_prompt_id": "07cc1450-200f-456a-b66c-7ec56f98abd3",
+  "a_sha256": "37526637241bf37f19cd41f76046f9c0fe52c9157a31e05124596cc89f77aa80",
+  "c_sha256": "fb8a0d4234d39f9e872a690a177ea53d4a872be73e2b20ed98eda41f732f4322",
+  "a_characters": 7945,
+  "c_characters": 10309,
+  "added_characters": 2364,
+  "change_count": 6,
+  "semantic_change_types": [
+    "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT"
+  ],
+  "changes": [
+    {
+      "event": "D1",
+      "speaker": "<Subject 3>",
+      "non_speakers": [
+        "<Subject 1>",
+        "<Subject 2>",
+        "<Subject 4>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 6445,
+      "a_byte_offset": 6543,
+      "c_character_offset": 6445,
+      "inserted_text": "\nDuring D1, ONLY <Subject 3> may speak this dialogue.\nONLY <Subject 3> may produce human vocalization.\nONLY <Subject 3> may perform speech-synchronized mouth and lip movement.\n\n<Subject 1>, <Subject 2>, and <Subject 4> remain non-vocal during D1\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D1 belong exclusively\nto <Subject 3>.\n\n"
+    },
+    {
+      "event": "D2",
+      "speaker": "<Subject 4>",
+      "non_speakers": [
+        "<Subject 1>",
+        "<Subject 2>",
+        "<Subject 3>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 6533,
+      "a_byte_offset": 6653,
+      "c_character_offset": 6927,
+      "inserted_text": "\nDuring D2, ONLY <Subject 4> may speak this dialogue.\nONLY <Subject 4> may produce human vocalization.\nONLY <Subject 4> may perform speech-synchronized mouth and lip movement.\n\n<Subject 1>, <Subject 2>, and <Subject 3> remain non-vocal during D2\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D2 belong exclusively\nto <Subject 4>.\n\n"
+    },
+    {
+      "event": "D3",
+      "speaker": "<Subject 1>",
+      "non_speakers": [
+        "<Subject 2>",
+        "<Subject 3>",
+        "<Subject 4>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 6623,
+      "a_byte_offset": 6769,
+      "c_character_offset": 7411,
+      "inserted_text": "\nDuring D3, ONLY <Subject 1> may speak this dialogue.\nONLY <Subject 1> may produce human vocalization.\nONLY <Subject 1> may perform speech-synchronized mouth and lip movement.\n\n<Subject 2>, <Subject 3>, and <Subject 4> remain non-vocal during D3\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D3 belong exclusively\nto <Subject 1>.\n\n"
+    },
+    {
+      "event": "D4",
+      "speaker": "<Subject 3>",
+      "non_speakers": [
+        "<Subject 1>",
+        "<Subject 2>",
+        "<Subject 4>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 6706,
+      "a_byte_offset": 6864,
+      "c_character_offset": 7888,
+      "inserted_text": "\nDuring D4, ONLY <Subject 3> may speak this dialogue.\nONLY <Subject 3> may produce human vocalization.\nONLY <Subject 3> may perform speech-synchronized mouth and lip movement.\n\n<Subject 1>, <Subject 2>, and <Subject 4> remain non-vocal during D4\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D4 belong exclusively\nto <Subject 3>.\n\n"
+    },
+    {
+      "event": "D5",
+      "speaker": "<Subject 1>",
+      "non_speakers": [
+        "<Subject 2>",
+        "<Subject 3>",
+        "<Subject 4>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 6972,
+      "a_byte_offset": 7142,
+      "c_character_offset": 8548,
+      "inserted_text": "\nDuring D5, ONLY <Subject 1> may speak this dialogue.\nONLY <Subject 1> may produce human vocalization.\nONLY <Subject 1> may perform speech-synchronized mouth and lip movement.\n\n<Subject 2>, <Subject 3>, and <Subject 4> remain non-vocal during D5\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D5 belong exclusively\nto <Subject 1>.\n\n"
+    },
+    {
+      "event": "D6",
+      "speaker": "<Subject 4>",
+      "non_speakers": [
+        "<Subject 1>",
+        "<Subject 2>",
+        "<Subject 3>"
+      ],
+      "change_type": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+      "a_character_offset": 7058,
+      "a_byte_offset": 7246,
+      "c_character_offset": 9028,
+      "inserted_text": "\nDuring D6, ONLY <Subject 4> may speak this dialogue.\nONLY <Subject 4> may produce human vocalization.\nONLY <Subject 4> may perform speech-synchronized mouth and lip movement.\n\n<Subject 1>, <Subject 2>, and <Subject 3> remain non-vocal during D6\nand must not perform speech-like mouth or lip articulation.\n\nThe voice, dialogue, and lip synchronization of D6 belong exclusively\nto <Subject 4>.\n\n"
+    }
+  ],
+  "non_speaker_content_modified": false,
+  "only_insertions": true,
+  "removing_all_six_insertions_restores_a_byte_for_byte": true,
+  "proof": "C is constructed by six event-local insertions into the exact submitted A bytes; removing precisely those six inserts restores all A bytes."
+}

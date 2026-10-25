@@ -1,0 +1,91 @@
+{
+  "optimized_prompt": "CLIP DURATION: 13.10s. One uninterrupted shot.\n\nREFERENCE AUTHORITY\nUse <Picture 1>, <Picture 2>, and <Picture 3> as chronological visual-state authorities at their specified times. They control composition, camera perspective, blocking, pose, costume, and visible prop state. Match each anchor exactly when its time is reached.\n<Picture 4> defines only the appearance of 王宫大厅.\n<Picture 9> defines only the appearance of the 高背宝座.\nCharacter identity references define identity only and do not override the costumes, poses, blocking, backgrounds, or props visible in the timed anchors:\n- <Picture 5> ↔ <Subject 1> 皇帝\n- <Picture 8> ↔ <Subject 2> 宫廷总管\n- <Picture 6> ↔ <Subject 3> 骗子1\n- <Picture 7> ↔ <Subject 4> 骗子2\n\nSUBJECT IDENTITY LOCKS\n<Subject 1> 皇帝: approximately fifty-five-year-old human male monarch, slightly plump build, rounded waist, upright shoulders, broad oval face, cool fair skin, fine age lines, medium light blue-gray slightly downturned eyes, small brown mole beneath the left eye, high receding hairline, swept-back ear-length silver-gray wavy hair, and a precisely trimmed silver-gray short beard with a small pointed goatee.\n<Subject 2> 宫廷总管: approximately forty-eight-year-old human male, slim build, straight shoulders, narrow long face, cool fair skin, high forehead, defined cheekbones, sharp jawline, narrow dark blue-gray eyes, fingertip-sized light-brown mark at the right temple, swept-back dark-gray straight hair tied into a short low bundle, and a trimmed dark-gray goatee.\n<Subject 3> 骗子1: approximately thirty-five-year-old human male, tall slender build, elongated proportions, long narrow face, warm fair skin, slightly high cheekbones, narrow gray-green slightly upturned eyes, small brown mole beside the right nostril, swept-back short dark-brown wavy hair, and a neatly trimmed dark-brown mustache with a clean-shaven chin.\n<Subject 4> 骗子2: approximately thirty-two-year-old human male, shorter slightly stocky but agile build, rounded-square face, warm light-tan skin, naturally flushed cheeks, medium amber-brown round almond-shaped eyes, distinct small black mole below the left corner of the mouth, dense chestnut-brown short curls parted on the left, and a clean-shaven face.\n\nKeep these four identities distinct and singular throughout. Preserve their stable faces, ages, proportions, hair, facial hair, and permanent marks. Their current costumes come only from the timed visual anchors and remain continuous. Preserve the established left-right arrangement: <Subject 3> stays on frame left, <Subject 4> stays on frame right, <Subject 1> remains seated centrally on the elevated throne, and <Subject 2> remains beside the throne steps. All Subjects remain spatially anchored; only local posture, gaze, head, mouth, and hand movement described below is permitted.\n\nCAMERA AND CHRONOLOGICAL VISUAL EXECUTION\n0.00s — KF1, <Picture 1>: Begin exactly from the complete physical state in <Picture 1>. Maintain its central palace-hall axis, ensemble composition, camera perspective, costumes, throne placement, lighting, and all four Subjects. <Subject 3> and <Subject 4> begin in their established bowed postures before the throne.\n\n0.00–4.95s — KF1 to KF2: In one continuous take, perform a smooth, slow forward dolly along the same central axis while preserving the anchor-defined perspective. <Subject 3> on the left and <Subject 4> on the right naturally straighten from their bows into the upright postures shown in <Picture 2>. They remain in place without crossing paths. <Subject 1> remains seated centrally on the throne, appraising them. <Subject 2> remains beside the steps with hands lowered in front and a respectful, restrained posture. Give primary narrative emphasis to <Subject 3> and <Subject 4> while retaining the complete ensemble. Reach the exact composition and physical state of KF2 at 4.95s.\n\n4.95s — KF2, <Picture 2>: Match <Picture 2>: closer central-axis ensemble framing; <Subject 1> seated centrally; <Subject 2> beside the steps with hands lowered; <Subject 3> upright at left in the established wide-brimmed hat and current clothing; <Subject 4> upright at right; both face <Subject 1>.\n\n4.95–13.00s — KF2 to KF3: Continue the same uninterrupted, slow forward dolly on the unchanged central axis, using only the amount of camera advance needed to connect the anchor compositions naturally. Keep the throne and all four Subjects legible in the ensemble. From 4.95–6.00s, shift narrative emphasis smoothly from <Subject 3> and <Subject 4> toward <Subject 1>. From 6.00–10.80s, emphasize <Subject 1> without isolating him in portrait framing. He remains seated and gradually lowers his gaze toward <Subject 4>'s developing hand display. <Subject 2> remains beside the steps with hands lowered and only subtle breathing. <Subject 3> remains at left and develops the subtle inward inclination shown by KF3 while keeping a composed expression.\n\n11.00–13.00s: Return narrative emphasis to <Subject 3> and <Subject 4>. While delivering D6, <Subject 4> remains at right and raises both forearms in front of his body. His hands gradually separate and rotate until both palms face upward, arriving at the exact display pose in <Picture 3>. Both hands remain visibly empty, with clear unobstructed air between and above them. <Subject 1>'s gaze settles downward toward these empty hands. Do not independently track or isolate <Subject 4>.\n\n13.00s — KF3, <Picture 3>: Match the exact final composition, posture, gaze, hand positions, costumes, and spatial relationships in <Picture 3>.\n13.00–13.10s: Hold the KF3 state without further action or story development.\n\nDIALOGUE AND LIP SYNCHRONIZATION\nThe following six events are the only permitted human speech. Speak the exact Mandarin text once, at the exact assigned times. Do not translate, paraphrase, repeat, add words, or add vocal lead-ins or trailing vocalizations. During each event, only its assigned speaker produces human vocalization and speech-synchronized mouth movement. Every other Subject keeps a relaxed, non-speaking mouth. During all gaps, no Subject performs speech-like articulation. <Subject 2> remains silent for the entire clip. Natural breathing, blinking, gaze changes, and non-speech facial reactions remain allowed. Keep the active speaker visually readable within the ensemble even when narrative emphasis rests elsewhere.\n\nD1:\nspeaker: <Subject 3>\nstart_time: 1.0s\nend_time: 2.25s\nexact_dialogue: 尊贵的陛下。\n\nD2:\nspeaker: <Subject 4>\nstart_time: 2.45s\nend_time: 4.95s\nexact_dialogue: 我们终于有幸见到您了。\n\nD3:\nspeaker: <Subject 1>\nstart_time: 5.15s\nend_time: 8.15s\nexact_dialogue: 听说你们会织一种特别的布？\n\nD4:\nspeaker: <Subject 3>\nstart_time: 8.35s\nend_time: 9.35s\nexact_dialogue: 是的，陛下。\nDuring D4, <Subject 3> articulates clearly at frame left while remaining inside the ensemble composition; the camera does not need to abandon its established emphasis on <Subject 1>.\n\nD5:\nspeaker: <Subject 1>\nstart_time: 9.55s\nend_time: 10.8s\nexact_dialogue: 它有多漂亮？\n\nD6:\nspeaker: <Subject 4>\nstart_time: 11.0s\nend_time: 13.0s\nexact_dialogue: 它轻得像清晨的雾。\nSynchronize D6 with <Subject 4>'s gradual empty-handed display, completing both the line and the KF3 pose at 13.00s.\n\nSOUNDSCAPE\nNatural spacious palace-hall room tone with restrained interior reverberation and faint ambient air. Add only subdued, distance-appropriate Foley supported by visible movement: subtle clothing rustle as <Subject 3> and <Subject 4> straighten, quiet rustle during <Subject 4>'s arm movement, very soft shoe settling, and minimal throne or floor contact creaks during visible weight adjustments. No music, crowd noise, extra voices, or unsupported sound sources.\n\nOUTPUT CONTINUITY\nMaintain coherent anatomy, grounded contact, stable costume colors, throne continuity, and the palace environment throughout. Keep metadata and role labels invisible. No subtitles, captions, titles, speech bubbles, logos, watermarks, interface elements, or other on-screen text.",
+  "duration": {
+    "original": 13.1,
+    "recommended": 15.0,
+    "change_recommended": true,
+    "reason": "The clip contains six dialogue events, five speaker switches, five 0.20-second handoff gaps, two moving visual-anchor transitions, a continuous dolly, two bow-to-upright actions, and a final hand gesture that must finish exactly when D6 and KF3 end. The canonical 13.10-second version is executable but has almost no recovery margin. A 15.0-second version would improve natural handoffs and action settling only if dialogue and anchor timings were separately redistributed with approval; the optimized prompt preserves all original V1 times."
+  },
+  "complexity": {
+    "level": "high",
+    "subjects": 4,
+    "active_speakers": 3,
+    "dialogue_events": 6,
+    "speaker_switches": 5,
+    "visual_anchors": 3
+  },
+  "risks": [
+    {
+      "type": "speaker_handoff_density",
+      "severity": "high",
+      "description": "The six-event sequence switches speaker after every event, with only 0.20 seconds between consecutive lines. This creates substantial risk of lip motion leaking to the next or previous speaker."
+    },
+    {
+      "type": "dialogue_anchor_collision",
+      "severity": "high",
+      "description": "D2 ends exactly at KF2, while D6 ends exactly at KF3. H3 must complete speech, lip synchronization, posture development, and anchor matching on the same frames."
+    },
+    {
+      "type": "empty_hand_hallucination",
+      "severity": "high",
+      "description": "D3 and D6 discuss special cloth while <Subject 4> makes a supporting gesture. This semantic combination may cause visible cloth to materialize even though KF3 authoritatively shows empty hands."
+    },
+    {
+      "type": "camera_anchor_tension",
+      "severity": "medium",
+      "description": "The prose requests continued forward camera advance from KF2 to KF3, but <Picture 2> and <Picture 3> have very similar ensemble scale and perspective. The optimized prompt preserves the dolly while limiting it to the amount needed to match the authoritative anchor compositions."
+    },
+    {
+      "type": "visual_attention_speaker_conflict",
+      "severity": "medium",
+      "description": "D4 belongs to <Subject 3> while the supplied visual-attention timeline emphasizes <Subject 1>. The speaker must remain visibly articulating at frame left without forcing a cut or portrait reframing."
+    },
+    {
+      "type": "multi_subject_identity_continuity",
+      "severity": "medium",
+      "description": "Four continuously visible Subjects, similar formal clothing, and a moving camera increase the chance of identity, costume, or left-right drift."
+    }
+  ],
+  "changes": [
+    {
+      "type": "reference_authority_consolidation",
+      "description": "Consolidated repeated authority rules and retained the explicit Picture-to-Subject identity mapping and timed KF1/KF2/KF3 bindings."
+    },
+    {
+      "type": "speaker_binding",
+      "description": "Centralized shared dialogue restrictions while retaining D1–D6 labels, speakers, exact times, and exact dialogue text."
+    },
+    {
+      "type": "chronological_execution",
+      "description": "Reorganized the shot into direct KF1-to-KF2 and KF2-to-KF3 execution phases with explicit arrival states."
+    },
+    {
+      "type": "action_timing",
+      "description": "Bound the initial straightening actions to the first transition and bound <Subject 4>'s empty-handed display specifically to D6 and the KF3 arrival."
+    },
+    {
+      "type": "empty_hand_clarity",
+      "description": "Replaced object-inducing language about supporting ornate fabric with the positive visible requirement that both hands remain empty with unobstructed air between and above them."
+    },
+    {
+      "type": "camera_clarity",
+      "description": "Preserved the continuous forward dolly and central axis while instructing H3 to prioritize the exact anchor-defined framing and perspective."
+    },
+    {
+      "type": "negative_prompt_reduction",
+      "description": "Removed repeated prohibitions and retained only constraints needed for identity, speech, spatial continuity, unsupported objects, sound, and on-screen text."
+    }
+  ],
+  "timing_recommendations": [
+    {
+      "type": "future_duration_test",
+      "description": "For a later test that permits canonical retiming, distribute the additional 1.9 seconds across speaker handoffs, the KF1-to-KF2 settling action, and a longer post-D6 KF3 hold. Do not apply this redistribution to the current V1 experiment.",
+      "advisory_only": true
+    },
+    {
+      "type": "final_transition_margin",
+      "description": "If retiming is later authorized, allow a short silent settling interval after D6 before the final hold so that the empty-hand pose and the KF3 composition do not have to resolve on the exact final spoken syllable.",
+      "advisory_only": true
+    }
+  ]
+}
