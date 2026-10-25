@@ -1,0 +1,56 @@
+[
+  {
+    "picture": "<Picture 1>",
+    "remote_sha256": "6847a55b0ac9abb900d8ffd3aea3690e68274372f0263fb79a9e67b37b7ff065",
+    "local_original_sha256": "6847a55b0ac9abb900d8ffd3aea3690e68274372f0263fb79a9e67b37b7ff065",
+    "match": true
+  },
+  {
+    "picture": "<Picture 2>",
+    "remote_sha256": "add4cf380dfea81a3f99cea083d55fb4fdf09f3e56fba270ba1ce078777f72be",
+    "local_original_sha256": "add4cf380dfea81a3f99cea083d55fb4fdf09f3e56fba270ba1ce078777f72be",
+    "match": true
+  },
+  {
+    "picture": "<Picture 3>",
+    "remote_sha256": "43b524120d3a74f0c8510c2d1493d13998f5237b9504e4f23e7b929cda4d6672",
+    "local_original_sha256": "43b524120d3a74f0c8510c2d1493d13998f5237b9504e4f23e7b929cda4d6672",
+    "match": true
+  },
+  {
+    "picture": "<Picture 4>",
+    "remote_sha256": "fd902afaffc28118b5d8be2b1e66acb37ec7d9bb20bafef0f6b1464173c681ac",
+    "local_original_sha256": "fd902afaffc28118b5d8be2b1e66acb37ec7d9bb20bafef0f6b1464173c681ac",
+    "match": true
+  },
+  {
+    "picture": "<Picture 5>",
+    "remote_sha256": "caa170bb09a68f341b47ce750d09b007b48293e1edbc1d29b814b42e59ff801e",
+    "local_original_sha256": "caa170bb09a68f341b47ce750d09b007b48293e1edbc1d29b814b42e59ff801e",
+    "match": true
+  },
+  {
+    "picture": "<Picture 6>",
+    "remote_sha256": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+    "local_original_sha256": "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509",
+    "match": true
+  },
+  {
+    "picture": "<Picture 7>",
+    "remote_sha256": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+    "local_original_sha256": "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422",
+    "match": true
+  },
+  {
+    "picture": "<Picture 8>",
+    "remote_sha256": "7aa57eb14192fa2fe6da8ff34f818679d2414397196c9cd5163cf6e85009dea3",
+    "local_original_sha256": "7aa57eb14192fa2fe6da8ff34f818679d2414397196c9cd5163cf6e85009dea3",
+    "match": true
+  },
+  {
+    "picture": "<Picture 9>",
+    "remote_sha256": "ae7391f8cac5a713eb1b3604c6925e3a747f3a527f0f28dd07bc6db2e8dbd3cd",
+    "local_original_sha256": "ae7391f8cac5a713eb1b3604c6925e3a747f3a527f0f28dd07bc6db2e8dbd3cd",
+    "match": true
+  }
+]

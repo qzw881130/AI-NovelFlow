@@ -1,0 +1,102 @@
+[
+  {
+    "video": "baseline",
+    "time_seconds": 0.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_00.000.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 1.625,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_01.625.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 3.7,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_03.700.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 4.95,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_04.950.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 6.65,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_06.650.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 8.85,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_08.850.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 10.175,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_10.175.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 12.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_12.000.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 13.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_13.000.jpg"
+  },
+  {
+    "video": "baseline",
+    "time_seconds": 13.1,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/baseline/frame_13.100.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 0.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_00.000.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 1.625,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_01.625.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 3.7,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_03.700.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 4.95,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_04.950.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 6.65,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_06.650.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 8.85,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_08.850.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 10.175,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_10.175.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 12.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_12.000.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 13.0,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_13.000.jpg"
+  },
+  {
+    "video": "optimized_original_duration",
+    "time_seconds": 13.1,
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/optimized_original_duration/frame_13.100.jpg"
+  }
+]

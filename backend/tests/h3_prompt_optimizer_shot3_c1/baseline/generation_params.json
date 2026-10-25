@@ -1,0 +1,252 @@
+{
+  "original_duration": 13.1,
+  "seed": 3720777255,
+  "resolution": [
+    864,
+    480
+  ],
+  "fps": 24,
+  "actual_duration": 13.667,
+  "actual_frame_count": "328",
+  "node_parameters": {
+    "115": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "171",
+        0
+      ],
+      "multiple": 32
+    },
+    "119": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "120": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "121": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "122": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "123": {
+      "sampler_name": "euler"
+    },
+    "124": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "125": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "126": {
+      "model": [
+        "141",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "127": {
+      "unet_name": "minimax_h3_ref2va_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "128": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "129": {
+      "noise_seed": 3720777255
+    },
+    "130": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "codec": "none",
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "131": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "132",
+        0
+      ]
+    },
+    "132": {
+      "value": 13.1
+    },
+    "136": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "137",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "139",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "172",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "173",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "175",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "174",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "176",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "177",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "178",
+        0
+      ]
+    },
+    "141": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "149",
+        0
+      ]
+    },
+    "142": {
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "147": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "149": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "169": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "171": {
+      "value": 0.4
+    }
+  },
+  "baseline_source_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/videos/shot_003_clip_1_9ccf4264_20261008_135819.mp4",
+  "baseline_copy_path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/output/baseline.mp4",
+  "baseline_sha256": "4585a9d068a3bb9e217fa6b642f04f1085754258c90898edda77ee1cccabf659",
+  "prompt_node": "138",
+  "prompt_input": "value",
+  "duration_node": "132",
+  "video_save_node": "169"
+}

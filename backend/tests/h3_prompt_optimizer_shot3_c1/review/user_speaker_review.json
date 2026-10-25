@@ -1,0 +1,24 @@
+{
+  "source": "Direct user playback feedback in this chat",
+  "user_statement": "皇帝的台词怎么被骗子2说了？",
+  "artifact": "output/optimized_original_duration.mp4",
+  "finding": "At least one Emperor-assigned dialogue line is performed by scammer2 (Subject 4), as reported by the user.",
+  "speaker_ownership": "FAIL",
+  "exact_event_id": null,
+  "exact_timestamp_seconds": null,
+  "event_note": "User did not supply the exact spoken line or timestamp. Do not assign this confirmation to D3 or D5 solely from screenshots.",
+  "canonical_emperor_subject": "<Subject 1>",
+  "observed_incorrect_speaker": "<Subject 4> / 骗子2",
+  "prompt_speaker_labels_preserved": true,
+  "picture_identity_bindings_preserved": true,
+  "screenshots": [
+    "/var/folders/bt/jmbt5kfj41s97pwksdqkx8v40000gn/T/codex-clipboard-93d189fb-4af8-41b9-81e0-8f0780f5c512.png",
+    "/var/folders/bt/jmbt5kfj41s97pwksdqkx8v40000gn/T/codex-clipboard-52cbfece-b0ea-4d27-a572-a622ab60bcd1.png"
+  ],
+  "unproven_causal_hypotheses": [
+    "Optimizer consolidated per-event exclusive speech restrictions into shared global rules; this may reduce local binding salience.",
+    "Maintaining ensemble framing leaves foreground scammers visually larger than the seated Emperor; this may compete with speech ownership.",
+    "Six dialogue events and five 0.2-second speaker handoffs remain unchanged."
+  ],
+  "causal_limit": "No controlled ablation separates these influences; do not claim a particular rewrite caused the swap."
+}

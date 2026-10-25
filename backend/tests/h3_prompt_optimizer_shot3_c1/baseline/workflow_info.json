@@ -1,0 +1,11 @@
+{
+  "id": "36feca1d-c73d-4043-ba89-56a4d82230a0",
+  "name": "Minimax H3 多参考生视频 V20260928",
+  "source": "tasks.workflow_json (actual submitted graph)",
+  "sha256": "17245ecd8b263420754abb47e8eb7239eab7d76c20de689869491c6dde92f6f2",
+  "baseline_prompt_id": "e2ee5d5f-391c-4937-b82b-2e0f4389f0d2",
+  "baseline_task_id": "9ccf4264-be19-4489-8c4c-8e8a470c6ad5",
+  "queue_api": "POST /prompt {prompt: frozen_graph, client_id: experiment_uuid}; GET /history/{prompt_id}; GET /view",
+  "baseline_started_at_utc": "2026-10-08 05:55:38.584265",
+  "baseline_completed_at_utc": "2026-10-08 05:58:19.315775"
+}

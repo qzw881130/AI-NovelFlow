@@ -1,0 +1,44 @@
+ M backend/app/api/shots.py
+ M backend/app/main.py
+ M backend/app/services/canonical_export.py
+ M backend/app/services/clip_execution_compiler.py
+ M backend/app/services/clip_planner.py
+ M backend/app/services/continuous_clip_av.py
+ M backend/app/services/shot_video_service.py
+ M backend/app/services/task_service.py
+ M backend/app/services/video_director_ai.py
+ M backend/prompt_templates/10A_NovelFlow_ClipExecutionPlanner_V1.txt
+ M backend/run_server.py
+ M backend/start.sh
+ M backend/tests/test_canonical_prompt_template_sync.py
+ M backend/tests/test_semantic_clip_prompt.py
+ M frontend/my-app/src/api/shots.ts
+ M frontend/my-app/src/pages/ChapterGenerate/components/ShotExportModal.tsx
+ M frontend/my-app/src/pages/ChapterGenerate/components/VideoGenTab.tsx
+ M frontend/my-app/src/pages/ClipExecutionInspector/index.tsx
+ M frontend/my-app/src/pages/ClipExecutionInspector/inspector.css
+ M frontend/my-app/src/pages/ClipExecutionInspector/labels.ts
+ M frontend/my-app/src/pages/Tasks/components/TaskCard.tsx
+ M frontend/my-app/src/pages/Tasks/index.tsx
+ M frontend/my-app/src/types/index.ts
+ M frontend/my-app/tests/clipExecutionInspector.test.mjs
+ M frontend/my-app/tests/shotExportSelection.test.mjs
+?? backend/app/services/clip_result_recovery.py
+?? backend/app/services/shot_export_service.py
+?? backend/tests/fixtures/video_director_phase_a.json
+?? backend/tests/fixtures/video_director_phase_a_prompt.txt
+?? backend/tests/fixtures/video_director_phase_b1.json
+?? backend/tests/fixtures/video_director_phase_b2.json
+?? backend/tests/fixtures/video_director_phase_b4.json
+?? backend/tests/h3_prompt_optimizer_shot3_c1/
+?? backend/tests/test_clip_result_recovery.py
+?? backend/tests/test_shot_export_queue.py
+?? backend/tests/test_video_director_phase_a.py
+?? backend/tests/test_video_director_phase_b1.py
+?? backend/tests/test_video_director_phase_b2.py
+?? backend/tests/test_video_director_phase_b4.py
+?? docs/clip-execution-inspector/
+?? frontend/my-app/src/api/shotExports.ts
+?? frontend/my-app/src/pages/ClipExecutionInspector/components/ContactSheetModal.tsx
+?? frontend/my-app/src/pages/ClipExecutionInspector/contactSheet.ts
+?? frontend/my-app/tests/shotExportQueue.test.mjs

@@ -1,0 +1,7 @@
+{
+  "cause": "Experiment script passed encrypted database API-key value directly; product configuration loader decrypts it using app/core/security.py.decrypt_value first.",
+  "responsibility": "experiment harness error, not unavailable LLM or invalid configured plaintext key",
+  "fix_scope": "experiment.py.config only; reuse pure existing decrypt utility and first-key selection",
+  "production_files_changed": false,
+  "first_failed_attempt_preserved": "optimizer/attempts/attempt_001"
+}

@@ -1,0 +1,9 @@
+{
+  "speaker_ownership": "FAIL",
+  "verification_source": "user playback feedback",
+  "prompt_authority": "PASS",
+  "canonical_execution_success": false,
+  "comfyui_api_execution_success": true,
+  "optimizer_vs_baseline_causal_conclusion": "inconclusive",
+  "manual_review_evidence": "review/user_speaker_review.json"
+}

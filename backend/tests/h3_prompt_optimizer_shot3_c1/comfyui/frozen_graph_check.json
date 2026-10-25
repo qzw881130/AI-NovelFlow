@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "changes": [
+    {
+      "node_id": "138",
+      "input": "value",
+      "purpose": "optimized prompt"
+    },
+    {
+      "node_id": "169",
+      "input": "filename_prefix",
+      "purpose": "isolated output prefix"
+    }
+  ],
+  "topology_unchanged": true,
+  "models_unchanged": true,
+  "seed_unchanged": true,
+  "duration_unchanged": true,
+  "references_unchanged": true,
+  "sampling_unchanged": true,
+  "resolution_unchanged": true
+}

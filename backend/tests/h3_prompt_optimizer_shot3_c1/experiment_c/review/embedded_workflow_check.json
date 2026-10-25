@@ -1,0 +1,80 @@
+{
+  "raw_metadata_graph_matches_submission": false,
+  "matches_actual_submitted_C_graph_after_cache_metadata_removal": true,
+  "only_metadata_difference": "ComfyUI adds nine LoadImage is_changed reference SHA256 cache fingerprints to embedded MP4 metadata.",
+  "added_cache_fingerprints": [
+    {
+      "node": "137",
+      "field": "is_changed",
+      "value": [
+        "6847a55b0ac9abb900d8ffd3aea3690e68274372f0263fb79a9e67b37b7ff065"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "139",
+      "field": "is_changed",
+      "value": [
+        "add4cf380dfea81a3f99cea083d55fb4fdf09f3e56fba270ba1ce078777f72be"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "172",
+      "field": "is_changed",
+      "value": [
+        "43b524120d3a74f0c8510c2d1493d13998f5237b9504e4f23e7b929cda4d6672"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "173",
+      "field": "is_changed",
+      "value": [
+        "fd902afaffc28118b5d8be2b1e66acb37ec7d9bb20bafef0f6b1464173c681ac"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "175",
+      "field": "is_changed",
+      "value": [
+        "caa170bb09a68f341b47ce750d09b007b48293e1edbc1d29b814b42e59ff801e"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "174",
+      "field": "is_changed",
+      "value": [
+        "3a4268526259bb94cf11ab326b87e16ac97b31528904dfe146e48a067ee7c509"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "176",
+      "field": "is_changed",
+      "value": [
+        "053d1cb50057eac050fcf97847b20b1271c26b12ae5dbec1539a4f0afd64a422"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "177",
+      "field": "is_changed",
+      "value": [
+        "7aa57eb14192fa2fe6da8ff34f818679d2414397196c9cd5163cf6e85009dea3"
+      ],
+      "matches_original_reference_sha256": true
+    },
+    {
+      "node": "178",
+      "field": "is_changed",
+      "value": [
+        "ae7391f8cac5a713eb1b3604c6925e3a747f3a527f0f28dd07bc6db2e8dbd3cd"
+      ],
+      "matches_original_reference_sha256": true
+    }
+  ],
+  "history_graph_matches_submission": true
+}

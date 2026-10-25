@@ -1,0 +1,85 @@
+{
+  "method": "完整MP4音视频解码；全片scene score>0.2；A/C同时间各44帧及6组事件序列抽查；两处C候选的相邻原生帧直接观察；KF1/2/3原始图与A/C对比。未执行可靠音频转录或声音身份识别。",
+  "continuous_shot": {
+    "status": "FAIL",
+    "a_improvement_preserved": false,
+    "A_scene_candidates": [],
+    "C_scene_candidates": [
+      6.083333,
+      10.541667
+    ],
+    "confirmed_hard_cuts": [
+      {
+        "before_frame": 145,
+        "after_frame": 146,
+        "before_pts": 6.041666666666667,
+        "after_pts": 6.083333333333333,
+        "frames": {
+          "A_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/001.jpg",
+          "C_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/001.jpg",
+          "A_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/002.jpg",
+          "C_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/002.jpg"
+        },
+        "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_145_146_A_C.jpg",
+        "candidate_only_until_visual_review": false,
+        "visually_confirmed_hard_cut": true,
+        "C_before_after": "四人较宽群像瞬间变为皇帝、Subject3和Subject2的近景，Subject4出画。",
+        "A_at_same_native_frame_pair": "构图连续，四人仍在画内。"
+      },
+      {
+        "before_frame": 252,
+        "after_frame": 253,
+        "before_pts": 10.5,
+        "after_pts": 10.541666666666666,
+        "frames": {
+          "A_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/003.jpg",
+          "C_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/003.jpg",
+          "A_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/004.jpg",
+          "C_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/004.jpg"
+        },
+        "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_252_253_A_C.jpg",
+        "candidate_only_until_visual_review": false,
+        "visually_confirmed_hard_cut": true,
+        "C_before_after": "皇帝近景瞬间变为两骗子近景，皇帝与Subject2出画。",
+        "A_at_same_native_frame_pair": "构图连续，皇帝、两骗子和Subject2仍可见。"
+      }
+    ],
+    "finding": "C重新出现两次明显硬切，时间与Baseline旧硬切不同；A的连续镜头改善没有保留。"
+  },
+  "KF2_hands_down": {
+    "status": "PASS",
+    "a_improvement_preserved": true,
+    "requested_anchor_time": 4.95,
+    "native_sample_time": 4.958333333333333,
+    "finding": "C与A在KF2检查帧均保持Subject4双臂放下，接近Picture2；C未恢复Baseline提前抬手的状态。",
+    "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF2_reference_A_C.jpg",
+    "scope": "anchor frame inspection"
+  },
+  "KF3_empty_hands": {
+    "status": "PASS",
+    "finding": "13s检查帧中Subject4双掌展示空手，未见实体布料或新增手持道具。",
+    "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF3_reference_A_C.jpg",
+    "scope": "sampled display frames"
+  },
+  "KF3_composition_scale": {
+    "status": "FAIL",
+    "a_problem_resolved": false,
+    "new_ensemble_loss": true,
+    "finding": "A和C均比Picture3明显过近；C最终构图只保留两骗子，皇帝、总管和宝座出画，A在相同时刻仍能看到皇帝与总管。",
+    "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF3_reference_A_C.jpg"
+  },
+  "identity_costume": {
+    "status": "NO_OBVIOUS_REGRESSION_IN_REVIEWED_FRAMES",
+    "finding": "出现在画内的角色仍可辨认，维持皇帝蓝衣红披风、骗子1绿衣黑帽、骗子2红衣棕帽、总管深色服装。未见明显身份互换或额外复制人物；这不证明全片所有身份细节通过。"
+  },
+  "blocking": {
+    "status": "FAIL_COMPOSITION_CONTINUITY",
+    "finding": "前段群像左右关系保留；两次切镜使ensemble持续可读性回退。不能用稀疏帧确认严格floor-position lock。",
+    "floor_position_continuity": "NEEDS_MANUAL_REVIEW"
+  },
+  "new_obvious_visual_regression": true,
+  "new_regressions": [
+    "两处硬切",
+    "尾段皇帝与总管出画，丢失A仍保留的群像关系"
+  ]
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "event": "D1",
+    "canonical_speaker": "<Subject 3>",
+    "exact_dialogue": "尊贵的陛下。",
+    "canonical_start": 1.0,
+    "canonical_end": 2.25,
+    "review_source_start": 0.8,
+    "review_source_end": 2.45,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D1.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D1.mp4"
+    }
+  },
+  {
+    "event": "D2",
+    "canonical_speaker": "<Subject 4>",
+    "exact_dialogue": "我们终于有幸见到您了。",
+    "canonical_start": 2.45,
+    "canonical_end": 4.95,
+    "review_source_start": 2.25,
+    "review_source_end": 5.15,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D2.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D2.mp4"
+    }
+  },
+  {
+    "event": "D3",
+    "canonical_speaker": "<Subject 1>",
+    "exact_dialogue": "听说你们会织一种特别的布？",
+    "canonical_start": 5.15,
+    "canonical_end": 8.15,
+    "review_source_start": 4.95,
+    "review_source_end": 8.35,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D3.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D3.mp4"
+    }
+  },
+  {
+    "event": "D4",
+    "canonical_speaker": "<Subject 3>",
+    "exact_dialogue": "是的，陛下。",
+    "canonical_start": 8.35,
+    "canonical_end": 9.35,
+    "review_source_start": 8.15,
+    "review_source_end": 9.549999999999999,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D4.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D4.mp4"
+    }
+  },
+  {
+    "event": "D5",
+    "canonical_speaker": "<Subject 1>",
+    "exact_dialogue": "它有多漂亮？",
+    "canonical_start": 9.55,
+    "canonical_end": 10.8,
+    "review_source_start": 9.350000000000001,
+    "review_source_end": 11.0,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D5.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D5.mp4"
+    }
+  },
+  {
+    "event": "D6",
+    "canonical_speaker": "<Subject 4>",
+    "exact_dialogue": "它轻得像清晨的雾。",
+    "canonical_start": 11.0,
+    "canonical_end": 13.0,
+    "review_source_start": 10.8,
+    "review_source_end": 13.2,
+    "canonical_start_within_review_clip": 0.2,
+    "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+    "actual_speech_timing_verified": false,
+    "paths": {
+      "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D6.mp4",
+      "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D6.mp4"
+    }
+  }
+]

@@ -1,0 +1,564 @@
+{
+  "experiment": "H3 Prompt Optimizer V1 — Shot 3 / C1 — Experiment C Speaker Binding",
+  "conclusion": "INCONCLUSIVE / NEEDS MANUAL SPEAKER REVIEW",
+  "conclusion_reason": "主指标speaker ownership尚缺可靠实际播放听辨，不能确认D3/D5声源；局部嘴形线索不能证明通过。视觉证据已确认连续镜头回退及尾段群像丢失，KF2手态改善保留。",
+  "source_A_prompt_id": "07cc1450-200f-456a-b66c-7ec56f98abd3",
+  "C_prompt_id": "7aed6780-8084-498f-925d-ceceaddd4d92",
+  "A_user_confirmed_speaker_ownership": "FAIL",
+  "A_failed_dialogue_event": null,
+  "A_manual_review_source": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/review/user_speaker_review.json",
+  "C_speaker_ownership": "NEEDS_MANUAL_REVIEW",
+  "events": [
+    {
+      "event": "D1",
+      "canonical_speaker": "<Subject 3>",
+      "start_time": 1.0,
+      "end_time": 2.25,
+      "exact_dialogue": "尊贵的陛下。",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "左侧Subject3在部分检查帧中有嘴形变化；右侧非speaker Subject4在1.708/1.917s也有明显张口。是否提前执行D2、产生额外人声或抢台词，需听辨。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D1_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D1_sequence.jpg",
+      "review_clips": {
+        "event": "D1",
+        "canonical_speaker": "<Subject 3>",
+        "exact_dialogue": "尊贵的陛下。",
+        "canonical_start": 1.0,
+        "canonical_end": 2.25,
+        "review_source_start": 0.8,
+        "review_source_end": 2.45,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D1.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D1.mp4"
+        }
+      }
+    },
+    {
+      "event": "D2",
+      "canonical_speaker": "<Subject 4>",
+      "start_time": 2.45,
+      "end_time": 4.95,
+      "exact_dialogue": "我们终于有幸见到您了。",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "右侧Subject4在3.5/3.917/4.375s检查帧中有张口变化，手臂保持放下；实际声源、逐字台词和同步尚未听辨。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D2_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D2_sequence.jpg",
+      "review_clips": {
+        "event": "D2",
+        "canonical_speaker": "<Subject 4>",
+        "exact_dialogue": "我们终于有幸见到您了。",
+        "canonical_start": 2.45,
+        "canonical_end": 4.95,
+        "review_source_start": 2.25,
+        "review_source_end": 5.15,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D2.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D2.mp4"
+        }
+      }
+    },
+    {
+      "event": "D3",
+      "canonical_speaker": "<Subject 1>",
+      "start_time": 5.15,
+      "end_time": 8.15,
+      "exact_dialogue": "听说你们会织一种特别的布？",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "6.083333s硬切后皇帝进入较近构图；6.375/7.458s可见皇帝张口，8s嘴形收拢。左侧Subject3也有表情/嘴形变化；右侧Subject4被切出画面，无法检查其嘴。不能据此确认皇帝说出了该句或排除画外抢台词。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D3_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D3_sequence.jpg",
+      "review_clips": {
+        "event": "D3",
+        "canonical_speaker": "<Subject 1>",
+        "exact_dialogue": "听说你们会织一种特别的布？",
+        "canonical_start": 5.15,
+        "canonical_end": 8.15,
+        "review_source_start": 4.95,
+        "review_source_end": 8.35,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D3.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D3.mp4"
+        }
+      }
+    },
+    {
+      "event": "D4",
+      "canonical_speaker": "<Subject 3>",
+      "start_time": 8.35,
+      "end_time": 9.35,
+      "exact_dialogue": "是的，陛下。",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "8.5–9.208s抽查中左侧Subject3有明显嘴形变化，皇帝大体闭口，Subject2仍在右边缘。Subject4不在画内，实际语音归属与额外人声仍待核验。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D4_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D4_sequence.jpg",
+      "review_clips": {
+        "event": "D4",
+        "canonical_speaker": "<Subject 3>",
+        "exact_dialogue": "是的，陛下。",
+        "canonical_start": 8.35,
+        "canonical_end": 9.35,
+        "review_source_start": 8.15,
+        "review_source_end": 9.549999999999999,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D4.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D4.mp4"
+        }
+      }
+    },
+    {
+      "event": "D5",
+      "canonical_speaker": "<Subject 1>",
+      "start_time": 9.55,
+      "end_time": 10.8,
+      "exact_dialogue": "它有多漂亮？",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "9.708/10.083/10.25s皇帝有明显嘴形变化，但左侧非speaker Subject3也有可疑张口。10.541667s硬切到两骗子，皇帝在D5结束10.8s之前出画。不能把可见张口视为voice ownership通过。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D5_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D5_sequence.jpg",
+      "review_clips": {
+        "event": "D5",
+        "canonical_speaker": "<Subject 1>",
+        "exact_dialogue": "它有多漂亮？",
+        "canonical_start": 9.55,
+        "canonical_end": 10.8,
+        "review_source_start": 9.350000000000001,
+        "review_source_end": 11.0,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D5.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D5.mp4"
+        }
+      }
+    },
+    {
+      "event": "D6",
+      "canonical_speaker": "<Subject 4>",
+      "start_time": 11.0,
+      "end_time": 13.0,
+      "exact_dialogue": "它轻得像清晨的雾。",
+      "speaker_ownership": "NEEDS_MANUAL_REVIEW",
+      "actual_speaker": null,
+      "assigned_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "non_speaker_articulation": "NEEDS_MANUAL_REVIEW",
+      "exact_dialogue_accuracy": "NEEDS_MANUAL_REVIEW",
+      "extra_voices": "NEEDS_MANUAL_REVIEW",
+      "repeated_dialogue": "NEEDS_MANUAL_REVIEW",
+      "missing_dialogue": "NEEDS_MANUAL_REVIEW",
+      "visual_observation": "右侧Subject4在11.5–12.833s检查帧中有明显嘴形变化并抬起双手展示空手；皇帝与Subject2在画外，实际台词、声源和额外人声仍需听辨。",
+      "visual_observation_is_not_audio_verification": true,
+      "sequence_A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_D6_sequence.jpg",
+      "sequence_C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/C_D6_sequence.jpg",
+      "review_clips": {
+        "event": "D6",
+        "canonical_speaker": "<Subject 4>",
+        "exact_dialogue": "它轻得像清晨的雾。",
+        "canonical_start": 11.0,
+        "canonical_end": 13.0,
+        "review_source_start": 10.8,
+        "review_source_end": 13.2,
+        "canonical_start_within_review_clip": 0.2,
+        "audio": "original soundtrack re-encoded as AAC; no muting or voice changes",
+        "actual_speech_timing_verified": false,
+        "paths": {
+          "A": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/A_D6.mp4",
+          "C": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/clips/C_D6.mp4"
+        }
+      }
+    }
+  ],
+  "A_successful_real_submission_and_video": true,
+  "B_single_semantic_variable_confirmed": true,
+  "B_only_prompt_change": "PER_DIALOGUE_SPEAKER_OWNERSHIP_REINFORCEMENT",
+  "B_only_workflow_changes": [
+    "138.inputs.value",
+    "169.inputs.filename_prefix"
+  ],
+  "C_event_speaker_results": {
+    "D1": "NEEDS_MANUAL_REVIEW",
+    "D2": "NEEDS_MANUAL_REVIEW",
+    "D3": "NEEDS_MANUAL_REVIEW",
+    "D4": "NEEDS_MANUAL_REVIEW",
+    "D5": "NEEDS_MANUAL_REVIEW",
+    "D6": "NEEDS_MANUAL_REVIEW"
+  },
+  "D_D3_actual_speaker": "NEEDS_MANUAL_REVIEW",
+  "D_D5_actual_speaker": "NEEDS_MANUAL_REVIEW",
+  "E_non_speaker_lip_articulation_improved": "NEEDS_MANUAL_REVIEW",
+  "F_A_continuous_shot_improvement_preserved": false,
+  "G_A_KF2_hands_down_improvement_preserved": true,
+  "H_new_obvious_visual_regression": true,
+  "generation": {
+    "status": "COMPLETED",
+    "success": true,
+    "submission_attempts": 1,
+    "endpoint": "http://192.168.50.1:8288",
+    "source_a_prompt_id": "07cc1450-200f-456a-b66c-7ec56f98abd3",
+    "seed": 3720777255,
+    "requested_duration": 13.1,
+    "resolution": [
+      864,
+      480
+    ],
+    "fps": 24,
+    "expected_frames": 328,
+    "llm_calls": 0,
+    "submitted_at_utc": "2026-10-09T10:21:16.410171+00:00",
+    "http_status": 200,
+    "submission_duration_seconds": 2.765121500007808,
+    "prompt_id": "7aed6780-8084-498f-925d-ceceaddd4d92",
+    "submission_success": true,
+    "comfyui_status": {
+      "status_str": "success",
+      "completed": true,
+      "messages": [
+        [
+          "execution_start",
+          {
+            "prompt_id": "7aed6780-8084-498f-925d-ceceaddd4d92",
+            "timestamp": 1791541197269
+          }
+        ],
+        [
+          "execution_cached",
+          {
+            "nodes": [
+              "115",
+              "119",
+              "120",
+              "123",
+              "124",
+              "127",
+              "128",
+              "129",
+              "131",
+              "132",
+              "137",
+              "139",
+              "141",
+              "142",
+              "147",
+              "149",
+              "171",
+              "172",
+              "173",
+              "174",
+              "175",
+              "176",
+              "177",
+              "178"
+            ],
+            "prompt_id": "7aed6780-8084-498f-925d-ceceaddd4d92",
+            "timestamp": 1791541198614
+          }
+        ],
+        [
+          "execution_success",
+          {
+            "prompt_id": "7aed6780-8084-498f-925d-ceceaddd4d92",
+            "timestamp": 1791541339204
+          }
+        ]
+      ]
+    },
+    "output_path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/output/experiment_c_speaker_binding.mp4",
+    "output_sha256": "d0ecb5502f6c66b34e3096a0d1587670d5717764cb7f97317f3f49e6af2f8ccd",
+    "remote_output": {
+      "filename": "experiment_c_speaker_binding_00001_.mp4",
+      "subfolder": "video\\h3_prompt_optimizer_shot3_c1",
+      "type": "output",
+      "metadata": {
+        "kind": "video",
+        "width": 864,
+        "height": 480,
+        "duration": 13.666666666666666,
+        "fps": 24.0,
+        "frame_count": 328
+      }
+    },
+    "physical_duration": 13.666667,
+    "frames": 328,
+    "generation_time_seconds": 141.935
+  },
+  "frozen_conditions": {
+    "workflow": "Minimax H3 多参考生视频 V20260928",
+    "seed": 3720777255,
+    "requested_duration_seconds": 13.1,
+    "resolution": [
+      864,
+      480
+    ],
+    "fps": 24,
+    "frames": 328,
+    "sampling": "euler/simple/steps6/denoise1",
+    "unet": {
+      "unet_name": "minimax_h3_ref2va_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "clip": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "video_vae": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "audio_vae": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "lora": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "sigma_shift": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "reference_count": 9,
+    "original_high_resolution_references": true,
+    "vision_proxy_used_for_video": false,
+    "topology_wiring_models_and_all_other_parameters_identical_to_A": true,
+    "actual_media_properties_equal_A": true,
+    "llm_calls": 0
+  },
+  "prompt": {
+    "A_characters": 7945,
+    "C_characters": 10309,
+    "A_sha256": "37526637241bf37f19cd41f76046f9c0fe52c9157a31e05124596cc89f77aa80",
+    "C_sha256": "fb8a0d4234d39f9e872a690a177ea53d4a872be73e2b20ed98eda41f732f4322",
+    "insertions": 6,
+    "removing_insertions_restores_exact_A_bytes": true,
+    "authority": "PASS"
+  },
+  "media": {
+    "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/output/experiment_c_speaker_binding.mp4",
+    "sha256": "d0ecb5502f6c66b34e3096a0d1587670d5717764cb7f97317f3f49e6af2f8ccd",
+    "size_bytes": 4010169,
+    "video_duration_seconds": 13.666667,
+    "audio_duration_seconds": 13.667,
+    "audio_codec": "aac",
+    "audio_sample_rate": "32000",
+    "audio_channels": 2,
+    "full_AV_decode": "PASS"
+  },
+  "visual_comparison": {
+    "method": "完整MP4音视频解码；全片scene score>0.2；A/C同时间各44帧及6组事件序列抽查；两处C候选的相邻原生帧直接观察；KF1/2/3原始图与A/C对比。未执行可靠音频转录或声音身份识别。",
+    "continuous_shot": {
+      "status": "FAIL",
+      "a_improvement_preserved": false,
+      "A_scene_candidates": [],
+      "C_scene_candidates": [
+        6.083333,
+        10.541667
+      ],
+      "confirmed_hard_cuts": [
+        {
+          "before_frame": 145,
+          "after_frame": 146,
+          "before_pts": 6.041666666666667,
+          "after_pts": 6.083333333333333,
+          "frames": {
+            "A_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/001.jpg",
+            "C_145": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/001.jpg",
+            "A_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/002.jpg",
+            "C_146": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/002.jpg"
+          },
+          "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_145_146_A_C.jpg",
+          "candidate_only_until_visual_review": false,
+          "visually_confirmed_hard_cut": true,
+          "C_before_after": "四人较宽群像瞬间变为皇帝、Subject3和Subject2的近景，Subject4出画。",
+          "A_at_same_native_frame_pair": "构图连续，四人仍在画内。"
+        },
+        {
+          "before_frame": 252,
+          "after_frame": 253,
+          "before_pts": 10.5,
+          "after_pts": 10.541666666666666,
+          "frames": {
+            "A_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/003.jpg",
+            "C_252": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/003.jpg",
+            "A_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/A/004.jpg",
+            "C_253": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_boundaries/C/004.jpg"
+          },
+          "comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/native_cut_252_253_A_C.jpg",
+          "candidate_only_until_visual_review": false,
+          "visually_confirmed_hard_cut": true,
+          "C_before_after": "皇帝近景瞬间变为两骗子近景，皇帝与Subject2出画。",
+          "A_at_same_native_frame_pair": "构图连续，皇帝、两骗子和Subject2仍可见。"
+        }
+      ],
+      "finding": "C重新出现两次明显硬切，时间与Baseline旧硬切不同；A的连续镜头改善没有保留。"
+    },
+    "KF2_hands_down": {
+      "status": "PASS",
+      "a_improvement_preserved": true,
+      "requested_anchor_time": 4.95,
+      "native_sample_time": 4.958333333333333,
+      "finding": "C与A在KF2检查帧均保持Subject4双臂放下，接近Picture2；C未恢复Baseline提前抬手的状态。",
+      "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF2_reference_A_C.jpg",
+      "scope": "anchor frame inspection"
+    },
+    "KF3_empty_hands": {
+      "status": "PASS",
+      "finding": "13s检查帧中Subject4双掌展示空手，未见实体布料或新增手持道具。",
+      "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF3_reference_A_C.jpg",
+      "scope": "sampled display frames"
+    },
+    "KF3_composition_scale": {
+      "status": "FAIL",
+      "a_problem_resolved": false,
+      "new_ensemble_loss": true,
+      "finding": "A和C均比Picture3明显过近；C最终构图只保留两骗子，皇帝、总管和宝座出画，A在相同时刻仍能看到皇帝与总管。",
+      "evidence": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/KF3_reference_A_C.jpg"
+    },
+    "identity_costume": {
+      "status": "NO_OBVIOUS_REGRESSION_IN_REVIEWED_FRAMES",
+      "finding": "出现在画内的角色仍可辨认，维持皇帝蓝衣红披风、骗子1绿衣黑帽、骗子2红衣棕帽、总管深色服装。未见明显身份互换或额外复制人物；这不证明全片所有身份细节通过。"
+    },
+    "blocking": {
+      "status": "FAIL_COMPOSITION_CONTINUITY",
+      "finding": "前段群像左右关系保留；两次切镜使ensemble持续可读性回退。不能用稀疏帧确认严格floor-position lock。",
+      "floor_position_continuity": "NEEDS_MANUAL_REVIEW"
+    },
+    "new_obvious_visual_regression": true,
+    "new_regressions": [
+      "两处硬切",
+      "尾段皇帝与总管出画，丢失A仍保留的群像关系"
+    ]
+  },
+  "isolation": {
+    "status": "PASS",
+    "existing_experiment_file_count": 201,
+    "changed_existing_A_files": [],
+    "missing_existing_A_files": [],
+    "new_files_outside_experiment_c": [
+      "output/experiment_c_speaker_binding.mp4"
+    ],
+    "changed_workspace_files_outside_experiment_root": [],
+    "new_workspace_files_outside_experiment_root": [],
+    "original_references_after_generation": [
+      {
+        "picture": "<Picture 1>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 2>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 3>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 4>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 5>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 6>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 7>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 8>",
+        "unchanged_after_generation": true
+      },
+      {
+        "picture": "<Picture 9>",
+        "unchanged_after_generation": true
+      }
+    ],
+    "workspace_check_scope": "git-tracked and non-ignored untracked files outside the experiment root; existing experiment artifacts include ignored files. This is not a database audit.",
+    "formal_services_or_database_write_calls": 0,
+    "checked_at_utc": "2026-10-09T10:36:52.350894+00:00"
+  },
+  "evidence": {
+    "prompt_diff": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/prompt_diff.json",
+    "authority_check": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/authority_check.json",
+    "workflow_diff": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/comfyui/workflow_diff.json",
+    "remote_reference_checks": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/comfyui/reference_byte_check.json",
+    "real_history": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/comfyui/history.json",
+    "probe": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/media_probe.json",
+    "speaker_review": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/speaker_review.json",
+    "visual_review": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/visual_review.json",
+    "dialogue_clip_manifest": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/dialogue_clip_manifest.json",
+    "A_C_silent_comparison": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/A_C_comparison_silent.mp4",
+    "embedded_workflow_check": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/embedded_workflow_check.json"
+  },
+  "limitations": [
+    "Six event statuses await reliable human playback with audio.",
+    "Clip windows follow canonical timings and have 0.2s padding; speech may drift beyond those windows.",
+    "Sampled mouth shapes do not verify spoken words, audible voice identity, or exact lip synchronization.",
+    "A user confirmed at least one Emperor line spoken by Subject4, but did not identify D3 versus D5.",
+    "One A/C pair cannot establish a general production rule or separate all backend nondeterminism."
+  ],
+  "next_action": "STOP_AND_WAIT_FOR_USER_PLAYBACK_FEEDBACK",
+  "additional_generations": 0
+}

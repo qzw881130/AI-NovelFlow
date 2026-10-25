@@ -1,0 +1,500 @@
+{
+  "fps": 24,
+  "native_frame_indices_zero_based": true,
+  "event_requested_sample_times": {
+    "D1": [
+      1.15,
+      1.34,
+      1.53,
+      1.72,
+      1.91,
+      2.1
+    ],
+    "D2": [
+      2.6,
+      3.04,
+      3.48,
+      3.92,
+      4.36,
+      4.8
+    ],
+    "D3": [
+      5.3,
+      5.84,
+      6.38,
+      6.92,
+      7.46,
+      8.0
+    ],
+    "D4": [
+      8.5,
+      8.64,
+      8.78,
+      8.92,
+      9.06,
+      9.2
+    ],
+    "D5": [
+      9.7,
+      9.89,
+      10.08,
+      10.27,
+      10.46,
+      10.65
+    ],
+    "D6": [
+      11.15,
+      11.49,
+      11.83,
+      12.17,
+      12.51,
+      12.85
+    ]
+  },
+  "frames": {
+    "A": {
+      "0": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/001.jpg",
+        "native_frame": 0,
+        "pts_seconds": 0.0
+      },
+      "28": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/002.jpg",
+        "native_frame": 28,
+        "pts_seconds": 1.1666666666666667
+      },
+      "32": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/003.jpg",
+        "native_frame": 32,
+        "pts_seconds": 1.3333333333333333
+      },
+      "37": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/004.jpg",
+        "native_frame": 37,
+        "pts_seconds": 1.5416666666666667
+      },
+      "41": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/005.jpg",
+        "native_frame": 41,
+        "pts_seconds": 1.7083333333333333
+      },
+      "46": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/006.jpg",
+        "native_frame": 46,
+        "pts_seconds": 1.9166666666666667
+      },
+      "50": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/007.jpg",
+        "native_frame": 50,
+        "pts_seconds": 2.0833333333333335
+      },
+      "62": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/008.jpg",
+        "native_frame": 62,
+        "pts_seconds": 2.5833333333333335
+      },
+      "73": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/009.jpg",
+        "native_frame": 73,
+        "pts_seconds": 3.0416666666666665
+      },
+      "84": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/010.jpg",
+        "native_frame": 84,
+        "pts_seconds": 3.5
+      },
+      "94": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/011.jpg",
+        "native_frame": 94,
+        "pts_seconds": 3.9166666666666665
+      },
+      "105": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/012.jpg",
+        "native_frame": 105,
+        "pts_seconds": 4.375
+      },
+      "115": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/013.jpg",
+        "native_frame": 115,
+        "pts_seconds": 4.791666666666667
+      },
+      "119": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/014.jpg",
+        "native_frame": 119,
+        "pts_seconds": 4.958333333333333
+      },
+      "127": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/015.jpg",
+        "native_frame": 127,
+        "pts_seconds": 5.291666666666667
+      },
+      "140": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/016.jpg",
+        "native_frame": 140,
+        "pts_seconds": 5.833333333333333
+      },
+      "153": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/017.jpg",
+        "native_frame": 153,
+        "pts_seconds": 6.375
+      },
+      "164": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/018.jpg",
+        "native_frame": 164,
+        "pts_seconds": 6.833333333333333
+      },
+      "165": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/019.jpg",
+        "native_frame": 165,
+        "pts_seconds": 6.875
+      },
+      "166": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/020.jpg",
+        "native_frame": 166,
+        "pts_seconds": 6.916666666666667
+      },
+      "179": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/021.jpg",
+        "native_frame": 179,
+        "pts_seconds": 7.458333333333333
+      },
+      "192": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/022.jpg",
+        "native_frame": 192,
+        "pts_seconds": 8.0
+      },
+      "204": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/023.jpg",
+        "native_frame": 204,
+        "pts_seconds": 8.5
+      },
+      "207": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/024.jpg",
+        "native_frame": 207,
+        "pts_seconds": 8.625
+      },
+      "211": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/025.jpg",
+        "native_frame": 211,
+        "pts_seconds": 8.791666666666666
+      },
+      "214": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/026.jpg",
+        "native_frame": 214,
+        "pts_seconds": 8.916666666666666
+      },
+      "217": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/027.jpg",
+        "native_frame": 217,
+        "pts_seconds": 9.041666666666666
+      },
+      "221": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/028.jpg",
+        "native_frame": 221,
+        "pts_seconds": 9.208333333333334
+      },
+      "224": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/029.jpg",
+        "native_frame": 224,
+        "pts_seconds": 9.333333333333334
+      },
+      "225": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/030.jpg",
+        "native_frame": 225,
+        "pts_seconds": 9.375
+      },
+      "233": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/031.jpg",
+        "native_frame": 233,
+        "pts_seconds": 9.708333333333334
+      },
+      "237": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/032.jpg",
+        "native_frame": 237,
+        "pts_seconds": 9.875
+      },
+      "242": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/033.jpg",
+        "native_frame": 242,
+        "pts_seconds": 10.083333333333334
+      },
+      "246": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/034.jpg",
+        "native_frame": 246,
+        "pts_seconds": 10.25
+      },
+      "251": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/035.jpg",
+        "native_frame": 251,
+        "pts_seconds": 10.458333333333334
+      },
+      "256": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/036.jpg",
+        "native_frame": 256,
+        "pts_seconds": 10.666666666666666
+      },
+      "268": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/037.jpg",
+        "native_frame": 268,
+        "pts_seconds": 11.166666666666666
+      },
+      "276": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/038.jpg",
+        "native_frame": 276,
+        "pts_seconds": 11.5
+      },
+      "284": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/039.jpg",
+        "native_frame": 284,
+        "pts_seconds": 11.833333333333334
+      },
+      "292": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/040.jpg",
+        "native_frame": 292,
+        "pts_seconds": 12.166666666666666
+      },
+      "300": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/041.jpg",
+        "native_frame": 300,
+        "pts_seconds": 12.5
+      },
+      "308": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/042.jpg",
+        "native_frame": 308,
+        "pts_seconds": 12.833333333333334
+      },
+      "312": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/043.jpg",
+        "native_frame": 312,
+        "pts_seconds": 13.0
+      },
+      "322": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/A/044.jpg",
+        "native_frame": 322,
+        "pts_seconds": 13.416666666666666
+      }
+    },
+    "C": {
+      "0": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/001.jpg",
+        "native_frame": 0,
+        "pts_seconds": 0.0
+      },
+      "28": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/002.jpg",
+        "native_frame": 28,
+        "pts_seconds": 1.1666666666666667
+      },
+      "32": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/003.jpg",
+        "native_frame": 32,
+        "pts_seconds": 1.3333333333333333
+      },
+      "37": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/004.jpg",
+        "native_frame": 37,
+        "pts_seconds": 1.5416666666666667
+      },
+      "41": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/005.jpg",
+        "native_frame": 41,
+        "pts_seconds": 1.7083333333333333
+      },
+      "46": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/006.jpg",
+        "native_frame": 46,
+        "pts_seconds": 1.9166666666666667
+      },
+      "50": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/007.jpg",
+        "native_frame": 50,
+        "pts_seconds": 2.0833333333333335
+      },
+      "62": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/008.jpg",
+        "native_frame": 62,
+        "pts_seconds": 2.5833333333333335
+      },
+      "73": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/009.jpg",
+        "native_frame": 73,
+        "pts_seconds": 3.0416666666666665
+      },
+      "84": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/010.jpg",
+        "native_frame": 84,
+        "pts_seconds": 3.5
+      },
+      "94": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/011.jpg",
+        "native_frame": 94,
+        "pts_seconds": 3.9166666666666665
+      },
+      "105": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/012.jpg",
+        "native_frame": 105,
+        "pts_seconds": 4.375
+      },
+      "115": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/013.jpg",
+        "native_frame": 115,
+        "pts_seconds": 4.791666666666667
+      },
+      "119": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/014.jpg",
+        "native_frame": 119,
+        "pts_seconds": 4.958333333333333
+      },
+      "127": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/015.jpg",
+        "native_frame": 127,
+        "pts_seconds": 5.291666666666667
+      },
+      "140": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/016.jpg",
+        "native_frame": 140,
+        "pts_seconds": 5.833333333333333
+      },
+      "153": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/017.jpg",
+        "native_frame": 153,
+        "pts_seconds": 6.375
+      },
+      "164": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/018.jpg",
+        "native_frame": 164,
+        "pts_seconds": 6.833333333333333
+      },
+      "165": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/019.jpg",
+        "native_frame": 165,
+        "pts_seconds": 6.875
+      },
+      "166": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/020.jpg",
+        "native_frame": 166,
+        "pts_seconds": 6.916666666666667
+      },
+      "179": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/021.jpg",
+        "native_frame": 179,
+        "pts_seconds": 7.458333333333333
+      },
+      "192": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/022.jpg",
+        "native_frame": 192,
+        "pts_seconds": 8.0
+      },
+      "204": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/023.jpg",
+        "native_frame": 204,
+        "pts_seconds": 8.5
+      },
+      "207": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/024.jpg",
+        "native_frame": 207,
+        "pts_seconds": 8.625
+      },
+      "211": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/025.jpg",
+        "native_frame": 211,
+        "pts_seconds": 8.791666666666666
+      },
+      "214": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/026.jpg",
+        "native_frame": 214,
+        "pts_seconds": 8.916666666666666
+      },
+      "217": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/027.jpg",
+        "native_frame": 217,
+        "pts_seconds": 9.041666666666666
+      },
+      "221": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/028.jpg",
+        "native_frame": 221,
+        "pts_seconds": 9.208333333333334
+      },
+      "224": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/029.jpg",
+        "native_frame": 224,
+        "pts_seconds": 9.333333333333334
+      },
+      "225": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/030.jpg",
+        "native_frame": 225,
+        "pts_seconds": 9.375
+      },
+      "233": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/031.jpg",
+        "native_frame": 233,
+        "pts_seconds": 9.708333333333334
+      },
+      "237": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/032.jpg",
+        "native_frame": 237,
+        "pts_seconds": 9.875
+      },
+      "242": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/033.jpg",
+        "native_frame": 242,
+        "pts_seconds": 10.083333333333334
+      },
+      "246": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/034.jpg",
+        "native_frame": 246,
+        "pts_seconds": 10.25
+      },
+      "251": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/035.jpg",
+        "native_frame": 251,
+        "pts_seconds": 10.458333333333334
+      },
+      "256": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/036.jpg",
+        "native_frame": 256,
+        "pts_seconds": 10.666666666666666
+      },
+      "268": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/037.jpg",
+        "native_frame": 268,
+        "pts_seconds": 11.166666666666666
+      },
+      "276": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/038.jpg",
+        "native_frame": 276,
+        "pts_seconds": 11.5
+      },
+      "284": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/039.jpg",
+        "native_frame": 284,
+        "pts_seconds": 11.833333333333334
+      },
+      "292": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/040.jpg",
+        "native_frame": 292,
+        "pts_seconds": 12.166666666666666
+      },
+      "300": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/041.jpg",
+        "native_frame": 300,
+        "pts_seconds": 12.5
+      },
+      "308": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/042.jpg",
+        "native_frame": 308,
+        "pts_seconds": 12.833333333333334
+      },
+      "312": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/043.jpg",
+        "native_frame": 312,
+        "pts_seconds": 13.0
+      },
+      "322": {
+        "path": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/experiment_c/review/frames/C/044.jpg",
+        "native_frame": 322,
+        "pts_seconds": 13.416666666666666
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "baseline": {
+    "exit_code": 0,
+    "threshold": 0.2,
+    "candidate_times_seconds": [
+      6.875,
+      9.375
+    ],
+    "limitation": "Scene-score candidates indicate abrupt visual changes; not independent proof of a camera cut."
+  },
+  "optimized_original_duration": {
+    "exit_code": 0,
+    "threshold": 0.2,
+    "candidate_times_seconds": [],
+    "limitation": "Scene-score candidates indicate abrupt visual changes; not independent proof of a camera cut."
+  }
+}

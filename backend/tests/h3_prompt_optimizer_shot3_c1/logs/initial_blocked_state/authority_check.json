@@ -1,0 +1,13 @@
+{
+  "status": "NOT_RUN",
+  "reason": "Optimizer request failed with HTTP 401 INVALID_API_KEY; no optimized_prompt exists.",
+  "dialogue_event_count_preserved": null,
+  "dialogue_speaker_preserved": null,
+  "exact_dialogue_preserved": null,
+  "picture_binding_preserved": null,
+  "subject_identity_preserved": null,
+  "no_new_picture_references": null,
+  "temporal_anchor_order_preserved": null,
+  "all_checks_pass": null,
+  "optimized_prompt_manually_modified": false
+}

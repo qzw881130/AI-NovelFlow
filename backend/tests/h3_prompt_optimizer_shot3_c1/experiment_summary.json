@@ -1,0 +1,20 @@
+{
+  "experiment_directory": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1",
+  "shot_id": "58fa07ca-9cbf-44ba-9aca-57beb79a395c",
+  "clip_id": "58fa07ca-9cbf-44ba-9aca-57beb79a395c:clip:1",
+  "source_task_id": "9ccf4264-be19-4489-8c4c-8e8a470c6ad5",
+  "raw_prompt": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/baseline/raw_h3_prompt.txt",
+  "optimized_prompt": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/optimizer/optimized_h3_prompt.txt",
+  "optimizer_result": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/optimizer/optimizer_result.json",
+  "authority_check": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/authority_check.json",
+  "baseline_video": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/output/baseline.mp4",
+  "optimized_video": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/output/optimized_original_duration.mp4",
+  "experiment_b_video": null,
+  "report": "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/REPORT.md",
+  "optimizer_status": "SUCCESS_AFTER_HARNESS_AUTH_FIX",
+  "comfyui_status": "SUCCESS",
+  "comfyui_prompt_id": "07cc1450-200f-456a-b66c-7ec56f98abd3",
+  "conclusion": "Optimizer result is inconclusive",
+  "conclusion_reason": "A在连续镜头及KF2手态上有局部改善，但用户实际播放复核确认皇帝台词被骗子2说出，A的speaker ownership已经FAIL。文本Authority仍PASS，因为D3/D5和Picture binding均未改错。终帧尺度仍偏离，且Baseline同条台词的可靠音频对照尚未完成，因此不能把局部视觉改善当作总体受益，也不足以将这一次speaker错误因果归到某项优化。",
+  "end_to_end_complete": true
+}

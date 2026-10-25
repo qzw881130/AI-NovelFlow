@@ -1,0 +1,15 @@
+{
+  "indices0": [
+    164,
+    165,
+    224,
+    225
+  ],
+  "times_seconds": [
+    6.833333333333333,
+    6.875,
+    9.333333333333334,
+    9.375
+  ],
+  "method": "ffmpeg select by decoded native frame index; 24fps; no seek interpolation"
+}

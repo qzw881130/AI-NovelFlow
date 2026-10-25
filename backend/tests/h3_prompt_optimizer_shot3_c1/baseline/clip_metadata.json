@@ -1,0 +1,397 @@
+{
+  "execution_scope": "CLIP",
+  "phase_b_generate": true,
+  "clip_id": "58fa07ca-9cbf-44ba-9aca-57beb79a395c:clip:1",
+  "clip_index": 1,
+  "clip_plan_revision": 1,
+  "capability": "GENERATE",
+  "artifact_kind": "CLIP_ONLY",
+  "planned_duration": 13.1,
+  "requested_duration": 13.1,
+  "dialogue_assignment": [
+    {
+      "dialogue_id": "D1",
+      "segment_index": 1,
+      "speaker": "骗子1",
+      "text": "尊贵的陛下。",
+      "emotion_prompt": "恭敬奉承",
+      "estimated_duration": 1.25,
+      "source_order": 1,
+      "start_time": 1.0,
+      "end_time": 2.25,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    },
+    {
+      "dialogue_id": "D2",
+      "segment_index": 1,
+      "speaker": "骗子2",
+      "text": "我们终于有幸见到您了。",
+      "emotion_prompt": "殷勤欣喜",
+      "estimated_duration": 2.5,
+      "source_order": 2,
+      "start_time": 2.45,
+      "end_time": 4.95,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    },
+    {
+      "dialogue_id": "D3",
+      "segment_index": 1,
+      "speaker": "皇帝",
+      "text": "听说你们会织一种特别的布？",
+      "emotion_prompt": "审视好奇",
+      "estimated_duration": 3.0,
+      "source_order": 3,
+      "start_time": 5.15,
+      "end_time": 8.15,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    },
+    {
+      "dialogue_id": "D4",
+      "segment_index": 1,
+      "speaker": "骗子1",
+      "text": "是的，陛下。",
+      "emotion_prompt": "自信恭敬",
+      "estimated_duration": 1.0,
+      "source_order": 4,
+      "start_time": 8.35,
+      "end_time": 9.35,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    },
+    {
+      "dialogue_id": "D5",
+      "segment_index": 1,
+      "speaker": "皇帝",
+      "text": "它有多漂亮？",
+      "emotion_prompt": "期待追问",
+      "estimated_duration": 1.25,
+      "source_order": 5,
+      "start_time": 9.55,
+      "end_time": 10.8,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    },
+    {
+      "dialogue_id": "D6",
+      "segment_index": 1,
+      "speaker": "骗子2",
+      "text": "它轻得像清晨的雾。",
+      "emotion_prompt": "陶醉描绘",
+      "estimated_duration": 2.0,
+      "source_order": 6,
+      "start_time": 11.0,
+      "end_time": 13.0,
+      "is_continuation": false,
+      "continues_in_next_clip": false
+    }
+  ],
+  "approval_mode": "AUTO_APPROVE",
+  "approval_status": "APPROVED",
+  "auto_merge": false,
+  "skip_llm_when_prompt_exists": true,
+  "execution_contract": {
+    "version": 1,
+    "capability": "GENERATE",
+    "artifact_kind": "CLIP_ONLY",
+    "clip": {
+      "clip_id": "58fa07ca-9cbf-44ba-9aca-57beb79a395c:clip:1",
+      "clip_index": 1,
+      "clip_plan_revision": 1,
+      "start_seconds": 0.0,
+      "end_seconds": 13.1,
+      "duration_seconds": 13.1
+    },
+    "visual_attention_snapshot": {
+      "version": 1,
+      "projection_version": 1,
+      "time_base": "CLIP_SECONDS",
+      "status": "VALID",
+      "findings": [],
+      "character_catalog": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝"
+        },
+        {
+          "character_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "character_name": "宫廷总管"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2"
+        }
+      ],
+      "windows": [
+        {
+          "start_time_seconds": 0.0,
+          "end_time_seconds": 4.95,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 0,
+          "source_start_time_seconds": 0.0,
+          "source_end_time_seconds": 4.95
+        },
+        {
+          "start_time_seconds": 4.95,
+          "end_time_seconds": 6.0,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "handoff": {
+            "from": [
+              "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+              "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+            ],
+            "to": [
+              "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+            ]
+          },
+          "source_window_index": 1,
+          "source_start_time_seconds": 4.95,
+          "source_end_time_seconds": 6.0,
+          "handoff_progress": {
+            "start": 0.0,
+            "end": 1.0
+          }
+        },
+        {
+          "start_time_seconds": 6.0,
+          "end_time_seconds": 10.8,
+          "primary_subjects": [
+            "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 2,
+          "source_start_time_seconds": 6.0,
+          "source_end_time_seconds": 10.8
+        },
+        {
+          "start_time_seconds": 11.0,
+          "end_time_seconds": 13.1,
+          "primary_subjects": [
+            "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+            "92b676cb-3c22-4d60-a4e2-a57ed662042b"
+          ],
+          "background_motion_subjects": [],
+          "source_window_index": 3,
+          "source_start_time_seconds": 11.0,
+          "source_end_time_seconds": 25.8
+        }
+      ],
+      "clip_start_seconds": 0.0,
+      "clip_end_seconds": 13.1,
+      "characters": [
+        {
+          "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "character_name": "皇帝",
+          "subject": "<Subject 1>"
+        },
+        {
+          "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "character_name": "骗子1",
+          "subject": "<Subject 3>"
+        },
+        {
+          "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "character_name": "骗子2",
+          "subject": "<Subject 4>"
+        }
+      ],
+      "fingerprint": "80f74d66e104df24ba61c338bac343a7f398cf583f620d5be36ee3bc836864ca",
+      "source": "shots.video_director_plan.visual_attention",
+      "stage": "PROMPTED",
+      "program_owned_section_sha256": "5cb8bc5b1720de6e14965663823dd4ff729026f999e5809f0484f6914ee4bc1f"
+    }
+  },
+  "video_reference_manifest": {
+    "version": 1,
+    "references": [
+      {
+        "slot": 1,
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "SHOT_IMAGE",
+        "image_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+        "source_keyframe_index": 1,
+        "source_role": "START",
+        "source_time_seconds": 0.0,
+        "source_image_task_id": "6c8d9075-32d0-4541-a35d-48f795b9c113",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+        "binding": {
+          "uploaded_filename": "shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+          "workflow_node_id": "137"
+        }
+      },
+      {
+        "slot": 2,
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "KEYFRAME_IMAGE",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_0_20261008_135435.png",
+        "source_keyframe_index": 2,
+        "source_role": "INTERMEDIATE",
+        "source_time_seconds": 4.95,
+        "source_image_task_id": "5cc9a3e1-45cb-490c-b979-e489444303c5",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_0_20261008_135435.png",
+        "binding": {
+          "uploaded_filename": "keyframe_0_20261008_135435.png",
+          "workflow_node_id": "139"
+        }
+      },
+      {
+        "slot": 3,
+        "kind": "DIRECTOR_VISUAL_ANCHOR",
+        "source_type": "KEYFRAME_IMAGE",
+        "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261008_135519.png",
+        "source_keyframe_index": 3,
+        "source_role": "INTERMEDIATE",
+        "source_time_seconds": 13.0,
+        "source_image_task_id": "917c7d2b-a392-415d-b625-af6b6b1b920a",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_1_20261008_135519.png",
+        "binding": {
+          "uploaded_filename": "keyframe_1_20261008_135519.png",
+          "workflow_node_id": "172"
+        }
+      },
+      {
+        "kind": "SCENE",
+        "source_name": "王宫大厅",
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "source_type": "SCENE_ASSET",
+        "source_identity": {
+          "asset_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "name": "王宫大厅"
+        },
+        "image_url": "/api/files/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/scenes/王宫大厅_20261003_173128.png",
+        "slot": 4,
+        "binding": {
+          "uploaded_filename": "王宫大厅_20261003_173128.png",
+          "workflow_node_id": "173"
+        }
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "name": "皇帝"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/皇帝_20261008_135050.png",
+        "slot": 5,
+        "binding": {
+          "uploaded_filename": "皇帝_20261008_135050.png",
+          "workflow_node_id": "175"
+        }
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "name": "骗子1"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子1_20261008_135109.png",
+        "slot": 6,
+        "binding": {
+          "uploaded_filename": "骗子1_20261008_135109.png",
+          "workflow_node_id": "174"
+        }
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "name": "骗子2"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/骗子2_20261008_135128.png",
+        "slot": 7,
+        "binding": {
+          "uploaded_filename": "骗子2_20261008_135128.png",
+          "workflow_node_id": "176"
+        }
+      },
+      {
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "source_type": "CHARACTER_ASSET",
+        "source_identity": {
+          "asset_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "name": "宫廷总管"
+        },
+        "image_url": "/api/files/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/characters/宫廷总管_20261008_135015.png",
+        "slot": 8,
+        "binding": {
+          "uploaded_filename": "宫廷总管_20261008_135015.png",
+          "workflow_node_id": "177"
+        }
+      },
+      {
+        "kind": "PROP",
+        "source_name": "高背宝座",
+        "source_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+        "source_type": "PROP_ASSET",
+        "source_identity": {
+          "asset_id": "6c7a73af-b202-403b-98fa-424ff249a284",
+          "name": "高背宝座"
+        },
+        "image_url": "/api/files/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+        "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/高背宝座_20261003_174455.png",
+        "slot": 9,
+        "binding": {
+          "uploaded_filename": "高背宝座_20261003_174455.png",
+          "workflow_node_id": "178"
+        }
+      }
+    ],
+    "skipped_references": [
+      {
+        "kind": "PROP",
+        "source_id": "2583d6fa-05f2-48ff-a54d-8c07bcf3327e",
+        "source_name": "宽边礼帽",
+        "reason": "ORDINARY_REFERENCE_BUDGET"
+      }
+    ]
+  },
+  "prompt_text": "subject_definitions:\n<Subject 1> is 皇帝, an approximately fifty-five-year-old human male monarch with a slightly plump build, rounded waist, upright shoulders, a broad oval face, cool fair skin, fine age lines, medium light blue-gray slightly downturned eyes, a small brown mole beneath the left eye, a high receding hairline, swept-back ear-length silver-gray wavy hair, and a precisely trimmed silver-gray short beard with a small pointed goatee. Preserve the same age, facial proportions, eye shape and color, mole, hairline, hair silhouette, beard shape, body proportions, and singular identity. Current costume continuity is determined only by the chronological visual anchors.\n<Subject 2> is 宫廷总管, an approximately forty-eight-year-old human male with a slim build, straight shoulders, a narrow long face, cool fair skin, high forehead, defined cheekbones, sharp jawline, narrow dark blue-gray eyes, a fingertip-sized light-brown mark at the right temple, neatly swept-back dark-gray straight hair tied into a short low bundle, and a trimmed dark-gray goatee. Preserve the same age, facial proportions, eye shape and color, temple mark, hair silhouette, goatee, body proportions, and singular identity. Current costume continuity is determined only by the chronological visual anchors.\n<Subject 3> is 骗子1, an approximately thirty-five-year-old human male with a tall slender build, elongated proportions, a long narrow face, warm fair skin, slightly high cheekbones, narrow gray-green slightly upturned eyes, a small brown mole beside the right nostril, swept-back short dark-brown wavy hair, and a neatly trimmed dark-brown mustache with a clean-shaven chin. Preserve the same age, facial proportions, eye shape and color, mole, hair silhouette, mustache, body proportions, and singular identity. Current costume continuity is determined only by the chronological visual anchors.\n<Subject 4> is 骗子2, an approximately thirty-two-year-old human male with a shorter, slightly stocky but agile build, a rounded-square face, warm light-tan skin, naturally flushed cheeks, medium amber-brown round almond-shaped eyes, a distinct small black mole below the left corner of the mouth, dense chestnut-brown short curls parted on the left, and a clean-shaven face. Preserve the same age, facial proportions, eye shape and color, mole, hair silhouette, body proportions, and singular identity. Current costume continuity is determined only by the chronological visual anchors.\n\nofficial_character_identity_lock:\nThe referenced visual anchors are the primary visual authority for the currently established visual identity and appearance of each Subject at the corresponding chronological time anchor. The official character descriptions are identity-preservation constraints used to prevent character drift across frames. They supplement the referenced visual anchors but must not override clearly visible identity features established by those anchors.\n\nPreserve the same face, age, body proportions, hair, beard, fur or skin color, permanent markings, stable physical features, identity-defining accessories, and overall subject identity throughout the clip. Current costume is a separate continuity domain from stable identity. Preserve the current costume state established by the authoritative chronological visual anchors; do not restore, layer, blend, partially reveal, or recolor a conflicting historical or default costume. If all chronological anchors show one costume, maintain that costume for the entire clip. Any real costume change may occur only when explicitly established by chronological visual anchors, without anticipation or mixed garments.\n\nDo not redesign, reinterpret, beautify, age, de-age, recolor, duplicate, replace, or exchange any Subject. Do not interpret shadows, dark lighting, color grading, distance, environmental illumination, or motion blur as changes to skin, hair, stable identity, or current costume color. Temporary expression, gaze, posture, orientation, spatial position, and physically natural motion may change only as directed by the transition segments. If a stable identity detail is obscured by pose, distance, lighting, or occlusion, preserve it when it becomes visible again. If textual identity information conflicts with a clearly visible feature in a referenced visual anchor, follow the referenced visual anchor.\n\nKeep all four Subjects unique and continuously present according to the canonical visual states. Do not add people, duplicate bodies, exchange identities, mirror established left-right relationships, reset the setting, or introduce unsupported props. Preserve physically coherent anatomy, grounded contact, natural balance, and continuous spatial relationships. Metadata identifiers and role labels are never visible screen content. No subtitles, captions, titles, speech bubbles, logos, watermarks, interface elements, or other on-screen text.\n\nkeyframe_timeline:\nReference bindings:\n- <Picture 4> is the authoritative scene reference for 王宫大厅.\n- <Picture 5> is the identity reference for <Subject 1>.\n- <Picture 6> is the identity reference for <Subject 3>.\n- <Picture 7> is the identity reference for <Subject 4>.\n- <Picture 8> is the identity reference for <Subject 2>.\n- <Picture 9> is the authoritative prop reference for 高背宝座.\n\n- KF1 — START — Clip-local 0.00s — IMAGE_BACKED by <Picture 1>. Use the actual physical reference as the complete start-state authority without inventing an additional pose, placement, expression, costume, or object state.\n- KF2 — INTERMEDIATE — Clip-local 4.95s — IMAGE_BACKED by <Picture 2>. Inside the palace hall, the camera looks from the central axis toward the high-backed throne at a low angle and is closer than at KF1. <Subject 1> sits centrally on the throne, faces <Subject 3> and <Subject 4>, and maintains an appraising gaze. <Subject 2> stands beside the throne steps with hands lowered in front and a respectful posture. <Subject 3> stands upright in the left midground, retains the established wide-brimmed hat and refined current clothing, and faces <Subject 1>. <Subject 4> stands upright in the right midground, faces <Subject 1>, and has an attentive, ingratiating expression. <Subject 3> and <Subject 4> form a balanced left-right standing arrangement before the elevated throne.\n- KF3 — INTERMEDIATE — Clip-local 13.00s — IMAGE_BACKED by <Picture 3>. The camera has advanced farther along the same axis while keeping the throne and both foreground Subjects in one continuous composition. <Subject 1> remains seated on the throne and directs the gaze downward toward the open hands of <Subject 4>. <Subject 2> remains beside the steps, oriented toward the area before the throne. <Subject 3> stays on the left and leans slightly toward <Subject 4> and the throne with a composed expression. <Subject 4> stays on the right with both empty hands separated in front of the body, palms turned upward in a clear display shape suggesting the support of ornate fabric. No physical fabric exists between the hands.\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD1:\n  speaker: <Subject 3>\n  start_time: 1.0s\n  end_time: 2.25s\n  exact_dialogue: 尊贵的陛下。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 2.25s to 2.45s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD2:\n  speaker: <Subject 4>\n  start_time: 2.45s\n  end_time: 4.95s\n  exact_dialogue: 我们终于有幸见到您了。\n  segment: complete assigned span.\n  Only <Subject 4> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 4.95s to 5.15s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD3:\n  speaker: <Subject 1>\n  start_time: 5.15s\n  end_time: 8.15s\n  exact_dialogue: 听说你们会织一种特别的布？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 8.15s to 8.35s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD4:\n  speaker: <Subject 3>\n  start_time: 8.35s\n  end_time: 9.35s\n  exact_dialogue: 是的，陛下。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.35s to 9.55s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD5:\n  speaker: <Subject 1>\n  start_time: 9.55s\n  end_time: 10.8s\n  exact_dialogue: 它有多漂亮？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 10.8s to 11.0s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD6:\n  speaker: <Subject 4>\n  start_time: 11.0s\n  end_time: 13.0s\n  exact_dialogue: 它轻得像清晨的雾。\n  segment: complete assigned span.\n  Only <Subject 4> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 2>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\nA single continuous low-angle shot is grounded by KF1 and remains on the established central axis of the palace hall. Preserve the current appearance, costume state, held-object state, throne placement, left-right ordering, and ensemble spatial relationships established by the chronological anchors. Camera emphasis may shift smoothly within the ensemble while retaining the complete relationship among <Subject 1>, <Subject 2>, <Subject 3>, and <Subject 4>.\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.00s–4.95s, KF1 → KF2: Begin exactly from the physical state established by KF1. Keep the same central hall axis and low viewing angle, then perform a smooth, slow forward dolly toward the high-backed throne. Use no cut, jump in scale, axis change, abrupt reframing, or unsupported initial blocking. Because KF1 supplies the starting body arrangement visually, allow only natural stabilization from that established arrangement into KF2 without crossing paths or exchanging positions. Maintain primary visual emphasis on <Subject 3> at frame left and <Subject 4> at frame right as both settle into upright postures facing <Subject 1>. <Subject 1> remains seated at the center of the elevated throne with an appraising gaze directed toward them. <Subject 2> remains beside the throne steps with hands lowered in front, respectful posture, restrained breathing, and stable balance. Complete the interval at the closer camera position and balanced left-right arrangement defined by KF2 while keeping all four Subjects spatially legible.\n\nClip-local 4.95s–13.00s, KF2 → KF3: Continue the same slow forward dolly along the unchanged central axis and low angle in one uninterrupted take. Preserve the throne and the left-right relationship of <Subject 3> and <Subject 4> in the same ensemble composition. Shift visual emphasis smoothly from the pair toward the elevated <Subject 1> without moving anyone across the established sides or isolating a portrait framing. <Subject 1> stays seated and gradually lowers the gaze toward the developing hand gesture of <Subject 4>. <Subject 2> stays beside the steps with hands lowered, natural breathing, and no attention-stealing movement. During the later part of the interval, <Subject 4> remains on the right and raises both forearms in front of the body; the hands separate gradually to either side and rotate until both palms face upward, creating a clear supporting outline with empty space between them. No cloth, fabric, or other object materializes. <Subject 3> remains on the left and slowly inclines the body slightly toward <Subject 4> and the throne while retaining a composed expression. Do not pan away or track <Subject 4> independently. Arrive naturally at KF3, then hold that final canonical visual state only through Clip-local 13.10s without introducing any further action or story development.\n\noverall_soundscape:\nNatural spacious palace-hall room tone with restrained interior reverberation, faint ambient air, subtle clothing rustle from posture adjustments and arm movement, very soft foot or shoe settling where physically supported by visible motion, and minimal throne or floor contact creaks consistent with weight shifts. Keep all Foley subdued and distance-appropriate, with no invented music, crowd noise, or unsupported sound source.\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF1: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 2> — DIRECTOR_VISUAL_ANCHOR / KF2: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 3> — DIRECTOR_VISUAL_ANCHOR / KF3: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 4> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 9> — PROP / 高背宝座: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 5> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 6> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 7> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n<Picture 8> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n\ninitial_body_binding:\nApply <Picture 5> identity to the initial body/role of <Subject 1> — 皇帝 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\nApply <Picture 6> identity to the initial body/role of <Subject 3> — 骗子1 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\nApply <Picture 7> identity to the initial body/role of <Subject 4> — 骗子2 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\nApply <Picture 8> identity to the initial body/role of <Subject 2> — 宫廷总管 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–4.95s: Maintain primary narrative emphasis around <Subject 3>, <Subject 4> within the established composition.\n4.95–6.00s: Gradually redistribute attention from <Subject 3>, <Subject 4> toward <Subject 1>, allowing ensemble composition. Do not cut or imply that an approach must finish within this interval.\n6.00–10.80s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n11.00–13.10s: Maintain primary narrative emphasis around <Subject 3>, <Subject 4> within the established composition.",
+  "visual_attention_cache": {
+    "result": "HIT",
+    "explicit_skip_llm": true,
+    "fingerprint": "80f74d66e104df24ba61c338bac343a7f398cf583f620d5be36ee3bc836864ca"
+  },
+  "prompt_projection": {
+    "version": 1,
+    "projection_version": 1,
+    "status": "VALID",
+    "fingerprint": "80f74d66e104df24ba61c338bac343a7f398cf583f620d5be36ee3bc836864ca",
+    "section_sha256": "5cb8bc5b1720de6e14965663823dd4ff729026f999e5809f0484f6914ee4bc1f"
+  },
+  "megapixels_node_id": "171",
+  "video_save_node_id": "169",
+  "actual_duration": 13.667,
+  "assembled_media_duration": null,
+  "actual_fps": 24
+}

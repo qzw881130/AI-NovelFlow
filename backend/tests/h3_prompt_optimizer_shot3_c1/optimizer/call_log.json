@@ -1,0 +1,32 @@
+{
+  "provider": "custom",
+  "model": "gpt-5.6-sol",
+  "endpoint": "http://127.0.0.1:8088/v1/chat/completions",
+  "reasoning_thinking": "not explicitly set; provider/gateway default (not observable before response)",
+  "image_count": 9,
+  "retries": 1,
+  "attempt_number": 2,
+  "attempts": [
+    {
+      "attempt": 2,
+      "http_status": 200,
+      "duration_seconds": 95.33684120816179
+    }
+  ],
+  "prior_attempt_directories": [
+    "/Volumes/Data/AI-NovelFlow-V2/backend/tests/h3_prompt_optimizer_shot3_c1/optimizer/attempts/attempt_001"
+  ],
+  "started_at_utc": "2026-10-09T09:44:30.162891+00:00",
+  "request_duration_seconds": 95.33684120816179,
+  "token_usage": {
+    "prompt_tokens": 19994,
+    "completion_tokens": 4677,
+    "total_tokens": 24671,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1546
+    }
+  },
+  "response_model": "gpt-5.6-sol",
+  "finish_reason": "stop",
+  "success": true
+}
