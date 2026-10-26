@@ -93,6 +93,13 @@ def format_novel_video_merge(task: Task) -> dict:
         "targetMegapixels": metadata.get("target_megapixels"),
         "withBackgroundMusic": bool(metadata.get("background_music_chapter_count")),
         "backgroundMusicChapterCount": metadata.get("background_music_chapter_count") or 0,
+        "subtitle": ({"srtUrl": metadata["subtitle"].get("srt_url"),
+                      "enSrtUrl": metadata["subtitle"].get("en_srt_url"),
+                      "mode": metadata["subtitle"].get("mode"),
+                      "count": metadata["subtitle"].get("count", len(metadata["subtitle"].get("cues") or [])),
+                      "status": metadata["subtitle"].get("status"),
+                      "skippedCueCount": metadata["subtitle"].get("skipped_cue_count", 0)}
+                     if isinstance(metadata.get("subtitle"), dict) else None),
         "createdAt": format_datetime(task.created_at),
         "completedAt": format_datetime(task.completed_at),
     }
@@ -199,6 +206,30 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         video_url = local_path_to_url(str(output_path))
         if not video_url:
             raise RuntimeError("无法生成合并视频访问地址")
+        final_path = output_path
+        subtitle_mode = metadata.get("subtitle_mode") or ("zh" if metadata.get("generate_subtitles") else "none")
+        if subtitle_mode != "none":
+            from app.services.chapter_subtitles import _duration, _task_references, generate_subtitles, burn_subtitles, file_url
+
+            def subtitle_progress(value: int, step: str) -> None:
+                task.progress = value
+                task.current_step = step
+                db.commit()
+
+            references = await _task_references(db, task, metadata, await asyncio.to_thread(_duration, output_path))
+            subtitle = await generate_subtitles(
+                db, output_path, output_dir, novel_id=task.novel_id, chapter_id="",
+                task_id=task.id, dialogues=[], progress=subtitle_progress,
+                subtitle_mode=subtitle_mode, references=references,
+            )
+            task.progress = 97
+            task.current_step = "正在烧录字幕..."
+            db.commit()
+            final_path = await asyncio.to_thread(burn_subtitles, output_path, subtitle["cues"], output_dir)
+            video_url = file_url(final_path)
+            metadata["subtitle"] = {**{key: value for key, value in subtitle.items() if key != "cues"},
+                                    "burned_url": video_url, "status": "ready"}
+            task.workflow_id = subtitle["workflow_id"]
         metadata.update({
             "chapter_ids": [chapter.id for chapter in chapters],
             "chapters": chapter_snapshot,
@@ -207,8 +238,8 @@ async def run_novel_video_merge_task(task_id: str) -> None:
             "signature": signature,
             "cache_hit": cache_hit,
             "video_url": video_url,
-            "file_size": output_path.stat().st_size,
-            "duration": chapter_repo._probe_video_duration(str(output_path)),
+            "file_size": final_path.stat().st_size,
+            "duration": chapter_repo._probe_video_duration(str(final_path)),
             "background_music_chapter_count": sum(bool(segment.get("background_music_path")) for segment in segments),
         })
         task.status = "completed"

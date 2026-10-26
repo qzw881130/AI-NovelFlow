@@ -99,6 +99,8 @@ class MergeVideosRequest(BaseModel):
     shot_ids: Optional[List[str]] = Field(None, description="要参与合并的分镜 ID 列表；为空时合并所有已有视频的分镜")
     video_variant: Literal["draft", "hd"] = Field("draft", description="视频版本：初稿或高清")
     target_megapixels: Optional[float] = Field(None, description="高清视频目标 MP")
+    generate_subtitles: bool = Field(False, description="生成可下载 SRT 并烧录到章回视频")
+    subtitle_mode: Optional[Literal["none", "zh", "bilingual"]] = Field(None, description="字幕模式；未提供时兼容 generate_subtitles")
 
 
 class HdRepaintRequest(BaseModel):

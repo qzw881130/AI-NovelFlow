@@ -6,7 +6,7 @@ export default {
     ...enUS.characters,
     title: '캐릭터 도감',
     subtitle: '소설의 캐릭터 관리',
-    noProtagonistReminder: '이 소설에는 주인공이 지정되지 않았습니다. 캐릭터를 만들거나 편집해 주인공으로 지정하면 합친 장 영상에서 첫 등장 이름표를 생성할 수 있습니다.',
+    noProtagonistReminder: '이 소설에는 주인공이 지정되지 않았습니다. 주인공 첫 등장 미리보기 모드를 사용하려면 캐릭터를 주인공으로 지정하세요.',
     autoSetProtagonists: '주인공 자동 설정',
     autoSetProtagonistsHint: '이 소설에서 이름에 숫자가 없는 내레이터 외 캐릭터를 주인공으로 설정',
     autoSetProtagonistsSuccess: '{count}명을 주인공으로 설정했습니다',

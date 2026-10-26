@@ -1,5 +1,7 @@
 """Novel chapter background-music tasks."""
 import json
+from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -8,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.novel import Chapter, Novel
 from app.models.task import Task
-from app.services.background_music_service import TASK_TYPE, enqueue_background_music_task, format_background_music
+from app.services.background_music_service import (FULL_CHAPTER_MUSIC, PARTIAL_MUSIC, TASK_TYPE,
+    enqueue_background_music_task, format_background_music)
 from app.utils.path_utils import url_to_local_path
 
 
@@ -17,6 +20,7 @@ router = APIRouter()
 
 class BatchBackgroundMusicRequest(BaseModel):
     chapter_ids: list[str] = Field(min_length=1)
+    mode: Literal["partial", "full"] = PARTIAL_MUSIC
 
 
 @router.get("/novels/{novel_id}/background-music")
@@ -54,10 +58,13 @@ async def batch_generate_background_music(novel_id: str, request: BatchBackgroun
         raise HTTPException(status_code=409, detail="所选章回已有背景音乐任务在运行")
     tasks = []
     for chapter in sorted(chapters, key=lambda item: item.number):
+        mode_name = "全章音乐" if request.mode == FULL_CHAPTER_MUSIC else "部分音乐"
         task = Task(type=TASK_TYPE, status="pending", progress=0, novel_id=novel_id,
             chapter_id=chapter.id, name=f"第 {chapter.number} 章背景音乐：{chapter.title}",
-            description="LLM 规划配乐区间并由当前背景音乐工作流生成纯器乐候选",
-            metadata_json=json.dumps({"source_video_url": chapter.final_video}, ensure_ascii=False))
+            description=f"{mode_name} · LLM 规划配乐区间并由当前背景音乐工作流生成纯器乐候选",
+            metadata_json=json.dumps({"source_video_url": chapter.final_video,
+                                      "music_mode": request.mode}, ensure_ascii=False),
+            created_at=datetime.utcnow())
         db.add(task)
         tasks.append(task)
     db.commit()

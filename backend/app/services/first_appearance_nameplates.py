@@ -1,4 +1,4 @@
-"""Preview protagonist nameplates separately from raw Chapter, Shot and Clip videos."""
+"""Preview first-appearance nameplates separately from raw Chapter, Shot and Clip videos."""
 
 import asyncio
 import hashlib
@@ -43,18 +43,24 @@ def _shot_character_names(shot: Shot) -> list[str]:
     return names
 
 
-def first_appearance_names_by_shot(db, novel_id: str) -> dict[str, list[str]]:
-    """Find each manually selected protagonist's first candidate in story order."""
-    protagonists = {name for name, narrator, selected in db.query(
+def first_appearance_names_by_shot(db, novel_id: str,
+                                   mode: str = "protagonist_first") -> dict[str, list[str]]:
+    """Find first appearances in novel order or once per chapter."""
+    eligible_names = {name for name, narrator, selected in db.query(
         Character.name, Character.is_narrator, Character.is_protagonist,
-    ).filter(Character.novel_id == novel_id).all() if selected and not narrator}
+    ).filter(Character.novel_id == novel_id).all()
+        if not narrator and (mode == "chapter_first" or selected)}
     shots = (db.query(Shot).join(Chapter, Shot.chapter_id == Chapter.id)
              .filter(Chapter.novel_id == novel_id)
              .order_by(Chapter.number, Chapter.id, Shot.index, Shot.id).all())
     seen: set[str] = set()
     result: dict[str, list[str]] = {}
+    current_chapter_id = None
     for shot in shots:
-        names = [name for name in _shot_character_names(shot) if name in protagonists and name not in seen]
+        if mode == "chapter_first" and shot.chapter_id != current_chapter_id:
+            seen.clear()
+            current_chapter_id = shot.chapter_id
+        names = [name for name in _shot_character_names(shot) if name in eligible_names and name not in seen]
         seen.update(names)
         if names:
             result[shot.id] = names
@@ -389,11 +395,14 @@ def _layout_nameplate_events(events: list[dict], output_size: tuple[int, int]) -
 
 async def build_nameplate_events(db, novel_id: str, chapter_id: str,
                                  segments: list[dict],
-                                 output_size: tuple[int, int] | None = None) -> tuple[list[dict], list[str]]:
-    first_by_shot = first_appearance_names_by_shot(db, novel_id)
-    characters = {character.name: character for character in db.query(Character).filter(
-        Character.novel_id == novel_id, Character.is_protagonist.is_(True),
-        Character.is_narrator.is_(False)).all()}
+                                 output_size: tuple[int, int] | None = None,
+                                 mode: str = "protagonist_first") -> tuple[list[dict], list[str]]:
+    first_by_shot = first_appearance_names_by_shot(db, novel_id, mode=mode)
+    character_query = db.query(Character).filter(
+        Character.novel_id == novel_id, Character.is_narrator.is_(False))
+    if mode == "protagonist_first":
+        character_query = character_query.filter(Character.is_protagonist.is_(True))
+    characters = {character.name: character for character in character_query.all()}
     shots = {shot.index: shot for shot in db.query(Shot).filter(Shot.chapter_id == chapter_id).all()}
     events, warnings = [], []
     offset = 0.0

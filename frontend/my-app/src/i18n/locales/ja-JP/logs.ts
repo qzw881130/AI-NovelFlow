@@ -21,7 +21,7 @@ export default {
     generateAppearance: '外見を生成',
     clipExecutionPlanner: 'クリップ実行プランナー',
     expandVideoPrompt: '動画プロンプトを展開',
-    firstAppearanceNameplate: '主人公の初登場ネームプレート位置を特定',
+    firstAppearanceNameplate: '初登場ネームプレート位置を特定',
     timestamp: 'タイムスタンプ',
     novel: '小説',
     chapter: '章',

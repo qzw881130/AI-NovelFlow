@@ -36,7 +36,7 @@ export interface SystemConfig {
   llmTimeout?: number;  // 请求超时（秒）
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
-  showFirstAppearanceNames?: boolean;
+  nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;
@@ -127,6 +127,7 @@ export interface Chapter {
   progress: number;
   aiSplitCompleted?: boolean;
   estimatedDuration?: number | null;
+  firstShotImageUrl?: string | null;
   shotImageStats?: {
     generated: number;
     total: number;
@@ -355,14 +356,16 @@ export interface ClipExecutionMetadata {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'subtitle_render' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
   progress: number;
   currentStep?: string;
   resultUrl?: string;
+  musicMode?: 'partial' | 'full' | null;
   nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;
+  subtitle?: { srtUrl?: string | null; enSrtUrl?: string | null; mode?: string | null; status?: string | null; count?: number; correction?: string | null; skippedCueCount?: number } | null;
   shotImageQuality?: { generation_count: number; review_count: number; retry_count: number; status?: string | null } | null;
   errorMessage?: string;
   workflowId?: string;

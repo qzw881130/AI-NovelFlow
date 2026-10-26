@@ -1258,7 +1258,7 @@ export default function Characters() {
                 <label className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50/50 p-3 text-sm text-gray-700">
                   <input type="checkbox" className="mt-0.5" checked={Boolean(editingCharacter.isProtagonist)}
                     onChange={(event) => setEditingCharacter({ ...editingCharacter, isProtagonist: event.target.checked })} />
-                  <span><strong>指定为主角</strong><span className="block text-gray-500">主角首次出镜时可生成红色竖牌预览；整部小说只显示一次。</span></span>
+                  <span><strong>指定为主角</strong><span className="block text-gray-500">选择“主角首次出镜姓名牌预览”模式时，主角在整部小说首次出镜可生成红色竖牌预览。</span></span>
                 </label>
               )}
               <div className="flex justify-end gap-3 mt-6">

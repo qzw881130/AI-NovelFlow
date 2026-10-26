@@ -36,6 +36,11 @@ def test_first_appearance_uses_novel_order_and_excludes_narrator(db_session, mon
     assert nameplates.first_appearance_names_by_shot(db_session, novel.id) == {
         shot_one.id: ["甲"],
     }
+    assert nameplates.first_appearance_names_by_shot(db_session, novel.id, mode="chapter_first") == {
+        shot_one.id: ["甲"],
+        shot_two.id: ["乙"],
+        shot_later.id: ["乙", "甲"],
+    }
     monkeypatch.setattr(nameplates, "_probe_video", lambda path: (640, 360, 4.0 if "shot" in str(path) else 1.0))
     async def fake_locate(video, character, duration, shot=None):
         return [{"time": 0.25, "bbox": [300, 100, 600, 950]},
@@ -52,6 +57,12 @@ def test_first_appearance_uses_novel_order_and_excludes_narrator(db_session, mon
     assert events[0]["start"] == 0.25
     assert events[0]["end"] == 3.05
     assert events[0]["track"][0]["xy"] != events[0]["track"][1]["xy"]
+    chapter_events, chapter_warnings = asyncio.run(nameplates.build_nameplate_events(
+        db_session, novel.id, later.id,
+        [{"kind": "shot", "key": "1", "path": tmp_path / "later-shot.mp4"}],
+        mode="chapter_first"))
+    assert chapter_warnings == []
+    assert [event["name"] for event in chapter_events] == ["乙", "甲"]
 
 
 def test_detection_rejects_uncertain_or_invalid_positions():
@@ -70,23 +81,24 @@ def test_multi_person_shot_uses_reference_matching_instead_of_local_hog():
         "/video-is-not-needed.mp4", shot, character, 4.0) == []
 
 
-def test_config_defaults_and_can_toggle(client):
+def test_config_defaults_and_can_switch_mode(client):
     initial = client.get("/api/config/").json()["data"]
-    assert initial["showFirstAppearanceNames"] is True
+    assert initial["nameplatePreviewMode"] == "protagonist_first"
     assert initial["autoApproveFirstAppearanceNames"] is True
     assert client.post("/api/config/", json={
-        "showFirstAppearanceNames": False,
+        "nameplatePreviewMode": "chapter_first",
         "autoApproveFirstAppearanceNames": False,
     }).status_code == 200
     updated = client.get("/api/config/").json()["data"]
-    assert updated["showFirstAppearanceNames"] is False
+    assert updated["nameplatePreviewMode"] == "chapter_first"
     assert updated["autoApproveFirstAppearanceNames"] is False
+    assert client.post("/api/config/", json={"nameplatePreviewMode": "invalid"}).status_code == 422
     assert client.post("/api/config/", json={
-        "showFirstAppearanceNames": True,
+        "nameplatePreviewMode": "protagonist_first",
         "autoApproveFirstAppearanceNames": True,
     }).status_code == 200
     restored = client.get("/api/config/").json()["data"]
-    assert restored["showFirstAppearanceNames"] is True
+    assert restored["nameplatePreviewMode"] == "protagonist_first"
     assert restored["autoApproveFirstAppearanceNames"] is True
 
 
@@ -136,9 +148,13 @@ def test_nameplates_are_visible_only_during_first_seconds(tmp_path):
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="ffmpeg unavailable")
-@pytest.mark.parametrize("auto_approve,has_preview", [(False, True), (True, True), (True, False)])
+@pytest.mark.parametrize("auto_approve,has_preview,nameplate_mode", [
+    (False, True, "protagonist_first"),
+    (True, True, "chapter_first"),
+    (True, False, "protagonist_first"),
+])
 def test_chapter_merge_keeps_raw_shot_video_untouched(client, db_session, monkeypatch, tmp_path,
-                                                      auto_approve, has_preview):
+                                                      auto_approve, has_preview, nameplate_mode):
     from app.api import shots as shots_api
 
     source = tmp_path / "source.mp4"
@@ -163,7 +179,9 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(client, db_session, monkey
                 ]}))
     db_session.add(task)
     config = db_session.query(SystemConfig).filter_by(id="default").one()
-    config.show_first_appearance_names = True
+    if nameplate_mode == "chapter_first":
+        config.show_first_appearance_names = False  # legacy disabled value must not override the selected mode
+    config.nameplate_preview_mode = nameplate_mode
     config.auto_approve_first_appearance_names = auto_approve
     db_session.commit()
     task_id, source_url = task.id, shot.video_url
@@ -179,8 +197,9 @@ def test_chapter_merge_keeps_raw_shot_video_untouched(client, db_session, monkey
         return {"success": True}
 
     monkeypatch.setattr(shots_api.file_storage, "merge_videos", fake_merge)
-    async def fake_events(db, novel_id, chapter_id, segments, output_size=None):
-        assert nameplates.first_appearance_names_by_shot(db, novel_id) == {shot.id: ["甲"]}
+    async def fake_events(db, novel_id, chapter_id, segments, output_size=None, mode="protagonist_first"):
+        assert mode == nameplate_mode
+        assert nameplates.first_appearance_names_by_shot(db, novel_id, mode=mode) == {shot.id: ["甲"]}
         return ([{"start": 0.0, "end": 0.8, "name": "甲",
                   "track": [{"time": 0.0, "xy": [300, 50]}]}] if has_preview else [], [])
     monkeypatch.setattr(shots_api, "build_nameplate_events", fake_events)

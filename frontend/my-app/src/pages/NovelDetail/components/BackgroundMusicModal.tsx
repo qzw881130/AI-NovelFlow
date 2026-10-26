@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Music2, RefreshCw, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Music2, RefreshCw, X } from 'lucide-react';
 import { novelApi, type ChapterBackgroundMusic } from '../../../api/novels';
 import type { Chapter } from '../../../types';
 import { toast } from '../../../stores/toastStore';
@@ -16,6 +16,8 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
   const [musicByChapter, setMusicByChapter] = useState<Record<string, ChapterBackgroundMusic>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [fullChapterMusic, setFullChapterMusic] = useState(false);
+  const [expandedCuesByChapter, setExpandedCuesByChapter] = useState<Record<string, boolean>>({});
   const selectableIds = eligibleIds.filter(id => !['pending', 'running'].includes(musicByChapter[id]?.status || ''));
   const readySelectedIds = selectedIds.filter(id => selectableIds.includes(id));
 
@@ -40,10 +42,10 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
     if (!readySelectedIds.length) return;
     setSubmitting(true);
     try {
-      const response = await novelApi.generateBackgroundMusic(novelId, readySelectedIds);
+      const response = await novelApi.generateBackgroundMusic(novelId, readySelectedIds, fullChapterMusic ? 'full' : 'partial');
       if (!response.success) throw new Error(response.message || '提交背景音乐任务失败');
       setMusicByChapter(current => ({ ...current, ...Object.fromEntries((response.data || []).map(item => [item.chapterId, item])) }));
-      toast.success(`已加入 ${readySelectedIds.length} 个章回的背景音乐任务`);
+      toast.success(`已加入 ${readySelectedIds.length} 个章回的${fullChapterMusic ? '全章音乐' : '部分音乐'}任务`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '提交背景音乐任务失败');
     } finally {
@@ -57,7 +59,7 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900"><Music2 className="h-5 w-5 text-violet-600" />生成背景音乐</h2>
-            <p className="mt-1 text-sm text-gray-500">按剧情、对白与环境声规划必要配乐；可能决定某章不配乐。生成后请逐段试听。</p>
+            <p className="mt-1 text-sm text-gray-500">按剧情、对白与环境声规划配乐；全章音乐会覆盖整章，部分音乐允许留白。生成后请逐段试听。</p>
           </div>
           <button type="button" onClick={onClose} className="rounded p-2 text-gray-500 hover:bg-gray-100" aria-label="关闭"><X className="h-5 w-5" /></button>
         </div>
@@ -74,6 +76,7 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
             const item = musicByChapter[chapter.id];
             const eligible = eligibleIds.includes(chapter.id);
             const active = item?.status === 'running' || item?.status === 'pending';
+            const cuesExpanded = !!expandedCuesByChapter[chapter.id];
             return <div key={chapter.id} className="rounded-lg border border-gray-200 p-4">
               <div className="flex items-start gap-3">
                 <input type="checkbox" className="mt-1" disabled={!eligible || active}
@@ -85,32 +88,47 @@ export function BackgroundMusicModal({ novelId, chapters, onClose }: {
                     {item && <span className={`rounded px-2 py-0.5 text-xs ${item.status === 'completed' ? 'bg-green-50 text-green-700' : item.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
                       {item.stale ? '成片已变化' : item.status === 'completed' ? item.audioUrl ? '可试听' : '无需配乐' : item.status === 'failed' ? '生成失败' : `${item.currentStep || '排队中'} ${item.progress}%`}
                     </span>}
+                    {item && <span className="rounded bg-violet-50 px-2 py-0.5 text-xs text-violet-700">{item.mode === 'full' ? '全章音乐' : '部分音乐'}</span>}
                   </div>
                   {!eligible && <p className="mt-1 text-xs text-gray-500">缺少初稿章回视频</p>}
                   {item?.errorMessage && <p className="mt-2 text-xs text-red-700">{item.errorMessage}</p>}
                   {item?.noMusicReason && <p className="mt-2 text-xs text-gray-600">留白原因：{item.noMusicReason}</p>}
                   {item?.audioUrl && <div className="mt-3"><p className="mb-1 text-xs font-medium text-gray-600">整章背景音乐试听轨</p><WaveformAudioPlayer src={item.audioUrl} label={`第 ${chapter.number} 章整章背景音乐`} /></div>}
-                  {!!item?.cues.length && <div className="mt-3 space-y-2">{item.cues.map(cue =>
-                    <div key={cue.index} className="rounded border border-violet-100 bg-violet-50/50 p-3 text-xs text-gray-700">
-                      <p className="font-medium">配乐 {cue.index} · Shot {cue.startShot}–{cue.endShot} · {cue.startSeconds.toFixed(1)}–{cue.endSeconds.toFixed(1)} 秒</p>
-                      <p className="mt-1">原因：{cue.reason}</p>
-                      <p className="mt-1">风格：{cue.style}</p>
-                      <p className="mt-1">旋律意图：{cue.melody}</p>
-                      {cue.audioUrl && <>
-                        <p className="mt-2 text-gray-500">片段试听 {cue.durationSeconds.toFixed(1)} 秒{cue.rawAudioSeconds ? ` · 原始输出 ${cue.rawAudioSeconds.toFixed(1)} 秒` : ''}</p>
-                        <WaveformAudioPlayer src={cue.audioUrl} label={`第 ${chapter.number} 章配乐 ${cue.index}`} compact className="mt-1" />
-                      </>}
-                    </div>)}</div>}
+                  {!!item?.cues.length && <div className="mt-3">
+                    <button type="button" aria-expanded={cuesExpanded}
+                      aria-label={`第 ${chapter.number} 章${cuesExpanded ? '折叠' : '展示'}配乐配置（${item.cues.length}）`}
+                      onClick={() => setExpandedCuesByChapter(current => ({ ...current, [chapter.id]: !current[chapter.id] }))}
+                      className="flex w-full items-center justify-between rounded border border-violet-100 bg-violet-50/50 px-3 py-2 text-left text-xs font-medium text-violet-700 hover:bg-violet-100">
+                      <span>{cuesExpanded ? '折叠' : '展示'}配乐配置（{item.cues.length}）</span>
+                      {cuesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    {cuesExpanded && <div className="mt-2 space-y-2">{item.cues.map(cue =>
+                      <div key={cue.index} className="rounded border border-violet-100 bg-violet-50/50 p-3 text-xs text-gray-700">
+                        <p className="font-medium">配乐 {cue.index} · Shot {cue.startShot}–{cue.endShot} · {cue.startSeconds.toFixed(1)}–{cue.endSeconds.toFixed(1)} 秒</p>
+                        <p className="mt-1">原因：{cue.reason}</p>
+                        <p className="mt-1">风格：{cue.style}</p>
+                        <p className="mt-1">旋律意图：{cue.melody}</p>
+                        {cue.audioUrl && <>
+                          <p className="mt-2 text-gray-500">片段试听 {cue.durationSeconds.toFixed(1)} 秒{cue.rawAudioSeconds ? ` · 原始输出 ${cue.rawAudioSeconds.toFixed(1)} 秒` : ''}</p>
+                          <WaveformAudioPlayer src={cue.audioUrl} label={`第 ${chapter.number} 章配乐 ${cue.index}`} compact className="mt-1" />
+                        </>}
+                      </div>)}</div>}
+                  </div>}
                 </div>
               </div>
             </div>;
           })}
         </div>
         <div className="border-t bg-white px-6 py-4">
+          <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={fullChapterMusic} onChange={event => setFullChapterMusic(event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-violet-600" />
+            <span>全章音乐</span>
+            <span className="text-xs text-gray-500">{fullChapterMusic ? '已选择：全程配乐，随剧情切换情绪' : '未勾选：部分音乐，允许无音乐区间'}</span>
+          </label>
           <button type="button" onClick={submit} disabled={!readySelectedIds.length || submitting}
             className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Music2 className="mr-2 h-4 w-4" />}
-            {submitting ? '提交中...' : `批量生成音乐（${readySelectedIds.length} 章）`}
+            {submitting ? '提交中...' : `批量生成${fullChapterMusic ? '全章音乐' : '部分音乐'}（${readySelectedIds.length} 章）`}
           </button>
         </div>
       </div>

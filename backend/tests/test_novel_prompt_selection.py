@@ -24,9 +24,12 @@ def _custom(db, template_type, name=None):
 
 
 def test_registry_is_complete_for_novel_selection():
-    assert set(NOVEL_PROMPT_TEMPLATE_FIELDS) == set(PROMPT_TEMPLATE_TYPES)
-    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 26
-    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 26
+    chapter_music_types = {
+        "background_music_director", "background_music_director_full", "background_music_generation",
+    }
+    assert set(NOVEL_PROMPT_TEMPLATE_FIELDS) == set(PROMPT_TEMPLATE_TYPES) - chapter_music_types
+    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 23
+    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 23
     assert all(hasattr(Novel, field) for field in NOVEL_PROMPT_TEMPLATE_FIELDS.values())
 
 

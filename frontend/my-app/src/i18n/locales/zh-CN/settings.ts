@@ -27,8 +27,11 @@ export default {
     videoPromptEnglish: "英文（默认）",
     videoPromptChinese: "中文",
     videoPromptLanguageDesc: "用于 H3 Phase B 的动作、镜头、人物外貌、场景道具和声音描述。角色名、台词原文及绑定标记保持不变；新任务采用此设置，历史任务重试沿用原设置。",
+    nameplatePreviewMode: '姓名牌预览方式',
     showFirstAppearanceNames: '主角首次出镜姓名牌预览',
     showFirstAppearanceNamesDesc: '合并章节视频时，仅为角色库中手动指定的主角生成首次出镜红色竖牌预览。程序自动定位人物和出现时间；关闭自动通过时，需在任务列表预览确认后才用于章回成片。原始 Shot 与 Clip 视频不变。',
+    chapterFirstAppearanceNames: '每章首次出镜姓名牌预览',
+    chapterFirstAppearanceNamesDesc: '每章为角色库中每位非旁白角色的首次出镜生成姓名牌预览；同一角色在下一章首次出镜时会再次显示。定位、确认和成片流程与主角模式相同。',
     autoApproveFirstAppearanceNames: '自动通过姓名牌预览',
     autoApproveFirstAppearanceNamesDesc: '开启后，合并视频并成功生成姓名牌预览时，自动将预览用于章回成片；定位或预览生成失败时仍使用原始合并视频。默认开启。',
     imageQualityReview: '图片质量评审',
@@ -138,6 +141,8 @@ export default {
     // ComfyUI 工作流
     workflow: {
       backgroundMusic: '背景音乐',
+      subtitleAsr: '字幕语音识别',
+      audioTranscription: '语音转文字',
       musicStyleNode: '音乐风格节点',
       musicLyricsNode: '歌词节点',
       musicDurationNode: '音乐时长节点（秒，支持小数）',
@@ -310,14 +315,21 @@ export default {
       keyframeImage: '关键帧生图',
       videoGeneration: '视频生成',
       backgroundMusic: '背景音乐',
+      videoSubtitles: '视频字幕',
     },
 
     // 提示词模板类型
     types: {
-      backgroundMusicDirector: '背景音乐导演规划',
-      backgroundMusicDirectorDesc: '根据剧情、对白和环境声判断何处需要配乐，也可选择留白',
+      backgroundMusicDirector: '部分音乐导演规划',
+      backgroundMusicDirectorDesc: '选择少量必要配乐区间，其余留白',
+      backgroundMusicDirectorFull: '全章音乐导演规划',
+      backgroundMusicDirectorFullDesc: '按剧情起伏规划连续配乐，覆盖整章视频',
       backgroundMusicGeneration: '纯器乐生成约束',
       backgroundMusicGenerationDesc: '将导演风格转换为 ACE-Step 标签并固定纯器乐标记',
+      subtitleCorrection: '章回字幕文本校对',
+      subtitleCorrectionDesc: '参照分镜台词修正 ASR 错字，保持原始语音时间',
+      subtitleTranslation: '章回字幕英文翻译',
+      subtitleTranslationDesc: '将已校对的中文台词逐条翻译为英文，保持原始时间轴',
       sceneSetting: '场景设定描述',
       sceneSettingDesc: '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
       propAppearance: '道具外观描述',
@@ -389,7 +401,9 @@ export default {
     effectiveImageReviewNotice: '系统默认模板与用户自定义版本均由提示词管理统一保存；新评审使用当前有效版本。',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
+      '章回字幕文本校对 V1': '章回字幕文本校对 V1',
       '背景音乐导演规划 V1': '背景音乐导演规划 V1',
+      '全章背景音乐导演规划 V1': '全章背景音乐导演规划 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 纯器乐标签 V1',
       'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 纯器乐标签 V1',
       '场景设定描述': '场景设定描述',
@@ -430,6 +444,8 @@ export default {
       'MiniMax H3 多关键帧视频提示词构建': 'MiniMax H3 多关键帧视频提示词构建',
     },
     templateDescriptions: {
+      '部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐',
+      '全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot': '全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot',
       '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐',
       '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制',
       '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制',

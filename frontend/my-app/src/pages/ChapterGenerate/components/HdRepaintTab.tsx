@@ -5,6 +5,7 @@ import { Check, Film, Loader2, RefreshCw, Sparkles, X } from 'lucide-react';
 import { shotsApi, type HdVideoVariant, type Shot } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useChapterGenerateStore } from '../stores';
+import { SubtitleModeSelect, type SubtitleMode } from '../../../components/SubtitleModeSelect';
 
 const MP_OPTIONS = [0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0];
 
@@ -67,6 +68,7 @@ export function HdRepaintTab({ novelId, chapterId, shots }: HdRepaintTabProps) {
   const [selectedMergeShotIds, setSelectedMergeShotIds] = useState<Set<string>>(new Set());
   const [mergeTargetMp, setMergeTargetMp] = useState(1.0);
   const [mergeSubmitting, setMergeSubmitting] = useState(false);
+  const [mergeSubtitleMode, setMergeSubtitleMode] = useState<SubtitleMode>('none');
   const [draftMetadata, setDraftMetadata] = useState<VideoMetadata | null>(null);
   const [hdMetadata, setHdMetadata] = useState<VideoMetadata | null>(null);
   const [batchStatus, setBatchStatus] = useState<any>(null);
@@ -190,7 +192,7 @@ export function HdRepaintTab({ novelId, chapterId, shots }: HdRepaintTabProps) {
     if (!selectedIds.length) return;
     setMergeSubmitting(true);
     try {
-      const result = await shotsApi.mergeChapterVideos(novelId, chapterId, selectedIds, 'hd', mergeTargetMp);
+      const result = await shotsApi.mergeChapterVideos(novelId, chapterId, selectedIds, 'hd', mergeTargetMp, mergeSubtitleMode);
       if (!result.success) throw new Error(result.message || '高清章节视频合并失败');
       setShowMergeModal(false);
       toast.success('高清章节视频合并任务已提交，可在任务列表查看');
@@ -420,6 +422,7 @@ export function HdRepaintTab({ novelId, chapterId, shots }: HdRepaintTabProps) {
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t px-5 py-4">
+            <div className="mr-auto"><SubtitleModeSelect value={mergeSubtitleMode} onChange={setMergeSubtitleMode} /></div>
             <button onClick={() => setShowMergeModal(false)} className="btn-secondary">取消</button>
             <button onClick={mergeHdChapter} disabled={!hdMergeComplete || selectedMergeShotIds.size !== shots.length || mergeSubmitting} className="btn-primary disabled:opacity-50">{mergeSubmitting ? '提交中...' : hdMergeComplete ? `合并完整 ${mergeTargetMp.toFixed(1)} MP 章回视频` : `缺少 ${shots.length - availableHdMergeShotIds.length} 个 ${mergeTargetMp.toFixed(1)} MP Shot`}</button>
           </div>

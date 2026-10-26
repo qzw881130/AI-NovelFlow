@@ -55,6 +55,7 @@ export interface ChapterBackgroundMusicCue {
 export interface ChapterBackgroundMusic {
   id: string;
   chapterId: string;
+  mode: 'partial' | 'full';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   currentStep?: string | null;
@@ -108,6 +109,8 @@ export interface NovelVideoMergeHistory {
   fileSize?: number | null;
   duration?: number | null;
   cacheHit: boolean;
+  subtitle?: { srtUrl?: string | null; enSrtUrl?: string | null; mode?: string | null; count?: number; status?: string | null; skippedCueCount?: number } | null;
+  subtitleRender?: { id: string; status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'; progress: number; currentStep?: string | null; errorMessage?: string | null; videoUrl?: string | null } | null;
   withBackgroundMusic: boolean;
   backgroundMusicChapterCount: number;
   videoVariant: 'draft' | 'hd';
@@ -183,14 +186,14 @@ export const novelApi = {
   fetchChapters: (novelId: string) => api.get<Chapter[]>(`/novels/${novelId}/chapters/`),
 
   /** 合并选中的章回最终视频 */
-  mergeChapterVideos: (novelId: string, chapterIds: string[], videoVariant: 'draft' | 'hd' = 'draft', targetMegapixels?: number, includeBackgroundMusic = true) =>
-    api.post<NovelVideoMergeHistory>(`/novels/${novelId}/video-merges`, { chapter_ids: chapterIds, video_variant: videoVariant, target_megapixels: targetMegapixels, include_background_music: includeBackgroundMusic }),
+  mergeChapterVideos: (novelId: string, chapterIds: string[], videoVariant: 'draft' | 'hd' = 'draft', targetMegapixels?: number, includeBackgroundMusic = true, subtitleMode: 'none' | 'zh' | 'bilingual' = 'none') =>
+    api.post<NovelVideoMergeHistory>(`/novels/${novelId}/video-merges`, { chapter_ids: chapterIds, video_variant: videoVariant, target_megapixels: targetMegapixels, include_background_music: includeBackgroundMusic, subtitle_mode: subtitleMode }),
 
   fetchBackgroundMusic: (novelId: string) =>
     api.get<Record<string, ChapterBackgroundMusic>>(`/novels/${novelId}/background-music`),
 
-  generateBackgroundMusic: (novelId: string, chapterIds: string[]) =>
-    api.post<ChapterBackgroundMusic[]>(`/novels/${novelId}/background-music`, { chapter_ids: chapterIds }),
+  generateBackgroundMusic: (novelId: string, chapterIds: string[], mode: 'partial' | 'full' = 'partial') =>
+    api.post<ChapterBackgroundMusic[]>(`/novels/${novelId}/background-music`, { chapter_ids: chapterIds, mode }),
 
   /** 获取小说章回视频合并历史 */
   fetchVideoMergeHistory: (novelId: string) =>

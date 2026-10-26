@@ -21,7 +21,7 @@ export default {
     generateAppearance: '외형 생성',
     clipExecutionPlanner: '클립 실행 플래너',
     expandVideoPrompt: '비디오 프롬프트 확장',
-    firstAppearanceNameplate: '주인공 첫 등장 이름표 위치 찾기',
+    firstAppearanceNameplate: '첫 등장 이름표 위치 찾기',
     timestamp: '타임스탬프',
     novel: '소설',
     chapter: '장',

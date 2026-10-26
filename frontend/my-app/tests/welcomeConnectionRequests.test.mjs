@@ -45,8 +45,10 @@ test('overlapping automatic and manual checks share one LLM and one ComfyUI requ
   comfyui.resolve({ ok: true });
   await Promise.resolve();
   assert.equal(store.getState().isLoading, true);
+  assert.deepEqual(store.getState().connectionStatus, { comfyui: true });
   llm.resolve({ ok: true });
   assert.deepEqual(await first, { llm: true, comfyui: true });
+  assert.deepEqual(store.getState().connectionStatus, { llm: true, comfyui: true });
   assert.equal(store.getState().isLoading, false);
 });
 

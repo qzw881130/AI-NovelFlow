@@ -59,6 +59,7 @@ interface ConfigState extends SystemConfig {
   isLoading: boolean;
   error: string | null;
   isLoaded: boolean;
+  connectionStatus: { llm?: boolean; comfyui?: boolean };
   setConfig: (config: Partial<SystemConfig>) => void;
   setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string, maxTokens?: number, temperature?: string) => void;
   setProxyConfig: (proxy: ProxyConfig) => void;
@@ -73,6 +74,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   isLoading: false,
   error: null,
   isLoaded: false,
+  connectionStatus: {},
   
   setConfig: (config) => set((state) => {
     // 特殊处理嵌套的 proxy 配置
@@ -111,19 +113,21 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   
   checkConnection: () => {
     if (connectionCheckRequest) return connectionCheckRequest;
-    set({ isLoading: true, error: null });
-    connectionCheckRequest = Promise.allSettled([
-      fetch(`${API_BASE}/health/llm`),
-      fetch(`${API_BASE}/health/comfyui`),
-    ]).then(([llm, comfyui]) => {
-      if (llm.status === 'rejected' || comfyui.status === 'rejected') {
+    set({ isLoading: true, error: null, connectionStatus: {} });
+    const checkService = async (service: 'llm' | 'comfyui') => {
+      let connected = false;
+      try {
+        connected = (await fetch(`${API_BASE}/health/${service}`)).ok;
+      } catch {
         set({ error: '连接检查失败' });
       }
-      return {
-        llm: llm.status === 'fulfilled' && llm.value.ok,
-        comfyui: comfyui.status === 'fulfilled' && comfyui.value.ok,
-      };
-    }).finally(() => {
+      set(state => ({ connectionStatus: { ...state.connectionStatus, [service]: connected } }));
+      return connected;
+    };
+    connectionCheckRequest = Promise.all([
+      checkService('llm'),
+      checkService('comfyui'),
+    ]).then(([llm, comfyui]) => ({ llm, comfyui })).finally(() => {
       connectionCheckRequest = null;
       set({ isLoading: false });
     });

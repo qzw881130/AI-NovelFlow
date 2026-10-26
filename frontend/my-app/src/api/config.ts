@@ -6,7 +6,7 @@ import { api } from './index';
 export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
-  showFirstAppearanceNames?: boolean;
+  nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;

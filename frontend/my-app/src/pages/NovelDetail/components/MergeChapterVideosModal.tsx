@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
+import { CheckCircle, ChevronDown, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
 import { novelApi, type ChapterBackgroundMusic, type CoverTextStyle, type NovelVideoCover, type NovelVideoMergeHistory } from '../../../api/novels';
 import { configApi } from '../../../api/config';
 import type { Chapter, ChapterVideoAsset } from '../../../types';
@@ -8,6 +8,8 @@ import { toast } from '../../../stores/toastStore';
 import { youtubeApi } from '../../../api/youtube';
 import { YoutubeUploadModal } from './YoutubeUploadModal';
 import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
+import { SubtitleEditor } from '../../Tasks/components/SubtitleEditor';
+import { SubtitleModeSelect, type SubtitleMode } from '../../../components/SubtitleModeSelect';
 
 
 const chapterAssets = (chapter: Chapter): ChapterVideoAsset[] => chapter.videoAssets || [];
@@ -73,6 +75,8 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
   const [history, setHistory] = useState<NovelVideoMergeHistory[]>([]);
   const [musicByChapter, setMusicByChapter] = useState<Record<string, ChapterBackgroundMusic>>({});
   const [includeBackgroundMusic, setIncludeBackgroundMusic] = useState(true);
+  const [subtitleMode, setSubtitleMode] = useState<SubtitleMode>('none');
+  const [editingSubtitles, setEditingSubtitles] = useState<NovelVideoMergeHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [playbackItem, setPlaybackItem] = useState<NovelVideoMergeHistory | null>(null);
@@ -232,7 +236,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
     if (selectedIds.length < 2) return;
     setSubmitting(true);
     try {
-      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, initialProfile.kind, initialProfile.targetMegapixels, includeBackgroundMusic);
+      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, initialProfile.kind, initialProfile.targetMegapixels, includeBackgroundMusic, subtitleMode);
       if (!response.success) {
         const detail = (response as typeof response & { detail?: string }).detail;
         throw new Error(response.message || detail || '提交合并任务失败');
@@ -260,14 +264,14 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
   const allSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedIds.includes(id));
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
       <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">合并所有章回视频</h2>
             <p className="mt-1 text-sm text-gray-500">选择至少两个已有最终视频的章回，按章回顺序合并</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} aria-label="关闭合并视频弹窗" className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
@@ -317,6 +321,7 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                 背景音乐
                 <span className="text-xs text-gray-500">已有配乐的章回会混入音乐，其余保持原声</span>
               </label>
+              <div className="mb-3"><SubtitleModeSelect value={subtitleMode} onChange={setSubtitleMode} /></div>
               <button type="button" onClick={submitMerge} disabled={selectedIds.length < 2 || submitting} className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Film className="mr-2 h-4 w-4" />}
                 {submitting ? '提交中...' : `合并 ${selectedIds.length} 个章回视频`}
@@ -358,6 +363,12 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                     {item.cacheHit && <span>缓存结果</span>}
                   </div>
                   {item.errorMessage && <p className="mt-2 rounded bg-red-50 px-2 py-1.5 text-xs text-red-700">{item.errorMessage}</p>}
+                  {!!item.subtitle?.skippedCueCount && <p className="mt-2 text-xs text-amber-700">{item.subtitle.skippedCueCount} 条无有效时间的识别结果已跳过，请校对字幕边界。</p>}
+                  {item.subtitleRender && <div className={`mt-2 rounded px-2 py-1.5 text-xs ${item.subtitleRender.status === 'failed' ? 'bg-red-50 text-red-700' : item.subtitleRender.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
+                    字幕视频更新：{item.subtitleRender.status === 'failed' ? '失败' : item.subtitleRender.status === 'completed' ? '已完成' : item.subtitleRender.status === 'running' ? `处理中 ${item.subtitleRender.progress}%` : '排队中'}
+                    {item.subtitleRender.currentStep && item.subtitleRender.status !== 'failed' && <span> · {item.subtitleRender.currentStep}</span>}
+                    {item.subtitleRender.errorMessage && <p className="mt-1 break-words">{item.subtitleRender.errorMessage}</p>}
+                  </div>}
                   {item.status !== 'completed' && item.currentStep && <p className="mt-2 text-xs text-gray-500">{item.currentStep}</p>}
                   {item.youtubeUpload && <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-2 text-xs text-blue-900">
                     <div className="flex flex-wrap items-center gap-2">
@@ -370,11 +381,21 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                     {item.youtubeUpload.warnings?.map((warning, index) => <p key={index} className="mt-1 break-words text-amber-700">{warning}</p>)}
                   </div>}
                   {item.status === 'completed' && item.videoUrl && (
-                    <div className="mt-3 flex justify-end gap-2 border-t pt-3">
-                      <button type="button" onClick={() => setPlaybackItem(item)} className="btn-secondary px-3 py-1.5 text-sm"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
-                      <button type="button" onClick={() => openCoverEditor(item)} className="btn-secondary px-3 py-1.5 text-sm"><ImageIcon className="mr-1 h-3.5 w-3.5" />制作封面</button>
-                      <button type="button" onClick={() => setUploadItem(item)} className="btn-secondary px-3 py-1.5 text-sm">上传 YouTube</button>
-                      <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-3.5 w-3.5" />下载</a>
+                    <div className="mt-4 flex flex-wrap items-start gap-2.5 border-t border-gray-100 pt-4">
+                      <button type="button" onClick={() => setPlaybackItem(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
+                      <button type="button" onClick={() => openCoverEditor(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs"><ImageIcon className="mr-1 h-3.5 w-3.5" />制作封面</button>
+                      <button type="button" onClick={() => setUploadItem(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs">上传 YouTube</button>
+                      {item.subtitle?.srtUrl && <button type="button" onClick={() => setEditingSubtitles(item)} disabled={item.subtitleRender?.status === 'pending' || item.subtitleRender?.status === 'running'} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs disabled:opacity-50">校对字幕</button>}
+                      <details className="group">
+                        <summary className="btn-secondary cursor-pointer list-none whitespace-nowrap px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">
+                          <Download className="mr-1 h-3.5 w-3.5" />下载<ChevronDown className="ml-1 h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2 min-w-36 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                          <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载视频</a>
+                          {item.subtitle?.srtUrl && <a href={item.subtitle.srtUrl} download onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载中文 SRT</a>}
+                          {item.subtitle?.enSrtUrl && <a href={item.subtitle.enSrtUrl} download onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载英文 SRT</a>}
+                        </div>
+                      </details>
                     </div>
                   )}
                 </div>
@@ -387,6 +408,11 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
       {uploadItem && <YoutubeUploadModal novelId={novelId} novelTitle={novelTitle}
         item={history.find(item => item.id === uploadItem.id) || uploadItem}
         onClose={() => setUploadItem(null)} onUploaded={() => void refreshHistory(true)} />}
+
+      {editingSubtitles && <SubtitleEditor
+        endpoint={`/api/novels/${novelId}/video-merges/${editingSubtitles.id}/subtitles`}
+        initialSrtUrl={editingSubtitles.subtitle?.srtUrl}
+        onClose={() => setEditingSubtitles(null)} onUpdated={() => void refreshHistory(true)} />}
 
       {playbackItem?.videoUrl && (
         <div className="fixed inset-0 z-[320] flex items-center justify-center bg-black/80 p-4"

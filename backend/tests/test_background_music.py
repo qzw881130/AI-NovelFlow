@@ -1,4 +1,5 @@
 import json
+from array import array
 import shutil
 import subprocess
 
@@ -19,6 +20,7 @@ from app.services.notification_registry import EVENT_REGISTRY
 from app.repositories.workflow import WorkflowRepository
 from app.services.workflow_service import WorkflowService
 from app.services.prompt_template_service import PromptTemplateService
+from app.services.task_service import TaskService
 
 
 def test_batch_music_request_only_enqueues_worker_jobs(client, db_session, monkeypatch, tmp_path):
@@ -45,12 +47,40 @@ def test_batch_music_request_only_enqueues_worker_jobs(client, db_session, monke
     assert all(task.status == "pending" and not task.comfyui_prompt_id for task in tasks)
     assert all(json.loads(task.metadata_json)["source_video_url"] in
                {chapter.final_video for chapter in chapters} for task in tasks)
+    assert all(json.loads(task.metadata_json)["music_mode"] == "partial" for task in tasks)
     duplicate = client.post(f"/api/novels/{novel.id}/background-music",
                             json={"chapter_ids": [chapters[0].id]})
     assert duplicate.status_code == 409
     listing = client.get(f"/api/novels/{novel.id}/background-music")
     assert listing.status_code == 200
     assert set(listing.json()["data"]) == {chapter.id for chapter in chapters}
+
+
+def test_full_music_request_replaces_effective_chapter_selection(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="故事")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="起伏", final_video="/api/files/chapter.mp4")
+    db_session.add(chapter)
+    db_session.commit()
+    (tmp_path / "chapter.mp4").write_bytes(b"video")
+    monkeypatch.setattr("app.api.background_music.url_to_local_path", lambda _: str(tmp_path / "chapter.mp4"))
+    monkeypatch.setattr("app.api.background_music.enqueue_background_music_task", lambda _: None)
+    old = Task(type="chapter_background_music", status="completed", name="旧配乐",
+               novel_id=novel.id, chapter_id=chapter.id, result_url="/api/files/old.m4a",
+               metadata_json=json.dumps({"source_video_url": chapter.final_video}))
+    db_session.add(old)
+    db_session.commit()
+
+    created = client.post(f"/api/novels/{novel.id}/background-music",
+                          json={"chapter_ids": [chapter.id], "mode": "full"})
+    assert created.status_code == 200
+    assert created.json()["data"][0]["mode"] == "full"
+    latest = client.get(f"/api/novels/{novel.id}/background-music").json()["data"][chapter.id]
+    assert latest["id"] == created.json()["data"][0]["id"]
+    assert latest["audioUrl"] is None
+    assert TaskService.format_task_list([db_session.get(Task, latest["id"])], {}, {}, {})[0]["musicMode"] == "full"
+    assert db_session.get(Task, old.id) is not None  # Historical task remains auditable.
 
 
 def test_background_music_uses_durable_worker_descriptor(monkeypatch):
@@ -178,9 +208,13 @@ def test_music_system_prompts_separate_score_from_h3_sound_effects(db_session):
     PromptTemplateService(db_session).init_system_templates()
     director = db_session.query(PromptTemplate).filter_by(
         type="background_music_director", is_system=True).one()
+    full_director = db_session.query(PromptTemplate).filter_by(
+        type="background_music_director_full", is_system=True).one()
     generation = db_session.query(PromptTemplate).filter_by(
         type="background_music_generation", is_system=True).one()
     assert "MiniMax H3 视频已负责" in director.template
+    assert "第一段必须从首个 Shot 开始" in full_director.template
+    assert "MiniMax H3 已负责对白、脚步、风" in full_director.template
     assert "sound_priority 只说明配乐应给哪些已有声音让位" in generation.template
 
 
@@ -234,6 +268,26 @@ def test_director_plan_validates_source_evidence_and_shot_boundaries():
         _validate_plan({"chapters": [{"chapter_number": 1, "cues": [cue, cue]}]}, chapter, spans)
 
 
+def test_full_chapter_director_requires_contiguous_music_from_first_to_last_shot():
+    chapter = Chapter(number=1, content="先是安静的夜晚，随后他们奔跑，最后终于重逢。")
+    spans = [{"index": index, "start_seconds": (index - 1) * 8,
+              "end_seconds": index * 8, "dialogues": []} for index in (1, 2, 3)]
+    def cue(start, end, evidence):
+        return {"start_shot": start, "end_shot": end, "reason": "情绪变化",
+                "evidence_quote": evidence, "sound_priority": "对白优先",
+                "style": "Restrained instrumental score", "melody": "Short rising motif"}
+    def plan(cues):
+        return {"chapters": [{"chapter_number": 1, "no_music_reason": "", "cues": cues}]}
+    _, result = _validate_plan(plan([cue(1, 1, "安静的夜晚"), cue(2, 3, "最后终于重逢")]),
+                               chapter, spans, "full")
+    assert [(item["startSeconds"], item["endSeconds"]) for item in result] == [(0, 8), (8, 24)]
+    for invalid in ([], [cue(2, 3, "最后终于重逢")],
+                    [cue(1, 1, "安静的夜晚"), cue(3, 3, "最后终于重逢")],
+                    [cue(1, 2, "安静的夜晚")]):
+        with pytest.raises(ValueError):
+            _validate_plan(plan(invalid), chapter, spans, "full")
+
+
 @pytest.mark.asyncio
 async def test_worker_records_intentional_no_music_without_calling_comfyui(db_session, db_engine, monkeypatch, tmp_path):
     novel = Novel(title="药")
@@ -272,6 +326,46 @@ async def test_worker_records_intentional_no_music_without_calling_comfyui(db_se
     assert saved.status == "completed"
     assert saved.result_url is None
     assert json.loads(saved.metadata_json)["no_music_reason"] == "环境声优先"
+
+
+@pytest.mark.asyncio
+async def test_full_music_worker_uses_full_director_and_rejects_silent_plan(db_session, db_engine, monkeypatch, tmp_path):
+    novel = Novel(title="故事")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="起伏", content="夜里响起鼓声。",
+                      final_video="/api/files/chapter.mp4")
+    db_session.add(chapter)
+    db_session.flush()
+    task = Task(type="chapter_background_music", status="pending", name="全章音乐",
+                novel_id=novel.id, chapter_id=chapter.id,
+                metadata_json=json.dumps({"source_video_url": chapter.final_video, "music_mode": "full"}))
+    db_session.add(task)
+    db_session.commit()
+    video = tmp_path / "chapter.mp4"
+    video.write_bytes(b"video")
+    monkeypatch.setattr("app.services.background_music_service.SessionLocal", sessionmaker(bind=db_engine))
+    monkeypatch.setattr("app.services.background_music_service.url_to_local_path", lambda _: str(video))
+    monkeypatch.setattr("app.services.background_music_service._probe_seconds", lambda _: 5.0)
+    monkeypatch.setattr("app.services.background_music_service._shot_spans",
+                        lambda *_: [{"index": 1, "start_seconds": 0, "end_seconds": 5,
+                                     "scene": "", "description": "", "video_description": "", "dialogues": []}])
+    monkeypatch.setattr("app.services.background_music_service._read_template", lambda _, kind: kind)
+    captured = {}
+
+    class FakeLLM:
+        async def chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"success": True, "content": json.dumps({"chapters": [{"chapter_number": 1,
+                "no_music_reason": "留白", "cues": []}]}, ensure_ascii=False)}
+
+    monkeypatch.setattr("app.services.background_music_service.LLMService", FakeLLM)
+    await run_background_music_task(task.id)
+    db_session.expire_all()
+    assert captured["system_prompt"] == "background_music_director_full"
+    assert captured["task_type"] == "background_music_director_full"
+    assert db_session.get(Task, task.id).status == "failed"
+    assert "配乐段数无效" in db_session.get(Task, task.id).error_message
 
 
 def test_background_music_events_are_available_in_notification_settings(client):
@@ -332,3 +426,33 @@ def test_sparse_preview_and_chapter_mix_preserve_video_duration(tmp_path, monkey
     mixed_silent = tmp_path / "mixed-silent.mp4"
     _mix_chapter_background_music(str(silent_chapter), str(preview), str(mixed_silent))
     assert abs(_probe_seconds(str(mixed_silent)) - 4) < 0.25
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg unavailable")
+def test_full_chapter_track_stretches_short_cue_and_reaches_last_second(tmp_path, monkeypatch):
+    short = tmp_path / "short.flac"
+    final = tmp_path / "final.flac"
+    for path, length, frequency in ((short, 1.8, 330), (final, 2.0, 440)):
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
+                        f"sine=frequency={frequency}:duration={length}", "-c:a", "flac", "-y", str(path)], check=True)
+    monkeypatch.setattr("app.services.background_music_service.url_to_local_path",
+                        lambda url: str(tmp_path / url.rsplit("/", 1)[-1]))
+    monkeypatch.setattr("app.services.background_music_service.local_path_to_url",
+                        lambda path: f"/api/files/{path.rsplit('/', 1)[-1]}")
+    cue_preview = tmp_path / "short-preview.m4a"
+    short_cue = {"rawAudioUrl": "/api/files/short.flac", "startSeconds": 0,
+                 "durationSeconds": 2.0, "gainDb": -23}
+    _ensure_cue_preview(short_cue, short, cue_preview, "full")
+    assert abs(_probe_seconds(str(cue_preview)) - 2.0) < 0.1
+    preview = tmp_path / "full-preview.m4a"
+    _assemble_preview([short_cue, {"rawAudioUrl": "/api/files/final.flac", "rawAudioSeconds": 2.0,
+                   "startSeconds": 2.0, "durationSeconds": 2.0, "gainDb": -23}], preview, 4.0, "full")
+    assert abs(_probe_seconds(str(preview)) - 4.0) < 0.1
+    decoded = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(preview),
+                              "-ac", "1", "-ar", "48000", "-f", "s16le", "pipe:1"],
+                             check=True, capture_output=True).stdout
+    samples = array("h")
+    samples.frombytes(decoded)
+    for start in (1.85, 3.85):
+        window = samples[int(start * 48000):int((start + 0.1) * 48000)]
+        assert max(abs(sample) for sample in window) > 100

@@ -4,7 +4,7 @@ export default {
   characters: {
     title: 'Character Library',
     subtitle: 'Manage characters in your novels',
-    noProtagonistReminder: 'No protagonist is selected for this novel. Create or edit a character and select “Protagonist” to enable first-appearance nameplates in merged chapter videos.',
+    noProtagonistReminder: 'No protagonist is selected for this novel. For protagonist first-appearance previews, create or edit a character and select “Protagonist”.',
     autoSetProtagonists: 'Auto Set Protagonists',
     autoSetProtagonistsHint: 'Select non-narrator characters in this novel whose names contain no digits',
     autoSetProtagonistsSuccess: 'Selected {count} protagonists',

@@ -63,10 +63,11 @@ async def list_chapters(
     }
     estimated_durations = {}
     generated_images = []
+    first_shot_images = {}
     split_chapter_ids = set()
     if chapter_ids:
-        for chapter_id, duration, image_url, image_task_id, video_url, video_status in db.query(
-            Shot.chapter_id, Shot.duration, Shot.image_url, Shot.image_task_id,
+        for chapter_id, shot_index, duration, image_url, image_task_id, video_url, video_status in db.query(
+            Shot.chapter_id, Shot.index, Shot.duration, Shot.image_url, Shot.image_task_id,
             Shot.video_url, Shot.video_status,
         ).filter(Shot.chapter_id.in_(chapter_ids)).all():
             split_chapter_ids.add(chapter_id)
@@ -80,6 +81,8 @@ async def list_chapters(
             if image_url:
                 stats["generated"] += 1
                 generated_images.append((chapter_id, image_task_id, image_url))
+                if shot_index == 1:
+                    first_shot_images[chapter_id] = image_url
 
     # Use the same current-image projection as the generation page. A review for
     # an earlier image from the same task must not count for its replacement.
@@ -99,6 +102,7 @@ async def list_chapters(
             {**chapter_repo.to_response(chapter),
              "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids,
              "estimatedDuration": estimated_durations.get(chapter.id),
+             "firstShotImageUrl": first_shot_images.get(chapter.id),
              "shotImageStats": shot_image_stats[chapter.id],
              "shotVideoStats": shot_video_stats[chapter.id]}
             for chapter in chapters

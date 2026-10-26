@@ -524,6 +524,11 @@ def compile_temporal_extend_clip(
     if not temporal_anchors:
         raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
     temporal_anchors = [a for a in temporal_anchors if temporal_reference_enabled(clip, a)]
+    start_seconds = _number(clip.get("start_time"), "start_time")
+    end_seconds = _number(clip.get("end_time"), "end_time")
+    # Clip-local anchors use decimal timestamps; keep the same precision when
+    # deriving the Clip duration so an anchor at the endpoint stays in bounds.
+    duration_seconds = float(Decimal(str(end_seconds)) - Decimal(str(start_seconds)))
 
     compiled = {
         "execution_contract": {
@@ -534,9 +539,9 @@ def compile_temporal_extend_clip(
                 "clip_id": f"{shot.id}:clip:{int(clip.get('clip_index'))}",
                 "clip_index": int(clip.get("clip_index")),
                 "clip_plan_revision": revision,
-                "start_seconds": _number(clip.get("start_time"), "start_time"),
-                "end_seconds": _number(clip.get("end_time"), "end_time"),
-                "duration_seconds": _number(clip.get("end_time"), "end_time") - _number(clip.get("start_time"), "start_time"),
+                "start_seconds": start_seconds,
+                "end_seconds": end_seconds,
+                "duration_seconds": duration_seconds,
             },
         },
         "video_reference_manifest": project_canonical_visual_references(shot, plan, clip, temporal_anchors, resource_references),

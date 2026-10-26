@@ -160,6 +160,8 @@ def ensure_schema_updates():
                                  {"features": features, "id": character_id})
 
             config_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(system_configs)"))]
+            if "nameplate_preview_mode" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN nameplate_preview_mode VARCHAR NOT NULL DEFAULT 'protagonist_first'"))
             if "auto_approve_first_appearance_names" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             if "generation_quality_policy" not in config_columns:

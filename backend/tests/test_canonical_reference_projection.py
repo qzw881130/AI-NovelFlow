@@ -68,6 +68,27 @@ def test_temporal_excludes_anchor_identity_from_ordinary_manifest():
     assert compiled["execution_contract"]["temporal_anchor_manifest"]["anchors"][0]["anchor_id"] == "clip-2-KF4"
 
 
+def test_temporal_anchor_at_decimal_clip_endpoint_is_in_bounds():
+    temporal = {"anchor_id": "clip-2-KF3", "time_seconds": 4.95,
+                "image_url": "/api/files/k3.png", "source": {"type": "KEYFRAME", "id": "KF3", "keyframe_index": 3}}
+    semantic_clip = clip(2, "TEMPORAL_EXTEND", owned=[3], carry=2,
+                         start_time=14.05, end_time=19.0,
+                         continuity_to_previous="CONTINUOUS", previous_clip_index=1,
+                         requires_temporal_control=True)
+    previous = {"clip_index": 1, "clip_plan_revision": 1,
+                "generated_by_task_id": "t1", "result_url": "/api/files/c1.mp4"}
+    args = (Shot(), plan([state(3, 19.0, image="/api/files/k3.png", timed=True)]),
+            semantic_clip, 1, previous)
+
+    compiled = compile_temporal_extend_clip(*args, [temporal])
+    contract = compiled["execution_contract"]
+    assert contract["clip"]["duration_seconds"] == 4.95
+    assert contract["temporal_anchor_manifest"]["anchors"][0]["time_seconds"] == 4.95
+
+    with pytest.raises(ClipExecutionCompileError, match="anchor outside Clip"):
+        compile_temporal_extend_clip(*args, [{**temporal, "time_seconds": 4.96}])
+
+
 def test_missing_ordinary_image_soft_skips_and_end_does_not_fallback():
     manifest = project_canonical_visual_references(Shot(), plan([
         state(2, 4), state(3, 8, "END"),

@@ -4,6 +4,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { API_BASE } from '../constants';
 import type { MergeVideosCardProps } from '../types';
+import { SubtitleModeSelect, type SubtitleMode } from '../../../components/SubtitleModeSelect';
 
 export default function MergeVideosCard({
   novelId,
@@ -17,6 +18,7 @@ export default function MergeVideosCard({
   const [isMerging, setIsMerging] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [includeTransitions, setIncludeTransitions] = useState(true);
+  const [subtitleMode, setSubtitleMode] = useState<SubtitleMode>('none');
 
   const videoList = Object.values(shotVideos).filter(Boolean);
   const hasVideos = videoList.length > 0;
@@ -35,7 +37,7 @@ export default function MergeVideosCard({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ include_transitions: includeTransitions })
+          body: JSON.stringify({ include_transitions: includeTransitions, subtitle_mode: subtitleMode })
         }
       );
 
@@ -77,6 +79,7 @@ export default function MergeVideosCard({
             
             {/* 选项 */}
             <div className="space-y-2 mb-4">
+              <SubtitleModeSelect value={subtitleMode} onChange={setSubtitleMode} />
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"

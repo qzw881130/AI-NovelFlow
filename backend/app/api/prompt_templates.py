@@ -57,8 +57,10 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
         ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
+    ("视频字幕", [("subtitle_correction", "章回字幕文本校对"), ("subtitle_translation", "章回字幕英文翻译")]),
     ("背景音乐", [
-        ("background_music_director", "背景音乐导演规划"),
+        ("background_music_director", "部分音乐导演规划"),
+        ("background_music_director_full", "全章音乐导演规划"),
         ("background_music_generation", "ACE-Step1.5 纯器乐标签"),
     ]),
 ]

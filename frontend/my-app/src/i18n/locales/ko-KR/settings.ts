@@ -8,8 +8,11 @@ export default {
     videoPromptEnglish: "영어 (기본값)",
     videoPromptChinese: "중국어",
     videoPromptLanguageDesc: "H3 Phase B의 동작, 카메라, 외모, 장면, 소품, 소리 설명에 적용합니다. 인물 이름, 대사 원문, 바인딩 표시는 유지합니다. 새 작업에 적용되며 재시도는 기존 설정을 유지합니다.",
+    nameplatePreviewMode: '이름표 미리보기 방식',
     showFirstAppearanceNames: '주인공 첫 등장 이름표 미리보기',
     showFirstAppearanceNamesDesc: '캐릭터 라이브러리에서 직접 지정한 주인공의 첫 등장에만 빨간 세로 이름표 미리보기를 만듭니다. 위치와 시간은 자동으로 정합니다. 자동 승인이 꺼져 있으면 작업 목록에서 확인한 뒤 챕터 완성본에 적용합니다. 원본 Shot 및 Clip 영상은 변경하지 않습니다.',
+    chapterFirstAppearanceNames: '각 챕터 첫 등장 이름표 미리보기',
+    chapterFirstAppearanceNamesDesc: '각 챕터에서 내레이터를 제외한 등록 캐릭터가 처음 등장할 때 이름표 미리보기를 만듭니다. 같은 캐릭터도 다음 챕터에서 다시 표시됩니다. 위치 확인, 승인, 완성 영상 적용은 주인공 모드와 같습니다.',
     autoApproveFirstAppearanceNames: '이름표 미리보기 자동 승인',
     autoApproveFirstAppearanceNamesDesc: '챕터 영상 병합 후 이름표 미리보기가 성공하면 완성본에 자동 적용합니다. 위치 판별이나 미리보기 생성이 실패하면 원본 병합 영상을 사용합니다. 기본값은 켜짐입니다.',
     title: '시스템 설정',
@@ -107,6 +110,8 @@ export default {
     workflow: {
       ...enUS.systemSettings.workflow,
       backgroundMusic: '배경 음악',
+      subtitleAsr: '자막 음성 인식',
+      audioTranscription: '음성 텍스트 변환',
       musicStyleNode: '음악 스타일 노드',
       musicLyricsNode: '가사 노드',
       musicDurationNode: '음악 길이 노드 (소수 초)',
@@ -257,14 +262,20 @@ export default {
     explicitBinding: '명시적으로 지정',
     boundNovelCount: '총 {count}편',
 
-    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악' },
+    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악', videoSubtitles: '동영상 자막' },
 
     // 프롬프트 템플릿 타입
     types: {
-      backgroundMusicDirector: '배경 음악 연출',
-      backgroundMusicDirectorDesc: '이야기, 대사, 환경음을 고려하여 필요한 구간만 선택하고 무음도 허용합니다',
+      backgroundMusicDirector: '부분 음악 연출',
+      backgroundMusicDirectorDesc: '필요한 구간만 골라 음악을 넣고 나머지는 비워 둡니다',
+      backgroundMusicDirectorFull: '전체 장 음악 연출',
+      backgroundMusicDirectorFullDesc: '이야기의 변화에 맞춰 장 전체를 연속 음악으로 구성합니다',
       backgroundMusicGeneration: '연주곡 생성 제약',
       backgroundMusicGenerationDesc: 'ACE-Step 태그와 연주곡 표시를 준비합니다',
+      subtitleCorrection: '챕터 자막 교정',
+      subtitleCorrectionDesc: '대사를 참고해 ASR 오타를 수정하고 음성 시간을 유지합니다',
+      subtitleTranslation: '챕터 자막 영어 번역',
+      subtitleTranslationDesc: '교정된 중국어 자막을 시간 변경 없이 영어로 번역합니다',
       sceneSetting: '장면 설정 설명',
       sceneSettingDesc: 'LLM으로 환경 설정 텍스트를 보완합니다. 이미지를 생성하지 않습니다',
       propAppearance: '소품 외형 설명',
@@ -315,7 +326,9 @@ export default {
     resetSuccess: '기본 프롬프트로 재설정',
     resetSuccessFrontend: '기본 프롬프트로 재설정 (프론트엔드만)',
     templateNames: {
+      '章回字幕文本校对 V1': '챕터 자막 교정 V1',
       '背景音乐导演规划 V1': '배경 음악 연출 계획 V1',
+      '全章背景音乐导演规划 V1': '전체 장 배경 음악 연출 계획 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 연주곡 태그 V1',
       'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 연주곡 태그 V1',
       '场景设定描述': '장면 설정 설명',
@@ -347,6 +360,8 @@ export default {
       '标准角色解析': '표준 캐릭터 파싱',
     },
     templateDescriptions: {
+      '部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '부분 음악: 이야기, 샷, 대사를 바탕으로 필요한 구간만 고르고 무음도 허용합니다',
+      '全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot': '전체 장 음악: 이야기의 변화에 맞춰 첫 샷부터 마지막 샷까지 연속 음악을 계획합니다',
       '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '소설 본문, 샷, 대사, 환경음을 바탕으로 필요한 음악 구간만 계획하며 무음도 허용합니다',
       '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '연출 스타일을 ACE-Step 1.0 태그로 변환하고 [inst]를 고정합니다. 길이는 워크플로 노드에서 제어합니다',
       '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '연출 스타일과 선율을 ACE-Step1.5 태그로 변환하고 [inst]를 고정합니다. 길이는 워크플로 노드에서 제어합니다',

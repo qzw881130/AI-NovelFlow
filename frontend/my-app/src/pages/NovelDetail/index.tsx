@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine, BookOpen, Music2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine, BookOpen, Music2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
 import { chapterApi, type ChapterAiSplitBatch } from '../../api/chapters';
@@ -146,11 +146,21 @@ export default function NovelDetail() {
   const [splitModalMode, setSplitModalMode] = useState<'create' | 'progress' | null>(null);
   const [latestSplitBatch, setLatestSplitBatch] = useState<ChapterAiSplitBatch | null>(null);
   const latestSplitBatchRef = useRef<ChapterAiSplitBatch | null>(null);
+  const chapterVideoStripRef = useRef<HTMLDivElement | null>(null);
   const dragSelectionRef = useRef<{ pointerId: number; startIndex: number; lastIndex: number; selecting: boolean; initial: Set<string> } | null>(null);
   const suppressCheckboxClickRef = useRef<string | null>(null);
   const [mergeProfile, setMergeProfile] = useState<{ kind: 'draft' | 'hd'; targetMegapixels?: number }>({ kind: 'draft' });
   const totalContentLength = state.chapters.reduce((total, chapter) => total + getChapterContentLength(chapter), 0);
   const hdMergeTargets = Array.from(new Set(state.chapters.flatMap(chapter => getChapterVideoAssets(chapter).filter(asset => asset.kind === 'hd' && asset.targetMegapixels != null).map(asset => Number(asset.targetMegapixels))))).sort((a, b) => a - b);
+  const chapterVideoPlaylist = state.chapters.flatMap<{ chapter: Chapter; asset: ChapterVideoAsset | null }>(chapter => {
+    const assets = getChapterVideoAssets(chapter);
+    return assets.length > 0 ? assets.map(asset => ({ chapter, asset })) : [{ chapter, asset: null }];
+  });
+
+  useEffect(() => {
+    chapterVideoStripRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [playingChapter?.chapter.id, playingChapter?.asset.id]);
 
   const refreshSplitBatches = async () => {
     if (!state.id) return;
@@ -419,10 +429,10 @@ export default function NovelDetail() {
       )}
       {playingChapter?.asset.videoUrl && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{playingChapter.chapter.title} · {playingChapter.asset.label}</h3>
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-y-auto rounded-xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="truncate text-lg font-semibold text-gray-900">{playingChapter.chapter.title} · {playingChapter.asset.label}</h3>
                 <p className="text-xs text-gray-500">
                    {formatDuration(playingChapter.asset.duration)} · {formatFileSize(playingChapter.asset.fileSize)} · {playingChapter.asset.shotCount || 0} 镜头
                 </p>
@@ -431,10 +441,45 @@ export default function NovelDetail() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="bg-black">
-              <video src={playingChapter.asset.videoUrl} controls autoPlay className="max-h-[70vh] w-full" />
+            <div className="shrink-0 bg-black">
+              <video key={`${playingChapter.chapter.id}:${playingChapter.asset.id}`} src={playingChapter.asset.videoUrl} controls autoPlay className="max-h-[52vh] w-full" />
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4">
+            <div className="shrink-0 border-b px-5 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-700">章回视频</p>
+                <div className="flex gap-1">
+                  <button type="button" aria-label="向左浏览章回视频" onClick={() => chapterVideoStripRef.current?.scrollBy({ left: -480, behavior: 'smooth' })} className="rounded p-1 text-gray-500 hover:bg-gray-100"><ChevronLeft className="h-4 w-4" /></button>
+                  <button type="button" aria-label="向右浏览章回视频" onClick={() => chapterVideoStripRef.current?.scrollBy({ left: 480, behavior: 'smooth' })} className="rounded p-1 text-gray-500 hover:bg-gray-100"><ChevronRight className="h-4 w-4" /></button>
+                </div>
+              </div>
+              <div ref={chapterVideoStripRef} className="flex gap-2 overflow-x-auto overscroll-x-contain pb-2" aria-label="章回视频列表">
+                {chapterVideoPlaylist.map(({ chapter, asset }) => {
+                  const active = chapter.id === playingChapter.chapter.id && asset?.id === playingChapter.asset.id;
+                  return (
+                    <button
+                      key={`${chapter.id}:${asset?.id || 'missing'}`}
+                      type="button"
+                      disabled={!asset}
+                      aria-pressed={active}
+                      onClick={() => asset && setPlayingChapter({ chapter, asset })}
+                      className={`w-36 shrink-0 overflow-hidden rounded-lg border text-left transition-colors sm:w-40 ${active
+                        ? 'border-blue-500 bg-blue-50 text-blue-800 ring-1 ring-blue-500'
+                        : asset ? 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                          : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'}`}
+                    >
+                      {chapter.firstShotImageUrl
+                        ? <img src={chapter.firstShotImageUrl} alt={`${chapter.title} 第一张分镜图`} loading="lazy" className="aspect-video w-full object-cover" />
+                        : <span className="flex aspect-video items-center justify-center bg-gray-100 text-gray-400"><Video className="h-6 w-6" /></span>}
+                      <span className="block truncate px-2 pt-1 text-sm font-medium" title={chapter.title}>{chapter.title}</span>
+                      <span className="flex items-center gap-1 truncate px-2 pb-1 text-xs">
+                        <Video className="h-3 w-3 shrink-0" />{asset ? `${asset.label} · ${formatDuration(asset.duration)}` : '暂无视频'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 px-5 py-4">
               <a href={playingChapter.asset.videoUrl} download className="btn-secondary text-sm py-1.5 px-3">
                 <Download className="h-3 w-3 mr-1" />下载视频
               </a>
