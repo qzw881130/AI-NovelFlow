@@ -9,6 +9,7 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
   background_music_director: { nameKey: 'promptConfig.types.backgroundMusicDirector', descKey: 'promptConfig.types.backgroundMusicDirectorDesc', defaultTemplate: '' },
+  background_music_director_full: { nameKey: 'promptConfig.types.backgroundMusicDirectorFull', descKey: 'promptConfig.types.backgroundMusicDirectorFullDesc', defaultTemplate: '' },
   background_music_generation: { nameKey: 'promptConfig.types.backgroundMusicGeneration', descKey: 'promptConfig.types.backgroundMusicGenerationDesc', defaultTemplate: '' },
   scene_setting: { nameKey: 'promptConfig.types.sceneSetting', descKey: 'promptConfig.types.sceneSettingDesc', defaultTemplate: '' },
   prop_appearance: { nameKey: 'promptConfig.types.propAppearance', descKey: 'promptConfig.types.propAppearanceDesc', defaultTemplate: '' },
@@ -60,6 +61,7 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'h3_execution_optimizer_prompt',
   'h3_preflight_repair_prompt',
   'background_music_director',
+  'background_music_director_full',
   'background_music_generation',
 ];
 
@@ -93,6 +95,7 @@ export function usePromptConfigState() {
     h3_execution_optimizer_prompt: [],
     h3_preflight_repair_prompt: [],
     background_music_director: [],
+    background_music_director_full: [],
     background_music_generation: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
@@ -120,6 +123,7 @@ export function usePromptConfigState() {
     h3_execution_optimizer_prompt: true,
     h3_preflight_repair_prompt: true,
     background_music_director: true,
+    background_music_director_full: true,
     background_music_generation: true,
   });
 

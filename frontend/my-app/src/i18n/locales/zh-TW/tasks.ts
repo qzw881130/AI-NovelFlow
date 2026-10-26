@@ -4,6 +4,7 @@ import zhCN from '../zh-CN/tasks';
 export default {
   tasks: {
     ...zhCN.tasks,
+    musicModes: { partial: '部分音樂', full: '全章音樂' },
     chapterNumber: '章回 {number}',
     chapterContext: '章回 {number} · {title}',
     promptCharacterCount: '{count} 字元',

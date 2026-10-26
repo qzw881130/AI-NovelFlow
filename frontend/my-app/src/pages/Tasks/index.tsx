@@ -82,6 +82,10 @@ export default function Tasks() {
       if (oldClipName) {
         return `${oldClipName[1]}: 章回${task.chapterNumber} · 镜${oldClipName[2]} · C${oldClipName[3]}`;
       }
+      const oldShotName = task.name.match(/^生成视频:\s*镜(\d+)$/);
+      if (oldShotName) {
+        return `生成视频: 章回${task.chapterNumber} · 镜${oldShotName[1]}`;
+      }
     }
     if (task.type === 'novel_video') {
       return task.name.replace(/^合并小说章回视频(?=\s*[:：]|$)/, '合并小说视频');

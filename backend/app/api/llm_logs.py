@@ -114,7 +114,7 @@ LLM_LOG_TASK_LABELS = {
     "h3_multi_keyframe_director_phase_b": "视频生成-H3单阶段导演（Phase B）",
     "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
     "h3_preflight_repair_prompt": "视频生成-MiniMax H3 Preflight 自动修复",
-    "first_appearance_nameplate": "视频生成-主角首次出镜姓名牌定位",
+    "first_appearance_nameplate": "视频生成-首次出镜姓名牌定位",
 }
 
 LLM_TASK_TEMPLATE_TYPES = {

@@ -428,9 +428,15 @@ SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES: List[Dict] = [
 SYSTEM_BACKGROUND_MUSIC_TEMPLATES: List[Dict] = [
     {
         "name": "背景音乐导演规划 V1",
-        "description": "根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐",
+        "description": "部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐",
         **file_template("background_music_director_v1.txt"),
         "type": "background_music_director",
+    },
+    {
+        "name": "全章背景音乐导演规划 V1",
+        "description": "全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot",
+        **file_template("background_music_director_full_v1.txt"),
+        "type": "background_music_director_full",
     },
     {
         "name": "ACE-Step1.5 纯器乐标签 V1",

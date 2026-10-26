@@ -48,6 +48,9 @@ def test_chapter_list_shot_image_stats_and_estimated_duration(client, db_session
         "generated": 1, "total": 1, "passed": 0, "warning": 0, "failed": 0,
     }
     assert [chapter["estimatedDuration"] for chapter in data] == [156, 17, None]
+    assert [chapter["firstShotImageUrl"] for chapter in data] == [
+        "/api/files/pass.png", "/api/files/upload.png", None,
+    ]
     assert [chapter["shotVideoStats"] for chapter in data] == [
         {"completed": 2, "total": 5},
         {"completed": 1, "total": 1},

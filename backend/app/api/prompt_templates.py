@@ -58,7 +58,8 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
     ("背景音乐", [
-        ("background_music_director", "背景音乐导演规划"),
+        ("background_music_director", "部分音乐导演规划"),
+        ("background_music_director_full", "全章音乐导演规划"),
         ("background_music_generation", "ACE-Step1.5 纯器乐标签"),
     ]),
 ]

@@ -28,6 +28,8 @@ from app.utils.time_utils import format_datetime
 
 TASK_TYPE = "chapter_background_music"
 QUEUE_NAME = "background_music"
+PARTIAL_MUSIC = "partial"
+FULL_CHAPTER_MUSIC = "full"
 ACE_STEP_1_5_KEYS = {
     f"{note} {mode}"
     for note in ("C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb",
@@ -69,6 +71,7 @@ def format_background_music(task: Task, chapter: Chapter | None = None) -> dict:
     stale = bool(chapter and source_video_url and chapter.final_video != source_video_url)
     return {
         "id": task.id, "chapterId": task.chapter_id, "status": task.status,
+        "mode": metadata.get("music_mode") if metadata.get("music_mode") == FULL_CHAPTER_MUSIC else PARTIAL_MUSIC,
         "progress": task.progress or 0, "currentStep": task.current_step,
         "errorMessage": task.error_message, "audioUrl": task.result_url if not stale else None,
         "stale": stale, "noMusicReason": metadata.get("no_music_reason"),
@@ -120,14 +123,16 @@ def _shot_spans(db, chapter: Chapter, video_seconds: float) -> list[dict]:
     return spans
 
 
-def _validate_plan(parsed: object, chapter: Chapter, spans: list[dict]) -> tuple[str, list[dict]]:
+def _validate_plan(parsed: object, chapter: Chapter, spans: list[dict],
+                   mode: str = PARTIAL_MUSIC) -> tuple[str, list[dict]]:
     if not isinstance(parsed, dict) or not isinstance(parsed.get("chapters"), list) or len(parsed["chapters"]) != 1:
         raise ValueError("音乐导演输出的章节数量无效")
     section = parsed["chapters"][0]
     if not isinstance(section, dict) or section.get("chapter_number") != chapter.number:
         raise ValueError("音乐导演输出的章回编号不匹配")
     raw_cues = section.get("cues")
-    if not isinstance(raw_cues, list) or len(raw_cues) > 6:
+    max_cues = 12 if mode == FULL_CHAPTER_MUSIC else 6
+    if not isinstance(raw_cues, list) or len(raw_cues) > max_cues or (mode == FULL_CHAPTER_MUSIC and not raw_cues):
         raise ValueError("音乐导演输出的配乐段数无效")
     by_index = {span["index"]: span for span in spans}
     result = []
@@ -138,6 +143,8 @@ def _validate_plan(parsed: object, chapter: Chapter, spans: list[dict]) -> tuple
         start, end = raw.get("start_shot"), raw.get("end_shot")
         if not isinstance(start, int) or not isinstance(end, int) or start > end or start <= last_end:
             raise ValueError("配乐 Cue 顺序重叠或范围无效")
+        if mode == FULL_CHAPTER_MUSIC and start != (spans[0]["index"] if number == 1 else last_end + 1):
+            raise ValueError("全章音乐配乐区间必须从首个 Shot 起连续覆盖，不得留白")
         if any(index not in by_index for index in range(start, end + 1)):
             raise ValueError("配乐 Cue 引用了不存在的 Shot")
         evidence = str(raw.get("evidence_quote") or "").strip()
@@ -162,6 +169,10 @@ def _validate_plan(parsed: object, chapter: Chapter, spans: list[dict]) -> tuple
             "style": style, "melody": melody, "gainDb": -27 if has_dialogue else -23,
         })
         last_end = end
+    if mode == FULL_CHAPTER_MUSIC and last_end != spans[-1]["index"]:
+        raise ValueError("全章音乐配乐区间必须覆盖到最后一个 Shot")
+    if mode == FULL_CHAPTER_MUSIC and str(section.get("no_music_reason") or "").strip():
+        raise ValueError("全章音乐不能包含不配乐原因")
     return str(section.get("no_music_reason") or ""), result
 
 
@@ -277,15 +288,17 @@ async def _download_audio(url: str, host: str, target: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _render_cue_preview(source: Path, output: Path, duration: float) -> float:
+def _render_cue_preview(source: Path, output: Path, duration: float,
+                        mode: str = PARTIAL_MUSIC) -> float:
     """Expose exactly the portion of generated audio that belongs to this cue."""
     source_seconds = _probe_seconds(str(source))
     if source_seconds + 0.5 < duration:
         raise ValueError(f"音乐短于目标区间（{source_seconds:.2f} < {duration:.2f} 秒），不能安全混音")
-    fade = min(1.0, duration / 3)
+    fade = min(1.0, duration / 3) if mode == PARTIAL_MUSIC else min(0.02, duration / 3)
+    tempo = f"atempo={source_seconds / duration:.6f}," if mode == FULL_CHAPTER_MUSIC and source_seconds < duration else ""
     temporary = output.with_name(f".{output.stem}.{uuid.uuid4().hex}.tmp.m4a")
     filter_graph = (
-        f"aresample=48000,aformat=channel_layouts=stereo,atrim=duration={duration:.3f},"
+        f"aresample=48000,aformat=channel_layouts=stereo,{tempo}atrim=duration={duration:.3f},"
         f"asetpts=PTS-STARTPTS,afade=t=in:st=0:d={fade:.3f},"
         f"afade=t=out:st={duration-fade:.3f}:d={fade:.3f},"
         f"apad=whole_dur={duration:.3f}"
@@ -305,10 +318,11 @@ def _render_cue_preview(source: Path, output: Path, duration: float) -> float:
     return source_seconds
 
 
-def _ensure_cue_preview(cue: dict, source: Path, preview: Path) -> None:
+def _ensure_cue_preview(cue: dict, source: Path, preview: Path,
+                        mode: str = PARTIAL_MUSIC) -> None:
     """Idempotent after a worker restart and compatible with old raw-audio metadata."""
     if not preview.is_file() or abs(_probe_seconds(str(preview)) - cue["durationSeconds"]) > 0.1:
-        raw_seconds = _render_cue_preview(source, preview, cue["durationSeconds"])
+        raw_seconds = _render_cue_preview(source, preview, cue["durationSeconds"], mode)
     else:
         raw_seconds = _probe_seconds(str(source))
     cue["rawAudioUrl"] = local_path_to_url(str(source))
@@ -317,7 +331,8 @@ def _ensure_cue_preview(cue: dict, source: Path, preview: Path) -> None:
     cue["audioSeconds"] = round(_probe_seconds(str(preview)), 3)
 
 
-def _assemble_preview(cues: list[dict], output: Path, duration: float) -> None:
+def _assemble_preview(cues: list[dict], output: Path, duration: float,
+                      mode: str = PARTIAL_MUSIC) -> None:
     command = ["ffmpeg", "-nostdin", "-hide_banner", "-v", "error", "-xerror", "-f", "lavfi", "-t", f"{duration:.3f}",
                "-i", "anullsrc=r=48000:cl=stereo"]
     filters = []
@@ -328,11 +343,13 @@ def _assemble_preview(cues: list[dict], output: Path, duration: float) -> None:
             raise ValueError("配乐片段文件已丢失")
         command += ["-i", path]
         length = cue["durationSeconds"]
-        fade = min(1.0, length / 3)
+        source_seconds = float(cue.get("rawAudioSeconds") or _probe_seconds(str(path)))
+        tempo = f"atempo={source_seconds / length:.6f}," if mode == FULL_CHAPTER_MUSIC and source_seconds < length else ""
+        fade = min(1.0, length / 3) if mode == PARTIAL_MUSIC else min(0.02, length / 3)
         delay = round(cue["startSeconds"] * 1000)
         relative_gain = cue["gainDb"] + 23
         filters.append(
-            f"[{index}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration={length:.3f},"
+            f"[{index}:a]aresample=48000,aformat=channel_layouts=stereo,{tempo}atrim=duration={length:.3f},"
             f"asetpts=PTS-STARTPTS,afade=t=in:st=0:d={fade:.3f},"
             f"afade=t=out:st={length-fade:.3f}:d={fade:.3f},volume={relative_gain}dB,"
             f"adelay={delay}|{delay}[cue{index}]"
@@ -363,6 +380,7 @@ async def run_background_music_task(task_id: str) -> None:
         chapter = db.query(Chapter).filter(Chapter.id == task.chapter_id, Chapter.novel_id == task.novel_id).one()
         novel = db.get(Novel, task.novel_id)
         metadata = _metadata(task)
+        mode = FULL_CHAPTER_MUSIC if metadata.get("music_mode") == FULL_CHAPTER_MUSIC else PARTIAL_MUSIC
         if chapter.final_video != metadata.get("source_video_url"):
             raise ValueError("章回视频已变化，请重新提交背景音乐生成")
         source = url_to_local_path(chapter.final_video)
@@ -377,20 +395,26 @@ async def run_background_music_task(task_id: str) -> None:
         spans = await asyncio.to_thread(_shot_spans, db, chapter, duration)
         llm = LLMService()
         if "cues" not in metadata:
+            director_type = ("background_music_director_full" if mode == FULL_CHAPTER_MUSIC
+                             else "background_music_director")
+            director_name = ("全章背景音乐导演规划 V1" if mode == FULL_CHAPTER_MUSIC
+                             else "背景音乐导演规划 V1")
             response = await llm.chat_completion(
-                system_prompt=_read_template(db, "background_music_director"),
+                system_prompt=_read_template(db, director_type),
                 user_content=json.dumps({"title": novel.title, "chapter_number": chapter.number,
                     "chapter_title": chapter.title, "content": chapter.content,
-                    "shots": [{key: value for key, value in span.items() if key not in {"start_seconds", "end_seconds"}}
+                    "shots": [{**{key: value for key, value in span.items()
+                                   if key not in {"start_seconds", "end_seconds"}},
+                               "duration_seconds": round(span["end_seconds"] - span["start_seconds"], 3)}
                               for span in spans]}, ensure_ascii=False),
                 temperature=0.2, max_tokens=5000, response_format="json_object",
-                task_type="background_music_director", prompt_template_name="背景音乐导演规划 V1",
+                task_type=director_type, prompt_template_name=director_name,
                 novel_id=task.novel_id, chapter_id=chapter.id,
             )
             if not response.get("success"):
                 raise ValueError(response.get("error") or "背景音乐 LLM 解析失败")
             parsed = safe_parse_llm_json(response.get("content") or "", default=None)
-            no_music_reason, cues = _validate_plan(parsed, chapter, spans)
+            no_music_reason, cues = _validate_plan(parsed, chapter, spans, mode)
             metadata.update({"cues": cues, "no_music_reason": no_music_reason, "duration_seconds": duration})
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             task.prompt_text = format_background_music_prompt(metadata)
@@ -419,7 +443,7 @@ async def run_background_music_task(task_id: str) -> None:
             target = output_dir / f"cue-{cue['index']:02d}.flac"
             cue_preview = output_dir / f"cue-{cue['index']:02d}-preview.m4a"
             if target.is_file():
-                await asyncio.to_thread(_ensure_cue_preview, cue, target, cue_preview)
+                await asyncio.to_thread(_ensure_cue_preview, cue, target, cue_preview, mode)
                 task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 db.commit()
                 continue
@@ -466,7 +490,7 @@ async def run_background_music_task(task_id: str) -> None:
             if not result.get("success") or not result.get("audio_url"):
                 raise ValueError(result.get("message") or "背景音乐工作流未返回音频")
             await _download_audio(result["audio_url"], client.base_url, target)
-            await asyncio.to_thread(_ensure_cue_preview, cue, target, cue_preview)
+            await asyncio.to_thread(_ensure_cue_preview, cue, target, cue_preview, mode)
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             db.commit()
         if chapter.final_video != metadata.get("source_video_url"):
@@ -475,7 +499,7 @@ async def run_background_music_task(task_id: str) -> None:
         task.progress = 90
         db.commit()
         preview = output_dir / "chapter-background-music.m4a"
-        await asyncio.to_thread(_assemble_preview, cues, preview, duration)
+        await asyncio.to_thread(_assemble_preview, cues, preview, duration, mode)
         task.result_url = local_path_to_url(str(preview))
         task.status = "completed"
         task.progress = 100

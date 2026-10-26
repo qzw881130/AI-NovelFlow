@@ -4,7 +4,7 @@ export default {
   characters: {
     title: '角色库',
     subtitle: '管理小说中的角色',
-    noProtagonistReminder: '当前小说尚未指定主角。请创建或编辑角色，勾选“指定为主角”；否则合并章节视频时不会生成首次出镜姓名牌。',
+    noProtagonistReminder: '当前小说尚未指定主角。若使用“主角首次出镜姓名牌预览”模式，请创建或编辑角色并勾选“指定为主角”。',
     autoSetProtagonists: '自动设置主角',
     autoSetProtagonistsHint: '将当前小说中名称不含数字的非旁白角色设为主角',
     autoSetProtagonistsSuccess: '已指定 {count} 个主角',

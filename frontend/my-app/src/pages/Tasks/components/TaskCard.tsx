@@ -301,6 +301,9 @@ export function TaskCard({
           <div className="flex items-center gap-2">
             <h3 className="font-medium text-gray-900">{getTaskDisplayName(task)}</h3>
             <span className="text-xs px-2 py-0.5 bg-white rounded-full">{getTaskTypeName(task.type)}</span>
+            {task.type === 'chapter_background_music' && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+              {task.musicMode === 'full' ? t('tasks.musicModes.full') : t('tasks.musicModes.partial')}
+            </span>}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
             <span>{t('tasks.taskId')}:</span>
@@ -641,7 +644,7 @@ export function TaskCard({
           )}
           {task.type === 'chapter_video' && task.nameplatePreview?.url && (
             <div className="mt-3 rounded-lg border border-red-100 bg-red-50/40 p-3 text-sm">
-              <div className="font-medium text-gray-800">主角首次出镜姓名牌</div>
+              <div className="font-medium text-gray-800">首次出镜姓名牌</div>
               <div className="mt-1 text-xs text-gray-500">
                 {task.nameplatePreview.status === 'approved'
                   ? task.nameplatePreview.autoApproved ? '已自动通过并用于章回成片' : '已确认并用于章回成片'

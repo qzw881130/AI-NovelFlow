@@ -58,6 +58,7 @@ class PromptTemplateType:
     H3_PREFLIGHT_REPAIR_PROMPT = "h3_preflight_repair_prompt"
     H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
     BACKGROUND_MUSIC_DIRECTOR = "background_music_director"
+    BACKGROUND_MUSIC_DIRECTOR_FULL = "background_music_director_full"
     BACKGROUND_MUSIC_GENERATION = "background_music_generation"
 
 
@@ -87,6 +88,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
     PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
     PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR,
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR_FULL,
     PromptTemplateType.BACKGROUND_MUSIC_GENERATION,
 ]
 
@@ -96,6 +98,11 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
     PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR: {
         "name_key": "promptConfig.types.backgroundMusicDirector",
         "desc_key": "promptConfig.types.backgroundMusicDirectorDesc",
+        "icon": "Music", "color": "violet",
+    },
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR_FULL: {
+        "name_key": "promptConfig.types.backgroundMusicDirectorFull",
+        "desc_key": "promptConfig.types.backgroundMusicDirectorFullDesc",
         "icon": "Music", "color": "violet",
     },
     PromptTemplateType.BACKGROUND_MUSIC_GENERATION: {

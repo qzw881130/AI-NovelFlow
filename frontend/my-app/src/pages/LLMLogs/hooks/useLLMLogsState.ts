@@ -16,7 +16,7 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   video_director: ['keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
   video_generation: ['expand_video_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt', 'first_appearance_nameplate'],
-  background_music: ['background_music_director', 'background_music_generation'],
+  background_music: ['background_music_director', 'background_music_director_full', 'background_music_generation'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -202,7 +202,7 @@ export function useLLMLogsState() {
       h3_multi_keyframe_director_phase_b: 'videoGeneration',
       h3_preflight_repair_prompt: 'videoGeneration',
       first_appearance_nameplate: 'videoGeneration',
-      background_music_director: 'backgroundMusic', background_music_generation: 'backgroundMusic',
+      background_music_director: 'backgroundMusic', background_music_director_full: 'backgroundMusic', background_music_generation: 'backgroundMusic',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -222,6 +222,7 @@ export function useLLMLogsState() {
       shot_image_prompt: t('promptConfig.types.shotImagePrompt'),
       shot_image_repair_plan: t('llmLogs.shotImageRepairPlan'),
       background_music_director: t('promptConfig.types.backgroundMusicDirector'),
+      background_music_director_full: t('promptConfig.types.backgroundMusicDirectorFull'),
       background_music_generation: t('promptConfig.types.backgroundMusicGeneration'),
       keyframe_description: t('promptConfig.types.keyframeDescription'),
       keyframe_planner: t('promptConfig.types.keyframePlanner'),

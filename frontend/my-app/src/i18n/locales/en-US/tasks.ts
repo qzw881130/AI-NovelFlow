@@ -2,6 +2,7 @@
 export default {
   // Tasks
   tasks: {
+    musicModes: { partial: 'Selective music', full: 'Full chapter music' },
     comfyConfigNotInitialized: 'ComfyUI configuration not initialized',
     comfyConfigMismatch: 'ComfyUI configuration mismatch',
     comfyConnectionFailed: 'ComfyUI connection failed',

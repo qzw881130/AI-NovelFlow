@@ -28,7 +28,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   llmTimeout: 1800,
   autoImageReviewEnabled: true,
   videoPromptLanguage: 'en',
-  showFirstAppearanceNames: true,
+  nameplatePreviewMode: 'protagonist_first',
   autoApproveFirstAppearanceNames: true,
   generationQualityPolicy: {},
   coverProduction: '旺仔有声小说',

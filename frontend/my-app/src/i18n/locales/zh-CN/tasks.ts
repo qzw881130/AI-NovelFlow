@@ -2,6 +2,7 @@
 export default {
   // 任务队列
   tasks: {
+    musicModes: { partial: '部分音乐', full: '全章音乐' },
     comfyConfigNotInitialized: 'ComfyUI 配置未初始化',
     comfyConfigMismatch: 'ComfyUI 配置不一致',
     comfyConnectionFailed: 'ComfyUI 连接失败',

@@ -36,7 +36,7 @@ export interface SystemConfig {
   llmTimeout?: number;  // 请求超时（秒）
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
-  showFirstAppearanceNames?: boolean;
+  nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;
@@ -127,6 +127,7 @@ export interface Chapter {
   progress: number;
   aiSplitCompleted?: boolean;
   estimatedDuration?: number | null;
+  firstShotImageUrl?: string | null;
   shotImageStats?: {
     generated: number;
     total: number;
@@ -362,6 +363,7 @@ export interface Task {
   progress: number;
   currentStep?: string;
   resultUrl?: string;
+  musicMode?: 'partial' | 'full' | null;
   nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;
   shotImageQuality?: { generation_count: number; review_count: number; retry_count: number; status?: string | null } | null;
   errorMessage?: string;

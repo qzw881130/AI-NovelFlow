@@ -55,7 +55,7 @@ class SystemConfigUpdate(BaseModel):
     timezone: Optional[str] = None
     autoImageReviewEnabled: Optional[bool] = None
     videoPromptLanguage: Optional[Literal["en", "zh"]] = None
-    showFirstAppearanceNames: Optional[bool] = None
+    nameplatePreviewMode: Optional[Literal["protagonist_first", "chapter_first"]] = None
     autoApproveFirstAppearanceNames: Optional[bool] = None
     generationQualityPolicy: Optional[dict[str, bool]] = None
     coverProduction: Optional[str] = None
@@ -88,6 +88,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
             db.commit()
         if "show_first_appearance_names" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN show_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
+            db.commit()
+        if "nameplate_preview_mode" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN nameplate_preview_mode VARCHAR NOT NULL DEFAULT 'protagonist_first'"))
             db.commit()
         if "auto_approve_first_appearance_names" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
@@ -140,7 +143,7 @@ async def get_config(db: Session = Depends(get_db)):
             "llmTimeout": config.llm_timeout,
             "autoImageReviewEnabled": bool(config.auto_image_review_enabled),
             "videoPromptLanguage": config.video_prompt_language,
-            "showFirstAppearanceNames": bool(config.show_first_appearance_names),
+            "nameplatePreviewMode": config.nameplate_preview_mode or "protagonist_first",
             "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
             "generationQualityPolicy": config_policy(config),
             "coverProduction": config.cover_production or "旺仔有声小说",
@@ -186,7 +189,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_timeout": config.llm_timeout,
             "auto_image_review_enabled": bool(config.auto_image_review_enabled),
             "video_prompt_language": config.video_prompt_language,
-            "show_first_appearance_names": bool(config.show_first_appearance_names),
+            "nameplate_preview_mode": config.nameplate_preview_mode or "protagonist_first",
             "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
             "generation_quality_policy": config_policy(config),
             "cover_production": config.cover_production or "旺仔有声小说",
@@ -243,8 +246,8 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.videoPromptLanguage is not None:
             db_config.video_prompt_language = config.videoPromptLanguage
             updates["video_prompt_language"] = config.videoPromptLanguage
-        if config.showFirstAppearanceNames is not None:
-            db_config.show_first_appearance_names = config.showFirstAppearanceNames
+        if config.nameplatePreviewMode is not None:
+            db_config.nameplate_preview_mode = config.nameplatePreviewMode
         if config.autoApproveFirstAppearanceNames is not None:
             db_config.auto_approve_first_appearance_names = config.autoApproveFirstAppearanceNames
         if config.generationQualityPolicy is not None:

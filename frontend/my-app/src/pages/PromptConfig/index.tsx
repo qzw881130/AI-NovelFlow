@@ -15,6 +15,7 @@ import { toast } from '../../stores/toastStore';
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   background_music_director: <Music className="h-4 w-4" />,
+  background_music_director_full: <Music className="h-4 w-4" />,
   background_music_generation: <Music className="h-4 w-4" />,
   scene_setting: <FileText className="h-4 w-4" />,
   prop_appearance: <FileText className="h-4 w-4" />,
@@ -44,6 +45,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
 // Tab 标签页颜色映射
 const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; border: string }> = {
   background_music_director: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
+  background_music_director_full: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   background_music_generation: { active: 'text-purple-600 bg-purple-50 border-purple-200', inactive: 'text-gray-500 hover:text-purple-600', border: 'border-purple-200' },
   scene_setting: { active: 'text-orange-600 bg-orange-50 border-orange-200', inactive: 'text-gray-500 hover:text-orange-600', border: 'border-orange-200' },
   prop_appearance: { active: 'text-amber-600 bg-amber-50 border-amber-200', inactive: 'text-gray-500 hover:text-amber-600', border: 'border-amber-200' },
@@ -80,7 +82,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
   video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'] },
-  background_music: { nameKey: 'promptConfig.categories.backgroundMusic', types: ['background_music_director', 'background_music_generation'] },
+  background_music: { nameKey: 'promptConfig.categories.backgroundMusic', types: ['background_music_director', 'background_music_director_full', 'background_music_generation'] },
 };
 
 const CATEGORIES: TemplateCategory[] = ['story_context', 'style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation', 'background_music'];

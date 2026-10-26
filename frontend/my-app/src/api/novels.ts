@@ -55,6 +55,7 @@ export interface ChapterBackgroundMusicCue {
 export interface ChapterBackgroundMusic {
   id: string;
   chapterId: string;
+  mode: 'partial' | 'full';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   currentStep?: string | null;
@@ -189,8 +190,8 @@ export const novelApi = {
   fetchBackgroundMusic: (novelId: string) =>
     api.get<Record<string, ChapterBackgroundMusic>>(`/novels/${novelId}/background-music`),
 
-  generateBackgroundMusic: (novelId: string, chapterIds: string[]) =>
-    api.post<ChapterBackgroundMusic[]>(`/novels/${novelId}/background-music`, { chapter_ids: chapterIds }),
+  generateBackgroundMusic: (novelId: string, chapterIds: string[], mode: 'partial' | 'full' = 'partial') =>
+    api.post<ChapterBackgroundMusic[]>(`/novels/${novelId}/background-music`, { chapter_ids: chapterIds, mode }),
 
   /** 获取小说章回视频合并历史 */
   fetchVideoMergeHistory: (novelId: string) =>

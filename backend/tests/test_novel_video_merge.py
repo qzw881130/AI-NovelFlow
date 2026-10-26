@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import unquote
 from unittest.mock import MagicMock
@@ -108,7 +109,20 @@ def test_merge_snapshots_background_music_only_when_enabled(client, db_session, 
     assert disabled_data["withBackgroundMusic"] is False
     assert all(item["backgroundMusicUrl"] is None for item in disabled_data["chapters"])
 
-    from datetime import datetime, timedelta
+    full_path = tmp_path / "full.m4a"
+    full_path.write_bytes(b"new music")
+    paths["/api/files/full.m4a"] = str(full_path)
+    db_session.add(Task(type="chapter_background_music", status="completed", novel_id=novel.id,
+                        chapter_id=chapters[0].id, name="newer full music", result_url="/api/files/full.m4a",
+                        created_at=datetime.utcnow() + timedelta(hours=1),
+                        metadata_json=json.dumps({"source_video_url": chapters[0].final_video,
+                                                  "music_mode": "full", "cues": [{"index": 1}]})))
+    db_session.commit()
+    after_full = client.post(f"/api/novels/{novel.id}/video-merges",
+                             json={"chapter_ids": [chapter.id for chapter in chapters]})
+    assert after_full.status_code == 200
+    assert after_full.json()["data"]["chapters"][0]["backgroundMusicUrl"] == "/api/files/full.m4a"
+
     db_session.add(Task(type="chapter_background_music", status="failed", novel_id=novel.id,
                         chapter_id=chapters[0].id, name="newer failed music",
                         created_at=datetime.utcnow() + timedelta(days=1),

@@ -27,8 +27,11 @@ export default {
     videoPromptEnglish: "English (default)",
     videoPromptChinese: "Chinese",
     videoPromptLanguageDesc: "Controls H3 Phase B action, camera, appearance, scene, prop and sound descriptions. Character names, original dialogue and binding markers stay unchanged. New tasks use this setting; retries retain their original setting.",
+    nameplatePreviewMode: 'Nameplate preview mode',
     showFirstAppearanceNames: 'Preview protagonist names on first appearance',
     showFirstAppearanceNamesDesc: 'Create red vertical nameplate previews only for manually selected protagonists at their first appearance in the novel. The program locates the person and timing. When auto approval is off, approve the preview in Tasks before using it in the chapter video. Raw Shot and Clip videos stay unchanged.',
+    chapterFirstAppearanceNames: 'Preview names on first appearance in each chapter',
+    chapterFirstAppearanceNamesDesc: 'Create a preview for each non-narrator character in the character library when they first appear in each chapter. The same character appears again in the next chapter. Positioning, approval and final video behavior are the same as protagonist mode.',
     autoApproveFirstAppearanceNames: 'Automatically approve nameplate previews',
     autoApproveFirstAppearanceNamesDesc: 'When merging finishes and a nameplate preview succeeds, use it in the chapter video automatically. If positioning or preview generation fails, keep the raw merged video. On by default.',
     imageQualityReview: 'Image Quality Review',
@@ -312,8 +315,10 @@ export default {
 
     // Prompt template types
     types: {
-      backgroundMusicDirector: 'Background Music Direction',
-      backgroundMusicDirectorDesc: 'Choose sparse music cues from story, dialogue and ambient sound, including silence',
+      backgroundMusicDirector: 'Selective Music Direction',
+      backgroundMusicDirectorDesc: 'Choose a few essential cues and leave the rest unscored',
+      backgroundMusicDirectorFull: 'Full Chapter Music Direction',
+      backgroundMusicDirectorFullDesc: 'Plan continuous music across the chapter as the story changes',
       backgroundMusicGeneration: 'Instrumental Generation Constraints',
       backgroundMusicGenerationDesc: 'Prepare ACE-Step tags and the instrumental marker',
       sceneSetting: 'Scene Setting Description',
@@ -388,6 +393,7 @@ export default {
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
       '背景音乐导演规划 V1': 'Background Music Director Plan V1',
+      '全章背景音乐导演规划 V1': 'Full Chapter Music Director Plan V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step Instrumental Tags V1',
       'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 Instrumental Tags V1',
       'AI 图片质量评审': 'AI Image Quality Review',
@@ -420,6 +426,8 @@ export default {
       '标准角色解析': 'Standard Character Parse',
     },
     templateDescriptions: {
+      '部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': 'Selective music: plan a few essential cues from the story, shots and dialogue; silence is valid',
+      '全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot': 'Full chapter music: plan continuous cues across every shot as the story changes',
       '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': 'Plan only necessary music cues from novel text, shots, dialogue and ambient sound; silence is valid',
       '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'Convert the director style to ACE-Step 1.0 tags with [inst]; duration is controlled by the workflow node',
       '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'Convert the director style and melody to ACE-Step1.5 tags with [inst]; duration is controlled by the workflow node',

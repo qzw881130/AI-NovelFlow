@@ -8,15 +8,15 @@ const checkStages: Array<{ id: GenerationCheck['stage']; title: string; note: st
   { id: 'assembly', title: '生成后与合并前', note: '拿到视频文件后检查实际输出及来源。' },
 ];
 
-export default function GenerationQualityConfig({ enabled, onChange, language, onLanguageChange, nameplateAvailable, autoApproveNameplateAvailable, showFirstAppearanceNames, onShowFirstAppearanceNamesChange, autoApproveFirstAppearanceNames, onAutoApproveFirstAppearanceNamesChange, checks, policy, onPolicyChange }: {
+export default function GenerationQualityConfig({ enabled, onChange, language, onLanguageChange, nameplateAvailable, autoApproveNameplateAvailable, nameplatePreviewMode, onNameplatePreviewModeChange, autoApproveFirstAppearanceNames, onAutoApproveFirstAppearanceNamesChange, checks, policy, onPolicyChange }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   language: 'en' | 'zh';
   onLanguageChange: (language: 'en' | 'zh') => void;
   nameplateAvailable: boolean;
   autoApproveNameplateAvailable: boolean;
-  showFirstAppearanceNames: boolean;
-  onShowFirstAppearanceNamesChange: (enabled: boolean) => void;
+  nameplatePreviewMode: 'protagonist_first' | 'chapter_first';
+  onNameplatePreviewModeChange: (mode: 'protagonist_first' | 'chapter_first') => void;
   autoApproveFirstAppearanceNames: boolean;
   onAutoApproveFirstAppearanceNamesChange: (enabled: boolean) => void;
   checks: GenerationCheck[];
@@ -46,17 +46,31 @@ export default function GenerationQualityConfig({ enabled, onChange, language, o
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.videoPromptLanguageDesc')}</p>
     </div>
     {nameplateAvailable && <div className="rounded-lg border border-gray-200 p-4 text-sm">
-      <label className="flex items-start gap-3">
-        <input type="checkbox" checked={showFirstAppearanceNames}
-          onChange={event => onShowFirstAppearanceNamesChange(event.target.checked)} className="mt-1" />
-        <span>
-          <span className="block font-medium text-gray-800">{t('systemSettings.showFirstAppearanceNames')}</span>
-          <span className="mt-1 block max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.showFirstAppearanceNamesDesc')}</span>
-        </span>
-      </label>
-      {autoApproveNameplateAvailable && <label className={`mt-4 flex items-start gap-3 border-t border-gray-100 pt-4 ${showFirstAppearanceNames ? '' : 'opacity-50'}`}>
+      <fieldset>
+        <legend className="font-medium text-gray-800">{t('systemSettings.nameplatePreviewMode')}</legend>
+        <div className="mt-3 space-y-4">
+          <label className="flex items-start gap-3">
+            <input type="radio" name="nameplate-preview-mode" value="protagonist_first"
+              checked={nameplatePreviewMode === 'protagonist_first'}
+              onChange={() => onNameplatePreviewModeChange('protagonist_first')} className="mt-1" />
+            <span>
+              <span className="block font-medium text-gray-800">{t('systemSettings.showFirstAppearanceNames')}</span>
+              <span className="mt-1 block max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.showFirstAppearanceNamesDesc')}</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3">
+            <input type="radio" name="nameplate-preview-mode" value="chapter_first"
+              checked={nameplatePreviewMode === 'chapter_first'}
+              onChange={() => onNameplatePreviewModeChange('chapter_first')} className="mt-1" />
+            <span>
+              <span className="block font-medium text-gray-800">{t('systemSettings.chapterFirstAppearanceNames')}</span>
+              <span className="mt-1 block max-w-3xl text-sm leading-6 text-gray-500">{t('systemSettings.chapterFirstAppearanceNamesDesc')}</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+      {autoApproveNameplateAvailable && <label className="mt-4 flex items-start gap-3 border-t border-gray-100 pt-4">
         <input type="checkbox" checked={autoApproveFirstAppearanceNames}
-          disabled={!showFirstAppearanceNames}
           onChange={event => onAutoApproveFirstAppearanceNamesChange(event.target.checked)} className="mt-1" />
         <span>
           <span className="block font-medium text-gray-800">{t('systemSettings.autoApproveFirstAppearanceNames')}</span>

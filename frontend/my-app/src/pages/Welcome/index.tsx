@@ -8,15 +8,17 @@ function StatusItem({ name, status, successMsg, failMsg, noConfigMsg, hasConfig 
   name: string; status: boolean | undefined; successMsg: string; failMsg: string; noConfigMsg: string; hasConfig: boolean;
 }) {
   const { t } = useTranslation();
+  const checking = status === undefined;
   return (
     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${status ? 'bg-green-100' : 'bg-red-100'}`}>
-          {status ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
+        <div className={`p-2 rounded-lg ${checking ? 'bg-gray-100' : status ? 'bg-green-100' : 'bg-red-100'}`}>
+          {checking ? <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+            : status ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
         </div>
         <div>
           <p className="font-medium text-gray-900">{name}</p>
-          <p className="text-sm text-gray-500">{status ? successMsg : hasConfig ? failMsg : noConfigMsg}</p>
+          <p className="text-sm text-gray-500">{checking ? t('common.loading') : status ? successMsg : hasConfig ? failMsg : noConfigMsg}</p>
         </div>
       </div>
       <Link to="/settings" className="text-primary-600 hover:text-primary-700 text-sm font-medium">{t('common.settings')}</Link>

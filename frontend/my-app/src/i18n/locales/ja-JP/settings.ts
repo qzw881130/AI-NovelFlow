@@ -8,8 +8,11 @@ export default {
     videoPromptEnglish: "英語（既定）",
     videoPromptChinese: "中国語",
     videoPromptLanguageDesc: "H3 Phase B の動作、カメラ、外見、背景、小道具、音の説明に適用します。人物名、台詞、参照タグは変更しません。新規タスクに適用し、再試行は元の設定を保持します。",
+    nameplatePreviewMode: '名札プレビュー方式',
     showFirstAppearanceNames: '主人公の初登場名札をプレビュー',
     showFirstAppearanceNamesDesc: '手動で主人公に指定した人物の初登場時だけ、赤い縦書き名札のプレビューを作成します。位置と時刻は自動判定します。自動承認をオフにした場合は、タスク一覧で確認後に章の完成動画へ反映します。元の Shot と Clip は変更しません。',
+    chapterFirstAppearanceNames: '各章の初登場時に名札をプレビュー',
+    chapterFirstAppearanceNamesDesc: '各章で、ナレーター以外の登録済みキャラクターが初めて登場する際に名札を表示します。同じ人物も次の章では再び表示されます。位置判定、承認、完成動画への反映は主人公モードと同じです。',
     autoApproveFirstAppearanceNames: '名札プレビューを自動承認',
     autoApproveFirstAppearanceNamesDesc: '章の結合後、名札プレビューの作成に成功した場合は完成動画に自動反映します。位置判定やプレビュー作成に失敗した場合は元の結合動画を使用します。既定ではオフです。',
     title: 'システム設定',
@@ -269,8 +272,10 @@ export default {
 
     // プロンプトテンプレートタイプ
     types: {
-      backgroundMusicDirector: '背景音楽ディレクション',
-      backgroundMusicDirectorDesc: '物語・台詞・環境音から必要な箇所だけを選び、無音も許可します',
+      backgroundMusicDirector: '部分音楽ディレクション',
+      backgroundMusicDirectorDesc: '必要な区間だけに音楽を付け、残りは無音にします',
+      backgroundMusicDirectorFull: '全章音楽ディレクション',
+      backgroundMusicDirectorFullDesc: '物語の変化に合わせて章全体を連続した音楽で覆います',
       backgroundMusicGeneration: '器楽生成の制約',
       backgroundMusicGenerationDesc: 'ACE-Step のタグと器楽マーカーを用意します',
       sceneSetting: 'シーン設定の記述',
@@ -324,6 +329,7 @@ export default {
     resetSuccessFrontend: 'デフォルトプロンプトにリセット（フロントエンドのみ）',
     templateNames: {
       '背景音乐导演规划 V1': '背景音楽ディレクター計画 V1',
+      '全章背景音乐导演规划 V1': '全章背景音楽ディレクター計画 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 器楽タグ V1',
       'ACE-Step1.5 纯器乐标签 V1': 'ACE-Step1.5 器楽タグ V1',
       '场景设定描述': 'シーン設定の記述',
@@ -355,6 +361,8 @@ export default {
       '标准角色解析': '標準キャラクター解析',
     },
     templateDescriptions: {
+      '部分音乐：根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '部分音楽：本文、ショット、台詞から必要な区間だけを選び、無音も許可します',
+      '全章音乐：按剧情起伏规划连续配乐段，从首个 Shot 覆盖到最后一个 Shot': '全章音楽：物語の起伏に沿った連続音楽で最初から最後のショットまで覆います',
       '根据小说正文、Shot、对白与环境声规划少量必要配乐区间，可决定不配乐': '小説本文、ショット、台詞、環境音から必要な音楽区間だけを計画し、無音も選べます',
       '将导演风格转为 ACE-Step 1.0 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': 'ディレクターのスタイルを ACE-Step 1.0 のタグに変換し、[inst] を固定します。長さはワークフローノードで制御します',
       '将导演风格与旋律转为 ACE-Step1.5 的 tags，固定 [inst] 纯器乐标记；时长由工作流节点控制': '演出のスタイルと旋律を ACE-Step1.5 のタグに変換し、[inst] を固定します。長さはワークフローノードで制御します',

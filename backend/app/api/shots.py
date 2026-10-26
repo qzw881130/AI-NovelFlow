@@ -327,45 +327,45 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
 
         raw_output_path = output_path
         nameplate_config = db.query(SystemConfig).filter(SystemConfig.id == "default").first()
-        show_names = bool(nameplate_config and nameplate_config.show_first_appearance_names)
-        auto_approve_names = bool(nameplate_config and nameplate_config.auto_approve_first_appearance_names)
+        nameplate_mode = (nameplate_config.nameplate_preview_mode or "protagonist_first") if nameplate_config else "protagonist_first"
+        auto_approve_names = bool(nameplate_config.auto_approve_first_appearance_names) if nameplate_config else True
         nameplate_events, nameplate_warnings = [], []
         nameplate_cache_hit = False
         preview_url = None
         preview_path = None
-        if show_names:
-            try:
-                task.progress = 76
-                task.current_step = "正在定位主角首次出镜位置..."
-                db.commit()
-                merged_width, merged_height, _ = await asyncio.to_thread(_probe_nameplate_video, raw_output_path)
-                nameplate_events, nameplate_warnings = await build_nameplate_events(
-                    db, novel_id, chapter_id, segments, output_size=(merged_width, merged_height))
-                if nameplate_events:
-                    nameplate_signature = sha256(json.dumps(
-                        {"version": NAMEPLATE_RENDER_VERSION, "events": nameplate_events},
-                        ensure_ascii=False, sort_keys=True,
-                    ).encode("utf-8")).hexdigest()[:16]
-                    preview_path = output_dir / f"{mode}-{signature}-names-{nameplate_signature}.mp4"
-                    nameplate_lock = merge_video_locks.setdefault(str(preview_path), asyncio.Lock())
-                    async with nameplate_lock:
-                        if preview_path.is_file() and preview_path.stat().st_size > 0:
-                            nameplate_cache_hit = True
-                        else:
-                            temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.nameplates.tmp.mp4"
-                            try:
-                                task.progress = 85
-                                task.current_step = "正在生成主角姓名牌预览..."
-                                db.commit()
-                                await render_first_appearance_nameplates(raw_output_path, temp_path, nameplate_events)
-                                os.replace(temp_path, preview_path)
-                            finally:
-                                temp_path.unlink(missing_ok=True)
-                    preview_relative = preview_path.relative_to(file_storage.base_dir).as_posix()
-                    preview_url = f"/api/files/{preview_relative}"
-            except Exception as exc:
-                nameplate_warnings.append(f"主角姓名牌预览失败：{exc}")
-                nameplate_events = []
+        try:
+            task.progress = 76
+            task.current_step = "正在定位首次出镜位置..."
+            db.commit()
+            merged_width, merged_height, _ = await asyncio.to_thread(_probe_nameplate_video, raw_output_path)
+            nameplate_events, nameplate_warnings = await build_nameplate_events(
+                db, novel_id, chapter_id, segments, output_size=(merged_width, merged_height),
+                mode=nameplate_mode)
+            if nameplate_events:
+                nameplate_signature = sha256(json.dumps(
+                    {"version": NAMEPLATE_RENDER_VERSION, "events": nameplate_events},
+                    ensure_ascii=False, sort_keys=True,
+                ).encode("utf-8")).hexdigest()[:16]
+                preview_path = output_dir / f"{mode}-{signature}-names-{nameplate_signature}.mp4"
+                nameplate_lock = merge_video_locks.setdefault(str(preview_path), asyncio.Lock())
+                async with nameplate_lock:
+                    if preview_path.is_file() and preview_path.stat().st_size > 0:
+                        nameplate_cache_hit = True
+                    else:
+                        temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.nameplates.tmp.mp4"
+                        try:
+                            task.progress = 85
+                            task.current_step = "正在生成姓名牌预览..."
+                            db.commit()
+                            await render_first_appearance_nameplates(raw_output_path, temp_path, nameplate_events)
+                            os.replace(temp_path, preview_path)
+                        finally:
+                            temp_path.unlink(missing_ok=True)
+                preview_relative = preview_path.relative_to(file_storage.base_dir).as_posix()
+                preview_url = f"/api/files/{preview_relative}"
+        except Exception as exc:
+            nameplate_warnings.append(f"姓名牌预览失败：{exc}")
+            nameplate_events = []
 
         video_url = f"/api/files/{raw_output_path.relative_to(file_storage.base_dir).as_posix()}"
         all_shot_ids = {shot.id for shot in shots}

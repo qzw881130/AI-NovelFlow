@@ -74,7 +74,7 @@ export default function Settings() {
         console.log('[Settings/index] API response:', result);
         if (result.success && result.data) {
           const config = result.data as any;
-          setNameplateAvailable(typeof config.showFirstAppearanceNames === 'boolean');
+          setNameplateAvailable(typeof config.nameplatePreviewMode === 'string');
           setAutoApproveNameplateAvailable(typeof config.autoApproveFirstAppearanceNames === 'boolean');
           setFormData({
             llmProvider: config.llmProvider || 'deepseek',
@@ -86,7 +86,7 @@ export default function Settings() {
             llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
             autoImageReviewEnabled: config.autoImageReviewEnabled ?? true,
             videoPromptLanguage: config.videoPromptLanguage ?? 'en',
-            showFirstAppearanceNames: config.showFirstAppearanceNames ?? true,
+            nameplatePreviewMode: config.nameplatePreviewMode ?? 'protagonist_first',
             autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? true,
             generationQualityPolicy: config.generationQualityPolicy ?? {},
             coverProduction: config.coverProduction ?? '旺仔有声小说',
@@ -135,7 +135,7 @@ export default function Settings() {
         payload = {
           autoImageReviewEnabled: formData.autoImageReviewEnabled ?? true,
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
-          showFirstAppearanceNames: formData.showFirstAppearanceNames ?? true,
+          nameplatePreviewMode: formData.nameplatePreviewMode ?? 'protagonist_first',
           generationQualityPolicy: formData.generationQualityPolicy ?? {},
           ...(autoApproveNameplateAvailable ? {
             autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? true,
@@ -330,10 +330,10 @@ export default function Settings() {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, autoImageReviewEnabled: enabled }));
                 }}
-                showFirstAppearanceNames={formData.showFirstAppearanceNames ?? true}
-                onShowFirstAppearanceNamesChange={(enabled) => {
+                nameplatePreviewMode={formData.nameplatePreviewMode ?? 'protagonist_first'}
+                onNameplatePreviewModeChange={(nameplatePreviewMode) => {
                   handleUserModified();
-                  setFormData(previous => ({ ...previous, showFirstAppearanceNames: enabled }));
+                  setFormData(previous => ({ ...previous, nameplatePreviewMode }));
                 }}
                 autoApproveFirstAppearanceNames={formData.autoApproveFirstAppearanceNames ?? true}
                 onAutoApproveFirstAppearanceNamesChange={(enabled) => {

@@ -26,6 +26,7 @@ export type TemplateType =
   | 'h3_execution_optimizer_prompt'
   | 'h3_preflight_repair_prompt'
   | 'background_music_director'
+  | 'background_music_director_full'
   | 'background_music_generation';
 
 export type TemplateCategory =

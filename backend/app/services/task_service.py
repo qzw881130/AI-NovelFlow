@@ -1562,6 +1562,15 @@ class TaskService:
                 "status": quality.get("status"),
             }
 
+        def music_mode(task: Task):
+            if task.type != "chapter_background_music":
+                return None
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            return "full" if isinstance(metadata, dict) and metadata.get("music_mode") == "full" else "partial"
+
         def clip_execution_metadata(task: Task):
             try:
                 metadata = json.loads(task.metadata_json or "{}")
@@ -1659,6 +1668,7 @@ class TaskService:
                 "progress": t.progress,
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
+                "musicMode": music_mode(t),
                 "nameplatePreview": nameplate_preview(t),
                 "shotImageQuality": shot_image_quality_summary(t),
                 "clipExecution": clip_execution_metadata(t),

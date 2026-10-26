@@ -4,6 +4,7 @@ import enUS from '../en-US/tasks';
 export default {
   tasks: {
     ...enUS.tasks,
+    musicModes: { partial: '部分音楽', full: '全章音楽' },
     chapterNumber: '第 {number} 章',
     chapterContext: '第 {number} 章 · {title}',
     videoDuration: '長さ',
