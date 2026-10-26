@@ -1198,11 +1198,11 @@ export const shotsApi = {
   retryFailedHdRepaints: async (novelId: string, chapterId: string, batchId: string) =>
     api.post(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/${batchId}/retry-failed`),
 
-  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd', targetMegapixels?: number) => {
+  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd', targetMegapixels?: number, subtitleMode: 'none' | 'zh' | 'bilingual' = 'none') => {
     const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/merge-videos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant, target_megapixels: targetMegapixels }),
+      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant, target_megapixels: targetMegapixels, subtitle_mode: subtitleMode }),
     });
     return response.json();
   },

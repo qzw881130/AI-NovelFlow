@@ -31,7 +31,9 @@ export type TemplateType =
   | 'h3_preflight_repair_prompt'
   | 'background_music_director'
   | 'background_music_director_full'
-  | 'background_music_generation';
+  | 'background_music_generation'
+  | 'subtitle_correction'
+  | 'subtitle_translation';
 
 export interface BoundNovel {
   novel_id: string;

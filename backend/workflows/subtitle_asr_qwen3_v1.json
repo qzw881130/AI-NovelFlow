@@ -1,0 +1,141 @@
+{
+  "11": {
+    "inputs": {
+      "model": "Qwen/Qwen3-ASR-1.7B-hf",
+      "precision": "bf16",
+      "attention": "sdpa",
+      "forced_aligner": "Qwen/Qwen3-ForcedAligner-0.6B-hf",
+      "language": "Chinese",
+      "hints": "",
+      "output_format": "srt",
+      "output_path": "Qwen3-ASR-hf/",
+      "split_mode": "split_by_punctuation_or_pause",
+      "max_gap_sec": 0.6,
+      "max_chars": 40,
+      "max_inference_batch_size": 1,
+      "max_new_tokens": 1024,
+      "normalize_text": false,
+      "unload_models": true,
+      "audio": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "AILab_Qwen3ASRSubtitle",
+    "_meta": {
+      "title": "#11 台词识别与时间定位 · 1.7B-hf"
+    }
+  },
+  "12": {
+    "inputs": {
+      "audio": "sample.flac"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#12 Load Audio"
+    }
+  },
+  "13": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#13 全文台词"
+    }
+  },
+  "14": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "11",
+        2
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#14 识别语言"
+    }
+  },
+  "17": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#17 台词 / 开始秒 / 结束秒"
+    }
+  },
+  "18": {
+    "inputs": {
+      "subtitles": [
+        "11",
+        1
+      ]
+    },
+    "class_type": "AILab_Qwen3TimestampColumns",
+    "_meta": {
+      "title": "#18 台词时间列表 (QwenASR)"
+    }
+  },
+  "19": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "18",
+        1
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#19 台词列表"
+    }
+  },
+  "20": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "18",
+        2
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#20 开始时间（秒）"
+    }
+  },
+  "21": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "18",
+        3
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#21 结束时间（秒）"
+    }
+  },
+  "22": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "11",
+        3
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#22 SRT 保存位置"
+    }
+  }
+}

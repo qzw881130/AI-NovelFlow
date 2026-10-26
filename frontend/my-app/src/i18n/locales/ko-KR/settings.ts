@@ -110,6 +110,8 @@ export default {
     workflow: {
       ...enUS.systemSettings.workflow,
       backgroundMusic: '배경 음악',
+      subtitleAsr: '자막 음성 인식',
+      audioTranscription: '음성 텍스트 변환',
       musicStyleNode: '음악 스타일 노드',
       musicLyricsNode: '가사 노드',
       musicDurationNode: '음악 길이 노드 (소수 초)',
@@ -260,7 +262,7 @@ export default {
     explicitBinding: '명시적으로 지정',
     boundNovelCount: '총 {count}편',
 
-    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악' },
+    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악', videoSubtitles: '동영상 자막' },
 
     // 프롬프트 템플릿 타입
     types: {
@@ -270,6 +272,10 @@ export default {
       backgroundMusicDirectorFullDesc: '이야기의 변화에 맞춰 장 전체를 연속 음악으로 구성합니다',
       backgroundMusicGeneration: '연주곡 생성 제약',
       backgroundMusicGenerationDesc: 'ACE-Step 태그와 연주곡 표시를 준비합니다',
+      subtitleCorrection: '챕터 자막 교정',
+      subtitleCorrectionDesc: '대사를 참고해 ASR 오타를 수정하고 음성 시간을 유지합니다',
+      subtitleTranslation: '챕터 자막 영어 번역',
+      subtitleTranslationDesc: '교정된 중국어 자막을 시간 변경 없이 영어로 번역합니다',
       sceneSetting: '장면 설정 설명',
       sceneSettingDesc: 'LLM으로 환경 설정 텍스트를 보완합니다. 이미지를 생성하지 않습니다',
       propAppearance: '소품 외형 설명',
@@ -320,6 +326,7 @@ export default {
     resetSuccess: '기본 프롬프트로 재설정',
     resetSuccessFrontend: '기본 프롬프트로 재설정 (프론트엔드만)',
     templateNames: {
+      '章回字幕文本校对 V1': '챕터 자막 교정 V1',
       '背景音乐导演规划 V1': '배경 음악 연출 계획 V1',
       '全章背景音乐导演规划 V1': '전체 장 배경 음악 연출 계획 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 연주곡 태그 V1',

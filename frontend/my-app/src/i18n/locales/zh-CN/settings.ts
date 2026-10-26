@@ -141,6 +141,8 @@ export default {
     // ComfyUI 工作流
     workflow: {
       backgroundMusic: '背景音乐',
+      subtitleAsr: '字幕语音识别',
+      audioTranscription: '语音转文字',
       musicStyleNode: '音乐风格节点',
       musicLyricsNode: '歌词节点',
       musicDurationNode: '音乐时长节点（秒，支持小数）',
@@ -313,6 +315,7 @@ export default {
       keyframeImage: '关键帧生图',
       videoGeneration: '视频生成',
       backgroundMusic: '背景音乐',
+      videoSubtitles: '视频字幕',
     },
 
     // 提示词模板类型
@@ -323,6 +326,10 @@ export default {
       backgroundMusicDirectorFullDesc: '按剧情起伏规划连续配乐，覆盖整章视频',
       backgroundMusicGeneration: '纯器乐生成约束',
       backgroundMusicGenerationDesc: '将导演风格转换为 ACE-Step 标签并固定纯器乐标记',
+      subtitleCorrection: '章回字幕文本校对',
+      subtitleCorrectionDesc: '参照分镜台词修正 ASR 错字，保持原始语音时间',
+      subtitleTranslation: '章回字幕英文翻译',
+      subtitleTranslationDesc: '将已校对的中文台词逐条翻译为英文，保持原始时间轴',
       sceneSetting: '场景设定描述',
       sceneSettingDesc: '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
       propAppearance: '道具外观描述',
@@ -394,6 +401,7 @@ export default {
     effectiveImageReviewNotice: '系统默认模板与用户自定义版本均由提示词管理统一保存；新评审使用当前有效版本。',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
+      '章回字幕文本校对 V1': '章回字幕文本校对 V1',
       '背景音乐导演规划 V1': '背景音乐导演规划 V1',
       '全章背景音乐导演规划 V1': '全章背景音乐导演规划 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 纯器乐标签 V1',

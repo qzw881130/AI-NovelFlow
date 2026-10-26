@@ -7,6 +7,23 @@ from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
 
 
+def test_subtitle_correction_logs_are_filterable_as_video_subtitles(client, db_session):
+    db_session.add_all([
+        LLMLog(id="subtitle-log", provider="openai", model="test", user_prompt="字幕",
+               task_type="subtitle_correction", status="success"),
+        LLMLog(id="translation-log", provider="openai", model="test", user_prompt="翻译",
+               task_type="subtitle_translation", status="success"),
+        LLMLog(id="other-log", provider="openai", model="test", user_prompt="其他",
+               task_type="parse_scenes", status="success"),
+    ])
+    db_session.commit()
+    response = client.get("/api/llm-logs/?category=video_subtitles")
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json()["data"]["items"]} == {"subtitle-log", "translation-log"}
+    assert "subtitle_correction" in client.get("/api/llm-logs/filters").json()["data"]["task_types"]
+    assert "subtitle_translation" in client.get("/api/llm-logs/filters").json()["data"]["task_types"]
+
+
 def test_token_hierarchy_counts_each_call_once_and_marks_missing_usage(client, db_session):
     novel = Novel(id="novel-a", title="测试小说")
     chapter = Chapter(id="chapter-a", novel_id=novel.id, number=3, title="重逢")

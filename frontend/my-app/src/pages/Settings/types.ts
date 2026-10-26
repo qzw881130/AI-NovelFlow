@@ -14,6 +14,12 @@ export interface Workflow {
   isActive: boolean;
   availableForNewTasks?: boolean;
   nodeMapping?: {
+    load_audio_node_id?: string;
+    text_output_node_id?: string;
+    timestamps_output_node_id?: string;
+    text_list_output_node_id?: string;
+    start_times_output_node_id?: string;
+    end_times_output_node_id?: string;
     prompt_node_id?: string;
     save_image_node_id?: string;
     width_node_id?: string;

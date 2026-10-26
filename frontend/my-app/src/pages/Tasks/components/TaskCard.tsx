@@ -11,6 +11,7 @@ import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 import { formatAspectRatio } from '../../../utils/aspectRatio';
 import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
+import { SubtitleEditor } from './SubtitleEditor';
 
 interface TaskCardProps {
   task: Task;
@@ -137,6 +138,7 @@ export function TaskCard({
   const { t } = useTranslation();
   const [approvingNameplate, setApprovingNameplate] = useState(false);
   const [nameplatePreviewOpened, setNameplatePreviewOpened] = useState(false);
+  const [editingSubtitles, setEditingSubtitles] = useState(false);
 
   const approveNameplate = async () => {
     if (!task.novelId || !task.chapterId) return;
@@ -175,7 +177,8 @@ export function TaskCard({
       case 'shot_video_hd_batch':
       case 'chapter_video':
       case 'transition_video':
-      case 'novel_video': return <Film className="h-5 w-5" />;
+      case 'novel_video':
+      case 'subtitle_render': return <Film className="h-5 w-5" />;
       default: return <ListTodo className="h-5 w-5" />;
     }
   };
@@ -592,7 +595,7 @@ export function TaskCard({
                   className="w-full max-w-2xl rounded-lg bg-black"
                   aria-label={task.name}
                 />
-              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
+              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'subtitle_render' || task.type === 'transition_video' ? (
                 <div>
                   <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
                     <div className="h-32 w-48 bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
@@ -672,6 +675,18 @@ export function TaskCard({
               {task.nameplatePreview?.warnings?.join('；')}
             </div>
           )}
+          {task.type === 'chapter_video' && task.subtitle?.srtUrl && (
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-sm">
+              <div className="font-medium text-gray-800">视频字幕 · {task.subtitle.count ?? 0} 条</div>
+              {!!task.subtitle.skippedCueCount && <p className="mt-1 text-xs text-amber-700">{task.subtitle.skippedCueCount} 条无有效时间的识别结果已跳过，可在字幕校对中检查边界台词。</p>}
+              <div className="mt-2 flex gap-3">
+                <a href={task.subtitle.srtUrl} download className="text-blue-700 hover:underline">下载中文 SRT</a>
+                {task.subtitle.enSrtUrl && <a href={task.subtitle.enSrtUrl} download className="text-blue-700 hover:underline">下载英文 SRT</a>}
+                <button type="button" onClick={() => setEditingSubtitles(true)} className="text-blue-700 hover:underline">查看与校对</button>
+              </div>
+            </div>
+          )}
+          {editingSubtitles && <SubtitleEditor task={task} onClose={() => setEditingSubtitles(false)} onUpdated={onNameplateApproved} />}
           <div className="mt-2 text-xs opacity-60">
             {task.seed != null && <span className="mr-2 font-mono">Seed: {task.seed}</span>}
             {task.sourceTaskId && <span className="mr-2 font-mono">Source: {task.sourceTaskId}</span>}

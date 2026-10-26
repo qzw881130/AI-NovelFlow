@@ -23,6 +23,8 @@ export default {
     workflow: {
       ...zhCN.systemSettings.workflow,
       backgroundMusic: '背景音樂',
+      subtitleAsr: '字幕語音辨識',
+      audioTranscription: '語音轉文字',
       musicStyleNode: '音樂風格節點',
       musicLyricsNode: '歌詞節點',
       musicDurationNode: '音樂時長節點（秒，支援小數）',
@@ -195,6 +197,7 @@ export default {
     categories: {
       ...zhCN.promptConfig.categories,
       backgroundMusic: '背景音樂',
+      videoSubtitles: '影片字幕',
       storyContext: '故事上下文',
     },
 
@@ -206,6 +209,10 @@ export default {
       backgroundMusicDirectorFullDesc: '依劇情起伏規劃連續配樂，覆蓋整章影片',
       backgroundMusicGeneration: '純器樂生成約束',
       backgroundMusicGenerationDesc: '將導演風格轉為 ACE-Step 標籤並固定純器樂標記',
+      subtitleCorrection: '章回字幕文字校對',
+      subtitleCorrectionDesc: '參照分鏡台詞修正 ASR 錯字並保留語音時間',
+      subtitleTranslation: '章回字幕英文翻譯',
+      subtitleTranslationDesc: '逐條翻譯已校對的中文台詞並保留原始時間軸',
       sceneSetting: '場景設定描述',
       sceneSettingDesc: '透過 LLM 補全場景環境文字設定，不直接生成圖片',
       propAppearance: '道具外觀描述',
@@ -242,6 +249,7 @@ export default {
     tipStyle: '僅描述媒介、線條、色彩、材質和光影；保留角色、道具和世界觀，不指定鏡頭、動作或對白。',
     templatePlaceholderStyle: '2D anime rendering, clean linework, flat colors, crisp cel shading',
     templateNames: {
+      '章回字幕文本校对 V1': '章回字幕文字校對 V1',
       '背景音乐导演规划 V1': '背景音樂導演規劃 V1',
       '全章背景音乐导演规划 V1': '全章背景音樂導演規劃 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 純器樂標籤 V1',

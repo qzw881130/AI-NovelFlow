@@ -81,6 +81,7 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "video_director": ["keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
     "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt", "image_quality_review_prompt"],
     "video_generation": ["expand_video_prompt", "h3_multi_keyframe_prompt", "h3_multi_keyframe_director_phase_b", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt", "first_appearance_nameplate"],
+    "video_subtitles": ["subtitle_correction", "subtitle_translation"],
 }
 
 # Old log records remain readable/exportable, but retired prompt types are not choices for new filters.
@@ -115,6 +116,8 @@ LLM_LOG_TASK_LABELS = {
     "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
     "h3_preflight_repair_prompt": "视频生成-MiniMax H3 Preflight 自动修复",
     "first_appearance_nameplate": "视频生成-首次出镜姓名牌定位",
+    "subtitle_correction": "视频字幕-章回字幕文本校对",
+    "subtitle_translation": "视频字幕-章回字幕英文翻译",
 }
 
 LLM_TASK_TEMPLATE_TYPES = {
@@ -143,6 +146,8 @@ LLM_TASK_TEMPLATE_TYPES = {
     "h3_multi_keyframe_director_phase_b": "h3_multi_keyframe_director_phase_b",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt",
     "h3_preflight_repair_prompt": "h3_preflight_repair_prompt",
+    "subtitle_correction": "subtitle_correction",
+    "subtitle_translation": "subtitle_translation",
 }
 
 # 上海时区 (东八区)

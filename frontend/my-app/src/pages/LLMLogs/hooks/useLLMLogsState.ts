@@ -17,6 +17,7 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
   video_generation: ['expand_video_prompt', 'h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt', 'first_appearance_nameplate'],
   background_music: ['background_music_director', 'background_music_director_full', 'background_music_generation'],
+  video_subtitles: ['subtitle_correction', 'subtitle_translation'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -30,6 +31,7 @@ const TASK_CATEGORY_OPTIONS = [
   { value: 'keyframe_image', labelKey: 'promptConfig.categories.keyframeImage' },
   { value: 'video_generation', labelKey: 'promptConfig.categories.videoGeneration' },
   { value: 'background_music', labelKey: 'promptConfig.categories.backgroundMusic' },
+  { value: 'video_subtitles', labelKey: 'promptConfig.categories.videoSubtitles' },
 ];
 
 export function useLLMLogsState() {
@@ -203,6 +205,8 @@ export function useLLMLogsState() {
       h3_preflight_repair_prompt: 'videoGeneration',
       first_appearance_nameplate: 'videoGeneration',
       background_music_director: 'backgroundMusic', background_music_director_full: 'backgroundMusic', background_music_generation: 'backgroundMusic',
+      subtitle_correction: 'videoSubtitles',
+      subtitle_translation: 'videoSubtitles',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -224,6 +228,8 @@ export function useLLMLogsState() {
       background_music_director: t('promptConfig.types.backgroundMusicDirector'),
       background_music_director_full: t('promptConfig.types.backgroundMusicDirectorFull'),
       background_music_generation: t('promptConfig.types.backgroundMusicGeneration'),
+      subtitle_correction: t('promptConfig.types.subtitleCorrection'),
+      subtitle_translation: t('promptConfig.types.subtitleTranslation'),
       keyframe_description: t('promptConfig.types.keyframeDescription'),
       keyframe_planner: t('promptConfig.types.keyframePlanner'),
       keyframe_transition: t('promptConfig.types.keyframeTransition'),

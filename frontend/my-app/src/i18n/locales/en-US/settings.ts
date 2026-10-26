@@ -141,6 +141,8 @@ export default {
     // ComfyUI Workflow
     workflow: {
       backgroundMusic: 'Background Music',
+      subtitleAsr: 'Subtitle Speech Recognition',
+      audioTranscription: 'Audio Transcription',
       musicStyleNode: 'Music Style Node',
       musicLyricsNode: 'Lyrics Node',
       musicDurationNode: 'Music Duration Node (decimal seconds)',
@@ -311,6 +313,7 @@ export default {
       keyframeImage: 'Keyframe Image',
       videoGeneration: 'Video Generation',
       backgroundMusic: 'Background Music',
+      videoSubtitles: 'Video Subtitles',
     },
 
     // Prompt template types
@@ -321,6 +324,10 @@ export default {
       backgroundMusicDirectorFullDesc: 'Plan continuous music across the chapter as the story changes',
       backgroundMusicGeneration: 'Instrumental Generation Constraints',
       backgroundMusicGenerationDesc: 'Prepare ACE-Step tags and the instrumental marker',
+      subtitleCorrection: 'Chapter Subtitle Correction',
+      subtitleCorrectionDesc: 'Correct ASR text using shot dialogue while preserving speech timing',
+      subtitleTranslation: 'Chapter Subtitle Translation',
+      subtitleTranslationDesc: 'Translate corrected Chinese cues into English while preserving timing',
       sceneSetting: 'Scene Setting Description',
       sceneSettingDesc: 'Use an LLM to expand the written environment setting; does not generate images',
       propAppearance: 'Prop Appearance Description',
@@ -392,6 +399,7 @@ export default {
     effectiveImageReviewNotice: 'System and custom templates are managed here. New reviews use the active version.',
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
+      '章回字幕文本校对 V1': 'Chapter Subtitle Correction V1',
       '背景音乐导演规划 V1': 'Background Music Director Plan V1',
       '全章背景音乐导演规划 V1': 'Full Chapter Music Director Plan V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step Instrumental Tags V1',

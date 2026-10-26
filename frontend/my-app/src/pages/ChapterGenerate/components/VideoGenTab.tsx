@@ -9,6 +9,7 @@ import { H3OptimizerResult } from './H3OptimizerResult';
 import { ClipVisualStateReferences } from './ClipVisualStateReferences';
 import { visualStatePromptIsCurrent } from '../clipVisualStateReferences';
 import { getChapterMergeReadiness } from '../chapterMergeReadiness';
+import { SubtitleModeSelect, type SubtitleMode } from '../../../components/SubtitleModeSelect';
 /**
  * VideoGenTab - 视频生成 Tab（阶段 4）
  *
@@ -2620,6 +2621,7 @@ export function VideoGenTab({
   const [selectedMergeShotIds, setSelectedMergeShotIds] = useState<Set<string>>(new Set());
   const [mergeSelectionMode, setMergeSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [mergeIncludeTransitions, setMergeIncludeTransitions] = useState(false);
+  const [mergeSubtitleMode, setMergeSubtitleMode] = useState<SubtitleMode>('none');
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
@@ -4387,7 +4389,7 @@ export function VideoGenTab({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, shot_ids: shotIds })
+          body: JSON.stringify({ mode, shot_ids: shotIds, subtitle_mode: mergeSubtitleMode })
         }
       );
 
@@ -5061,6 +5063,7 @@ export function VideoGenTab({
                     />
                     包含转场视频
                   </label>
+                  <SubtitleModeSelect value={mergeSubtitleMode} onChange={setMergeSubtitleMode} />
                   <button
                     onClick={toggleMergeSelectAll}
                     disabled={mergeReadinessLoading || !!mergeReadinessError}

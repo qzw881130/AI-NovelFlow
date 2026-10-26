@@ -31,6 +31,8 @@ WORKFLOW_TYPES = {
     "voice_design": "音色设计",
     "audio": "音频生成",
     "background_music": "背景音乐",
+    "subtitle_asr": "字幕语音识别",
+    "audio_transcription": "语音转文字",
     "keyframe_image": "关键帧生图",
     "single_image_edit": "单图编辑",
     "multi_image_edit": "多图编辑",
@@ -284,6 +286,34 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
 # 注意：列表顺序决定默认激活优先级，每种类型的第一个工作流会成为默认激活
 # nameKey/descriptionKey: 翻译键，前端通过此键获取多语言文本
 EXTRA_SYSTEM_WORKFLOWS = [
+    {
+        "filename": "subtitle_asr_qwen3_v1.json",
+        "type": "subtitle_asr",
+        "name": "Qwen3 ASR HF 台词时间定位",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen3 ASR HF 台词时间定位",
+        "description": "AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴",
+        "node_mapping": {
+            "load_audio_node_id": "12",
+            "timestamps_output_node_id": "17",
+            "text_list_output_node_id": "19",
+            "start_times_output_node_id": "20",
+            "end_times_output_node_id": "21",
+        },
+    },
+    {
+        "filename": "audio_transcription_qwen3_hf_v1.json",
+        "type": "audio_transcription",
+        "name": "Qwen3 ASR HF 提取声音文本",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen3 ASR HF 提取声音文本",
+        "description": "AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴",
+        "node_mapping": {
+            "load_audio_node_id": "12",
+            "text_output_node_id": "13",
+        },
+    },
+] + [
     # Qwen Image 2.1 Turbo variants use the same model/sampler as the 9-image
     # edit workflow, with only the reference slots needed by each task type.
     {

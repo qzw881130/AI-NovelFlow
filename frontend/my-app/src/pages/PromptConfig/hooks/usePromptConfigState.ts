@@ -8,6 +8,8 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
+  subtitle_correction: { nameKey: 'promptConfig.types.subtitleCorrection', descKey: 'promptConfig.types.subtitleCorrectionDesc', defaultTemplate: '' },
+  subtitle_translation: { nameKey: 'promptConfig.types.subtitleTranslation', descKey: 'promptConfig.types.subtitleTranslationDesc', defaultTemplate: '' },
   background_music_director: { nameKey: 'promptConfig.types.backgroundMusicDirector', descKey: 'promptConfig.types.backgroundMusicDirectorDesc', defaultTemplate: '' },
   background_music_director_full: { nameKey: 'promptConfig.types.backgroundMusicDirectorFull', descKey: 'promptConfig.types.backgroundMusicDirectorFullDesc', defaultTemplate: '' },
   background_music_generation: { nameKey: 'promptConfig.types.backgroundMusicGeneration', descKey: 'promptConfig.types.backgroundMusicGenerationDesc', defaultTemplate: '' },
@@ -37,6 +39,8 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [
+  'subtitle_correction',
+  'subtitle_translation',
   'story_world_context_recommender',
   'style',
   'character_parse',
@@ -71,6 +75,8 @@ export function usePromptConfigState() {
 
   // 各类型模板状态
   const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
+    subtitle_correction: [],
+    subtitle_translation: [],
     scene_setting: [],
     prop_appearance: [],
     story_world_context_recommender: [],
@@ -99,6 +105,8 @@ export function usePromptConfigState() {
     background_music_generation: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
+    subtitle_correction: true,
+    subtitle_translation: true,
     scene_setting: true,
     prop_appearance: true,
     story_world_context_recommender: true,

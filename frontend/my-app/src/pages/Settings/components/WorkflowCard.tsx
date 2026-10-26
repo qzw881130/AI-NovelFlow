@@ -24,6 +24,8 @@ const typeIcons: Record<string, typeof User> = {
   prop: Box,
   voice_design: Mic,
   audio: Music,
+  subtitle_asr: Mic,
+  audio_transcription: Mic,
   keyframe_image: Clapperboard,
   single_image_edit: ImageIcon,
   multi_image_edit: ImageIcon
@@ -48,6 +50,8 @@ const typeColors: Record<string, string> = {
   prop: 'bg-orange-100 text-orange-600',
   voice_design: 'bg-cyan-100 text-cyan-600',
   audio: 'bg-indigo-100 text-indigo-600',
+  subtitle_asr: 'bg-blue-100 text-blue-600',
+  audio_transcription: 'bg-blue-100 text-blue-600',
   keyframe_image: 'bg-teal-100 text-teal-600',
   single_image_edit: 'bg-violet-100 text-violet-600',
   multi_image_edit: 'bg-blue-100 text-blue-600'

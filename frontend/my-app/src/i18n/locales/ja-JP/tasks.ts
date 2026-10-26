@@ -98,6 +98,7 @@ export default {
       shotVideo: 'ショット動画',
       chapterVideo: 'チャプター動画',
       novelVideo: '小説チャプター動画を結合',
+      subtitleRender: '動画字幕を更新',
       youtubeUpload: 'YouTube にアップロード',
       transitionVideo: 'トランジション動画',
     },
@@ -105,6 +106,9 @@ export default {
     systemDefault: 'システム既定',
     custom: 'カスタム',
     workflowNames: {
+      'Qwen3 ASR 字幕对齐 V1': 'Qwen3 ASR 字幕アラインメント V1',
+      'Qwen3 ASR HF 台词时间定位': 'Qwen3 ASR HF セリフ時間位置特定',
+      'Qwen3 ASR HF 提取声音文本': 'Qwen3 ASR HF 音声文字起こし',
       'YuE2 纯器乐背景音乐 V1': 'YuE2 器楽背景音楽 V1',
       'ACE-Step 纯器乐背景音乐 V1': 'ACE-Step 器楽背景音楽 V1',
       'ACE-Step1.5 纯器乐背景音乐 V1': 'ACE-Step1.5 器楽背景音楽 V1',
@@ -132,6 +136,9 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B ショット画像生成（デュアル参照）',
     },
     workflowDescriptions: {
+      'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR と ForcedAligner による章動画の字幕タイミング調整',
+      'AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴': 'AILab Qwen3-ASR 1.7B-hf と ForcedAligner 0.6B-hf で字幕の時間軸を生成',
+      'AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴': 'AILab Qwen3-ASR 1.7B-hf で音声を文字起こし（時間軸なし）',
       'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检': 'CR Prompt Text でスタイルと歌詞を指定して YuE2 候補を生成します。完成音声は試聴確認が必要です',
       'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检': 'ACE-Step 1.0 で器楽を生成します。スタイル、歌詞、小数秒の長さをノードで指定し、試聴確認します',
       'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检': 'ACE-Step1.5 で器楽を生成します。計画したスタイル、旋律、長さを適用し、試聴確認します',

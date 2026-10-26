@@ -1536,6 +1536,20 @@ class TaskService:
                 "autoApproved": bool(metadata.get("nameplate_auto_approved")),
             }
 
+        def subtitle_summary(task: Task):
+            if task.type != "chapter_video":
+                return None
+            try:
+                subtitle = json.loads(task.metadata_json or "{}").get("subtitle")
+            except (TypeError, ValueError):
+                return None
+            if not isinstance(subtitle, dict):
+                return None
+            return {"srtUrl": subtitle.get("srt_url"), "enSrtUrl": subtitle.get("en_srt_url"),
+                    "mode": subtitle.get("mode"), "status": subtitle.get("status"),
+                    "count": subtitle.get("count", len(subtitle.get("cues") or [])), "correction": subtitle.get("correction"),
+                    "skippedCueCount": subtitle.get("skipped_cue_count", 0)}
+
         def shot_image_quality_summary(task: Task):
             if task.type != "shot_image":
                 return None
@@ -1670,6 +1684,7 @@ class TaskService:
                 "resultUrl": t.result_url,
                 "musicMode": music_mode(t),
                 "nameplatePreview": nameplate_preview(t),
+                "subtitle": subtitle_summary(t),
                 "shotImageQuality": shot_image_quality_summary(t),
                 "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
@@ -1744,6 +1759,14 @@ class TaskService:
                                   "status": metadata.get("nameplate_status"),
                                   "warnings": metadata.get("nameplate_warnings"),
                                   "autoApproved": bool(metadata.get("nameplate_auto_approved"))} if task.type == "chapter_video" else None),
+            "subtitle": ({"srtUrl": (metadata.get("subtitle") or {}).get("srt_url"),
+                          "enSrtUrl": (metadata.get("subtitle") or {}).get("en_srt_url"),
+                          "mode": (metadata.get("subtitle") or {}).get("mode"),
+                          "status": (metadata.get("subtitle") or {}).get("status"),
+                          "count": (metadata.get("subtitle") or {}).get("count", len((metadata.get("subtitle") or {}).get("cues") or [])),
+                          "correction": (metadata.get("subtitle") or {}).get("correction"),
+                          "skippedCueCount": (metadata.get("subtitle") or {}).get("skipped_cue_count", 0)}
+                         if task.type == "chapter_video" and isinstance(metadata.get("subtitle"), dict) else None),
             "metadata": clip_metadata,
             "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
             "clipExecution": clip_execution,

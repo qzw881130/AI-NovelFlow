@@ -15,7 +15,7 @@ const TASK_TYPE_GROUPS: Array<{ key: string; types: Task['type'][] }> = [
   { key: 'audio', types: ['character_voice', 'character_audio', 'narrator_audio', 'chapter_background_music'] },
   { key: 'images', types: ['scene_image', 'prop_image', 'shot_image', 'shot_image_repair', 'shot_image_repair_candidate', 'shot_image_batch', 'keyframe_image', 'single_image_edit', 'novel_video_cover'] },
   { key: 'videos', types: ['shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video'] },
-  { key: 'chaptersAndPublishing', types: ['chapter_ai_split_batch', 'chapter_ai_split', 'chapter_video', 'novel_video', 'shot_export', 'youtube_upload'] },
+  { key: 'chaptersAndPublishing', types: ['chapter_ai_split_batch', 'chapter_ai_split', 'chapter_video', 'novel_video', 'subtitle_render', 'shot_export', 'youtube_upload'] },
 ];
 
 export default function Tasks() {
@@ -152,6 +152,7 @@ export default function Tasks() {
       'chapter_ai_split_batch': '批量 AI 拆分章回',
       'chapter_ai_split': 'AI 拆分章回',
       'novel_video': t('tasks.types.novelVideo', { defaultValue: '合并小说视频' }),
+      'subtitle_render': t('tasks.types.subtitleRender', { defaultValue: '更新视频字幕' }),
       'novel_video_cover': '视频封面',
       'youtube_upload': t('tasks.types.youtubeUpload', { defaultValue: '上传 YouTube' }),
       'transition_video': t('tasks.types.transitionVideo'),

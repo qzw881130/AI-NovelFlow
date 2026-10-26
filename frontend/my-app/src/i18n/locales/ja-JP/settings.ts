@@ -118,6 +118,8 @@ export default {
     workflow: {
       ...enUS.systemSettings.workflow,
       backgroundMusic: '背景音楽',
+      subtitleAsr: '字幕音声認識',
+      audioTranscription: '音声文字起こし',
       musicStyleNode: '音楽スタイルノード',
       musicLyricsNode: '歌詞ノード',
       musicDurationNode: '音楽の長さノード（小数秒）',
@@ -268,7 +270,7 @@ export default {
     explicitBinding: '明示的に指定',
     boundNovelCount: '合計 {count} 件',
 
-    categories: { ...enUS.promptConfig.categories, backgroundMusic: '背景音楽' },
+    categories: { ...enUS.promptConfig.categories, backgroundMusic: '背景音楽', videoSubtitles: '動画字幕' },
 
     // プロンプトテンプレートタイプ
     types: {
@@ -278,6 +280,10 @@ export default {
       backgroundMusicDirectorFullDesc: '物語の変化に合わせて章全体を連続した音楽で覆います',
       backgroundMusicGeneration: '器楽生成の制約',
       backgroundMusicGenerationDesc: 'ACE-Step のタグと器楽マーカーを用意します',
+      subtitleCorrection: '章の字幕校正',
+      subtitleCorrectionDesc: 'セリフを参照して ASR の誤字を修正し、音声時刻を維持します',
+      subtitleTranslation: '章の字幕英訳',
+      subtitleTranslationDesc: '校正済み中国語字幕を時刻を維持して英訳します',
       sceneSetting: 'シーン設定の記述',
       sceneSettingDesc: 'LLM で環境設定の文章を補完します。画像は生成しません',
       propAppearance: '小道具の外観記述',
@@ -328,6 +334,7 @@ export default {
     resetSuccess: 'デフォルトプロンプトにリセット',
     resetSuccessFrontend: 'デフォルトプロンプトにリセット（フロントエンドのみ）',
     templateNames: {
+      '章回字幕文本校对 V1': '章の字幕校正 V1',
       '背景音乐导演规划 V1': '背景音楽ディレクター計画 V1',
       '全章背景音乐导演规划 V1': '全章背景音楽ディレクター計画 V1',
       'ACE-Step 纯器乐标签 V1': 'ACE-Step 器楽タグ V1',

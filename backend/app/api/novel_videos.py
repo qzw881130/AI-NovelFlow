@@ -1,4 +1,5 @@
 """Novel-level merged video API."""
+import asyncio
 import json
 import math
 import re
@@ -24,9 +25,12 @@ from app.services.task_service import TaskService
 from app.services.file_storage import file_storage
 from app.api.config import get_or_create_config
 from app.utils.path_utils import url_to_local_path
+from app.services.chapter_subtitles import preview_subtitle_correction, read_cues
+from app.services.subtitle_render_service import format_subtitle_render, latest_subtitle_renders, queue_subtitle_render
 
 
 router = APIRouter()
+_subtitle_locks: dict[str, asyncio.Lock] = {}
 
 
 class MergeChapterVideosRequest(BaseModel):
@@ -34,6 +38,63 @@ class MergeChapterVideosRequest(BaseModel):
     video_variant: Literal["draft", "hd"] = "draft"
     target_megapixels: float | None = None
     include_background_music: bool = True
+    generate_subtitles: bool = False
+    subtitle_mode: Literal["none", "zh", "bilingual"] | None = None
+
+
+class NovelSubtitleCuesUpdate(BaseModel):
+    cues: list[dict]
+
+
+@router.get("/novels/{novel_id}/video-merges/{task_id}/subtitles")
+def get_novel_video_subtitles(novel_id: str, task_id: str, db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id, Task.novel_id == novel_id,
+                                 Task.type == "novel_video", Task.status == "completed").first()
+    if not task:
+        raise HTTPException(status_code=404, detail="小说合并任务不存在")
+    subtitle = json.loads(task.metadata_json or "{}").get("subtitle")
+    if not isinstance(subtitle, dict) or not subtitle.get("srt_url"):
+        raise HTTPException(status_code=404, detail="该任务没有字幕")
+    return {"success": True, "data": {**subtitle, "cues": read_cues(subtitle)}}
+
+
+@router.post("/novels/{novel_id}/video-merges/{task_id}/subtitles/auto-correct")
+async def auto_correct_novel_video_subtitles(
+    novel_id: str, task_id: str, data: NovelSubtitleCuesUpdate, db: Session = Depends(get_db),
+):
+    task = db.query(Task).filter(Task.id == task_id, Task.novel_id == novel_id,
+                                 Task.type == "novel_video", Task.status == "completed").first()
+    if not task:
+        raise HTTPException(status_code=404, detail="小说合并任务不存在")
+    try:
+        result = await preview_subtitle_correction(db, task, data.cues)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"success": True, "data": result}
+
+
+@router.put("/novels/{novel_id}/video-merges/{task_id}/subtitles")
+async def update_novel_video_subtitles(
+    novel_id: str, task_id: str, data: NovelSubtitleCuesUpdate, db: Session = Depends(get_db),
+):
+    lock = _subtitle_locks.setdefault(task_id, asyncio.Lock())
+    async with lock:
+        task = db.query(Task).filter(Task.id == task_id, Task.novel_id == novel_id,
+                                     Task.type == "novel_video", Task.status == "completed").first()
+        if not task:
+            raise HTTPException(status_code=404, detail="小说合并任务不存在")
+        try:
+            render = await queue_subtitle_render(db, task, data.cues)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            status = 409 if "已有字幕更新任务" in str(exc) else 422
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        return {"success": True, "data": format_subtitle_render(render)}
 
 
 class GenerateNovelCoverRequest(BaseModel):
@@ -109,6 +170,8 @@ async def create_novel_video_merge(
             "video_variant": request.video_variant,
             "target_megapixels": request.target_megapixels,
             "include_background_music": request.include_background_music,
+            "generate_subtitles": (request.subtitle_mode or ("zh" if request.generate_subtitles else "none")) != "none",
+            "subtitle_mode": request.subtitle_mode or ("zh" if request.generate_subtitles else "none"),
             "background_music_chapter_count": sum(bool(item["backgroundMusicUrl"]) for item in snapshots),
         }, ensure_ascii=False),
     )
@@ -149,6 +212,7 @@ def list_novel_video_merges(
     for upload in uploads:
         latest_uploads.setdefault(upload.parent_task_id, upload)
     latest_covers = {}
+    latest_renders = latest_subtitle_renders(db, [task.id for task in tasks])
     completed_covers_by_merge = {}
     active_covers_by_merge = {}
     for cover in covers:
@@ -167,6 +231,7 @@ def list_novel_video_merges(
             "covers": completed_covers_by_merge.get(task.id, []),
             "activeCovers": active_covers_by_merge.get(task.id, []),
             "youtubeUpload": format_upload(latest_uploads.get(task.id)),
+            "subtitleRender": format_subtitle_render(latest_renders.get(task.id)),
         }
         for task in tasks
     ]}

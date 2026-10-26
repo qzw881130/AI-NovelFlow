@@ -447,6 +447,17 @@ SYSTEM_BACKGROUND_MUSIC_TEMPLATES: List[Dict] = [
 ]
 
 SYSTEM_PROMPT_TEMPLATES = (
+    [{
+        "name": "章回字幕文本校对 V1",
+        "description": "参照小说正文或分镜台词修正 ASR 文本，只返回字幕文字；时间由系统锁定",
+        **file_template("subtitle_correction_v1.txt"),
+        "type": "subtitle_correction",
+    }, {
+        "name": "章回字幕英文翻译 V1",
+        "description": "按中文台词逐条翻译英文；字幕时间轴由系统锁定",
+        **file_template("subtitle_translation_v1.txt"),
+        "type": "subtitle_translation",
+    }] +
     SYSTEM_STORY_CONTEXT_TEMPLATES +
     SYSTEM_CLIP_PLANNER_TEMPLATES +
     SYSTEM_STYLE_TEMPLATES +

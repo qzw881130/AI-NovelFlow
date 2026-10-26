@@ -1,0 +1,42 @@
+{
+  "11": {
+    "inputs": {
+      "model": "Qwen/Qwen3-ASR-1.7B-hf",
+      "precision": "bf16",
+      "language": "Chinese",
+      "hints": "",
+      "normalize_text": false,
+      "unload_models": true,
+      "audio": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "AILab_Qwen3ASR",
+    "_meta": {
+      "title": "#11 Qwen3-ASR-1.7B-hf · 语音转文字"
+    }
+  },
+  "12": {
+    "inputs": {
+      "audio": "sample.flac"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#12 Load Audio"
+    }
+  },
+  "13": {
+    "inputs": {
+      "text_0": "",
+      "text": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#13 Show Text 🐍"
+    }
+  }
+}

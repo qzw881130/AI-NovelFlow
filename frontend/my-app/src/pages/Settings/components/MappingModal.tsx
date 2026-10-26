@@ -5,6 +5,13 @@ import { workflowApi } from '../../../api/workflows';
 import type { Workflow, AvailableNodes } from '../types';
 
 interface MappingForm {
+  transcriptionLoadAudioNodeId?: string;
+  transcriptionTextOutputNodeId?: string;
+  subtitleLoadAudioNodeId?: string;
+  subtitleTimestampsNodeId?: string;
+  subtitleTextListNodeId?: string;
+  subtitleStartTimesNodeId?: string;
+  subtitleEndTimesNodeId?: string;
   promptNodeId: string;
   appearanceNodeId?: string;
   styleNodeId?: string;
@@ -494,6 +501,21 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 musicConditioningNodeId: mapping.music_conditioning_node_id || '',
                 saveAudioNodeId: mapping.save_audio_node_id || '',
               }));
+            } else if (wf.type === 'subtitle_asr') {
+              setMappingForm(prev => ({
+                ...prev,
+                subtitleLoadAudioNodeId: mapping.load_audio_node_id || '',
+                subtitleTimestampsNodeId: mapping.timestamps_output_node_id || '',
+                subtitleTextListNodeId: mapping.text_list_output_node_id || '',
+                subtitleStartTimesNodeId: mapping.start_times_output_node_id || '',
+                subtitleEndTimesNodeId: mapping.end_times_output_node_id || '',
+              }));
+            } else if (wf.type === 'audio_transcription') {
+              setMappingForm(prev => ({
+                ...prev,
+                transcriptionLoadAudioNodeId: mapping.load_audio_node_id || '',
+                transcriptionTextOutputNodeId: mapping.text_output_node_id || '',
+              }));
             } else if (wf.type === 'keyframe_image') {
               // 关键帧图片生成工作流
               setMappingForm({
@@ -793,6 +815,19 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           music_duration_node_id: mappingForm.musicDurationNodeId || null,
           music_conditioning_node_id: mappingForm.musicConditioningNodeId || null,
           save_audio_node_id: mappingForm.saveAudioNodeId || null,
+        };
+      } else if (workflow.type === 'subtitle_asr') {
+        nodeMapping = {
+          load_audio_node_id: mappingForm.subtitleLoadAudioNodeId || null,
+          timestamps_output_node_id: mappingForm.subtitleTimestampsNodeId || null,
+          text_list_output_node_id: mappingForm.subtitleTextListNodeId || null,
+          start_times_output_node_id: mappingForm.subtitleStartTimesNodeId || null,
+          end_times_output_node_id: mappingForm.subtitleEndTimesNodeId || null,
+        };
+      } else if (workflow.type === 'audio_transcription') {
+        nodeMapping = {
+          load_audio_node_id: mappingForm.transcriptionLoadAudioNodeId || null,
+          text_output_node_id: mappingForm.transcriptionTextOutputNodeId || null,
         };
       } else if (workflow.type === 'keyframe_image') {
         // 关键帧图片生成工作流
@@ -1898,6 +1933,37 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   <NodeSelectField label={t('systemSettings.workflow.saveAudioNode')} nodeTypeHint="SaveAudio"
                     value={mappingForm.saveAudioNodeId} options={availableNodes.saveAudio}
                     onChange={(v) => handleNodeSelect(v, 'saveAudioNodeId')} onFocus={handleNodeFocus} t={t} />
+                </>
+              )}
+
+              {workflow.type === 'subtitle_asr' && (
+                <>
+                  <NodeSelectField label="音频输入节点" nodeTypeHint="LoadAudio"
+                    value={mappingForm.subtitleLoadAudioNodeId || ''} options={availableNodes.loadAudio}
+                    onChange={(v) => handleNodeSelect(v, 'subtitleLoadAudioNodeId')} onFocus={handleNodeFocus} t={t} />
+                  {([
+                    ['subtitleTimestampsNodeId', '时间轴备用输出节点（可选）'],
+                    ['subtitleTextListNodeId', '字幕文本输出节点'],
+                    ['subtitleStartTimesNodeId', '开始时间输出节点'],
+                    ['subtitleEndTimesNodeId', '结束时间输出节点'],
+                  ] as const).map(([field, label]) => <NodeSelectField key={field} label={label} nodeTypeHint="ShowText"
+                    value={mappingForm[field] || ''}
+                    options={Object.entries(workflowJsonData).filter(([, node]) => String(node?.class_type || '').startsWith('ShowText'))
+                      .map(([id, node]) => `${id} (${node?._meta?.title || node?.class_type})`)}
+                    onChange={(v) => handleNodeSelect(v, field)} onFocus={handleNodeFocus} t={t} />)}
+                </>
+              )}
+
+              {workflow.type === 'audio_transcription' && (
+                <>
+                  <NodeSelectField label="音频输入节点" nodeTypeHint="LoadAudio"
+                    value={mappingForm.transcriptionLoadAudioNodeId || ''} options={availableNodes.loadAudio}
+                    onChange={(v) => handleNodeSelect(v, 'transcriptionLoadAudioNodeId')} onFocus={handleNodeFocus} t={t} />
+                  <NodeSelectField label="文本输出节点" nodeTypeHint="ShowText"
+                    value={mappingForm.transcriptionTextOutputNodeId || ''}
+                    options={Object.entries(workflowJsonData).filter(([, node]) => String(node?.class_type || '').startsWith('ShowText'))
+                      .map(([id, node]) => `${id} (${node?._meta?.title || node?.class_type})`)}
+                    onChange={(v) => handleNodeSelect(v, 'transcriptionTextOutputNodeId')} onFocus={handleNodeFocus} t={t} />
                 </>
               )}
 

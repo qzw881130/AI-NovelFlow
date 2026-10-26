@@ -106,6 +106,7 @@ export default {
       shotVideo: '分镜视频',
       chapterVideo: '合并章节视频',
       novelVideo: '合并小说视频',
+      subtitleRender: '更新视频字幕',
       youtubeUpload: '上传 YouTube',
       transitionVideo: '转场视频',
       sceneImage: '场景图片',
@@ -113,6 +114,9 @@ export default {
     systemDefault: '系统默认',
     custom: '自定义',
     workflowNames: {
+      'Qwen3 ASR 字幕对齐 V1': 'Qwen3 ASR 字幕对齐 V1',
+      'Qwen3 ASR HF 台词时间定位': 'Qwen3 ASR HF 台词时间定位',
+      'Qwen3 ASR HF 提取声音文本': 'Qwen3 ASR HF 提取声音文本',
       'YuE2 纯器乐背景音乐 V1': 'YuE2 纯器乐背景音乐 V1',
       'ACE-Step 纯器乐背景音乐 V1': 'ACE-Step 纯器乐背景音乐 V1',
       'ACE-Step1.5 纯器乐背景音乐 V1': 'ACE-Step1.5 纯器乐背景音乐 V1',
@@ -144,6 +148,9 @@ export default {
       'NovelFlow H3 AV 视频续生成 Minimal V1': 'NovelFlow H3 AV 视频续生成 Minimal V1',
     },
     workflowDescriptions: {
+      'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕',
+      'AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴': 'AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴',
+      'AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴': 'AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴',
       'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检': 'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检',
       'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检': 'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检',
       'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检': 'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检',

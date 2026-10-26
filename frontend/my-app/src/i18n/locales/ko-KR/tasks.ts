@@ -98,6 +98,7 @@ export default {
       shotVideo: '샷 비디오',
       chapterVideo: '챕터 비디오',
       novelVideo: '소설 장별 비디오 병합',
+      subtitleRender: '동영상 자막 업데이트',
       youtubeUpload: 'YouTube에 업로드',
       transitionVideo: '전환 비디오',
     },
@@ -105,6 +106,9 @@ export default {
     systemDefault: '시스템 기본',
     custom: '사용자 정의',
     workflowNames: {
+      'Qwen3 ASR 字幕对齐 V1': 'Qwen3 ASR 자막 정렬 V1',
+      'Qwen3 ASR HF 台词时间定位': 'Qwen3 ASR HF 대사 시간 정렬',
+      'Qwen3 ASR HF 提取声音文本': 'Qwen3 ASR HF 음성 텍스트 추출',
       'YuE2 纯器乐背景音乐 V1': 'YuE2 연주곡 배경 음악 V1',
       'ACE-Step 纯器乐背景音乐 V1': 'ACE-Step 연주곡 배경 음악 V1',
       'ACE-Step1.5 纯器乐背景音乐 V1': 'ACE-Step1.5 연주곡 배경 음악 V1',
@@ -132,6 +136,9 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 가리기 전환',
     },
     workflowDescriptions: {
+      'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR 인식과 ForcedAligner 문장 정렬로 챕터 영상 자막 생성',
+      'AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴': 'AILab Qwen3-ASR 1.7B-hf와 ForcedAligner 0.6B-hf로 자막 타임라인 생성',
+      'AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴': 'AILab Qwen3-ASR 1.7B-hf로 시간 정보 없이 음성 텍스트 추출',
       'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检': 'CR Prompt Text로 스타일과 가사를 지정해 YuE2 후보를 생성합니다. 결과는 직접 들어서 확인해야 합니다',
       'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检': 'ACE-Step 1.0으로 연주곡을 생성합니다. 스타일, 가사, 소수 초 길이를 노드로 설정하고 청취 확인합니다',
       'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检': 'ACE-Step1.5로 연주곡을 생성합니다. 계획한 스타일, 선율, 길이를 적용하고 청취 확인합니다',

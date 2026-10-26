@@ -192,6 +192,47 @@ class ComfyUIClient:
         mime_type = mime_types.get(os.path.splitext(audio_path)[1].lower(), "audio/flac")
         return await self._upload_asset(audio_path, mime_type, 60.0, "音频")
 
+    async def wait_for_text_outputs(
+        self, prompt_id: str, node_ids: List[str], timeout: int = 600,
+        poll_interval: float = 2.0, allow_empty: bool = False,
+    ) -> Dict[str, Any]:
+        """Read ShowText outputs from a completed workflow history entry."""
+        failure = self._configuration_failure("EXECUTION_STATUS", prompt_submitted=bool(prompt_id))
+        if failure:
+            return failure
+        started = asyncio.get_running_loop().time()
+        while asyncio.get_running_loop().time() - started < timeout:
+            try:
+                async with self._client() as client:
+                    response = await client.get(f"{self.base_url}/history/{prompt_id}", timeout=15.0)
+                    response.raise_for_status()
+                    history = response.json().get(prompt_id) or {}
+                status = history.get("status") or {}
+                if status.get("status_str") == "error":
+                    return {"success": False, "message": self._extract_status_error(status)}
+                if self._is_completed_status(status):
+                    outputs = history.get("outputs") or {}
+                    values = {}
+                    for node_id in node_ids:
+                        output = outputs.get(str(node_id)) or {}
+                        value = next((output.get(key) for key in ("text", "string", "value") if output.get(key) is not None), None)
+                        if value is None:
+                            ui = output.get("ui") or {}
+                            value = next((ui.get(key) for key in ("text", "string", "value") if ui.get(key) is not None), None)
+                        if isinstance(value, list):
+                            value = "\n".join(str(item) for item in value)
+                        values[str(node_id)] = str(value or "").strip()
+                    if not any(str(node_id) in outputs for node_id in node_ids):
+                        return {"success": False, "message": "字幕工作流没有产生已映射的输出，请检查节点映射"}
+                    if not allow_empty and not all(values.values()):
+                        return {"success": False, "message": "字幕工作流缺少文本或时间输出，请检查节点映射"}
+                    return {"success": True, "outputs": values}
+            except (httpx.TimeoutException, httpx.TransportError):
+                pass
+            await asyncio.sleep(poll_interval)
+        cleanup = await self._cleanup_timed_out_prompt(prompt_id)
+        return {"success": False, "message": f"字幕识别超时 ({timeout}s){cleanup}"}
+
     # ==================== 任务提交 ====================
 
     @staticmethod
@@ -272,6 +313,10 @@ class ComfyUIClient:
             return "；已从 ComfyUI 等待队列移除" if result.get("success") else f"；移除等待任务失败：{result.get('message')}"
         if not self._queue_contains_prompt({"queue_running": queue_info.get("queue_running", [])}, prompt_id):
             return ""
+        running_ids = [str(item[1]) for item in queue_info.get("queue_running", [])
+                       if isinstance(item, (list, tuple)) and len(item) > 1]
+        if running_ids != [prompt_id]:
+            return "；执行队列中还有其他任务，未发送全局中断请求"
         await self.interrupt_execution(max_retries=1)
         queue_info = await self.get_queue_info()
         if queue_info.get("_lookup_error"):

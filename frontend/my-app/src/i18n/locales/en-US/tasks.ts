@@ -105,6 +105,7 @@ export default {
       shotVideo: 'Shot Video',
       chapterVideo: 'Chapter Video',
       novelVideo: 'Merge Novel Chapter Videos',
+      subtitleRender: 'Update Video Subtitles',
       youtubeUpload: 'Upload to YouTube',
       transitionVideo: 'Transition Video',
       sceneImage: 'Scene Image',
@@ -112,6 +113,9 @@ export default {
     systemDefault: 'System Default',
     custom: 'Custom',
     workflowNames: {
+      'Qwen3 ASR 字幕对齐 V1': 'Qwen3 ASR Subtitle Alignment V1',
+      'Qwen3 ASR HF 台词时间定位': 'Qwen3 ASR HF Dialogue Timing',
+      'Qwen3 ASR HF 提取声音文本': 'Qwen3 ASR HF Audio Transcription',
       'YuE2 纯器乐背景音乐 V1': 'YuE2 Instrumental Background Music V1',
       'ACE-Step 纯器乐背景音乐 V1': 'ACE-Step Instrumental Background Music V1',
       'ACE-Step1.5 纯器乐背景音乐 V1': 'ACE-Step1.5 Instrumental Background Music V1',
@@ -142,6 +146,9 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 Occlusion Transition',
     },
     workflowDescriptions: {
+      'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR transcription and sentence alignment for chapter video subtitles',
+      'AILab Qwen3-ASR 1.7B-hf 与 ForcedAligner 0.6B-hf 生成字幕时间轴': 'AILab Qwen3-ASR 1.7B-hf and ForcedAligner 0.6B-hf produce a timed subtitle track',
+      'AILab Qwen3-ASR 1.7B-hf 从音频提取文本，不生成时间轴': 'AILab Qwen3-ASR 1.7B-hf transcribes audio without timestamps',
       'YuE2 背景音乐候选生成；风格与歌词由 CR Prompt Text 节点提供，成品须人工听检': 'Generate YuE2 music candidates using CR Prompt Text for style and lyrics; review audio by ear',
       'ACE-Step 1.0 纯器乐生成；风格、歌词和小数秒时长均可通过节点映射动态设置，成品须人工听检': 'Generate ACE-Step 1.0 instrumental music with mapped style, lyrics and decimal-second duration; review by ear',
       'ACE-Step1.5 纯器乐生成；风格、旋律与时长按配乐规划动态设置，成品须人工听检': 'Generate ACE-Step1.5 instrumental music with planned style, melody and duration; review by ear',

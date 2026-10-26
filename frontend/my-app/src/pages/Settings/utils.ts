@@ -111,6 +111,8 @@ export const getTypeNames = (t: any) => ({
   voice_design: t('systemSettings.workflow.voiceDesign'),
   audio: t('systemSettings.workflow.audio'),
   background_music: t('systemSettings.workflow.backgroundMusic'),
+  subtitle_asr: t('systemSettings.workflow.subtitleAsr', { defaultValue: '字幕语音识别' }),
+  audio_transcription: t('systemSettings.workflow.audioTranscription', { defaultValue: '语音转文字' }),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
   multi_image_edit: t('systemSettings.workflow.multiImageEdit'),
@@ -152,6 +154,12 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
   const mapping = workflow.nodeMapping;
 
   switch (workflow.type) {
+    case 'subtitle_asr':
+      return ['load_audio_node_id', 'text_list_output_node_id', 'start_times_output_node_id', 'end_times_output_node_id']
+        .every(key => mapping[key] && mapping[key] !== 'auto');
+    case 'audio_transcription':
+      return ['load_audio_node_id', 'text_output_node_id']
+        .every(key => mapping[key] && mapping[key] !== 'auto');
     case 'character': {
       const hasLegacyPrompt = mapping.prompt_node_id && mapping.prompt_node_id !== 'auto';
       const hasSplitInputs = mapping.appearance_node_id && mapping.appearance_node_id !== 'auto'
