@@ -1,4 +1,4 @@
-"""Preview protagonist nameplates separately from raw Chapter, Shot and Clip videos."""
+"""Preview first-appearance nameplates separately from raw Chapter, Shot and Clip videos."""
 
 import asyncio
 import hashlib
