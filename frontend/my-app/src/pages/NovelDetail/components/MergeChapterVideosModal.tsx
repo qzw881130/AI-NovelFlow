@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
+import { CheckCircle, ChevronDown, Clock, Download, Film, Image as ImageIcon, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
 import { novelApi, type ChapterBackgroundMusic, type CoverTextStyle, type NovelVideoCover, type NovelVideoMergeHistory } from '../../../api/novels';
 import { configApi } from '../../../api/config';
 import type { Chapter, ChapterVideoAsset } from '../../../types';
@@ -381,14 +381,21 @@ export function MergeChapterVideosModal({ novelId, novelTitle, novelAuthor, chap
                     {item.youtubeUpload.warnings?.map((warning, index) => <p key={index} className="mt-1 break-words text-amber-700">{warning}</p>)}
                   </div>}
                   {item.status === 'completed' && item.videoUrl && (
-                    <div className="mt-3 flex justify-end gap-2 border-t pt-3">
-                      <button type="button" onClick={() => setPlaybackItem(item)} className="btn-secondary px-3 py-1.5 text-sm"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
-                      <button type="button" onClick={() => openCoverEditor(item)} className="btn-secondary px-3 py-1.5 text-sm"><ImageIcon className="mr-1 h-3.5 w-3.5" />制作封面</button>
-                      <button type="button" onClick={() => setUploadItem(item)} className="btn-secondary px-3 py-1.5 text-sm">上传 YouTube</button>
-                      {item.subtitle?.srtUrl && <a href={item.subtitle.srtUrl} download className="btn-secondary px-3 py-1.5 text-sm">下载中文 SRT</a>}
-                      {item.subtitle?.enSrtUrl && <a href={item.subtitle.enSrtUrl} download className="btn-secondary px-3 py-1.5 text-sm">下载英文 SRT</a>}
-                      {item.subtitle?.srtUrl && <button type="button" onClick={() => setEditingSubtitles(item)} disabled={item.subtitleRender?.status === 'pending' || item.subtitleRender?.status === 'running'} className="btn-secondary px-3 py-1.5 text-sm disabled:opacity-50">校对字幕</button>}
-                      <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} className="btn-secondary px-3 py-1.5 text-sm"><Download className="mr-1 h-3.5 w-3.5" />下载</a>
+                    <div className="mt-4 flex flex-wrap items-start gap-2.5 border-t border-gray-100 pt-4">
+                      <button type="button" onClick={() => setPlaybackItem(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs"><Play className="mr-1 h-3.5 w-3.5" />播放</button>
+                      <button type="button" onClick={() => openCoverEditor(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs"><ImageIcon className="mr-1 h-3.5 w-3.5" />制作封面</button>
+                      <button type="button" onClick={() => setUploadItem(item)} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs">上传 YouTube</button>
+                      {item.subtitle?.srtUrl && <button type="button" onClick={() => setEditingSubtitles(item)} disabled={item.subtitleRender?.status === 'pending' || item.subtitleRender?.status === 'running'} className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-xs disabled:opacity-50">校对字幕</button>}
+                      <details className="group">
+                        <summary className="btn-secondary cursor-pointer list-none whitespace-nowrap px-2.5 py-1.5 text-xs [&::-webkit-details-marker]:hidden">
+                          <Download className="mr-1 h-3.5 w-3.5" />下载<ChevronDown className="ml-1 h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2 min-w-36 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                          <a href={novelApi.videoMergeDownloadUrl(novelId, item.id)} onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载视频</a>
+                          {item.subtitle?.srtUrl && <a href={item.subtitle.srtUrl} download onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载中文 SRT</a>}
+                          {item.subtitle?.enSrtUrl && <a href={item.subtitle.enSrtUrl} download onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')} className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">下载英文 SRT</a>}
+                        </div>
+                      </details>
                     </div>
                   )}
                 </div>
