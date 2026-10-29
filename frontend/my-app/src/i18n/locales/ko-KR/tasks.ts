@@ -127,6 +127,7 @@ export default {
       gridChapterMerge: '챕터 병합',
       gridBatch: '그리드 일괄 작업',
       gridAutoBatch: '그리드 자동 일괄 생성',
+      gridBoardBatch: '스토리보드 그리드 일괄 생성',
       characterPortrait: '캐릭터 생성',
       chapterBackgroundMusic: '배경 음악 생성',
       sceneImage: '장면 이미지',
@@ -167,9 +168,6 @@ export default {
       'Minimax H3 三帧生视频': 'Minimax H3 3프레임 비디오',
       'Minimax H3 四帧生视频': 'Minimax H3 4프레임 비디오',
       'Minimax H3 多参考生视频 V20260928': 'Minimax H3 다중 참조 비디오 V20260928',
-      'LTX2 镜头转场视频': 'LTX2 카메라 전환',
-      'LTX2 光线转场视频': 'LTX2 조명 전환',
-      'LTX2 遮挡转场视频': 'LTX2 가리기 전환',
     },
     workflowDescriptions: {
       'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR 인식과 ForcedAligner 문장 정렬로 챕터 영상 자막 생성',
@@ -193,9 +191,6 @@ export default {
       'Flux2-Klein-9B 关键帧生图工作流，支持参考图': 'Flux2-Klein-9B 키프레임 이미지 워크플로우, 참조 이미지 지원',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 이미지에서 비디오, 사용자 프롬프트 직접 사용',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 이미지에서 비디오, Qwen3 자동 확장 프롬프트 사용',
-      '适合：首尾帧是同一场景不同景别/角度': '적합: 시작/끝 프레임은 같은 장면의 다른 샷/각도',
-      '适合：首尾帧颜色差很多，但场景/人物不变': '적합: 시작/끝 프레임 색상 차이가 크지만 장면/캐릭터는 동일',
-      '适合：两张图差异大，想自然衔接': '적합: 두 이미지 차이가 크고 자연스러운 전환 필요',
     },
     workflowUsed: '사용된 워크플로우',
     taskNames: {

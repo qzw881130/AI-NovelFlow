@@ -124,7 +124,7 @@ def enqueue_grid_job(db: Session, novel: Novel, chapter: Chapter, shot: Shot | N
     if step not in GRID_STEPS:
         raise GridPipelineError("未知的宫格任务步骤")
     if parent_task_id is None and db.query(Task.id).filter(
-            Task.chapter_id == chapter.id, Task.type == "grid_auto_batch",
+            Task.chapter_id == chapter.id, Task.type.in_(["grid_auto_batch", "grid_board_batch"]),
             Task.status.in_(["pending", "running"])).first():
         raise GridPipelineError("本章正在自动批量生成，请等待任务结束")
     _validate(db, novel, chapter, shot, step, panel_index=panel_index, clip_index=clip_index)

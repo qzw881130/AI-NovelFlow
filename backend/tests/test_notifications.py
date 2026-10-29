@@ -67,7 +67,7 @@ def test_registry_defaults_and_config_persistence(notification_db, notification_
     assert EVENT_REGISTRY["image.review.passed"].enabled
     assert EVENT_REGISTRY["image.review.failed"].enabled
     grid_events = [event for event in data["events"] if event["event_code"].startswith("grid.")]
-    assert len(grid_events) == 26
+    assert len(grid_events) == 28
     assert all(event["category"].startswith("宫格") and event["enabled"] for event in grid_events)
     assert data["pageSound"] == {"enabled": True, "soundId": "chime", "volume": 0.7}
     assert not data["feishu"]["enabled"] and not data["telegram"]["enabled"]

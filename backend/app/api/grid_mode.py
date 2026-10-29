@@ -83,7 +83,7 @@ def _enqueue(db, novel, chapter, shot, step, **kwargs):
 def _ensure_shot_idle(db: Session, shot_id: str):
     shot = db.get(Shot, shot_id)
     auto = db.query(Task).filter(Task.chapter_id == shot.chapter_id,
-                                 Task.type == "grid_auto_batch",
+                                 Task.type.in_(["grid_auto_batch", "grid_board_batch"]),
                                  Task.status.in_(["pending", "running"])).first() if shot else None
     if auto and shot_id in json.loads(auto.metadata_json or "{}").get("shot_ids", []):
         raise HTTPException(409, "此 Shot 正在自动批量生成")
@@ -137,7 +137,7 @@ async def enqueue_batch(novel_id: str, chapter_id: str, request: GridBatchReques
                         candidates.append((shot, clip["clip_index"]))
     if not candidates:
         raise HTTPException(422, "没有已预览且待生成的项目")
-    if db.query(Task.id).filter(Task.chapter_id == chapter_id, Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch"}),
+    if db.query(Task.id).filter(Task.chapter_id == chapter_id, Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch", "grid_board_batch"}),
                                 Task.status.in_(["pending", "running"])).first():
         raise HTTPException(409, "本章有宫格任务正在排队或执行，请完成后再批量提交")
     labels = {"panels_plan": "规划子格", "board_prepare": "准备整板提示词",
@@ -173,6 +173,18 @@ async def enqueue_auto_batch(novel_id: str, chapter_id: str, request: GridAutoBa
     try:
         task = enqueue_grid_auto_batch(db, novel, chapter, request.shot_ids,
                                        merge_chapter=request.merge_chapter)
+    except (GridPipelineError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _queued(task)
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/grid/auto-board-batch")
+async def enqueue_auto_board_batch(novel_id: str, chapter_id: str, request: GridAutoBatchRequest,
+                                   db: Session = Depends(get_db)):
+    novel, chapter, _ = _context(db, novel_id, chapter_id)
+    try:
+        task = enqueue_grid_auto_batch(db, novel, chapter, request.shot_ids,
+                                       merge_chapter=request.merge_chapter, target_stage="board")
     except (GridPipelineError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
     return _queued(task)

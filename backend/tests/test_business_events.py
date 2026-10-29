@@ -108,9 +108,11 @@ def test_grid_task_result_creates_mode_specific_notification(ledger, task_type, 
         'grid_clip_prepare': 'clip_prepare', 'grid_h3_clip': 'clip_generate',
         'grid_shot_merge': 'shot_merge', 'grid_chapter_merge': 'chapter_merge',
             'grid_batch': 'clip_generate', 'grid_auto_batch': 'clip_generate',
+            'grid_board_batch': 'board_generate',
     }[task_type]
     is_clip = task_type in {'grid_clip_prepare', 'grid_h3_clip'}
-    has_shot = task_type not in {'grid_chapter_plan', 'grid_chapter_plan_batch', 'grid_chapter_merge', 'grid_batch'}
+    has_shot = task_type not in {'grid_chapter_plan', 'grid_chapter_plan_batch', 'grid_chapter_merge',
+                                 'grid_batch', 'grid_auto_batch', 'grid_board_batch'}
     metadata = {'video_mode': 'grid', 'grid_step': step}
     if task_type == 'grid_panel_image':
         metadata['panel_index'] = 3

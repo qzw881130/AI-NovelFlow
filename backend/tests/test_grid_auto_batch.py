@@ -54,11 +54,13 @@ def test_auto_batch_is_durable_and_gated_by_novel_mode(client, db_session, db_en
     _hold_worker(monkeypatch, db_engine)
     novel, chapter = _chapter(db_session)
     shot = _shot(db_session, chapter, 1)
+    second = _shot(db_session, chapter, 2)
     path = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-batch"
-    response = client.post(path, json={"shot_ids": [shot.id], "merge_chapter": True})
+    response = client.post(path, json={"shot_ids": [second.id, shot.id], "merge_chapter": True})
     assert response.status_code == 200, response.text
     task = db_session.get(Task, response.json()["data"]["taskId"])
     assert task.type == "grid_auto_batch" and task.status == "pending"
+    assert json.loads(task.metadata_json)["shot_ids"] == [shot.id, second.id]
     job = db_session.query(BackgroundJob).filter(BackgroundJob.task_id == task.id).one()
     assert job.handler == "app.services.grid_auto_batch:run_grid_auto_batch"
     assert client.post(path, json={"shot_ids": [shot.id]}).status_code == 409
@@ -222,3 +224,91 @@ def test_panel_review_uses_new_task_after_same_url_image_retry(client, db_sessio
     second = asyncio.run(grid_auto_batch._review_panel(db_session, parent, shot, 1))
     assert first[0] == "WARNING" and second[0] == "PASS"
     assert len(set(calls)) == 2
+
+
+def test_board_batch_plans_prompts_generates_and_stops_before_video(
+        client, db_session, db_engine, monkeypatch):
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    first = Shot(chapter_id=chapter.id, index=1, description="抵达村庄", duration=12,
+                 characters="[]", dialogues="[]")
+    second = Shot(chapter_id=chapter.id, index=2, description="院前停步", duration=12,
+                  characters="[]", dialogues="[]")
+    db_session.add_all([first, second])
+    db_session.commit()
+    calls = []
+
+    async def fake_plan(self, novel, chapter, shot, layout, *, task=None):
+        calls.append((shot.index, "plan"))
+        panels = [GridPanel(index=i, beat=f"节点 {i}", camera="中景") for i in range(1, 5)]
+        shot.grid_data = dump_grid_data(GridShotData(revision=1, layout="2x2", seed=shot.index,
+            panel_width=768, panel_height=432, panels=panels))
+        self._complete(task)
+        self.db.commit()
+
+    async def fake_prepare(self, novel, chapter, shot, *, task=None):
+        calls.append((shot.index, "prepare"))
+        grid = load_grid_data(shot.grid_data)
+        grid.board_prompt = "按四格生成"
+        shot.grid_data = dump_grid_data(grid)
+        self._complete(task)
+        self.db.commit()
+
+    async def fake_generate(self, novel, chapter, shot, *, task=None):
+        calls.append((shot.index, "generate"))
+        grid = load_grid_data(shot.grid_data)
+        grid.board_image_url = f"/api/files/board-{shot.index}.png"
+        for panel in grid.panels:
+            panel.image_url = f"/api/files/panel-{shot.index}-{panel.index}.png"
+        shot.grid_data = dump_grid_data(grid)
+        self._complete(task, grid.board_image_url)
+        self.db.commit()
+
+    monkeypatch.setattr(GridPipeline, "plan_panels", fake_plan)
+    monkeypatch.setattr(GridPipeline, "prepare_board", fake_prepare)
+    monkeypatch.setattr(GridPipeline, "generate_board", fake_generate)
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-board-batch",
+                           json={"shot_ids": [second.id, first.id]})
+    assert response.status_code == 200, response.text
+    task_id = response.json()["data"]["taskId"]
+    parent = db_session.get(Task, task_id)
+    assert parent.type == "grid_board_batch"
+    assert db_session.query(BackgroundJob).filter(BackgroundJob.task_id == task_id).one().handler == \
+        "app.services.grid_auto_batch:run_grid_auto_batch"
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    assert db_session.get(Task, task_id).status == "completed"
+    assert calls == [(1, "plan"), (1, "prepare"), (1, "generate"),
+                     (2, "plan"), (2, "prepare"), (2, "generate")]
+    assert db_session.query(Task).filter(Task.parent_task_id == task_id).count() == 6
+    assert all(load_grid_data(db_session.get(Shot, shot.id).grid_data).board_image_url
+               for shot in [first, second])
+    assert all(not db_session.get(Shot, shot.id).video_url for shot in [first, second])
+
+
+def test_board_batch_is_mode_gated_and_cannot_merge_chapter(client, db_session, db_engine, monkeypatch):
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = Shot(chapter_id=chapter.id, index=1, description="空镜", characters="[]", dialogues="[]")
+    db_session.add(shot)
+    db_session.commit()
+    path = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-board-batch"
+    assert client.post(path, json={"shot_ids": [shot.id], "merge_chapter": True}).status_code == 409
+    old_novel, old_chapter = _chapter(db_session, mode="single")
+    old_shot = Shot(chapter_id=old_chapter.id, index=1)
+    db_session.add(old_shot)
+    db_session.commit()
+    old_path = f"/api/novels/{old_novel.id}/chapters/{old_chapter.id}/grid/auto-board-batch"
+    assert client.post(old_path, json={"shot_ids": [old_shot.id]}).status_code == 409
+    shot_id = shot.id
+    response = client.post(path, json={"shot_ids": [shot_id]})
+    assert response.status_code == 200
+    source_id = response.json()["data"]["taskId"]
+    source = db_session.get(Task, source_id)
+    source.status = "failed"
+    db_session.commit()
+    retry = TaskService(db_session).retry_task(source_id)
+    assert retry["success"] is True
+    resumed = db_session.get(Task, retry["data"]["taskId"])
+    assert resumed.type == "grid_board_batch"
+    assert json.loads(resumed.metadata_json)["shot_ids"] == [shot_id]

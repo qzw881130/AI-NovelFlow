@@ -29,10 +29,11 @@ export function GridTaskPanel({ tasks, shots, onRefresh, onAction, onResumeBatch
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingId, setLoadingId] = useState('');
   const batch = tasks.find(item => item.type === 'grid_batch');
-  const auto = tasks.find(item => item.type === 'grid_auto_batch');
+  const auto = tasks.find(item => ['grid_auto_batch', 'grid_board_batch'].includes(item.type));
+  const autoParentIds = new Set(tasks.filter(item => ['grid_auto_batch', 'grid_board_batch'].includes(item.type)).map(item => item.id));
   const children = batch ? tasks.filter(item => item.parentTaskId === batch.id).sort((a, b) => (a.batchOrder || 0) - (b.batchOrder || 0)) : [];
   const autoChildren = auto ? tasks.filter(item => item.parentTaskId === auto.id) : [];
-  const recent = tasks.filter(item => !['grid_batch', 'grid_auto_batch'].includes(item.type) && item.parentTaskId !== batch?.id && item.parentTaskId !== auto?.id);
+  const recent = tasks.filter(item => !['grid_batch', 'grid_auto_batch', 'grid_board_batch'].includes(item.type) && item.parentTaskId !== batch?.id && !autoParentIds.has(item.parentTaskId || ''));
   const visible = [...recent.filter(item => ['failed', 'running', 'pending'].includes(item.status)),
     ...recent.filter(item => item.status === 'completed').slice(0, 6)];
   const done = children.filter(item => item.status === 'completed').length;
@@ -68,7 +69,7 @@ export function GridTaskPanel({ tasks, shots, onRefresh, onAction, onResumeBatch
     {['pending', 'running'].includes(item.status) && <div className="mt-2 h-1.5 overflow-hidden rounded bg-gray-200"><div className="h-full rounded bg-blue-500" style={{ width: `${Math.max(4, item.progress || 0)}%` }} /></div>}
     <div className="mt-2 flex flex-wrap gap-3 text-blue-700"><button type="button" onClick={() => openDetail(item)} disabled={loadingId === item.id}>查看输入与任务详情</button>
       {['pending', 'running'].includes(item.status) && <button type="button" className="text-red-700" onClick={() => onAction('取消任务', () => fetch(`${API_BASE}/tasks/${item.id}/cancel`, { method: 'POST' }).then(async response => { const body = await response.json(); if (!response.ok || !body.success) throw new Error(body.detail || body.message || '取消失败'); }))}>取消</button>}
-      {['failed', 'cancelled'].includes(item.status) && !superseded(item) && item.parentTaskId !== auto?.id && <button type="button" onClick={() => onAction('从此步续做', () => fetch(`${API_BASE}/tasks/${item.id}/retry`, { method: 'POST' }).then(async response => { const body = await response.json(); if (!response.ok || !body.success) throw new Error(body.detail || body.message || '重试失败'); }))}>从此步续做</button>}
+      {['failed', 'cancelled'].includes(item.status) && !superseded(item) && !autoParentIds.has(item.parentTaskId || '') && <button type="button" onClick={() => onAction('从此步续做', () => fetch(`${API_BASE}/tasks/${item.id}/retry`, { method: 'POST' }).then(async response => { const body = await response.json(); if (!response.ok || !body.success) throw new Error(body.detail || body.message || '重试失败'); }))}>从此步续做</button>}
     </div>
   </div>;
 
@@ -76,7 +77,7 @@ export function GridTaskPanel({ tasks, shots, onRefresh, onAction, onResumeBatch
     <div className="flex items-center justify-between"><h2 className="font-semibold">本章生成任务</h2><button type="button" onClick={onRefresh} className="text-xs text-blue-700">刷新</button></div>
     <p className="mt-1 text-xs text-gray-500">任务在后台执行；关闭页面后仍可回来查看。</p>
     {auto && <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm">
-      <div className="flex justify-between gap-2"><strong>自动批量生成 Shot</strong><span>{statusLabel[auto.status] || auto.status}</span></div>
+      <div className="flex justify-between gap-2"><strong>{auto.type === 'grid_board_batch' ? '批量生成分镜宫格图' : '自动批量生成 Shot'}</strong><span>{statusLabel[auto.status] || auto.status}</span></div>
       <div className="mt-2 h-2 overflow-hidden rounded bg-green-100"><div className="h-full bg-green-600" style={{ width: `${auto.progress || 0}%` }} /></div>
       <p className="mt-1 text-xs text-gray-700">{auto.currentStep}</p>
       <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">{Object.entries(auto.autoShotResults || {}).map(([id, result]) => <p key={id} className={`text-xs ${result.status === 'failed' || result.status === 'needs_review' ? 'text-red-700' : 'text-gray-700'}`}>

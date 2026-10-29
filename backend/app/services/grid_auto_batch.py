@@ -30,25 +30,33 @@ def _meta(task: Task) -> dict:
 
 
 def enqueue_grid_auto_batch(db: Session, novel: Novel, chapter: Chapter,
-                            shot_ids: list[str], *, merge_chapter: bool = False) -> Task:
+                            shot_ids: list[str], *, merge_chapter: bool = False,
+                            target_stage: str = "video") -> Task:
     if novel.video_mode != "grid" or chapter.novel_id != novel.id:
         raise GridPipelineError("仅宫格模式小说可使用自动批量生成")
     if not shot_ids or len(shot_ids) != len(set(shot_ids)) or len(shot_ids) > 100:
         raise GridPipelineError("请选择 1 至 100 个不重复的 Shot")
+    if target_stage not in {"board", "video"}:
+        raise GridPipelineError("未知的自动批量生成阶段")
+    if target_stage == "board" and merge_chapter:
+        raise GridPipelineError("宫格生图任务不能合并章回")
     shots = db.query(Shot).filter(Shot.chapter_id == chapter.id, Shot.id.in_(shot_ids)).all()
     if len(shots) != len(shot_ids):
         raise GridPipelineError("所选 Shot 不属于当前章回")
+    shot_ids = [shot.id for shot in sorted(shots, key=lambda shot: shot.index)]
     active = db.query(Task.id).filter(Task.chapter_id == chapter.id,
                                       Task.status.in_(["pending", "running"]),
-                                      Task.type.in_(GRID_TASK_TYPES | {"grid_batch", "grid_auto_batch", "grid_chapter_plan_batch"})).first()
+                                      Task.type.in_(GRID_TASK_TYPES | {"grid_batch", "grid_auto_batch", "grid_board_batch", "grid_chapter_plan_batch"})).first()
     if active:
         raise GridPipelineError("本章已有宫格生成任务，请等待或取消后再提交")
-    parent = Task(type="grid_auto_batch", status="pending", novel_id=novel.id,
+    parent = Task(type="grid_board_batch" if target_stage == "board" else "grid_auto_batch",
+                  status="pending", novel_id=novel.id,
                   chapter_id=chapter.id, execution_scope="BATCH",
-                  name=f"自动批量生成 Shot · {chapter.title}", progress=0,
+                  name=f"{'批量生成分镜宫格图' if target_stage == 'board' else '自动批量生成 Shot'} · {chapter.title}", progress=0,
                   current_step=f"等待执行 {len(shot_ids)} 个 Shot",
                   metadata_json=json.dumps({"video_mode": "grid", "shot_ids": shot_ids,
                                             "merge_chapter": merge_chapter,
+                                            "target_stage": target_stage,
                                             "shot_results": {shot_id: {"status": "pending"} for shot_id in shot_ids},
                                             "panel_retries": {}}, ensure_ascii=False))
     db.add(parent)
@@ -217,11 +225,12 @@ async def _review_panels(db: Session, parent: Task, novel: Novel, chapter: Chapt
             db.commit()
 
 
-async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, shot: Shot) -> None:
+async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, shot: Shot,
+                    target_stage: str = "video") -> None:
     def update(step: str, label: str):
         _set_progress(db, parent, shot.id, "running", f"Shot {shot.index} · {label}", step=step)
 
-    if shot.video_url:
+    if target_stage == "video" and shot.video_url:
         return
     grid = load_grid_data(shot.grid_data)
     if not grid:
@@ -238,6 +247,8 @@ async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, s
         update("board_generate", "生成整板")
         await _run_step(db, parent, novel, chapter, shot, "board_generate")
         db.refresh(shot)
+    if target_stage == "board":
+        return
     update("panel_review", "逐格 AI 初审")
     await _review_panels(db, parent, novel, chapter, shot)
     db.refresh(shot)
@@ -270,9 +281,10 @@ async def run_grid_auto_batch(task_id: str) -> None:
     db = worker_manager._session()
     try:
         parent = db.get(Task, task_id)
-        if not parent or parent.type != "grid_auto_batch" or parent.status not in {"pending", "running"}:
+        if not parent or parent.type not in {"grid_auto_batch", "grid_board_batch"} or parent.status not in {"pending", "running"}:
             return
         metadata = _meta(parent)
+        target_stage = "board" if parent.type == "grid_board_batch" else "video"
         novel, chapter = db.get(Novel, parent.novel_id), db.get(Chapter, parent.chapter_id)
         if not novel or not chapter or novel.video_mode != "grid":
             raise GridPipelineError("自动批量任务所属宫格小说或章回不存在")
@@ -287,11 +299,16 @@ async def run_grid_auto_batch(task_id: str) -> None:
                 _set_progress(db, parent, shot_id, "failed", "Shot 已不存在")
                 continue
             try:
-                await _run_shot(db, parent, novel, chapter, shot)
+                await _run_shot(db, parent, novel, chapter, shot, target_stage)
                 db.refresh(shot)
-                if not shot.video_url:
-                    raise GridPipelineError("Shot 合并结果缺失")
-                _set_progress(db, parent, shot_id, "completed", f"Shot {shot.index} 已完成")
+                if target_stage == "board":
+                    if not load_grid_data(shot.grid_data).board_image_url:
+                        raise GridPipelineError("分镜宫格图结果缺失")
+                    _set_progress(db, parent, shot_id, "completed", f"Shot {shot.index} 宫格图已生成")
+                else:
+                    if not shot.video_url:
+                        raise GridPipelineError("Shot 合并结果缺失")
+                    _set_progress(db, parent, shot_id, "completed", f"Shot {shot.index} 已完成")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -303,7 +320,7 @@ async def run_grid_auto_batch(task_id: str) -> None:
         metadata = _meta(parent)
         failures = {key: value for key, value in metadata["shot_results"].items()
                     if value.get("status") != "completed"}
-        if metadata.get("merge_chapter") and not failures:
+        if target_stage == "video" and metadata.get("merge_chapter") and not failures:
             all_shots = db.query(Shot).filter(Shot.chapter_id == chapter.id).all()
             if all_shots and all(item.video_url for item in all_shots):
                 try:
@@ -319,7 +336,8 @@ async def run_grid_auto_batch(task_id: str) -> None:
         parent.error_message = "；".join(item.get("message", "") for item in failures.values()) or None
         completed_shots = sum(value.get("status") == "completed" for value in metadata["shot_results"].values())
         parent.current_step = (f"完成 {completed_shots}/{len(metadata['shot_ids'])} 个 Shot；"
-                               "请处理未通过的子格或失败步骤" if failures else "自动批量生成完成")
+                               "请处理失败步骤" if failures else
+                               "宫格图批量生成完成" if target_stage == "board" else "自动批量生成完成")
         parent.progress = 100
         parent.completed_at = datetime.utcnow()
         db.commit()

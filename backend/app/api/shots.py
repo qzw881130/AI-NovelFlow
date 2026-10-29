@@ -5100,7 +5100,7 @@ async def generate_transition_video(
     # 获取转场视频工作流
     if workflow_id:
         workflow = workflow_repo.get_by_id(workflow_id)
-        if not workflow:
+        if not workflow or not workflow_repo.is_available_for_generation(workflow):
             raise HTTPException(status_code=400, detail="指定的工作流不存在")
     else:
         workflow = workflow_repo.get_active_by_type("transition")
@@ -5190,7 +5190,7 @@ async def generate_all_transitions(
     # 获取转场视频工作流
     if workflow_id:
         workflow = workflow_repo.get_by_id(workflow_id)
-        if not workflow:
+        if not workflow or not workflow_repo.is_available_for_generation(workflow):
             raise HTTPException(status_code=400, detail="指定的工作流不存在")
     else:
         workflow = workflow_repo.get_active_by_type("transition")

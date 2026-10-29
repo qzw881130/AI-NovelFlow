@@ -458,14 +458,20 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success) {
-        set({
-          transitionWorkflows: result.data.map((w: any) => ({
-            id: w.id,
-            name: w.name,
-            description: w.description,
-            descriptionKey: w.descriptionKey,
-            isActive: w.isActive ?? w.is_active,
-          })),
+        const workflows = result.data.map((w: any) => ({
+          id: w.id,
+          name: w.name,
+          description: w.description,
+          descriptionKey: w.descriptionKey,
+          isActive: w.isActive ?? w.is_active,
+        }));
+        set((state) => {
+          const selectedTransitionWorkflow = workflows.some((workflow: { id: string }) => workflow.id === state.selectedTransitionWorkflow)
+            ? state.selectedTransitionWorkflow : '';
+          if (selectedTransitionWorkflow !== state.selectedTransitionWorkflow) {
+            saveTransitionSettings({ selectedTransitionWorkflow, transitionDuration: state.transitionDuration });
+          }
+          return { transitionWorkflows: workflows, selectedTransitionWorkflow };
         });
       }
     } catch (error) {

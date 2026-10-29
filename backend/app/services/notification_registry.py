@@ -57,6 +57,7 @@ GRID_TASK_EVENTS = {
     "grid_chapter_merge": ("grid.chapter.assembly", "章回合并", "宫格合并"),
     "grid_batch": ("grid.batch", "批量任务", "宫格批量"),
     "grid_auto_batch": ("grid.auto.batch", "自动批量生成 Shot", "宫格批量"),
+    "grid_board_batch": ("grid.board.batch", "批量生成分镜宫格图", "宫格批量"),
 }
 for prefix, name, category in GRID_TASK_EVENTS.values():
     for suffix, result, description in (("completed", "完成", "已完成"), ("failed", "失败", "未能完成")):

@@ -126,6 +126,7 @@ export default {
       gridChapterMerge: 'Merge Chapter',
       gridBatch: 'Grid Batch',
       gridAutoBatch: 'Automatic Grid Batch',
+      gridBoardBatch: 'Batch Generate Storyboard Grids',
       characterPortrait: 'Character Portrait',
       characterVoice: 'Voice Design',
       characterAudio: 'Character Audio',
@@ -177,9 +178,6 @@ export default {
       'Minimax H3 三帧生视频': 'Minimax H3 Three-Frame Video',
       'Minimax H3 四帧生视频': 'Minimax H3 Four-Frame Video',
       'Minimax H3 多参考生视频 V20260928': 'Minimax H3 Multi-Reference Video V20260928',
-      'LTX2 镜头转场视频': 'LTX2 Camera Transition',
-      'LTX2 光线转场视频': 'LTX2 Lighting Transition',
-      'LTX2 遮挡转场视频': 'LTX2 Occlusion Transition',
     },
     workflowDescriptions: {
       'Qwen3-ASR 识别与 ForcedAligner 逐句对齐，用于章节视频字幕': 'Qwen3-ASR transcription and sentence alignment for chapter video subtitles',
@@ -206,9 +204,6 @@ export default {
       'Flux2-Klein-9B 关键帧生图工作流，支持参考图': 'Flux2-Klein-9B keyframe image workflow, supports reference images',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 image-to-video, directly uses user prompt',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 image-to-video, uses Qwen3 auto-expanded prompt',
-      '适合：首尾帧是同一场景不同景别/角度': 'Suitable: Same scene with different shots/angles',
-      '适合：首尾帧颜色差很多，但场景/人物不变': 'Suitable: Large color difference but same scene/character',
-      '适合：两张图差异大，想自然衔接': 'Suitable: Large difference between images, wants natural transition',
     },
     workflowUsed: 'Workflow Used',
     taskNames: {

@@ -279,7 +279,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch", "grid_batch", "grid_chapter_plan_batch", "grid_auto_batch"}:
+        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch", "grid_batch", "grid_chapter_plan_batch", "grid_auto_batch", "grid_board_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -541,7 +541,7 @@ class TaskService:
         if not task:
             return {"success": False, "message": "任务不存在", "status_code": 404}
 
-        if task.type == "grid_auto_batch":
+        if task.type in {"grid_auto_batch", "grid_board_batch"}:
             if task.status not in {"failed", "cancelled"}:
                 return {"success": False, "message": "只能重试已结束且未完成的自动批量任务", "status_code": 400}
             from app.services.grid_auto_batch import enqueue_grid_auto_batch
@@ -557,7 +557,8 @@ class TaskService:
                 return {"success": False, "message": "任务所属小说或章回不存在", "status_code": 404}
             try:
                 retried = enqueue_grid_auto_batch(db, novel, chapter, shot_ids,
-                                                  merge_chapter=bool(metadata.get("merge_chapter")))
+                                                  merge_chapter=bool(metadata.get("merge_chapter")),
+                                                  target_stage="board" if task.type == "grid_board_batch" else "video")
                 retried.source_task_id = task.id
                 db.commit()
             except (ValueError, GridPipelineError) as exc:

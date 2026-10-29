@@ -70,6 +70,12 @@ RETIRED_IMAGE_WORKFLOW_FILES = frozenset({
     "shot_scene_prop_qwen_edit_2511.json",
 })
 
+RETIRED_LTX2_TRANSITION_WORKFLOW_FILES = frozenset({
+    "transition_ltx2_camera.json",
+    "transition_ltx2_lighting.json",
+    "transition_ltx2_first_last_frame.json",
+})
+
 
 # 默认工作流文件名映射（仅包含仍提供系统预设的类型）
 DEFAULT_WORKFLOWS = {
@@ -442,33 +448,6 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 四帧参考视频工作流，使用 4 张关键帧图",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["four_frame_video"],
         "extension": {"max_clip_duration": CLIP_MAX_DURATION, "frame_count": 4},
-    },
-    {
-        "filename": "transition_ltx2_camera.json",
-        "type": "transition",
-        "name": "LTX2 镜头转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 镜头转场视频",
-        "description": "适合：首尾帧是同一场景不同景别/角度",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧是同一场景不同景别/角度",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
-    },
-    {
-        "filename": "transition_ltx2_lighting.json",
-        "type": "transition",
-        "name": "LTX2 光线转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 光线转场视频",
-        "description": "适合：首尾帧颜色差很多，但场景/人物不变",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧颜色差很多，但场景/人物不变",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
-    },
-    {
-        "filename": "transition_ltx2_first_last_frame.json",
-        "type": "transition",
-        "name": "LTX2 遮挡转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 遮挡转场视频",
-        "description": "适合：两张图差异大，想自然衔接",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：两张图差异大，想自然衔接",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
     },
     # 音色设计工作流（基于文本提示词设计音色）
     {

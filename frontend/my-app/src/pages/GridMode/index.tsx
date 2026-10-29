@@ -65,7 +65,7 @@ export default function GridModePage() {
   const [strategy, setStrategy] = useState<'split_panels' | 'whole_board'>('split_panels');
   const [panelPreview, setPanelPreview] = useState<PanelPreview | null>(null);
   const [busy, setBusy] = useState('');
-  const [autoBatchOpen, setAutoBatchOpen] = useState(false);
+  const [autoBatchMode, setAutoBatchMode] = useState<'board' | 'video' | null>(null);
   const [openedNameplateTaskId, setOpenedNameplateTaskId] = useState<string | null>(null);
   const currentChapterId = useRef(cid);
   currentChapterId.current = cid;
@@ -99,7 +99,7 @@ export default function GridModePage() {
     setStrategy('split_panels');
     setPanelPreview(null);
     setBusy('');
-    setAutoBatchOpen(false);
+    setAutoBatchMode(null);
     setOpenedNameplateTaskId(null);
   }, [cid]);
   useEffect(() => { refresh().catch(error => toast.error(String(error))); }, [refresh]);
@@ -207,10 +207,11 @@ export default function GridModePage() {
   }, count > 0);
 
   const submitAutoBatch = (shotIds: string[], mergeChapter: boolean) => {
-    setAutoBatchOpen(false);
-    void run('批量自动生成 Shot', () => request(`${base}/auto-batch`, 'POST', {
+    const mode = autoBatchMode;
+    setAutoBatchMode(null);
+    void run(mode === 'board' ? '批量生成分镜宫格图' : '批量自动生成 Shot', () => request(`${base}/${mode === 'board' ? 'auto-board-batch' : 'auto-batch'}`, 'POST', {
       shot_ids: shotIds, merge_chapter: mergeChapter,
-    }), 'video_gen');
+    }), mode === 'board' ? 'shot_image' : 'video_gen');
   };
 
   return <div className="min-h-full bg-gray-50 pb-10">
@@ -220,7 +221,7 @@ export default function GridModePage() {
           <p className="text-xs text-gray-500">{shots.length} 个叙事 Shot · {shots.reduce((n, s) => n + (s.gridData?.panels.length || 0), 0)} 个子格 · {shots.reduce((n, s) => n + (s.gridClipPlan?.clip_plan.length || 0), 0)} 条 Clip</p></div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {busy && <span className="inline-flex items-center gap-2 text-sm text-blue-700"><Loader2 className="h-4 w-4 animate-spin" />{busy}中，请等待</span>}
-          <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40" disabled={!shots.some(item => !item.videoUrl) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchOpen(true)}>批量自动生成 Shot</button>
+          <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40" disabled={!shots.some(item => !item.videoUrl) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('video')}>批量自动生成 Shot</button>
           <button type="button" onClick={() => goToChapter(previousChapter?.id)} disabled={!previousChapter} title={previousChapter?.title || '已经是第一回'} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4" />上一回</button>
           <select aria-label="跳转章回" value={currentChapterIndex >= 0 ? cid : ''} onChange={event => goToChapter(event.target.value)} disabled={sortedChapters.length === 0} className="w-48 max-w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
             {currentChapterIndex < 0 && <option value="">选择章回</option>}
@@ -237,7 +238,7 @@ export default function GridModePage() {
       {activeTask && <p className="sm:col-span-4 text-xs text-blue-700">后台正在执行：{activeTask.name}。可继续查看画面和提示词；生成操作将在任务结束后恢复。</p>}
     </div>
     <div className="px-5 pt-4 2xl:hidden"><GridTaskPanel tasks={tasks} shots={shots} onRefresh={() => refresh().catch(error => toast.error(String(error)))} onAction={(label, action) => { void run(label, action); }} onResumeBatch={step => { void run('继续批量任务', () => request(`${base}/batch`, 'POST', { step })); }} /></div>
-    {autoBatchOpen && <GridAutoBatchModal shots={shots} onClose={() => setAutoBatchOpen(false)} onSubmit={submitAutoBatch} />}
+    {autoBatchMode && <GridAutoBatchModal shots={shots} mode={autoBatchMode} onClose={() => setAutoBatchMode(null)} onSubmit={submitAutoBatch} />}
     <div className="grid gap-4 p-5 md:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[250px_minmax(0,1fr)_300px]">
       <aside className="rounded-xl border border-gray-200 bg-white p-4 md:sticky md:top-4 md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-y-auto"><h2 className="font-semibold">叙事 Shot</h2><p className="mt-1 text-xs text-gray-500">一个 Shot 管一段情节，内部按顺序排多个机位。</p>
         <div className="mt-3 space-y-2">{shots.map((item, i) => <button key={item.id} type="button" onClick={() => selectShot(i)} className={`w-full overflow-hidden rounded-lg border text-left ${shotIndex === i ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
@@ -252,7 +253,8 @@ export default function GridModePage() {
               <select value={layout} onChange={event => setLayout(event.target.value)} className={buttonClass}><option value="auto">自动随机 2×2 / 2×3</option><option value="2x2">2×2 · 4 格</option><option value="2x3">2×3 · 6 格</option><option value="3x3">3×3 · 实验</option></select>
               {button('规划当前 Shot 子格', () => request(`${shotBase}/panels/plan`, 'POST', { layout: layout === 'auto' ? null : layout }), Boolean(shot && !grid), true, 'shot_image')}
               {layout === 'auto' && batch('批量规划未规划的 Shot', 'panels_plan', shots.filter(s => !s.gridData).length)}</>}
-            {stage === 'shot_image' && <>{button('生成整板提示词', () => request(`${shotBase}/board/prepare`, 'POST'), Boolean(grid && !grid.board_image_url))}
+            {stage === 'shot_image' && <><button type="button" className={primaryClass} disabled={!shots.some(item => !item.gridData?.board_image_url) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('board')}>批量生成分镜宫格图</button>
+              {button('生成整板提示词', () => request(`${shotBase}/board/prepare`, 'POST'), Boolean(grid && !grid.board_image_url))}
               {button(grid?.board_image_url ? '重新生成当前宫格' : '生成当前宫格', () => grid?.board_image_url ? confirmAction('重新生成会使当前宫格的逐格审核、Clip 和合片失效，确认继续？', () => request(`${shotBase}/board/generate`, 'POST')) : request(`${shotBase}/board/generate`, 'POST'), Boolean(boardPreview && grid?.board_prompt), true)}
               {batch('批量准备整板提示词', 'board_prepare', shots.filter(s => s.gridData && !s.gridData.board_prompt && !s.gridData.board_image_url).length)}
               {batch('批量生成已准备整板', 'board_generate', shots.filter(s => s.gridData?.board_prompt && !s.gridData.board_image_url).length)}</>}
