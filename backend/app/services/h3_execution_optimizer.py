@@ -1,4 +1,9 @@
-"""Shared registered #14 execution optimizer; raw prompts remain reusable."""
+"""Retired #14 implementation retained temporarily for historical audits.
+
+New video requests reject the legacy route before entering this module. The
+supported single-image Phase B compiler imports its shared helpers from
+``h3_phase_b_shared`` instead.
+"""
 import asyncio
 import hashlib
 import json

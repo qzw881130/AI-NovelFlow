@@ -15,7 +15,7 @@ from time import monotonic
 from app.services import h3_single_stage_experiment as compiler
 from app.services.director_context import effective_visual_states
 from app.services.h3_continuation import continuation_contract, target_frames
-from app.services.h3_execution_optimizer import workflow_duration_limits
+from app.services.h3_phase_b_shared import workflow_duration_limits
 from app.services.video_director_ai import safe_json_dict, append_video_ai_call, resolve_prompt_template
 from app.utils.path_utils import url_to_local_path
 

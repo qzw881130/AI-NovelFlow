@@ -14,7 +14,8 @@ const Settings = lazy(() => import('./pages/Settings/index'));
 const Novels = lazy(() => import('./pages/Novels'));
 const NovelDetail = lazy(() => import('./pages/NovelDetail'));
 const ChapterDetail = lazy(() => import('./pages/ChapterDetail'));
-const ChapterGenerate = lazy(() => import('./pages/ChapterGenerate/index'));
+const ModeGeneratePage = lazy(() => import('./pages/ModeGeneratePage'));
+const GridModePreview = lazy(() => import('./pages/GridModePreview'));
 const Characters = lazy(() => import('./pages/Characters'));
 const Scenes = lazy(() => import('./pages/Scenes'));
 const Props = lazy(() => import('./pages/Props'));
@@ -82,7 +83,8 @@ function Application() {
           <Route path="novels" element={<LazyPage><Novels /></LazyPage>} />
           <Route path="novels/:id" element={<LazyPage><NovelDetail /></LazyPage>} />
           <Route path="novels/:id/chapters/:cid" element={<LazyPage><ChapterDetail /></LazyPage>} />
-          <Route path="novels/:id/chapters/:cid/generate" element={<LazyPage><ChapterGenerate /></LazyPage>} />
+          <Route path="novels/:id/chapters/:cid/generate" element={<LazyPage><ModeGeneratePage /></LazyPage>} />
+          <Route path="novels/:id/chapters/:cid/grid-preview" element={<LazyPage><GridModePreview /></LazyPage>} />
           <Route path="characters" element={<LazyPage><Characters /></LazyPage>} />
           <Route path="scenes" element={<LazyPage><Scenes /></LazyPage>} />
           <Route path="props" element={<LazyPage><Props /></LazyPage>} />

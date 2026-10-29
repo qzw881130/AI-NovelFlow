@@ -12,6 +12,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker
 
 from app.models.background_job import BackgroundJob
+from app.models.novel import Chapter, Novel
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.services import background_workers, shot_video_service as video
@@ -98,7 +99,7 @@ async def drained(manager):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("route", ["phase_b", "legacy"])
+@pytest.mark.parametrize("route", ["phase_b"])
 @pytest.mark.parametrize("mode", ["GENERATE", "EXTEND", "TEMPORAL_EXTEND"])
 @pytest.mark.parametrize("fail_first", [False, True])
 async def test_first_run_and_explicit_retry_consumed_once(
@@ -153,21 +154,50 @@ async def test_first_run_and_explicit_retry_consumed_once(
 
 
 @pytest.mark.asyncio
-async def test_legacy_shot_level_retry_uses_real_queue(setup_retry, db_session, db_engine, monkeypatch):
+async def test_legacy_shot_level_retry_is_rejected_before_enqueue(setup_retry, db_session, db_engine, monkeypatch):
     manager, create = setup_retry
     task, shot, _, _, args, options = create(clip_only=False)
     calls = install_handler(monkeypatch, db_engine)
     try:
         video.enqueue_shot_video_task(*args, **options); await drained(manager)
         db_session.expire_all()
-        assert TaskService(db_session).retry_task(task.id)["success"]
-        await drained(manager); db_session.expire_all()
-        assert len(calls) == 2 and db_session.query(BackgroundJob).count() == 2
-        assert calls[1][1]["clip_metadata"] is None
-        assert shot.video_url is None and shot.video_status == "generating"
+        result = TaskService(db_session).retry_task(task.id)
+        assert not result["success"] and result["status_code"] == 410
+        assert "退役" in result["message"]
+        assert len(calls) == 1 and db_session.query(BackgroundJob).count() == 1
+        assert task.status == "completed"
         assert json.loads(task.metadata_json)["legacy"] == "metadata"
     finally:
         await manager.stop()
+
+
+def test_legacy_clip_retry_is_rejected_without_mutating_task(setup_retry, db_session):
+    _, create = setup_retry
+    task, _, _, _, _, _ = create(route="legacy")
+    task.status = "failed"
+    db_session.commit()
+    before = task.metadata_json
+    result = TaskService(db_session).retry_task(task.id)
+    assert not result["success"] and result["status_code"] == 410
+    assert task.status == "failed" and task.metadata_json == before
+    assert db_session.query(BackgroundJob).count() == 0
+
+
+def test_legacy_batch_resume_is_rejected_without_requeue(client, db_session):
+    novel = Novel(title="单镜历史任务", video_mode="single")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="旧章", content="正文")
+    db_session.add(chapter)
+    db_session.flush()
+    batch = Task(type="shot_video_batch", status="failed", name="旧批量任务", novel_id=novel.id,
+                 chapter_id=chapter.id, metadata_json=json.dumps({"h3_prompt_pipeline": "legacy"}))
+    db_session.add(batch)
+    db_session.commit()
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/shot-videos/batch/{batch.id}/resume")
+    assert response.status_code == 410
+    db_session.refresh(batch)
+    assert batch.status == "failed" and db_session.query(BackgroundJob).count() == 0
 
 
 @pytest.mark.asyncio
@@ -194,7 +224,7 @@ async def test_unresolved_receipt_blocks_retry_and_restart(setup_retry, db_sessi
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("route", ["phase_b", "legacy"])
+@pytest.mark.parametrize("route", ["phase_b"])
 @pytest.mark.parametrize("mode", ["EXTEND", "TEMPORAL_EXTEND"])
 @pytest.mark.parametrize("invalid", ["approval", "missing_file", "revision"])
 async def test_retry_revalidates_original_previous_av(setup_retry, db_session, db_engine, monkeypatch, route, mode, invalid):

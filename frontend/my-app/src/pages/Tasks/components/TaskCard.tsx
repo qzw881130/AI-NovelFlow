@@ -164,6 +164,8 @@ export function TaskCard({
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
+      case 'grid_board_image':
+      case 'grid_panel_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image_repair':
       case 'shot_image_repair_candidate': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
@@ -173,6 +175,9 @@ export function TaskCard({
       case 'narrator_audio':
       case 'chapter_background_music': return <Music className="h-5 w-5" />;
       case 'shot_video':
+      case 'grid_h3_clip':
+      case 'grid_shot_merge':
+      case 'grid_chapter_merge':
       case 'shot_video_hd':
       case 'shot_video_hd_batch':
       case 'chapter_video':
@@ -227,6 +232,29 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const getCurrentStepLabel = () => {
+    if (!task.currentStep) return t('tasks.gridProgress.processing');
+    if (!task.type.startsWith('grid_')) return task.currentStep;
+    if (task.currentStep === task.name.split(' · ')[0]) return getTaskTypeName(task.type);
+    const pendingCount = task.currentStep.match(/^等待执行 (\d+) 项$/);
+    if (pendingCount) return t('tasks.gridProgress.waitingItems', { count: pendingCount[1] });
+    const stepKeys: Record<string, string> = {
+      '等待宫格任务队列': 'queued',
+      '按顺序执行宫格任务': 'batchRunning',
+      '批量生成完成': 'batchCompleted',
+      '批量提交中断': 'batchInterrupted',
+      '前一步失败，未执行': 'previousFailed',
+      '前一步未完成，未执行': 'previousIncomplete',
+      '已完成': 'completed',
+      '执行失败': 'failed',
+      '已提交 ComfyUI，等待生成结果': 'comfySubmitted',
+      '生成完成，正在保存并裁切子格': 'savingBoard',
+      '生成完成，正在保存子格': 'savingPanel',
+      'H3 完成，正在保存 Clip': 'savingClip',
+    };
+    const key = stepKeys[task.currentStep];
+    return key ? t(`tasks.gridProgress.${key}`) : task.currentStep;
+  };
   const errorCategory = isVideoTask ? videoErrorCategory(task.errorMessage, task.currentStep) : null;
   const hasErrorDetails = Boolean(task.errorMessage && displayErrorMessage &&
     (errorCategory || task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
@@ -341,7 +369,7 @@ export function TaskCard({
           {task.status === 'running' && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span>{task.currentStep || '处理中...'}</span>
+                <span>{getCurrentStepLabel()}</span>
                 <span>{task.progress}%</span>
               </div>
               <div className="h-2 bg-white rounded-full overflow-hidden">
@@ -556,7 +584,7 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' || task.type === 'grid_board_image' || task.type === 'grid_panel_image' ? (
                 <div>
                   <div className="relative group inline-block">
                     <img
@@ -595,7 +623,7 @@ export function TaskCard({
                   className="w-full max-w-2xl rounded-lg bg-black"
                   aria-label={task.name}
                 />
-              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'subtitle_render' || task.type === 'transition_video' ? (
+              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'subtitle_render' || task.type === 'transition_video' || task.type === 'grid_h3_clip' || task.type === 'grid_shot_merge' || task.type === 'grid_chapter_merge' ? (
                 <div>
                   <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
                     <div className="h-32 w-48 bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
@@ -645,7 +673,7 @@ export function TaskCard({
               )}
             </div>
           )}
-          {task.type === 'chapter_video' && task.nameplatePreview?.url && (
+          {['chapter_video', 'grid_chapter_merge'].includes(task.type) && task.nameplatePreview?.url && (
             <div className="mt-3 rounded-lg border border-red-100 bg-red-50/40 p-3 text-sm">
               <div className="font-medium text-gray-800">首次出镜姓名牌</div>
               <div className="mt-1 text-xs text-gray-500">
@@ -670,7 +698,7 @@ export function TaskCard({
               </div>
             </div>
           )}
-          {task.type === 'chapter_video' && (task.nameplatePreview?.warnings?.length ?? 0) > 0 && (
+          {['chapter_video', 'grid_chapter_merge'].includes(task.type) && (task.nameplatePreview?.warnings?.length ?? 0) > 0 && (
             <div className="mt-2 text-xs text-amber-700">
               {task.nameplatePreview?.warnings?.join('；')}
             </div>
@@ -713,7 +741,7 @@ export function TaskCard({
           )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
-          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch' && task.type !== 'shot_image_repair' && task.type !== 'shot_image_repair_candidate') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
+          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch' && task.type !== 'grid_chapter_plan_batch' && task.type !== 'grid_panel_review' && task.type !== 'shot_image_repair' && task.type !== 'shot_image_repair_candidate') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
             <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={task.type === 'shot_video_batch' ? '恢复未完成的 Shot' : t('tasks.retry')}>
               <Play className="h-4 w-4" />
             </button>
@@ -723,7 +751,7 @@ export function TaskCard({
               <Code className="h-4 w-4" />
             </button>
           )}
-          {(!(task.type === 'chapter_ai_split' || task.type === 'chapter_ai_split_batch') || !['pending', 'running'].includes(task.status)) && <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
+          {(!(['chapter_ai_split', 'chapter_ai_split_batch', 'grid_chapter_plan_batch'].includes(task.type)) || !['pending', 'running'].includes(task.status)) && <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
             <Trash2 className="h-4 w-4" />
           </button>}
         </div>

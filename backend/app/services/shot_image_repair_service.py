@@ -19,6 +19,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.api_key_variables import bind_image_api_key
 from app.services.file_storage import file_storage
 from app.services.image_quality_review import image_result_key, review_image_task
 from app.services.llm_service import LLMService
@@ -328,7 +329,8 @@ async def _run_round(db, task: Task, metadata: dict, source_url: str, review_id:
                                                             novel.aspect_ratio or "16:9", seed, uploads, denoise)
             entry.update(seed=seed, denoise=denoise, graph=graph, workflow_id=workflow.id, output_node=output_node)
             _save(db, task, metadata, f"第 {round_number}/{MAX_ROUNDS} 轮：提交 ComfyUI 多图编辑")
-            queued = await service.client.queue_prompt(graph)
+            queued = await service.client.queue_prompt(
+                bind_image_api_key(graph, _json(workflow.node_mapping, {}), db))
             if not queued.get("success") or not queued.get("prompt_id"):
                 raise RuntimeError(f"ComfyUI 提交失败: {queued.get('error') or queued}")
             entry["prompt_id"] = queued["prompt_id"]

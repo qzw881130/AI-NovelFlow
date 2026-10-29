@@ -50,8 +50,8 @@ def mock_planner(monkeypatch, response, calls):
             calls.append(kwargs)
             return {"success": True, "content": json.dumps(response, ensure_ascii=False)}
     monkeypatch.setattr(planner, "LLMService", FakeLLM)
-    monkeypatch.setattr(planner, "PromptTemplateService", lambda db: SimpleNamespace(
-        get_default_system_template=lambda kind: SimpleNamespace(template=TEMPLATE.read_text(), name="fixture")))
+    monkeypatch.setattr(planner, "resolve_novel_prompt_template", lambda db, novel, kind:
+                        SimpleNamespace(template=TEMPLATE.read_text(), name="fixture"))
 
 
 async def planned(monkeypatch, variant="planner", response=None, shot=None):
@@ -285,7 +285,7 @@ async def h3_for_clips(monkeypatch, clips):
             captured.update(kwargs); return {"success": True, "content": data["llm_response"]}
     monkeypatch.setattr(ai, "LLMService", FakeLLM)
     monkeypatch.setattr(ai, "get_visual_prop_names", lambda db, nid, props: props)
-    text=(ROOT / "prompt_templates/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
+    text=(ROOT / "tests/fixtures/retired_h3/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
     monkeypatch.setattr(ai, "resolve_prompt_template", lambda *args: SimpleNamespace(template=text, name="frozen #13"))
     prompt=await ai.build_h3_video_prompt(db=SimpleNamespace(commit=lambda: None), novel=SimpleNamespace(id=data["shot"]["novel_id"] if "novel_id" in data["shot"] else "bfc54b7d-04da-43e8-9e11-ff9a6032de5e"),
         shot=shot, selected_mode="MULTI_KEYFRAME", clip=context["clip"], workflow_capability={}, workflow_type="multi_reference_video",

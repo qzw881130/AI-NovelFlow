@@ -2,11 +2,11 @@ from io import BytesIO
 from zipfile import ZipFile
 
 from app.api.llm_logs import LLM_LOG_TASK_CATEGORY_TYPES, LLM_LOG_TASK_LABELS
-from app.constants.prompt_template import PROMPT_TEMPLATE_FILE_NUMBERS, PROMPT_TEMPLATE_TYPES, PromptTemplateType
+from app.constants.prompt_template import PROMPT_TEMPLATE_TYPES, PromptTemplateType, prompt_template_scope
 from app.models.llm_log import LLMLog
 from app.models.novel import Novel
 from app.models.prompt_template import PromptTemplate
-from app.services.prompt_template_service import PromptTemplateService, load_template
+from app.services.prompt_template_service import PromptTemplateService
 
 
 def test_clip_execution_planner_is_a_registered_video_director_template():
@@ -26,85 +26,47 @@ def test_prompt_export_places_clip_execution_planner_under_video_director(client
     assert not any(path.startswith("未分类/clip_execution_planner/") for path in paths)
 
 
-def test_prompt_export_places_h3_optimizer_and_custom_templates_under_video_generation(client, db_session):
-    template_type = PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT
-    system = db_session.query(PromptTemplate).filter_by(type=template_type, is_system=True).one()
-    custom = PromptTemplate(
-        name="自定义 H3 执行优化",
-        type=template_type,
-        template="保留导演意图与说话人绑定。\nCustom H3 execution prompt.",
-        is_system=False,
-        is_active=True,
-    )
-    db_session.add(custom)
-    db_session.commit()
+def test_grid_templates_are_distinct_and_exported_under_existing_categories(client, db_session):
+    expected = {"grid_shot_plan", "grid_image_prompt", "grid_clip_plan", "grid_h3_phase_b"}
+    assert expected <= set(PROMPT_TEMPLATE_TYPES)
+    assert all(prompt_template_scope(template_type) == "grid" for template_type in expected)
+    assert prompt_template_scope("h3_multi_keyframe_director_phase_b") == "single"
+    assert prompt_template_scope("character") == "shared"
+    assert not expected & {"h3_multi_keyframe_director_phase_b"}
 
     response = client.get("/api/prompt-templates/export-all")
-
     assert response.status_code == 200
     with ZipFile(BytesIO(response.content)) as archive:
-        directory = "视频生成/MiniMax H3 执行提示词优化/"
-        assert archive.read(f"{directory}系统-{system.name}.txt").decode("utf-8") == system.template
-        assert archive.read(f"{directory}用户-{custom.name}.txt").decode("utf-8") == custom.template
-        assert not any(path.startswith(f"未分类/{template_type}/") for path in archive.namelist())
+        paths = archive.namelist()
+    assert any(path.startswith("视频生成/宫格 H3 六段式提示词/") for path in paths)
+    assert any(path.startswith("分镜规划/宫格 Shot 与逐格机位规划/") for path in paths)
+    assert db_session.query(PromptTemplate).filter_by(type="h3_multi_keyframe_director_phase_b", is_system=True).count() == 1
 
 
-def test_h3_preflight_repair_uses_registered_14a_template_and_existing_management(client, db_session):
-    template_type = PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT
-    system_templates = db_session.query(PromptTemplate).filter_by(type=template_type, is_system=True).all()
-    assert len(system_templates) == 1
-    system = system_templates[0]
-    assert system.name == "MiniMax H3 Preflight 自动修复"
-    assert system.template == load_template("14A_MiniMax_H3_Preflight_Repair_V1.txt")
-    assert PROMPT_TEMPLATE_FILE_NUMBERS[template_type] == "14A"
-
-    listed = client.get("/api/prompt-templates/", params={"type": template_type}).json()["data"]
-    assert [item["id"] for item in listed] == [system.id]
-    assert client.get("/api/prompt-templates/system/default", params={"type": template_type}).json()["data"]["id"] == system.id
-
-    custom = client.post(f"/api/prompt-templates/{system.id}/copy").json()["data"]
-    updated = client.put(f"/api/prompt-templates/{custom['id']}", json={
-        "name": "自定义 #14A", "description": "测试有效配置", "template": "Edited #14A system prompt", "type": template_type,
-    }).json()["data"]
-    assert updated["template"] == "Edited #14A system prompt"
-    assert updated["isSystem"] is False
-    assert len(client.get("/api/prompt-templates/", params={"type": template_type}).json()["data"]) == 2
-
-
-def test_legacy_14a_system_template_is_renamed_in_place(db_session):
-    legacy = PromptTemplate(name="MiniMax H3 Preflight 定向修复", type=PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
-                            template="old content", is_system=True, is_active=True)
-    db_session.add(legacy)
+def test_retired_system_templates_do_not_reappear_on_startup(client, db_session):
+    retired = {"h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"}
+    for template_type in retired:
+        db_session.add(PromptTemplate(name=f"旧预设 {template_type}", type=template_type,
+                                      template="old", is_system=True, is_active=True))
     db_session.commit()
-    old_id = legacy.id
-
     PromptTemplateService(db_session).init_system_templates()
-
-    templates = db_session.query(PromptTemplate).filter_by(type=PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT, is_system=True).all()
-    assert len(templates) == 1
-    assert templates[0].id == old_id
-    assert templates[0].name == "MiniMax H3 Preflight 自动修复"
-    assert templates[0].template == load_template("14A_MiniMax_H3_Preflight_Repair_V1.txt")
+    assert db_session.query(PromptTemplate).filter(PromptTemplate.type.in_(retired), PromptTemplate.is_system.is_(True)).count() == 0
+    assert all(template_type not in PROMPT_TEMPLATE_TYPES for template_type in retired)
+    assert client.get("/api/prompt-templates/config-types").json()["data"] == PROMPT_TEMPLATE_TYPES
 
 
-def test_legacy_14a_duplicate_keeps_selected_template_valid(db_session):
-    template_type = PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT
-    old = PromptTemplate(name="MiniMax H3 Preflight 定向修复", type=template_type,
+def test_bound_retired_system_template_is_preserved_inactive(db_session):
+    old = PromptTemplate(name="旧 #14A", type="h3_preflight_repair_prompt",
                          template="old", is_system=True, is_active=True)
-    current = PromptTemplate(name="MiniMax H3 Preflight 自动修复", type=template_type,
-                             template="current", is_system=True, is_active=True)
-    db_session.add_all([old, current])
+    db_session.add(old)
     db_session.flush()
-    novel = Novel(title="测试模板归并", h3_preflight_repair_prompt_template_id=old.id)
+    novel = Novel(title="历史绑定", h3_preflight_repair_prompt_template_id=old.id)
     db_session.add(novel)
     db_session.commit()
-
     PromptTemplateService(db_session).init_system_templates()
-
-    templates = db_session.query(PromptTemplate).filter_by(type=template_type, is_system=True).all()
-    assert [template.id for template in templates] == [current.id]
-    db_session.refresh(novel)
-    assert novel.h3_preflight_repair_prompt_template_id == current.id
+    db_session.refresh(old)
+    assert old.is_active is False
+    assert novel.h3_preflight_repair_prompt_template_id == old.id
 
 
 def test_existing_14a_logs_use_dynamic_video_generation_category(client, db_session):
@@ -119,5 +81,5 @@ def test_existing_14a_logs_use_dynamic_video_generation_category(client, db_sess
     response = client.get("/api/llm-logs/", params={"category": "video_generation", "task_type": old_log.task_type})
     assert response.status_code == 200
     assert [item["id"] for item in response.json()["data"]["items"]] == [old_log.id]
-    assert old_log.task_type in client.get("/api/llm-logs/filters").json()["data"]["task_types"]
+    assert old_log.task_type not in client.get("/api/llm-logs/filters").json()["data"]["task_types"]
     assert db_session.get(LLMLog, old_log.id).prompt_template_name == "MiniMax H3 Preflight 定向修复 [old-version]"

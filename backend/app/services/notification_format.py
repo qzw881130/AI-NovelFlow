@@ -38,6 +38,14 @@ LABELS = {
     "scene.image.generation.completed": "场景图片生成完成", "scene.image.generation.failed": "场景图片生成失败",
     "prop.image.generation.completed": "道具图片生成完成", "prop.image.generation.failed": "道具图片生成失败",
 }
+LABELS.update({code: event.name for code, event in EVENT_REGISTRY.items() if code.startswith("grid.")})
+GRID_STEP_NAMES = {
+    "chapter_plan": "叙事 Shot 规划", "panels_plan": "子格规划",
+    "board_prepare": "整板提示词编写", "board_generate": "宫格整板生成",
+    "panel_generate": "子格重做", "clips_plan": "Clip 分配",
+    "clip_prepare": "H3 提示词编译", "clip_generate": "H3 Clip 生成",
+    "shot_merge": "Shot 合并", "chapter_merge": "章回合并",
+}
 
 ERROR_SUMMARIES = {
     "SILENT_CLIP_NOT_COVERED": "当前导演合同尚不支持无对白 Clip",
@@ -61,6 +69,7 @@ ERROR_SUMMARIES = {
     "PREFLIGHT_FAIL": "视频生成前检查未通过",
     "LLM_TRANSPORT_ERROR": "提示词服务暂时不可用",
     "COMFYUI_CONNECTION_FAILED": "ComfyUI 连接不可用",
+    "GRID_H3_PROMPT_INVALID": "宫格 H3 提示词校验未通过，请查看任务详情",
 }
 _ERROR_CODE = re.compile(r"\b[A-Z][A-Z0-9_]{5,}\b")
 _INTERNAL_CODE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+){2,}\b")
@@ -313,16 +322,18 @@ def format_notification(row, context=None):
         target = "ComfyUI"
     elif code.startswith("example.import"):
         target = "示例小说"
-    elif code.startswith("batch."):
+    elif code.startswith(("batch.", "grid.batch", "grid.chapter.plan", "grid.chapter.assembly")):
         target = ""
     elif code.startswith(("background_music.", "novel.video.merge")):
         target = ""
     elif shot:
-        target = f"Shot {shot}" + (f" · C{clip}" if clip and code.startswith(("clip.", "preflight.")) else "")
+        target = f"Shot {shot}" + (f" · C{clip}" if clip and code.startswith(("clip.", "preflight.", "grid.clip.")) else "")
     elif clip:
         target = f"C{clip}"
     elif code.startswith("shot."):
         target = "Shot"
+    elif code.startswith("grid."):
+        target = ""
     elif code.startswith("clip.prompt"):
         target = ""
     elif code.startswith(("clip.", "preflight.")):
@@ -353,6 +364,19 @@ def format_notification(row, context=None):
             lines.append(f"📚 章节：第 {chapter} 章")
 
     facts = []
+    if code.startswith("grid."):
+        panel = _positive_index(details.get("panel_index"))
+        if panel is not None:
+            facts.append(f"子格：第 {panel} 格")
+        step = GRID_STEP_NAMES.get(str(details.get("grid_step")))
+        if code.startswith("grid.batch"):
+            if step:
+                facts.append(f"批量步骤：{step}")
+            count = _nonnegative_count(details.get("total_count"))
+            if count is not None:
+                facts.append(f"任务总数：{count}")
+        elif code.endswith(".failed") and step:
+            facts.append(f"阶段：{step}")
     if code.startswith("shot.planning"):
         facts.append("规划结果：" + ("完成" if code.endswith(".completed") else "失败"))
     state = _positive_index(details.get("visual_state_index")) or _positive_index(row.visual_state_id)
@@ -449,7 +473,7 @@ def format_notification(row, context=None):
             pass
     if elapsed is not None:
         facts.append(f"⏱ 耗时：{_time_text(elapsed)}")
-    if code.startswith(("clip.generation", "clip.regeneration", "clip.result.recovery", "shot.generation")):
+    if code.startswith(("clip.generation", "clip.regeneration", "clip.result.recovery", "shot.generation", "grid.clip.generation")):
         video = _seconds(details.get("actual_duration")) or _seconds(details.get("video_duration"))
         if video is not None:
             facts.append(f"🎞 视频时长：{video:g}秒")

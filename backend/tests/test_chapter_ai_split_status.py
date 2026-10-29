@@ -17,7 +17,6 @@ def test_chapter_list_ai_split_status_tracks_saved_data(client, db_session):
         return response.json()["data"][0]["aiSplitCompleted"]
 
     assert split_status() is False
-
     db_session.add(Shot(id="split-status-shot", chapter_id=chapter.id, index=1, duration=10))
     db_session.commit()
     assert split_status() is False
@@ -29,3 +28,22 @@ def test_chapter_list_ai_split_status_tracks_saved_data(client, db_session):
     db_session.delete(db_session.get(Shot, "split-status-shot"))
     db_session.commit()
     assert split_status() is False
+
+
+def test_grid_chapter_list_reports_imported_shots_as_split(client, db_session):
+    novel = Novel(id="grid-split-status-novel", title="Grid Novel", video_mode="grid")
+    chapter = Chapter(id="grid-split-status-chapter", novel_id=novel.id,
+                      number=1, title="Chapter")
+    db_session.add_all([novel, chapter])
+    db_session.commit()
+
+    def split_status():
+        response = client.get(f"/api/novels/{novel.id}/chapters")
+        assert response.status_code == 200
+        return response.json()["data"][0]["aiSplitCompleted"]
+
+    assert split_status() is False
+    db_session.add(Shot(id="grid-split-status-shot", chapter_id=chapter.id,
+                        index=1, duration=10))
+    db_session.commit()
+    assert split_status() is True

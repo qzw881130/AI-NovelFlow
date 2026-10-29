@@ -420,11 +420,15 @@ async def resume_image_prompt(db, task, comfyui_service):
         metadata["image_attempt"]["rewrite_retry_used"] = True
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         db.commit()
+        from app.models.workflow import Workflow
+        workflow_record = db.get(Workflow, task.workflow_id) if task.workflow_id else None
+        node_mapping = json.loads(workflow_record.node_mapping or "{}") if workflow_record else None
         result = await comfyui_service.retry_prompt_rewrite_format_failure(
             result, workflow, node_id,
             lambda prompt_id, queued_workflow: save_image_prompt(
                 db, task, prompt_id, queued_workflow, node_id,
             ),
+            node_mapping,
         )
     ensure_task_active(db, task)
     return dict(result or {}, prompt_id=task.comfyui_prompt_id, submitted_workflow=workflow)

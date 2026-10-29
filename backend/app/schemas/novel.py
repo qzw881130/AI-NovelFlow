@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Literal
 from datetime import datetime
 
 
@@ -34,6 +34,11 @@ class NovelBase(BaseModel):
     h3_execution_optimizer_prompt_template_id: Optional[str] = Field(None, alias="h3ExecutionOptimizerPromptTemplateId")  # H3 执行提示词优化模板
     h3_preflight_repair_prompt_template_id: Optional[str] = Field(None, alias="h3PreflightRepairPromptTemplateId")  # H3 Preflight 自动修复模板
     aspect_ratio: Optional[str] = Field("16:9", alias="aspectRatio")
+    video_mode: Literal["single", "grid"] = Field("single", alias="videoMode")
+    grid_shot_plan_prompt_template_id: Optional[str] = Field(None, alias="gridShotPlanPromptTemplateId")
+    grid_image_prompt_template_id: Optional[str] = Field(None, alias="gridImagePromptTemplateId")
+    grid_clip_plan_prompt_template_id: Optional[str] = Field(None, alias="gridClipPlanPromptTemplateId")
+    grid_h3_phase_b_prompt_template_id: Optional[str] = Field(None, alias="gridH3PhaseBPromptTemplateId")
 
 
 class NovelCreate(NovelBase):

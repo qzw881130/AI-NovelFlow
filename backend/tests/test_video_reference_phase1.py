@@ -140,6 +140,25 @@ def test_missing_optional_images_soft_skip_without_phantom_slots(db_session, ass
         "Room": "IMAGE_MISSING", "Person2": "IMAGE_UNRESOLVABLE", "Box": "IMAGE_MISSING", "Imagined": "NOT_VISUAL_ELIGIBLE"}
 
 
+def test_clip_can_exclude_identity_sheets_without_erasing_character_metadata(db_session, assets):
+    shot, plan, clip = fixture(assets)
+    clip["reference_exclude_kinds"] = ["CHARACTER_IDENTITY"]
+    resources = service.resolve_clip_reference_resources(db_session, "n", shot, plan, clip)
+    manifest = compile_case(shot, plan, clip, resources)["video_reference_manifest"]
+    assert json.loads(shot.characters) == ["Person1", "Person2", "Person3"]
+    assert [r["kind"] for r in manifest["references"]] == ["DIRECTOR_VISUAL_ANCHOR", "SCENE", "PROP", "PROP"]
+    assert [(r["source_name"], r["reason"]) for r in manifest["skipped_references"] if r["reason"] == "CLIP_REFERENCE_POLICY"] == [
+        ("Person2", "CLIP_REFERENCE_POLICY"), ("Person1", "CLIP_REFERENCE_POLICY")]
+    assert [r["slot"] for r in manifest["references"]] == [1, 2, 3, 4]
+
+
+def test_clip_reference_exclusion_rejects_camera_anchor_kind(db_session, assets):
+    shot, plan, clip = fixture(assets)
+    clip["reference_exclude_kinds"] = ["DIRECTOR_VISUAL_ANCHOR"]
+    with pytest.raises(ValueError, match="INVALID_REFERENCE_EXCLUDE_KINDS"):
+        service.resolve_clip_reference_resources(db_session, "n", shot, plan, clip)
+
+
 def test_character_fallback_and_transition_scope(db_session, assets):
     shot, plan, clip = fixture(assets, "EXTEND")
     plan["keyframes"][0]["description"] = "Box"
@@ -166,10 +185,10 @@ def test_unknown_assets_and_narrator_are_optional_not_phantom_pictures(db_sessio
         "Person1": "NARRATOR_NOT_VISUAL", "Imagined": "NOT_VISUAL_ELIGIBLE"}
 
 
-@pytest.mark.parametrize("optimize, requested, expected", [
-    (False, None, False), (True, None, True), (True, True, True), (True, False, False),
+@pytest.mark.parametrize("optimize, requested", [
+    (False, None), (True, None), (True, True), (True, False),
 ])
-def test_semantic_clip_persists_resolved_repair_setting(db_session, assets, monkeypatch, optimize, requested, expected):
+def test_phase_b_disables_retired_optimizer_flags(db_session, assets, monkeypatch, optimize, requested):
     from app.api import shots as api
     from app.repositories import NovelRepository, ChapterRepository, TaskRepository, ShotRepository
 
@@ -185,13 +204,13 @@ def test_semantic_clip_persists_resolved_repair_setting(db_session, assets, monk
         "n", "ch", "s", clip["clip_index"],
         api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False,
                                         optimize_h3_prompt=optimize, preflight_auto_repair=requested,
-                                        h3_prompt_pipeline="legacy"),
+                                        h3_prompt_pipeline="phase_b"),
         db_session, NovelRepository(db_session), ChapterRepository(db_session),
         TaskRepository(db_session), ShotRepository(db_session)))
     task = db_session.get(Task, response["data"]["taskId"])
     metadata = json.loads(task.metadata_json)
-    assert metadata["optimize_h3_prompt"] is optimize
-    assert metadata["preflight_auto_repair"] is expected
+    assert metadata["optimize_h3_prompt"] is False
+    assert metadata["preflight_auto_repair"] is False
 
 
 @pytest.mark.parametrize("capability", ["GENERATE", "EXTEND", "TEMPORAL_EXTEND"])
@@ -220,7 +239,7 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
     monkeypatch.setattr(service, "resolve_extend_previous_av", lambda *_: previous)
     response = asyncio.run(api._execute_phase_b_semantic_clip(
         "n", "ch", "s", clip["clip_index"], api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False,
-                                                                         h3_prompt_pipeline="legacy"),
+                                                                         h3_prompt_pipeline="phase_b"),
         db_session, NovelRepository(db_session), ChapterRepository(db_session), TaskRepository(db_session), ShotRepository(db_session)))
     assert response["success"]
     args, kwargs = captured["enqueue"]
@@ -229,7 +248,7 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
     initial = json.loads(task.metadata_json)["video_reference_manifest"]
 
     async def fake_h3(**kwargs):
-        captured["h3"] = copy.deepcopy(kwargs["video_reference_manifest"])
+        captured["h3"] = copy.deepcopy(kwargs["manifest"])
         return "final H3 prompt"
 
     class MockComfy:
@@ -241,7 +260,15 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
             captured["physical"] = kwargs
             return {"success": False, "error": "mock stop before any generation"}
 
-    monkeypatch.setattr(service, "build_h3_video_prompt", fake_h3)
+    from app.services import h3_phase_b_pipeline as phase_b
+    monkeypatch.setattr(phase_b, "build_phase_b_prompt", fake_h3)
+    # This test checks reference ordering. Phase B preflight and its execution
+    # approval are covered by the dedicated Phase B tests.
+    monkeypatch.setattr(phase_b, "apply_execution", lambda task, duration, manifest, paths: (
+        duration,
+        {"anchors": [{"local_path": anchors[0]["image_url"], "frame_position": 5}]} if capability == "TEMPORAL_EXTEND" else None,
+        manifest, paths,
+    ))
     monkeypatch.setattr(service, "ComfyUIService", MockComfy)
     monkeypatch.setattr(service, "SessionLocal", lambda: db_session)
     monkeypatch.setattr(db_session, "close", lambda: None)
@@ -258,8 +285,7 @@ def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, ass
         assert [a["image_path"] for a in captured["physical"]["anchors"]] == [anchors[0]["image_url"]]
 
 
-@pytest.mark.parametrize("pipeline", ["legacy", "phase_b"])
-def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monkeypatch, pipeline):
+def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monkeypatch):
     from app.api import shots as api
     from app.repositories import NovelRepository, ChapterRepository, TaskRepository, ShotRepository
     shot, plan, clip = fixture(assets)
@@ -267,24 +293,22 @@ def test_saved_prompt_reaches_formal_api_reuse_metadata(db_session, assets, monk
     db_session.add_all([shot, Workflow(id="g", name="mock", type="multi_reference_video", workflow_json="{}", node_mapping="{}", is_active=True)])
     db_session.commit()
     service._update_clip_prompt(shot, clip, "exact saved prompt", db_session)
-    if pipeline == "phase_b":
-        from app.services import h3_phase_b_pipeline as phase_b
-        plan = json.loads(shot.video_director_plan)
-        plan.setdefault("ai_calls", []).append({
-            "task_type": phase_b.TEMPLATE_TYPE, "clip_index": 1,
-            "parsed_result": {"version": phase_b.VERSION, "status": "COMPILED", "workflow_id": "g",
-                              "final_prompt_sha256": phase_b.digest("exact saved prompt")},
-        })
-        shot.video_director_plan = json.dumps(plan)
-        db_session.commit()
+    from app.services import h3_phase_b_pipeline as phase_b
+    plan = json.loads(shot.video_director_plan)
+    plan.setdefault("ai_calls", []).append({
+        "task_type": phase_b.TEMPLATE_TYPE, "clip_index": 1,
+        "parsed_result": {"version": phase_b.VERSION, "status": "COMPILED", "workflow_id": "g",
+                          "final_prompt_sha256": phase_b.digest("exact saved prompt")},
+    })
+    shot.video_director_plan = json.dumps(plan)
+    db_session.commit()
     captured = {}
     monkeypatch.setattr(api.TaskService, "validate_workflow_node_mapping", lambda *_: (True, ""))
     monkeypatch.setattr(api, "enqueue_shot_video_task", lambda *args, **kwargs: captured.update(kwargs))
     asyncio.run(api._execute_phase_b_semantic_clip(
         "n", "ch", "s", 1, api.SemanticClipGenerateRequest(clip_plan_revision=1, skip_llm_when_prompt_exists=True,
-                                                       h3_prompt_pipeline=pipeline),
+                                                       h3_prompt_pipeline="phase_b"),
         db_session, NovelRepository(db_session), ChapterRepository(db_session), TaskRepository(db_session), ShotRepository(db_session)))
     assert captured["clip_metadata"]["prompt_text"] == "exact saved prompt"
     assert captured["skip_llm_when_prompt_exists"] is True
-    if pipeline == "phase_b":
-        assert captured["clip_metadata"]["phase_b_requested_prompt"] == "exact saved prompt"
+    assert captured["clip_metadata"]["phase_b_requested_prompt"] == "exact saved prompt"

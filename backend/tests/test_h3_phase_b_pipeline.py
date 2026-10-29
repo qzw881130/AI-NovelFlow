@@ -511,18 +511,17 @@ def test_registry_sync_and_novel_selection(db_session):
     assert selected.template == body
     selected.is_active=False;db_session.flush()
     assert resolve_novel_prompt_template(db_session,args['novel'],pipe.TEMPLATE_TYPE).is_system
-    assert db_session.query(PromptTemplate).filter(PromptTemplate.type=='h3_multi_keyframe_prompt').count()>0
+    assert db_session.query(PromptTemplate).filter(PromptTemplate.type=='h3_multi_keyframe_prompt').count()==0
 
 
-def test_new_route_defaults_phase_b_and_explicit_legacy_remains_available():
+def test_new_route_defaults_phase_b_and_rejects_retired_legacy():
     from app.api.shots import SemanticClipGenerateRequest, BatchShotVideoRequest
     from app.schemas.shot import GenerateVideoDirectorClipRequest, GenerateVideoRequest
     for model, args in [(SemanticClipGenerateRequest, {}), (BatchShotVideoRequest, {'shot_ids': []}),
                         (GenerateVideoDirectorClipRequest, {})]:
         assert model(**args).h3_prompt_pipeline == 'phase_b'
-        for route in ('legacy', 'phase_b'):
-            assert model(**args, h3_prompt_pipeline=route).h3_prompt_pipeline == route
-        for route in ('automatic', '', None):
+        assert model(**args, h3_prompt_pipeline='phase_b').h3_prompt_pipeline == 'phase_b'
+        for route in ('legacy', 'automatic', '', None):
             with pytest.raises(ValueError): model(**args, h3_prompt_pipeline=route)
     # The retired/general video request is not converted into an H3 route.
     assert 'h3_prompt_pipeline' not in GenerateVideoRequest.model_fields
@@ -737,5 +736,5 @@ def test_phase_b_management_create_edit_select_export_copy(client,db_session):
         directory='视频生成/MiniMax H3 单阶段导演规划（Phase B）/'
         assert z.read(directory+'用户-Phase B custom.txt').decode()==text
         assert z.read(directory+'系统-'+system.name+'.txt').decode()==system.template
-        assert any('MiniMax H3 多关键帧视频提示词构建/' in n for n in z.namelist())
+        assert any('宫格 H3 六段式提示词/' in n for n in z.namelist())
     assert db_session.query(Task).count()==0

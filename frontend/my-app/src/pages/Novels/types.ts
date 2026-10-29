@@ -1,10 +1,12 @@
 import type { NovelTemplateFieldKey } from './promptTemplateFields';
+import type { NovelVideoMode } from './components/NovelVideoModeSelector';
 
 export type NovelFormData = Record<NovelTemplateFieldKey, string> & {
   title: string;
   author: string;
   description: string;
   aspectRatio: string;
+  videoMode: NovelVideoMode;
 };
 
 export interface ChapterRange {

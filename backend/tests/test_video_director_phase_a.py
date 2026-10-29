@@ -259,7 +259,7 @@ async def test_09_frozen_h3_prompt_and_context_are_byte_identical(monkeypatch):
             return {"success": True, "content": data["llm_response"]}
     monkeypatch.setattr(ai, "LLMService", FakeLLM)
     monkeypatch.setattr(ai, "get_visual_prop_names", lambda db, nid, props: props)
-    template = (Path(__file__).parents[1] / "prompt_templates/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
+    template = (Path(__file__).parent / "fixtures/retired_h3/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
     monkeypatch.setattr(ai, "resolve_prompt_template", lambda *args: SimpleNamespace(template=template, name="frozen #13"))
     prompt = await ai.build_h3_video_prompt(db=SimpleNamespace(commit=lambda: None),
         novel=SimpleNamespace(id="bfc54b7d-04da-43e8-9e11-ff9a6032de5e"), shot=shot,

@@ -496,7 +496,7 @@ class BatchShotImageRequest(BaseModel):
 class BatchShotVideoRequest(BaseModel):
     video_prompt_language: Optional[Literal["en", "zh"]] = None
     continuation_mode: ContinuationMode = "AUTO"
-    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
+    h3_prompt_pipeline: Literal["phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     shot_ids: list[str]
     auto_complete_details: bool = True
     use_reference_audio: bool = True
@@ -512,7 +512,7 @@ class SemanticClipGenerateRequest(BaseModel):
     video_prompt_language: Optional[Literal["en", "zh"]] = None
     result_mode: ResultMode = "APPLY"
     continuation_mode: ContinuationMode = "AUTO"
-    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
+    h3_prompt_pipeline: Literal["phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     preflight_auto_repair: Optional[bool] = None
     use_reference_audio: bool = True
     auto_merge: bool = True
@@ -966,6 +966,9 @@ async def _prepare_and_enqueue_shot_image_generation(
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
+    if novel.video_mode == "grid":
+        raise HTTPException(status_code=409, detail="宫格小说请使用宫格整板生图入口")
+
     if not chapter.parsed_data and str(shot_id).isdigit():
         raise HTTPException(status_code=400, detail="章节未拆分分镜，请先完成章节拆分")
 
@@ -1295,6 +1298,7 @@ async def generate_shot_images_batch(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """创建可在页面关闭后继续执行的分镜图批量生成任务。"""
+    _require_single_video_mode(db, novel_id)
     if not data.shot_ids:
         raise HTTPException(status_code=400, detail="请选择要生成的分镜")
     novel = novel_repo.get_by_id(novel_id)
@@ -1457,6 +1461,14 @@ def _reject_retired_h3_entry() -> None:
         "code": "LEGACY_H3_GENERATION_RETIRED",
         "message": "旧 H3 生成模式已退役。历史结果仍可查看；新生成请使用 Canonical 视觉时间轴和 semantic Clip 执行入口。",
     })
+
+
+def _require_single_video_mode(db: Session, novel_id: str) -> None:
+    novel = db.get(Novel, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    if novel.video_mode == "grid":
+        raise HTTPException(status_code=409, detail="宫格小说请使用宫格模式入口")
 
 
 def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, shot_id_or_index: str):
@@ -2338,6 +2350,7 @@ async def plan_shot_clips(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -2422,6 +2435,7 @@ async def generate_clip_plan_video(
     force_rerun: bool = False,
 ):
     """Start the first validated semantic Clip through the existing Task pipeline."""
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     shot = shot_repo.get_by_id(shot_id)
     if not novel or not shot or shot.chapter_id != chapter_id:
@@ -2503,6 +2517,7 @@ async def plan_video_keyframes(
     template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
     llm_service: LLMService = Depends(get_llm_service),
 ):
+    _require_single_video_mode(db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -2713,6 +2728,7 @@ async def refresh_attention_transitions(
     llm_service: LLMService = Depends(get_llm_service),
 ):
     """Refresh only explicitly selected attention-stale edges, never the owner."""
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     shot = shot_repo.get_by_id(shot_id)
@@ -2794,6 +2810,7 @@ def update_clip_visual_state_references(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(db, novel_id)
     if not chapter_repo.get_by_id(chapter_id, novel_id):
         raise HTTPException(status_code=404, detail="章节不存在")
     shot = shot_repo.get_by_id(shot_id)
@@ -2851,6 +2868,7 @@ def update_visual_state_description(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(db, novel_id)
     if not chapter_repo.get_by_id(chapter_id, novel_id):
         raise HTTPException(status_code=404, detail="章节不存在")
     shot = shot_repo.get_by_id(shot_id)
@@ -2924,6 +2942,7 @@ async def save_video_director_plan(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(shot_repo.db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -2974,6 +2993,7 @@ async def generate_video_director_clip(
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(shot_repo.db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -3113,6 +3133,7 @@ async def _execute_phase_b_semantic_clip(
     _frozen_prompt_language=UNSET_LANGUAGE,
 ):
     """Execute one explicit semantic Clip through the formal physical route."""
+    _require_single_video_mode(db, novel_id)
     candidate = request.result_mode == "CANDIDATE_ONLY"
     if candidate and request.h3_prompt_pipeline != "phase_b":
         raise HTTPException(status_code=400, detail="CANDIDATE_ONLY_REQUIRES_PHASE_B: 候选保存当前支持正式 Phase B Clip 链路")
@@ -3477,6 +3498,7 @@ async def merge_video_director_clips(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    _require_single_video_mode(shot_repo.db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -4189,6 +4211,8 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
     from app.services.continuous_clip_av import cache_export_av_probes
     # Resolve saved child intent before any upstream calls; not the new API default.
     route = persisted_h3_prompt_pipeline(_safe_json_dict(batch_child.metadata_json))
+    if route != "phase_b":
+        raise ValueError("LEGACY_H3_GENERATION_RETIRED: 历史任务不能自动改走 Phase B")
     validate_artifact = cache_export_av_probes(validate_semantic_clip_artifact)
     if (_safe_json_dict(batch_child.metadata_json).get("automatic_shot")
             or _safe_json_dict(batch_child.metadata_json).get("auto_complete_details")):
@@ -4559,6 +4583,7 @@ def resume_active_shot_video_batches() -> None:
 @router.post("/{novel_id}/chapters/{chapter_id}/shot-videos/batch/preflight", response_model=dict)
 async def preview_shot_video_batch(novel_id: str, chapter_id: str, data: BatchShotVideoRequest,
                                    db: Session = Depends(get_db)):
+    _require_single_video_mode(db, novel_id)
     from app.api.config import get_or_create_config
     from app.services.generation_preflight import config_policy, evaluate_batch
     if not db.get(Novel, novel_id) or not ChapterRepository(db).get_by_id(chapter_id, novel_id):
@@ -4576,11 +4601,14 @@ async def preview_shot_video_batch(novel_id: str, chapter_id: str, data: BatchSh
 async def resume_shot_video_batch(novel_id: str, chapter_id: str, batch_id: str,
                                   db: Session = Depends(get_db)):
     """Explicitly resume failed Shots; keep completed Clips and their receipts."""
+    _require_single_video_mode(db, novel_id)
     from app.models.background_job import BackgroundJob
     from app.services.generation_preflight import evaluate_batch
     batch = db.get(Task, batch_id)
     if not batch or batch.type != "shot_video_batch" or batch.novel_id != novel_id or batch.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="批量视频任务不存在")
+    if persisted_h3_prompt_pipeline(_safe_json_dict(batch.metadata_json)) != "phase_b":
+        _reject_retired_h3_entry()
     if batch.status not in {"failed", "paused"}:
         raise HTTPException(status_code=409, detail="仅能恢复失败或已暂停的批量任务")
     jobs = db.query(BackgroundJob).filter(BackgroundJob.task_id == batch_id).all()
@@ -4643,6 +4671,7 @@ async def generate_shot_videos_batch(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """创建持久化批量视频任务；页面关闭或服务重启后可继续。"""
+    _require_single_video_mode(db, novel_id)
     shot_ids = list(dict.fromkeys(data.shot_ids))
     if not shot_ids:
         raise HTTPException(status_code=400, detail="请选择要生成视频的分镜")
@@ -4853,6 +4882,8 @@ async def generate_shot_video(
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
+    if novel.video_mode == "grid":
+        raise HTTPException(status_code=409, detail="宫格小说请使用宫格 Clip 生视频入口")
 
     # 从 Shot 表获取分镜数据；兼容旧 API 按分镜序号传参。
     shot = _resolve_shot_by_id_or_index(shot_repo, chapter_id, shot_id)
@@ -5023,6 +5054,7 @@ async def generate_transition_video(
     """
     生成转场视频（两个分镜之间）
     """
+    _require_single_video_mode(shot_repo.db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
     if not chapter:
@@ -5132,6 +5164,7 @@ async def generate_all_transitions(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """一键生成所有相邻分镜之间的转场视频"""
+    _require_single_video_mode(db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
     if not chapter:
@@ -5449,7 +5482,7 @@ async def approve_chapter_nameplate_preview(
 ):
     """Adopt the reviewed presentation variant; preserve the raw merged video."""
     task = db.query(Task).filter(
-        Task.id == task_id, Task.type == "chapter_video",
+        Task.id == task_id, Task.type.in_(["chapter_video", "grid_chapter_merge"]),
         Task.novel_id == novel_id, Task.chapter_id == chapter_id,
         Task.status == "completed",
     ).first()
@@ -7304,6 +7337,7 @@ async def generate_keyframe_descriptions(
     Returns:
         生成结果，包含关键帧列表
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7361,6 +7395,7 @@ async def generate_keyframe_image(
     Returns:
         生成任务信息
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7448,6 +7483,7 @@ async def edit_keyframe_image(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """使用当前激活的单图编辑工作流编辑关键帧图片。"""
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7495,6 +7531,7 @@ async def replace_keyframe_image(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """用编辑结果替换当前关键帧图片。"""
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7544,6 +7581,7 @@ async def upload_keyframe_image(
     Returns:
         上传结果，包含图片 URL
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7617,6 +7655,7 @@ async def upload_keyframe_reference_image(
     Returns:
         上传结果，包含参考图 URL
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7687,6 +7726,7 @@ async def set_keyframe_reference_image(
     Returns:
         设置结果，包含最终的参考图 URL
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7744,6 +7784,7 @@ async def update_keyframes(
     Returns:
         更新结果
     """
+    _require_single_video_mode(db, novel_id)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -7980,6 +8021,7 @@ async def prepare_shot_required_images(
     template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
     llm_service: LLMService = Depends(get_llm_service),
 ):
+    _require_single_video_mode(db, novel_id)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     shot = shot_repo.get_by_id(shot_id)
     if not chapter or not shot or shot.chapter_id != chapter_id:
@@ -8038,6 +8080,7 @@ class AutoGenerationRequest(BaseModel):
 @router.post('/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/auto-generation/{action}', response_model=dict)
 async def control_shot_auto_generation(novel_id: str, chapter_id: str, shot_id: str, action: str,
                                        db: Session = Depends(get_db), request: AutoGenerationRequest = AutoGenerationRequest()):
+    _require_single_video_mode(db, novel_id)
     state = get_shot_auto_generation(novel_id, chapter_id, shot_id, db)['data']
     if action == 'start':
         return await generate_shot_videos_batch(novel_id, chapter_id,
@@ -8055,6 +8098,8 @@ async def control_shot_auto_generation(novel_id: str, chapter_id: str, shot_id: 
             task.current_step = '停止后续生成；已提交的 Clip 保留并继续保存'
             db.commit()
         return get_shot_auto_generation(novel_id, chapter_id, shot_id, db)
+    if persisted_h3_prompt_pipeline(metadata) != "phase_b":
+        _reject_retired_h3_entry()
     if task.status == 'completed':
         return get_shot_auto_generation(novel_id, chapter_id, shot_id, db)
     if task.status in {'pending','running'}:

@@ -1,7 +1,7 @@
 // Settings 页面主组件
 
 import { useState, useEffect, useRef } from 'react';
-import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity, Bell, ShieldCheck, Clapperboard } from 'lucide-react';
+import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity, Bell, ShieldCheck, Clapperboard, Braces, Eye, EyeOff } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
@@ -14,10 +14,15 @@ import NotificationConfig from './components/NotificationConfig';
 import GenerationQualityConfig from './components/GenerationQualityConfig';
 import type { SettingsFormData } from './types';
 import { configApi } from '../../api/config';
-import type { GenerationCheck } from '../../api/config';
+import type { CustomVariableKey, CustomVariables, GenerationCheck } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
-type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality' | 'content';
+type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality' | 'content' | 'customVariables';
+
+const CUSTOM_VARIABLE_KEYS: CustomVariableKey[] = ['KEY1', 'KEY2', 'KEY3', 'KEY4', 'KEY5', 'KEY6', 'KEY7', 'KEY8', 'KEY9'];
+const EMPTY_CUSTOM_VARIABLES = Object.fromEntries(
+  CUSTOM_VARIABLE_KEYS.map(key => [key, { value: '', note: '' }]),
+) as CustomVariables;
 
 const TAB_HASHES: Record<SettingsTab, string> = {
   llm: 'llm',
@@ -28,6 +33,7 @@ const TAB_HASHES: Record<SettingsTab, string> = {
   notifications: 'notifications',
   generationQuality: 'generation-quality',
   content: 'content',
+  customVariables: 'custom-variables',
 };
 
 const getTabFromHash = (hash: string): SettingsTab => {
@@ -50,12 +56,37 @@ export default function Settings() {
   const [autoApproveNameplateAvailable, setAutoApproveNameplateAvailable] = useState(false);
   const [generationChecks, setGenerationChecks] = useState<GenerationCheck[]>([]);
   const [saved, setSaved] = useState(false);
+  const [customVariables, setCustomVariables] = useState<CustomVariables>(EMPTY_CUSTOM_VARIABLES);
+  const [customVariablesLoaded, setCustomVariablesLoaded] = useState(false);
+  const [customVariablesLoading, setCustomVariablesLoading] = useState(false);
+  const [customVariablesLoadAttempt, setCustomVariablesLoadAttempt] = useState(0);
+  const [revealedVariableKeys, setRevealedVariableKeys] = useState<Set<CustomVariableKey>>(new Set());
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => getTabFromHash(window.location.hash));
   const isUserModifiedRef = useRef(false);
 
   useEffect(() => {
     setActiveTab(getTabFromHash(location.hash));
   }, [location.hash]);
+
+  useEffect(() => {
+    if (activeTab !== 'customVariables' || customVariablesLoaded) return;
+    let cancelled = false;
+    setCustomVariablesLoading(true);
+    configApi.customVariables().then(result => {
+      if (cancelled) return;
+      if (!result.success || !result.data) throw new Error('加载自定义变量失败');
+      setCustomVariables(result.data);
+      setCustomVariablesLoaded(true);
+    }).catch(error => {
+      if (!cancelled) {
+        console.error('加载自定义变量失败:', error);
+        toast.error('加载自定义变量失败，请重试');
+      }
+    }).finally(() => {
+      if (!cancelled) setCustomVariablesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [activeTab, customVariablesLoaded, customVariablesLoadAttempt]);
 
   const selectTab = (tab: SettingsTab) => {
     setActiveTab(tab);
@@ -71,7 +102,6 @@ export default function Settings() {
     const loadConfig = async () => {
       try {
         const result = await configApi.get();
-        console.log('[Settings/index] API response:', result);
         if (result.success && result.data) {
           const config = result.data as any;
           setNameplateAvailable(typeof config.nameplatePreviewMode === 'string');
@@ -143,6 +173,9 @@ export default function Settings() {
         };
       } else if (activeTab === 'content') {
         payload = { coverProduction: formData.coverProduction?.trim() || '旺仔有声小说' };
+      } else if (activeTab === 'customVariables') {
+        if (!customVariablesLoaded) return;
+        payload = { customVariables };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
@@ -179,7 +212,7 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('systemSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          {activeTab === 'notifications' ? '设置通知通道、提示音和事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置视频封面等内容的默认署名' : t('systemSettings.subtitle')}
+          {activeTab === 'notifications' ? '设置通知通道、提示音和事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置视频封面等内容的默认署名' : activeTab === 'customVariables' ? '配置可通过固定 KEY 引用的变量' : t('systemSettings.subtitle')}
         </p>
       </div>
 
@@ -187,11 +220,11 @@ export default function Settings() {
       <div className="card">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-100 rounded-lg">
-            {activeTab === 'generationQuality' ? <ShieldCheck className="h-5 w-5 text-blue-600" /> : activeTab === 'notifications' ? <Bell className="h-5 w-5 text-blue-600" /> : activeTab === 'content' ? <Clapperboard className="h-5 w-5 text-blue-600" /> : <Bot className="h-5 w-5 text-blue-600" />}
+            {activeTab === 'generationQuality' ? <ShieldCheck className="h-5 w-5 text-blue-600" /> : activeTab === 'notifications' ? <Bell className="h-5 w-5 text-blue-600" /> : activeTab === 'content' ? <Clapperboard className="h-5 w-5 text-blue-600" /> : activeTab === 'customVariables' ? <Braces className="h-5 w-5 text-blue-600" /> : <Bot className="h-5 w-5 text-blue-600" />}
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{activeTab === 'notifications' ? '消息通知' : activeTab === 'generationQuality' ? t('systemSettings.generationQualityControl') : activeTab === 'content' ? '内容设置' : t('systemSettings.llmConfig')}</h2>
-            <p className="text-sm text-gray-500">{activeTab === 'notifications' ? '配置页面声音、外部推送与事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置封面制作署名' : t('systemSettings.subtitle')}</p>
+            <h2 className="text-lg font-semibold text-gray-900">{activeTab === 'notifications' ? '消息通知' : activeTab === 'generationQuality' ? t('systemSettings.generationQualityControl') : activeTab === 'content' ? '内容设置' : activeTab === 'customVariables' ? '自定义变量' : t('systemSettings.llmConfig')}</h2>
+            <p className="text-sm text-gray-500">{activeTab === 'notifications' ? '配置页面声音、外部推送与事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : activeTab === 'content' ? '设置封面制作署名' : activeTab === 'customVariables' ? '设置 KEY1～KEY9 的值和备注' : t('systemSettings.subtitle')}</p>
           </div>
         </div>
         
@@ -279,6 +312,10 @@ export default function Settings() {
             className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'content' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             <span className="flex items-center gap-2"><Clapperboard className="h-4 w-4" />内容设置</span>
           </button>
+          <button type="button" onClick={() => selectTab('customVariables')}
+            className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'customVariables' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="flex items-center gap-2"><Braces className="h-4 w-4" />自定义变量</span>
+          </button>
         </div>
 
         {/* 工作流管理面板 - 独立于表单之外，避免嵌套表单问题 */}
@@ -298,6 +335,54 @@ export default function Settings() {
                   value={formData.coverProduction ?? ''}
                   onChange={event => setFormData(previous => ({ ...previous, coverProduction: event.target.value }))}
                   className="input-field mt-3 max-w-md" placeholder="旺仔有声小说" />
+              </div>
+            )}
+            {activeTab === 'customVariables' && (
+              <div className="rounded-lg border border-gray-200 p-5">
+                <h3 className="text-sm font-medium text-gray-900">自定义变量</h3>
+                <p className="mt-1 text-sm text-gray-500">KEY1～KEY9 为固定名称，可在其他功能中引用。值最多 256 个字符，备注选填。</p>
+                {!customVariablesLoaded ? (
+                  <div className="mt-5 flex items-center gap-3 text-sm text-gray-500">
+                    {customVariablesLoading ? <><Loader2 className="h-4 w-4 animate-spin" />加载中...</> : (
+                      <button type="button" className="text-blue-600 hover:underline" onClick={() => setCustomVariablesLoadAttempt(previous => previous + 1)}>加载失败，点击重试</button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-3">
+                    <div className="hidden grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] gap-3 text-xs font-medium text-gray-500 sm:grid">
+                      <span>KEY</span><span>Value（最多 256 字符）</span><span>备注（选填）</span>
+                    </div>
+                    {CUSTOM_VARIABLE_KEYS.map(key => (
+                      <div key={key} className="grid gap-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] sm:items-center">
+                        <span className="text-sm font-semibold text-gray-700">{key}</span>
+                        <div className="relative">
+                          <input type="text" maxLength={256}
+                            value={revealedVariableKeys.has(key) ? customVariables[key].value : customVariables[key].value.slice(0, 10) + '*'.repeat(Math.max(0, customVariables[key].value.length - 10))}
+                            readOnly={!revealedVariableKeys.has(key)}
+                            aria-label={`${key} 的值`} placeholder="Value" autoComplete="off"
+                            onFocus={() => {
+                              if (!customVariables[key].value) setRevealedVariableKeys(previous => new Set(previous).add(key));
+                            }}
+                            onChange={event => setCustomVariables(previous => ({ ...previous, [key]: { ...previous[key], value: event.target.value } }))}
+                            className="input-field pr-10" />
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                            aria-label={revealedVariableKeys.has(key) ? `隐藏 ${key} 的值` : `显示 ${key} 的值`}
+                            onClick={() => setRevealedVariableKeys(previous => {
+                              const next = new Set(previous);
+                              if (next.has(key)) next.delete(key); else next.add(key);
+                              return next;
+                            })}>
+                            {revealedVariableKeys.has(key) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <input type="text" value={customVariables[key].note}
+                          aria-label={`${key} 的备注`} placeholder="备注（选填）"
+                          onChange={event => setCustomVariables(previous => ({ ...previous, [key]: { ...previous[key], note: event.target.value } }))}
+                          className="input-field" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {/* LLM 配置面板 */}
@@ -373,7 +458,7 @@ export default function Settings() {
             <div className="flex justify-end pt-6 border-t border-gray-200 mt-6">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || (activeTab === 'customVariables' && !customVariablesLoaded)}
                 className="btn-primary flex items-center gap-2"
               >
                 {saving ? (

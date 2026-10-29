@@ -1,0 +1,385 @@
+{
+  "captured_at_utc": "2026-10-28T04:58:03.201325+00:00",
+  "source_api": "http://127.0.0.1:8000",
+  "git_head": "a7ac12fbdb1d23dcaed8ab608f699cf47e294e9f",
+  "git_branch": "dev-minimax-h3-v2-20260901",
+  "preexisting_worktree_changes": [
+    {
+      "status": " M",
+      "path": "backend/app/services/comfyui/service.py",
+      "sha256": "d42ef9272594bc088285d2c2319db63a8bea563b55cd9b285337ed59ac21d7e8"
+    },
+    {
+      "status": " M",
+      "path": "backend/app/services/comfyui/workflows.py",
+      "sha256": "9f2c536995850a9dcca11be586f01b34a11a3100f1984b03bf3eda120cfd5487"
+    },
+    {
+      "status": " M",
+      "path": "backend/app/services/video_reference_resources.py",
+      "sha256": "79e19b03a119b0d4e6280ee3cb541ad84557325e5d24407cf500bc1e3871a290"
+    },
+    {
+      "status": " M",
+      "path": "backend/prompt_templates/05_NovelFlow_VideoDirector_ShotDirector_V1.txt",
+      "sha256": "ff4a4be018a8ef50fac559832f92b87f4da9eb586f4f6cf718ef2e64a0395b15"
+    },
+    {
+      "status": " M",
+      "path": "backend/prompt_templates/06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt",
+      "sha256": "04a65a5ad766c7a289f43b4042ee6a916674338c1980ac2f3198ae0981a81f35"
+    },
+    {
+      "status": " M",
+      "path": "backend/prompt_templates/H3_MultiKeyframe_Director_PhaseB.txt",
+      "sha256": "ff20a46c770e525dab19fbb307b91b02ed1c57cbda7693f75f90bd774c8e7038"
+    },
+    {
+      "status": " M",
+      "path": "backend/tests/test_video_reference_phase1.py",
+      "sha256": "c4d12461575b676914e10755d5b0137dd79dd251ce28963e204fb058ac9304ad"
+    },
+    {
+      "status": " M",
+      "path": "backend/tests/test_workflow_builder.py",
+      "sha256": "c6b111cf7708f443ff034746b7080f421609cd389218060429d35bf217944acd"
+    },
+    {
+      "status": " M",
+      "path": "frontend/my-app/src/pages/ChapterDetail/index.tsx",
+      "sha256": "81a03b4ffcd4ec18910fb18940023262e40892d270be64d9d28ceb6d8a34a910"
+    },
+    {
+      "status": "??",
+      "path": "backend/experiments/h3_ch1_cinematography/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": "docs/GRID_VIDEO_MODE_DEVELOPMENT_PLAN.txt",
+      "sha256": "8912b892bb363c778ecbfe2e7e50eb87416c996ed0792831bfb79646fdfcf250"
+    }
+  ],
+  "novel": {
+    "id": "eddc0f79-1d13-45af-a250-be3a7d9a0485",
+    "title": "石壕村的夜",
+    "aspectRatio": "16:9",
+    "templateSelections": {
+      "storyWorldContextPromptTemplateId": "",
+      "stylePromptTemplateId": "57f93a4a-1582-4e5d-ac08-8d552bb0f422",
+      "characterParsePromptTemplateId": "",
+      "sceneParsePromptTemplateId": "",
+      "propParsePromptTemplateId": "",
+      "promptTemplateId": "29220a04-ae50-431f-a78e-0204c4446aa8",
+      "scenePromptTemplateId": "",
+      "propPromptTemplateId": "",
+      "sceneSettingPromptTemplateId": "",
+      "propAppearancePromptTemplateId": "",
+      "chapterSplitPromptTemplateId": "",
+      "keyframeDescriptionPromptTemplateId": "",
+      "shotImagePromptTemplateId": "",
+      "keyframePlannerPromptTemplateId": "",
+      "keyframeImagePromptTemplateId": "",
+      "temporalReferenceSelectorPromptTemplateId": "",
+      "imageQualityReviewPromptTemplateId": "",
+      "keyframeTransitionPromptTemplateId": "",
+      "clipExecutionPlannerPromptTemplateId": "",
+      "h3MultiKeyframePromptTemplateId": "",
+      "h3MultiKeyframeDirectorPhaseBTemplateId": "",
+      "h3ExecutionOptimizerPromptTemplateId": "",
+      "h3PreflightRepairPromptTemplateId": ""
+    }
+  },
+  "chapter_id": "a1fa2256-e541-40ad-9afb-73a41e134af1",
+  "shots": {
+    "silent_shot_1": {
+      "id": "e41f593e-6a07-4bed-8d09-c70909fc472b",
+      "index": 1,
+      "duration": 8,
+      "dialogues": [],
+      "image": {
+        "url": "/api/files/story_eddc0f79/chapter_a1fa2256/shots/shot_e41f593e_9ec16be1-320d-4420-b9e8-1420a636629f_quality1_20261027_110415.png",
+        "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/shots/shot_e41f593e_9ec16be1-320d-4420-b9e8-1420a636629f_quality1_20261027_110415.png",
+        "sha256": "1a9aea420740b2a7b831bbbdf4093e84bfb1dde8b996b7b5fe4ae26d1345b991",
+        "format": {
+          "size": "1558597"
+        }
+      },
+      "assembled_video": {
+        "url": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_001_assembled_20261027_113108.mp4",
+        "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/videos/shot_001_assembled_20261027_113108.mp4",
+        "sha256": "e73d765c82e0107f5e5a86b9b3b0ff2a61fe7e75ca6f70b84654ad823c6bf716",
+        "format": {
+          "duration": "8.000000",
+          "size": "7634483"
+        }
+      },
+      "assembly_task_ids": [
+        "7261df81-a314-4422-8c0a-8ba281c5b162"
+      ],
+      "clip_plan_revision": 1,
+      "tasks": [
+        {
+          "id": "7261df81-a314-4422-8c0a-8ba281c5b162",
+          "status": "completed",
+          "resultUrl": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_001_clip_1_7261df81_20261027_113012.mp4",
+          "result_media": {
+            "url": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_001_clip_1_7261df81_20261027_113012.mp4",
+            "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/videos/shot_001_clip_1_7261df81_20261027_113012.mp4",
+            "sha256": "5e176420a0da181f60aa799e2eeb184b66f531422a384fe12dd0a01b941401e4",
+            "format": {
+              "duration": "8.000000",
+              "size": "8408854"
+            }
+          },
+          "clip_index": 1,
+          "h3_prompt_pipeline": "phase_b",
+          "seed": 3002295293,
+          "workflowId": "a4b673df-669e-4406-a562-2d75028330e3",
+          "prompt_file": "GRID_VIDEO_MODE_BASELINE_silent_shot_1_clip_1_phase_b_prompt.txt",
+          "prompt_sha256": "87ddb70b993f1f88bb10334ad97af9bfa6655553e331312d5423cee642d0fee5",
+          "phase_b_version": "H3_PHASE_B_LIMITED_V3",
+          "template": {
+            "id": "ff412714-224c-4103-89e1-ff9307e46711",
+            "name": "MiniMax H3 单阶段导演规划（Phase B）",
+            "sha256": "d86017daeba449f908929d2b50663c300a2c59184570e68210c36f7fd85f680a"
+          },
+          "references": [
+            {
+              "slot": 1,
+              "kind": "SCENE",
+              "source_name": "石壕村外山间土路",
+              "image_url": "/api/files/story_eddc0f79/scenes/石壕村外山间土路_d8f37468_round1_generate_20261027_014634.png"
+            },
+            {
+              "slot": 2,
+              "kind": "CHARACTER_IDENTITY",
+              "source_name": "杜甫",
+              "image_url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "slot": 3,
+              "kind": "PROP",
+              "source_name": "杜甫的行囊",
+              "image_url": "/api/files/story_eddc0f79/images/杜甫的行囊_20261027_015132.png"
+            }
+          ],
+          "actual_duration": 8.0,
+          "reference_images": [
+            {
+              "label": "Picture 1 / SCENE",
+              "url": "/api/files/story_eddc0f79/scenes/石壕村外山间土路_d8f37468_round1_generate_20261027_014634.png"
+            },
+            {
+              "label": "Picture 2 / CHARACTER_IDENTITY",
+              "url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "label": "Picture 3 / PROP",
+              "url": "/api/files/story_eddc0f79/images/杜甫的行囊_20261027_015132.png"
+            }
+          ]
+        }
+      ]
+    },
+    "dialogue_shot_5": {
+      "id": "db197365-76b7-417c-b727-940a762bc2ce",
+      "index": 5,
+      "duration": 17,
+      "dialogues": [
+        {
+          "order": 1,
+          "character_name": "老妇",
+          "text": "你找谁？",
+          "emotion_prompt": "警惕戒备"
+        },
+        {
+          "order": 2,
+          "character_name": "杜甫",
+          "text": "老人家，在下是过路之人。天色已晚，想借贵处歇息一夜。不知是否方便？",
+          "emotion_prompt": "疲惫而谦恭"
+        },
+        {
+          "order": 3,
+          "character_name": "老妇",
+          "text": "你是从哪里来的？",
+          "emotion_prompt": "谨慎盘问"
+        },
+        {
+          "order": 4,
+          "character_name": "杜甫",
+          "text": "从洛阳方向来。",
+          "emotion_prompt": "平静克制"
+        },
+        {
+          "order": 5,
+          "character_name": "老妇",
+          "text": "那边……还在打仗吗？",
+          "emotion_prompt": "忧虑迟疑"
+        },
+        {
+          "order": 6,
+          "character_name": "杜甫",
+          "text": "还在打。",
+          "emotion_prompt": "沉重低落"
+        }
+      ],
+      "image": {
+        "url": "/api/files/story_eddc0f79/chapter_a1fa2256/shots/shot_db197365_f7dbb0f6-ebfb-4399-b235-23a4ecf41813_quality1_20261027_110744.png",
+        "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/shots/shot_db197365_f7dbb0f6-ebfb-4399-b235-23a4ecf41813_quality1_20261027_110744.png",
+        "sha256": "738be4e89b066feac036cabef8beb96e37ed89f3b7423ae33b536ab9c3e227b5",
+        "format": {
+          "size": "1347872"
+        }
+      },
+      "assembled_video": {
+        "url": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_005_assembled_20261027_120326.mp4",
+        "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/videos/shot_005_assembled_20261027_120326.mp4",
+        "sha256": "11152e3b832c6841d483a689ca8e89d6c477647627aba06ea8a3dcabbfab1b0b",
+        "format": {
+          "duration": "17.917000",
+          "size": "7215436"
+        }
+      },
+      "assembly_task_ids": [
+        "1763fa0f-3096-43d6-9afc-7db55dadfac3",
+        "56173d60-49ba-4bce-ba74-7920612cb43e"
+      ],
+      "clip_plan_revision": 1,
+      "tasks": [
+        {
+          "id": "1763fa0f-3096-43d6-9afc-7db55dadfac3",
+          "status": "completed",
+          "resultUrl": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_1_1763fa0f_20261027_115747.mp4",
+          "result_media": {
+            "url": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_1_1763fa0f_20261027_115747.mp4",
+            "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_1_1763fa0f_20261027_115747.mp4",
+            "sha256": "a4d4c64813f4d460bd85efef7f0f643f4b7b470df20f3c050f09b003b03d7970",
+            "format": {
+              "duration": "9.417000",
+              "size": "6022949"
+            }
+          },
+          "clip_index": 1,
+          "h3_prompt_pipeline": "phase_b",
+          "seed": 451925118,
+          "workflowId": "a4b673df-669e-4406-a562-2d75028330e3",
+          "prompt_file": "GRID_VIDEO_MODE_BASELINE_dialogue_shot_5_clip_1_phase_b_prompt.txt",
+          "prompt_sha256": "08ae0d4eff8e9864080fc357fe6ae919a75ff6f585effdac5cea8863198f6525",
+          "phase_b_version": "H3_PHASE_B_LIMITED_V3",
+          "template": {
+            "id": "ff412714-224c-4103-89e1-ff9307e46711",
+            "name": "MiniMax H3 单阶段导演规划（Phase B）",
+            "sha256": "d86017daeba449f908929d2b50663c300a2c59184570e68210c36f7fd85f680a"
+          },
+          "references": [
+            {
+              "slot": 1,
+              "kind": "DIRECTOR_VISUAL_ANCHOR",
+              "source_name": null,
+              "image_url": "/api/files/story_eddc0f79/chapter_a1fa2256/shots/shot_db197365_f7dbb0f6-ebfb-4399-b235-23a4ecf41813_quality1_20261027_110744.png"
+            },
+            {
+              "slot": 2,
+              "kind": "SCENE",
+              "source_name": "破旧农舍前院",
+              "image_url": "/api/files/story_eddc0f79/scenes/edits/破旧农舍前院_555e28d5_round2_edit_20261027_020908.png"
+            },
+            {
+              "slot": 3,
+              "kind": "CHARACTER_IDENTITY",
+              "source_name": "杜甫",
+              "image_url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "slot": 4,
+              "kind": "CHARACTER_IDENTITY",
+              "source_name": "老妇",
+              "image_url": "/api/files/story_eddc0f79/characters/老妇_20261027_014623.png"
+            }
+          ],
+          "actual_duration": 9.417,
+          "reference_images": [
+            {
+              "label": "Picture 1 / DIRECTOR_VISUAL_ANCHOR",
+              "url": "/api/files/story_eddc0f79/chapter_a1fa2256/shots/shot_db197365_f7dbb0f6-ebfb-4399-b235-23a4ecf41813_quality1_20261027_110744.png"
+            },
+            {
+              "label": "Picture 2 / SCENE",
+              "url": "/api/files/story_eddc0f79/scenes/edits/破旧农舍前院_555e28d5_round2_edit_20261027_020908.png"
+            },
+            {
+              "label": "Picture 3 / CHARACTER_IDENTITY",
+              "url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "label": "Picture 4 / CHARACTER_IDENTITY",
+              "url": "/api/files/story_eddc0f79/characters/老妇_20261027_014623.png"
+            }
+          ]
+        },
+        {
+          "id": "56173d60-49ba-4bce-ba74-7920612cb43e",
+          "status": "completed",
+          "resultUrl": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_2_56173d60_20261027_120315.mp4",
+          "result_media": {
+            "url": "/api/files/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_2_56173d60_20261027_120315.mp4",
+            "path": "backend/user_story/story_eddc0f79/chapter_a1fa2256/videos/shot_005_clip_2_56173d60_20261027_120315.mp4",
+            "sha256": "559e65c3f08471421d5392f58c8c68ac7478cf7cfc8c1d37112400ea55d8999b",
+            "format": {
+              "duration": "17.917000",
+              "size": "6632351"
+            }
+          },
+          "clip_index": 2,
+          "h3_prompt_pipeline": "phase_b",
+          "seed": 758007644453984,
+          "workflowId": "b1d819ab-68b3-49df-9576-dafb34a77bb4",
+          "prompt_file": "GRID_VIDEO_MODE_BASELINE_dialogue_shot_5_clip_2_phase_b_prompt.txt",
+          "prompt_sha256": "8809c799ca9e8b54264f3e822cf626c5febd5a088d19e8993b3ae1cfe4c7709a",
+          "phase_b_version": "H3_PHASE_B_LIMITED_V3",
+          "template": {
+            "id": "ff412714-224c-4103-89e1-ff9307e46711",
+            "name": "MiniMax H3 单阶段导演规划（Phase B）",
+            "sha256": "d86017daeba449f908929d2b50663c300a2c59184570e68210c36f7fd85f680a"
+          },
+          "references": [
+            {
+              "slot": 1,
+              "kind": "SCENE",
+              "source_name": "破旧农舍前院",
+              "image_url": "/api/files/story_eddc0f79/scenes/edits/破旧农舍前院_555e28d5_round2_edit_20261027_020908.png"
+            },
+            {
+              "slot": 2,
+              "kind": "CHARACTER_IDENTITY",
+              "source_name": "杜甫",
+              "image_url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "slot": 3,
+              "kind": "CHARACTER_IDENTITY",
+              "source_name": "老妇",
+              "image_url": "/api/files/story_eddc0f79/characters/老妇_20261027_014623.png"
+            }
+          ],
+          "actual_duration": 17.917,
+          "reference_images": [
+            {
+              "label": "Picture 1 / SCENE",
+              "url": "/api/files/story_eddc0f79/scenes/edits/破旧农舍前院_555e28d5_round2_edit_20261027_020908.png"
+            },
+            {
+              "label": "Picture 2 / CHARACTER_IDENTITY",
+              "url": "/api/files/story_eddc0f79/characters/杜甫_20261027_014555.png"
+            },
+            {
+              "label": "Picture 3 / CHARACTER_IDENTITY",
+              "url": "/api/files/story_eddc0f79/characters/老妇_20261027_014623.png"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

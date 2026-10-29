@@ -279,7 +279,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch"}:
+        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch", "grid_batch", "grid_chapter_plan_batch", "grid_auto_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -541,6 +541,39 @@ class TaskService:
         if not task:
             return {"success": False, "message": "任务不存在", "status_code": 404}
 
+        if task.type == "grid_auto_batch":
+            if task.status not in {"failed", "cancelled"}:
+                return {"success": False, "message": "只能重试已结束且未完成的自动批量任务", "status_code": 400}
+            from app.services.grid_auto_batch import enqueue_grid_auto_batch
+            from app.services.grid_pipeline import GridPipelineError
+            metadata = json.loads(task.metadata_json or "{}")
+            shot_ids = [shot_id for shot_id in metadata.get("shot_ids", [])
+                        if metadata.get("shot_results", {}).get(shot_id, {}).get("status") != "completed"]
+            if not shot_ids:
+                shot_ids = metadata.get("shot_ids", [])
+            novel = db.get(Novel, task.novel_id)
+            chapter = db.get(Chapter, task.chapter_id)
+            if not novel or not chapter:
+                return {"success": False, "message": "任务所属小说或章回不存在", "status_code": 404}
+            try:
+                retried = enqueue_grid_auto_batch(db, novel, chapter, shot_ids,
+                                                  merge_chapter=bool(metadata.get("merge_chapter")))
+                retried.source_task_id = task.id
+                db.commit()
+            except (ValueError, GridPipelineError) as exc:
+                return {"success": False, "message": str(exc), "status_code": 409}
+            return {"success": True, "message": "未完成的 Shot 已重新排队",
+                    "data": {"taskId": retried.id, "retryOfTaskId": task.id, "status": retried.status}}
+
+        if task.type == "grid_panel_review":
+            return {"success": False, "message": "请从自动批量任务重试未完成的 Shot", "status_code": 409}
+
+        from app.services.grid_tasks import GRID_TASK_TYPES, enqueue_grid_retry
+        if task.type in GRID_TASK_TYPES:
+            if task.status not in {"failed", "completed", "cancelled"}:
+                return {"success": False, "message": "只能续做已结束的宫格任务", "status_code": 400}
+            return enqueue_grid_retry(db, task)
+
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
 
@@ -559,6 +592,9 @@ class TaskService:
                 route = persisted_h3_prompt_pipeline(clip_metadata)
             except ValueError as exc:
                 return {"success": False, "message": str(exc), "status_code": 409}
+            if route != "phase_b":
+                return {"success": False, "status_code": 410,
+                        "message": "旧 H3 生成模式已退役，历史结果保留；请通过 Canonical Clip 入口新建生成。"}
         if task.type == "shot_export":
             from app.services.shot_export_service import create_export
             try:
@@ -846,6 +882,10 @@ class TaskService:
             return (now - updated_at).total_seconds()
 
         for task in active_tasks:
+            if task.type.startswith("grid_"):
+                # Grid Tasks have a durable serialized job. Its saved ComfyUI
+                # receipt is resumed by grid_tasks, which also owns result writeback.
+                continue
             if task.type in {"shot_image_repair", "shot_image_repair_candidate"}:
                 # The durable repair worker owns its ComfyUI prompt and review
                 # receipt. Generic generation recovery could publish a failed
@@ -1521,7 +1561,7 @@ class TaskService:
                 return []
 
         def nameplate_preview(task: Task):
-            if task.type != "chapter_video":
+            if task.type not in {"chapter_video", "grid_chapter_merge"}:
                 return None
             try:
                 metadata = json.loads(task.metadata_json or "{}")
@@ -1758,7 +1798,7 @@ class TaskService:
             "nameplatePreview": ({"url": metadata.get("nameplate_preview_url"),
                                   "status": metadata.get("nameplate_status"),
                                   "warnings": metadata.get("nameplate_warnings"),
-                                  "autoApproved": bool(metadata.get("nameplate_auto_approved"))} if task.type == "chapter_video" else None),
+                                  "autoApproved": bool(metadata.get("nameplate_auto_approved"))} if task.type in {"chapter_video", "grid_chapter_merge"} else None),
             "subtitle": ({"srtUrl": (metadata.get("subtitle") or {}).get("srt_url"),
                           "enSrtUrl": (metadata.get("subtitle") or {}).get("en_srt_url"),
                           "mode": (metadata.get("subtitle") or {}).get("mode"),
@@ -1767,7 +1807,7 @@ class TaskService:
                           "correction": (metadata.get("subtitle") or {}).get("correction"),
                           "skippedCueCount": (metadata.get("subtitle") or {}).get("skipped_cue_count", 0)}
                          if task.type == "chapter_video" and isinstance(metadata.get("subtitle"), dict) else None),
-            "metadata": clip_metadata,
+            "metadata": metadata if task.type.startswith("grid_") else clip_metadata,
             "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
             "clipExecution": clip_execution,
             "errorMessage": task.error_message,
@@ -1784,6 +1824,7 @@ class TaskService:
             "characterId": task.character_id,
             "sceneId": task.scene_id,
             "shotId": task.shot_id,
+            "clipIndex": task.clip_index,
             "parentTaskId": getattr(task, "parent_task_id", None),
             "sourceTaskId": getattr(task, "source_task_id", None),
             "batchOrder": getattr(task, "batch_order", None),

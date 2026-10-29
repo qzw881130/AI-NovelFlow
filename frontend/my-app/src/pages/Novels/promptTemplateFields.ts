@@ -19,11 +19,21 @@ export const TEMPLATE_FIELDS = [
   { key: 'temporalReferenceSelectorPromptTemplateId', labelKey: 'promptConfig.types.temporalReferenceSelector', hintKey: 'promptConfig.types.temporalReferenceSelectorDesc', templateType: 'temporal_reference_selector', category: 'keyframe_image' },
   { key: 'keyframeImagePromptTemplateId', labelKey: 'novels.keyframeImagePromptLabel', hintKey: 'novels.keyframeImagePromptHint', templateType: 'keyframe_image_prompt', category: 'keyframe_image' },
   { key: 'imageQualityReviewPromptTemplateId', labelKey: 'promptConfig.types.imageQualityReviewPrompt', hintKey: 'promptConfig.types.imageQualityReviewPromptDesc', templateType: 'image_quality_review_prompt', category: 'keyframe_image' },
-  { key: 'h3MultiKeyframePromptTemplateId', labelKey: 'novels.h3MultiKeyframePromptLabel', hintKey: 'novels.h3MultiKeyframePromptHint', templateType: 'h3_multi_keyframe_prompt', category: 'video_generation' },
   { key: 'h3MultiKeyframeDirectorPhaseBTemplateId', labelKey: 'novels.h3MultiKeyframeDirectorPhaseBLabel', hintKey: 'novels.h3MultiKeyframeDirectorPhaseBHint', templateType: 'h3_multi_keyframe_director_phase_b', category: 'video_generation' },
-  { key: 'h3ExecutionOptimizerPromptTemplateId', labelKey: 'novels.h3ExecutionOptimizerPromptLabel', hintKey: 'novels.h3ExecutionOptimizerPromptHint', templateType: 'h3_execution_optimizer_prompt', category: 'video_generation' },
-  { key: 'h3PreflightRepairPromptTemplateId', labelKey: 'novels.h3PreflightRepairPromptLabel', hintKey: 'novels.h3PreflightRepairPromptHint', templateType: 'h3_preflight_repair_prompt', category: 'video_generation' },
 ] as const;
+
+export const GRID_TEMPLATE_FIELDS = [
+  { key: 'gridShotPlanPromptTemplateId', labelKey: 'promptConfig.types.gridShotPlan', hintKey: 'promptConfig.types.gridShotPlanDesc', templateType: 'grid_shot_plan', category: 'shot_planning' },
+  { key: 'gridImagePromptTemplateId', labelKey: 'promptConfig.types.gridImagePrompt', hintKey: 'promptConfig.types.gridImagePromptDesc', templateType: 'grid_image_prompt', category: 'shot_image' },
+  { key: 'gridClipPlanPromptTemplateId', labelKey: 'promptConfig.types.gridClipPlan', hintKey: 'promptConfig.types.gridClipPlanDesc', templateType: 'grid_clip_plan', category: 'video_director' },
+  { key: 'gridH3PhaseBPromptTemplateId', labelKey: 'promptConfig.types.gridH3PhaseB', hintKey: 'promptConfig.types.gridH3PhaseBDesc', templateType: 'grid_h3_phase_b', category: 'video_generation' },
+] as const;
+
+export const ALL_TEMPLATE_FIELDS = [...TEMPLATE_FIELDS, ...GRID_TEMPLATE_FIELDS] as const;
+const COMMON_CATEGORIES = new Set(['story_context', 'style_design', 'asset_parse', 'asset_generation']);
+export const COMMON_TEMPLATE_FIELDS = TEMPLATE_FIELDS.filter(field => COMMON_CATEGORIES.has(field.category));
+export const templateFieldsForMode = (mode: 'grid' | 'single') =>
+  mode === 'grid' ? [...COMMON_TEMPLATE_FIELDS, ...GRID_TEMPLATE_FIELDS] : [...TEMPLATE_FIELDS];
 
 export const TEMPLATE_CATEGORIES = [
   { key: 'story_context', labelKey: 'promptConfig.categories.storyContext' },
@@ -38,7 +48,7 @@ export const TEMPLATE_CATEGORIES = [
 ] as const;
 
 
-export type NovelTemplateFieldKey = typeof TEMPLATE_FIELDS[number]['key'];
+export type NovelTemplateFieldKey = typeof ALL_TEMPLATE_FIELDS[number]['key'];
 
 export const emptyNovelTemplateSelection = (): Record<NovelTemplateFieldKey, string> =>
-  Object.fromEntries(TEMPLATE_FIELDS.map(field => [field.key, ''])) as Record<NovelTemplateFieldKey, string>;
+  Object.fromEntries(ALL_TEMPLATE_FIELDS.map(field => [field.key, ''])) as Record<NovelTemplateFieldKey, string>;

@@ -59,6 +59,7 @@ def _task_summary_query(db: Session, *, status_only: bool):
         Task.id, Task.type, Task.status, Task.name, Task.progress, Task.current_step,
         Task.result_url, Task.error_message, Task.shot_id, Task.chapter_id,
         Task.novel_id, Task.parent_task_id, Task.source_task_id, Task.batch_order,
+        Task.clip_index,
         Task.comfyui_prompt_id, Task.created_at, Task.started_at,
         Task.completed_at, Task.updated_at,
     ]
@@ -67,6 +68,9 @@ def _task_summary_query(db: Session, *, status_only: bool):
     )
     # Even lightweight polling must distinguish candidates from official output.
     columns.append(func.coalesce(func.json_extract(safe_metadata, "$.result_mode"), "APPLY").label("result_mode"))
+    columns.append(func.json_extract(safe_metadata, "$.grid_step").label("grid_step"))
+    columns.append(func.json_extract(safe_metadata, "$.panel_index").label("grid_panel_index"))
+    columns.append(func.json_extract(safe_metadata, "$.shot_results").label("grid_auto_shot_results"))
     if not status_only:
         for key in (
             "candidate_result", "source_revision", "source_clip_plan_fingerprint",
@@ -101,13 +105,16 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
             "errorMessage": value["error_message"], "shotId": value["shot_id"],
             "chapterId": value["chapter_id"], "novelId": value["novel_id"],
             "parentTaskId": value["parent_task_id"], "sourceTaskId": value["source_task_id"],
-            "batchOrder": value["batch_order"], "comfyuiPromptId": value["comfyui_prompt_id"],
+            "batchOrder": value["batch_order"], "clipIndex": value["clip_index"],
+            "gridStep": value["grid_step"], "panelIndex": value["grid_panel_index"],
+            "autoShotResults": _json_value(value["grid_auto_shot_results"]) if value["type"] == "grid_auto_batch" else None,
+            "comfyuiPromptId": value["comfyui_prompt_id"],
             "createdAt": format_datetime(value["created_at"]),
             "startedAt": format_datetime(value["started_at"]),
             "completedAt": format_datetime(value["completed_at"]),
         }
         if not status_only:
-            if task["type"] == "chapter_video":
+            if task["type"] in {"chapter_video", "grid_chapter_merge"}:
                 task["nameplatePreview"] = {
                     "url": value["nameplate_preview_url"],
                     "status": value["nameplate_status"],

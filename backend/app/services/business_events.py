@@ -20,7 +20,7 @@ from app.models.task import Task
 from app.models.shot import Shot
 from app.models.novel import Chapter
 from app.models.image_quality_review import ImageQualityReview
-from app.services.notification_registry import EVENT_REGISTRY
+from app.services.notification_registry import EVENT_REGISTRY, GRID_TASK_EVENTS
 
 logger = logging.getLogger(__name__)
 IDS = ("novel_id", "chapter_id", "shot_id", "visual_state_id", "clip_id", "task_id", "review_id", "llm_log_id")
@@ -35,7 +35,7 @@ DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "r
                "duration_delta", "actual_duration_delta", "video_duration",
                "elapsed_time", "success_count", "failure_count", "cancelled_count", "total_count",
                "novel_name", "chapter_number", "music_cue_count", "music_chapter_count",
-               "no_music_required"}
+               "no_music_required", "panel_index", "grid_step"}
 DISPLAY_KEYS = {"shot_index", "clip_index", "visual_state_index", "duration_ms",
                 "actual_duration", "video_duration", "elapsed_time", "clip_count",
                 "chapter_count", "success_count", "failure_count", "cancelled_count", "total_count",
@@ -128,13 +128,19 @@ def task_context(task):
     # Do not mistake legacy zero-based frame_index for the Director state index.
     provenance = meta.get("canonical_image_provenance") or {}
     state_index = anchor.get("index") or provenance.get("state_index") or meta.get("plan_keyframe_index")
+    clip_index = task.clip_index if task.type in GRID_TASK_EVENTS else meta.get("clip_index")
+    clip_id = meta.get("clip_id") or (f"{task.shot_id}:clip:{clip_index}"
+                                     if task.type in GRID_TASK_EVENTS and task.shot_id and clip_index else None)
     return {"novel_id": task.novel_id, "chapter_id": task.chapter_id, "shot_id": task.shot_id,
-            "task_id": task.id, "clip_id": meta.get("clip_id"),
+            "task_id": task.id, "clip_id": clip_id,
             "llm_log_id": optimizer.get("llm_log_id"),
             "visual_state_id": str(state_index) if state_index is not None else None,
             "trigger": meta.get("trigger") or ("automatic" if task.parent_task_id or meta.get("auto_pipeline") else None),
-            "details": {"visual_state_index": state_index, "clip_index": meta.get("clip_index"),
+            "details": {"visual_state_index": state_index, "clip_index": clip_index,
                         "task_type": task.type, "comfyui_prompt_id": task.comfyui_prompt_id,
+                        "panel_index": meta.get("panel_index"), "grid_step": meta.get("grid_step"),
+                        "total_count": (len(meta.get("shot_ids") or []) if task.type == "grid_auto_batch"
+                                        else meta.get("expected_count") if task.type in {"grid_batch", "grid_chapter_plan_batch"} else None),
                         "error_code": optimizer.get("error_code"),
                         "source_task_id": task.source_task_id,
                         "planned_duration": meta.get("planned_duration"),
@@ -199,6 +205,8 @@ def task_events(task):
         code = f"background_music.generation.{suffix}"
     elif task.type == "novel_video":
         code = f"novel.video.merge.{suffix}"
+    elif task.type in GRID_TASK_EVENTS:
+        code = f"{GRID_TASK_EVENTS[task.type][0]}.{suffix}"
     if not code:
         return []
     payload = task_context(task)

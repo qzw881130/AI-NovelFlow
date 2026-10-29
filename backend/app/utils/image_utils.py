@@ -186,11 +186,13 @@ def merge_character_images(
     file_storage,
     *,
     character_assets: Optional[List[dict]] = None,
+    preserve_order: bool = False,
 ) -> Optional[str]:
     """合并多个角色图片为一个参考图"""
     if character_assets is not None:
         return _merge_selected_character_images(
-            novel_id, chapter_id, shot_index, character_images, character_assets, file_storage
+            novel_id, chapter_id, shot_index, character_images, character_assets, file_storage,
+            preserve_order=preserve_order,
         )
     return _merge_labeled_images(
         novel_id,
@@ -205,7 +207,7 @@ def merge_character_images(
     )
 
 
-def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, assets, storage, *, reference_kind="character"):
+def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, assets, storage, *, reference_kind="character", preserve_order=False):
     """Cache only the selected ID + asset versions; preserve all historical variants."""
     import hashlib
     import json
@@ -221,8 +223,9 @@ def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, a
     if len({a[id_key] for a in assets}) != len(assets):
         raise ValueError("Duplicate character ID in reference group")
 
-    # Stable layout/cache for the same set, independent of selector ordering.
-    selected = sorted(zip(assets, images), key=lambda pair: pair[0][id_key])
+    # Existing single-image callers keep their stable ID order. Grid boards may
+    # put the narrative lead first so a multi-person sheet does not bury them.
+    selected = list(zip(assets, images)) if preserve_order else sorted(zip(assets, images), key=lambda pair: pair[0][id_key])
     members = []
     ordered_images = []
     for asset, (name, path) in selected:
@@ -231,7 +234,7 @@ def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, a
         members.append({id_key: asset[id_key], "name": name,
                         "url": asset["url"], "sha256": asset["sha256"]})
         ordered_images.append((name, path))
-    identity = {"layout_version": 1, "members": members}
+    identity = {"layout_version": 2 if preserve_order else 1, "members": members}
     signature = hashlib.sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     output = get_path(
         novel_id, chapter_id, shot_index, asset_signature=signature

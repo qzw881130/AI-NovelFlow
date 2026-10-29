@@ -21,6 +21,10 @@ export interface Workflow {
     start_times_output_node_id?: string;
     end_times_output_node_id?: string;
     prompt_node_id?: string;
+    api_key_node_id?: string;
+    api_key_variable?: string;
+    api_base_url_node_id?: string;
+    api_base_url_key_variable?: string;
     save_image_node_id?: string;
     width_node_id?: string;
     height_node_id?: string;

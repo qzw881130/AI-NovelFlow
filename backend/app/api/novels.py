@@ -13,9 +13,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.novel import Novel
+from app.models.novel import Novel, Chapter
 from app.schemas.novel import NovelCopy, NovelCreate, StoryWorldContext, StoryWorldContextSave
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
+from app.models.shot import Shot
 from app.services.novel_service import NovelService
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_llm_service
 from app.services.llm_service import LLMService
@@ -23,6 +24,25 @@ from app.utils.json_parser import safe_parse_llm_json
 from app.utils.time_utils import format_datetime
 
 router = APIRouter()
+
+GRID_TEMPLATE_FIELDS = {
+    "gridShotPlanPromptTemplateId": ("grid_shot_plan_prompt_template_id", "grid_shot_plan"),
+    "gridImagePromptTemplateId": ("grid_image_prompt_template_id", "grid_image_prompt"),
+    "gridClipPlanPromptTemplateId": ("grid_clip_plan_prompt_template_id", "grid_clip_plan"),
+    "gridH3PhaseBPromptTemplateId": ("grid_h3_phase_b_prompt_template_id", "grid_h3_phase_b"),
+}
+SINGLE_ONLY_TEMPLATE_FIELDS = {
+    "chapterSplitPromptTemplateId": "chapter_split_prompt_template_id",
+    "keyframeDescriptionPromptTemplateId": "keyframe_description_prompt_template_id",
+    "shotImagePromptTemplateId": "shot_image_prompt_template_id",
+    "keyframePlannerPromptTemplateId": "keyframe_planner_prompt_template_id",
+    "keyframeImagePromptTemplateId": "keyframe_image_prompt_template_id",
+    "temporalReferenceSelectorPromptTemplateId": "temporal_reference_selector_prompt_template_id",
+    "imageQualityReviewPromptTemplateId": "image_quality_review_prompt_template_id",
+    "keyframeTransitionPromptTemplateId": "keyframe_transition_prompt_template_id",
+    "clipExecutionPlannerPromptTemplateId": "clip_execution_planner_prompt_template_id",
+    "h3MultiKeyframeDirectorPhaseBTemplateId": "h3_multi_keyframe_director_phase_b_template_id",
+}
 
 
 PROMPT_TEMPLATE_EXPORT_FIELDS = [
@@ -49,6 +69,10 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "h3MultiKeyframeDirectorPhaseBTemplateId", "attr": "h3_multi_keyframe_director_phase_b_template_id", "label": "H3 单阶段导演规划（Phase B）", "type": "h3_multi_keyframe_director_phase_b"},
     {"api_key": "h3ExecutionOptimizerPromptTemplateId", "attr": "h3_execution_optimizer_prompt_template_id", "label": "H3 执行提示词优化模板", "type": "h3_execution_optimizer_prompt"},
     {"api_key": "h3PreflightRepairPromptTemplateId", "attr": "h3_preflight_repair_prompt_template_id", "label": "H3 Preflight 自动修复模板", "type": "h3_preflight_repair_prompt"},
+    {"api_key": "gridShotPlanPromptTemplateId", "attr": "grid_shot_plan_prompt_template_id", "label": "宫格 Shot 与逐格规划", "type": "grid_shot_plan"},
+    {"api_key": "gridImagePromptTemplateId", "attr": "grid_image_prompt_template_id", "label": "宫格整板生图", "type": "grid_image_prompt"},
+    {"api_key": "gridClipPlanPromptTemplateId", "attr": "grid_clip_plan_prompt_template_id", "label": "宫格 Clip 规划", "type": "grid_clip_plan"},
+    {"api_key": "gridH3PhaseBPromptTemplateId", "attr": "grid_h3_phase_b_prompt_template_id", "label": "宫格 H3 六段式", "type": "grid_h3_phase_b"},
 ]
 
 
@@ -81,6 +105,15 @@ def create_novel_in_session(novel: NovelCreate, db: Session) -> Novel:
     from app.repositories import PromptTemplateRepository
     
     prompt_template_repo = PromptTemplateRepository(db)
+    if novel.video_mode == "grid" and any(getattr(novel, attr) for attr in SINGLE_ONLY_TEMPLATE_FIELDS.values()):
+        raise HTTPException(status_code=422, detail="宫格小说不能绑定单镜专用提示词")
+    if novel.video_mode == "single" and any(getattr(novel, attr) for attr, _ in GRID_TEMPLATE_FIELDS.values()):
+        raise HTTPException(status_code=422, detail="单镜小说不能绑定宫格专用提示词")
+    for attr, template_type in GRID_TEMPLATE_FIELDS.values():
+        template_id = getattr(novel, attr)
+        selected = prompt_template_repo.get_by_id(template_id) if template_id else None
+        if template_id and (not selected or selected.type != template_type or not selected.is_active):
+            raise HTTPException(status_code=422, detail=f"提示词类型不匹配：{template_type}")
     
     # 如果没有指定角色生成模板，使用默认系统模板
     prompt_template_id = novel.prompt_template_id
@@ -124,6 +157,11 @@ def create_novel_in_session(novel: NovelCreate, db: Session) -> Novel:
         h3_execution_optimizer_prompt_template_id=novel.h3_execution_optimizer_prompt_template_id,
         h3_preflight_repair_prompt_template_id=novel.h3_preflight_repair_prompt_template_id,
         aspect_ratio=novel.aspect_ratio or "16:9",
+        video_mode=novel.video_mode,
+        grid_shot_plan_prompt_template_id=novel.grid_shot_plan_prompt_template_id if novel.video_mode == "grid" else None,
+        grid_image_prompt_template_id=novel.grid_image_prompt_template_id if novel.video_mode == "grid" else None,
+        grid_clip_plan_prompt_template_id=novel.grid_clip_plan_prompt_template_id if novel.video_mode == "grid" else None,
+        grid_h3_phase_b_prompt_template_id=novel.grid_h3_phase_b_prompt_template_id if novel.video_mode == "grid" else None,
     )
     db.add(db_novel)
     db.flush()
@@ -171,6 +209,12 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "h3ExecutionOptimizerPromptTemplateId": db_novel.h3_execution_optimizer_prompt_template_id,
             "h3PreflightRepairPromptTemplateId": db_novel.h3_preflight_repair_prompt_template_id,
             "aspectRatio": db_novel.aspect_ratio or "16:9",
+            "videoMode": db_novel.video_mode,
+            "hasShots": False,
+            "gridShotPlanPromptTemplateId": db_novel.grid_shot_plan_prompt_template_id,
+            "gridImagePromptTemplateId": db_novel.grid_image_prompt_template_id,
+            "gridClipPlanPromptTemplateId": db_novel.grid_clip_plan_prompt_template_id,
+            "gridH3PhaseBPromptTemplateId": db_novel.grid_h3_phase_b_prompt_template_id,
             "createdAt": format_datetime(db_novel.created_at),
         }
     }
@@ -323,6 +367,9 @@ async def export_novel_prompt_templates(
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for index, field in enumerate(PROMPT_TEMPLATE_EXPORT_FIELDS, 1):
+            if (novel.video_mode == "grid" and field["api_key"] in SINGLE_ONLY_TEMPLATE_FIELDS
+                    or novel.video_mode != "grid" and field["api_key"] in GRID_TEMPLATE_FIELDS):
+                continue
             template_id = request.templateIds.get(field["api_key"])
             if template_id is None:
                 template_id = getattr(novel, field["attr"], None)
@@ -407,7 +454,33 @@ async def update_novel(
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
-    
+    requested_mode = data.get("videoMode", novel.video_mode or "single")
+    if requested_mode not in {"single", "grid"}:
+        raise HTTPException(status_code=422, detail="无效的生视频模式")
+    if requested_mode != (novel.video_mode or "single") and db.query(Shot.id).join(Chapter, Shot.chapter_id == Chapter.id).filter(Chapter.novel_id == novel_id).first():
+        raise HTTPException(status_code=409, detail="已有 Shot 的小说不能切换生视频模式，请新建小说比较")
+    grid_fields = GRID_TEMPLATE_FIELDS
+    template_repo = PromptTemplateRepository(db)
+    for api_field, (db_field, template_type) in grid_fields.items():
+        if api_field not in data:
+            continue
+        template_id = data[api_field]
+        if requested_mode != "grid" and template_id:
+            raise HTTPException(status_code=422, detail="单镜小说不能绑定宫格提示词")
+        selected = template_repo.get_by_id(template_id) if template_id else None
+        if template_id and (not selected or selected.type != template_type or not selected.is_active):
+            raise HTTPException(status_code=422, detail=f"提示词类型不匹配：{api_field}")
+        setattr(novel, db_field, template_id)
+    novel.video_mode = requested_mode
+    if requested_mode == "single":
+        for db_field, _ in grid_fields.values():
+            setattr(novel, db_field, None)
+    else:
+        if any(data.get(field) for field in SINGLE_ONLY_TEMPLATE_FIELDS):
+            raise HTTPException(status_code=422, detail="宫格小说不能绑定单镜专用提示词")
+        for attr in SINGLE_ONLY_TEMPLATE_FIELDS.values():
+            setattr(novel, attr, None)
+
     # 更新字段
     update_fields = {
         "title": "title",
@@ -440,6 +513,8 @@ async def update_novel(
     }
     
     for api_field, db_field in update_fields.items():
+        if requested_mode == "grid" and api_field in SINGLE_ONLY_TEMPLATE_FIELDS:
+            continue
         if api_field in data:
             setattr(novel, db_field, data[api_field])
     

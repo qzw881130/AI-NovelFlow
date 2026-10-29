@@ -328,5 +328,5 @@ def test_no_production_dispatch():
         for path in directory.rglob("*.py"):
             if path.name == "h3_single_stage_experiment.py": continue
             assert "preview_multi_keyframe_phase_a" not in path.read_text()
-    formal = (root / "prompt_templates/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
+    formal = (root / "tests/fixtures/retired_h3/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt").read_text()
     assert "H3_MULTI_KEYFRAME_PHASE_A" not in formal

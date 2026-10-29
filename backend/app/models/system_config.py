@@ -27,6 +27,7 @@ class SystemConfig(Base):
     auto_approve_first_appearance_names = Column(Boolean, default=True, nullable=False)
     generation_quality_policy = Column(Text, default="{}", nullable=False)
     cover_production = Column(String, default="旺仔有声小说", nullable=False)
+    custom_variables = Column(Text, default="{}", nullable=False)  # KEY1–KEY9，值加密存储
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

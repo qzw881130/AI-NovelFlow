@@ -20,7 +20,8 @@ from app.models.image_quality_review import ImageQualityReview
 from app.models.prompt_template import PromptTemplate
 from app.services import business_events as be
 from app.services.notification_service import NotificationService
-from app.services.notification_format import format_notification
+from app.services.notification_format import format_notification, resolve_business_context
+from app.services.notification_registry import GRID_TASK_EVENTS
 from app.services.image_quality_review import review_image_task, execute_image_review
 from test_image_quality_review import _response
 
@@ -90,6 +91,61 @@ def test_music_and_novel_merge_results_create_configurable_events(ledger, task_t
     assert row.notification_status == 'pending'
     message = format_notification(row)
     assert ('配乐段数：1' if task_type == 'chapter_background_music' else '配有背景音乐的章回：1') in message
+    task.current_step = '状态刷新'
+    db.commit()
+    assert db.query(BusinessEvent).filter_by(task_id=task.id).count() == 1
+
+
+@pytest.mark.parametrize('task_type', list(GRID_TASK_EVENTS))
+@pytest.mark.parametrize('status', ['completed', 'failed'])
+def test_grid_task_result_creates_mode_specific_notification(ledger, task_type, status):
+    db, _ = ledger
+    step = {
+        'grid_chapter_plan': 'chapter_plan', 'grid_panels_plan': 'panels_plan',
+        'grid_chapter_plan_batch': 'chapter_plan',
+        'grid_board_prepare': 'board_prepare', 'grid_board_image': 'board_generate',
+        'grid_panel_image': 'panel_generate', 'grid_clips_plan': 'clips_plan',
+        'grid_clip_prepare': 'clip_prepare', 'grid_h3_clip': 'clip_generate',
+        'grid_shot_merge': 'shot_merge', 'grid_chapter_merge': 'chapter_merge',
+            'grid_batch': 'clip_generate', 'grid_auto_batch': 'clip_generate',
+    }[task_type]
+    is_clip = task_type in {'grid_clip_prepare', 'grid_h3_clip'}
+    has_shot = task_type not in {'grid_chapter_plan', 'grid_chapter_plan_batch', 'grid_chapter_merge', 'grid_batch'}
+    metadata = {'video_mode': 'grid', 'grid_step': step}
+    if task_type == 'grid_panel_image':
+        metadata['panel_index'] = 3
+    if task_type in {'grid_batch', 'grid_chapter_plan_batch'}:
+        metadata['expected_count'] = 4
+    failure_reason = ('GRID_H3_PROMPT_INVALID: dialogue_order_and_text'
+                      if task_type == 'grid_clip_prepare' else '测试失败原因')
+    task = Task(type=task_type, name='宫格任务', status='running', novel_id='novel', chapter_id='chapter',
+                shot_id='shot' if has_shot else None, clip_index=2 if is_clip else None,
+                metadata_json=json.dumps(metadata),
+                error_message=failure_reason if status == 'failed' else None)
+    db.add(task)
+    db.commit()
+    task.status = status
+    task.completed_at = datetime.now(timezone.utc)
+    db.commit()
+
+    rows = db.query(BusinessEvent).filter_by(task_id=task.id).all()
+    assert [row.event_type for row in rows] == [f'{GRID_TASK_EVENTS[task_type][0]}.{status}']
+    row = rows[0]
+    assert row.needs_attention is (status == 'failed')
+    assert row.notification_status == 'pending'
+    message = format_notification(row, resolve_business_context(db, row))
+    assert '测试小说' in message and '第 1 章' in message
+    assert ('Shot 4' in message) is has_shot
+    if is_clip:
+        assert row.clip_id == 'shot:clip:2'
+        assert 'Shot 4 · C2' in message
+    if task_type == 'grid_panel_image':
+        assert '子格：第 3 格' in message
+    if task_type == 'grid_batch':
+        assert '批量步骤：H3 Clip 生成' in message and '任务总数：4' in message
+    if status == 'failed':
+        assert ('提示词校验未通过' if task_type == 'grid_clip_prepare' else '测试失败原因') in message
+        assert 'GRID_H3_PROMPT_INVALID' not in message
     task.current_step = '状态刷新'
     db.commit()
     assert db.query(BusinessEvent).filter_by(task_id=task.id).count() == 1

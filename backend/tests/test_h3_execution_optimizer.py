@@ -54,7 +54,7 @@ def runtime(monkeypatch,tmp_path):
 
 def test_registry_custom_lookup(db_session):
  item=next(i for i in SYSTEM_H3_VIDEO_PROMPT_TEMPLATES if i['type']==opt.TEMPLATE_TYPE)
- assert item['template']==(Path(__file__).resolve().parents[1]/'prompt_templates/14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt').read_text()
+ assert item['template']==(Path(__file__).resolve().parent/'fixtures/retired_h3/14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt').read_text()
  system=PromptTemplate(**item,is_system=True,is_active=True)
  custom=PromptTemplate(name='custom14',type=opt.TEMPLATE_TYPE,template='edited',is_system=False,is_active=True)
  db_session.add_all([system,custom]);db_session.commit()

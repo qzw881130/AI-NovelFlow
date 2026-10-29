@@ -2774,8 +2774,8 @@ export function VideoGenTab({
   const previewTimelineDuration = Number(currentShotData?.duration || videoMetadata.duration || 0);
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [planningClipsShotId, setPlanningClipsShotId] = useState<string | null>(null);
-  const [optimizeH3Prompt, setOptimizeH3Prompt] = useState(true);
-  const [h3PromptPipeline, setH3PromptPipeline] = useState<'legacy' | 'phase_b'>(DEFAULT_H3_PROMPT_PIPELINE);
+  const optimizeH3Prompt = true;
+  const h3PromptPipeline = DEFAULT_H3_PROMPT_PIPELINE;
   const [isSubmittingCanonicalShot, setIsSubmittingCanonicalShot] = useState(false);
   const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
@@ -3610,7 +3610,7 @@ export function VideoGenTab({
       const result = await shotsApi.generateVideosBatch(
         effectiveNovelId,
         effectiveChapterId,
-        { ...buildSemanticBatchRequest([currentShotId], true), continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt },
+        { ...buildSemanticBatchRequest([currentShotId], true), continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: false },
       );
       if (!result.success) throw new Error(result.detail || result.message || t('chapterGenerate.semanticExecutionFailed'));
       await checkVideoTaskStatus(effectiveChapterId);
@@ -3806,7 +3806,7 @@ export function VideoGenTab({
         auto_merge: false,
         result_mode: candidate ? 'CANDIDATE_ONLY' : 'APPLY',
         skip_llm_when_prompt_exists: useExistingPrompt,
-        continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt,
+        continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: false,
         clip_plan_revision: Number(currentVideoDirectorPlan.clip_plan_revision || 0),
       });
       if (result.success) {
@@ -4070,7 +4070,7 @@ export function VideoGenTab({
       )),
       }));
       const request = buildSemanticBatchRequest(selectedShotIds, autoAssemble, autoCompleteDetails);
-      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt });
+      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, continuation_mode: continuationMode, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: false });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
       }
@@ -4466,9 +4466,7 @@ export function VideoGenTab({
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <span className="shrink-0 text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
-              <label className="flex min-w-0 items-center gap-1">H3 路径 <select className="min-w-0 max-w-full rounded border border-gray-200 bg-white py-0.5" aria-label="H3 Prompt 路径" value={h3PromptPipeline} onChange={e => setH3PromptPipeline(e.target.value as 'legacy' | 'phase_b')}>
-                <option value="phase_b">Phase B V3 #13（默认）</option><option value="legacy">Legacy #13 → #14</option>
-              </select></label>
+              <span className="text-gray-600">单镜图 · Phase B V3 #13</span>
               <label className="flex min-w-0 items-center gap-1" title="仅影响新建任务；重试沿用任务创建时的策略">续生成模式 <select aria-label="续生成模式" className="min-w-0 max-w-full rounded border border-gray-200 bg-white py-0.5" value={continuationMode} onChange={e => setContinuationMode(e.target.value as ContinuationMode)}>
                 <option value="AUTO">自动选择（AUTO）</option>
                 <option value="EXTEND_ONLY">仅视频续接（EXTEND_ONLY）</option>
@@ -4480,10 +4478,6 @@ export function VideoGenTab({
                   <option value="CANDIDATE_ONLY">仅保存实验候选（CANDIDATE_ONLY）</option>
                 </select>
                 {resultMode === 'CANDIDATE_ONLY' && <a href="/tasks" target="_blank" rel="noreferrer" className="text-blue-600 underline">查看候选任务</a>}
-              </label>}
-              {h3PromptPipeline === 'legacy' && <label className="flex items-center gap-1 font-normal">
-                <input type="checkbox" checked={optimizeH3Prompt} onChange={event => setOptimizeH3Prompt(event.target.checked)} />
-                提示词优化
               </label>}
               <span className="text-xs tabular-nums text-gray-500">{Number(currentShotData?.duration || 0)} 秒</span>
               <span title={currentShotVideoResult.detail} className={`rounded-full border px-2 py-0.5 text-xs font-medium ${currentShotVideoResult.className}`}>

@@ -1201,6 +1201,8 @@ async def generate_shot_video_task(
                 or clip_metadata.get("candidate_execution_inputs") != metadata.get("candidate_execution_inputs")):
             raise ValueError("RESULT_MODE_PAYLOAD_MISMATCH")
         route = persisted_h3_prompt_pipeline(metadata)
+        if route != "phase_b":
+            raise ValueError("LEGACY_H3_GENERATION_RETIRED: 历史任务不能自动改走 Phase B")
         from app.services.h3_prompt_language import task_language
         if clip_metadata is not None and task_language(clip_metadata) != task_language(metadata):
             raise ValueError("H3_PROMPT_LANGUAGE_PAYLOAD_MISMATCH")

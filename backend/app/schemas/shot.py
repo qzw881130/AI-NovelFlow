@@ -148,6 +148,7 @@ class ShotResponse(BaseModel):
     duration: int
     continuity_mode: str = "NORMAL"
     videoDirectorPlan: dict = {}
+    gridData: Optional[dict] = None
     imageUrl: Optional[str] = None
     imagePath: Optional[str] = None
     imageStatus: str
@@ -235,7 +236,7 @@ class GenerateVideoDirectorClipRequest(BaseModel):
     video_prompt_language: Optional[PromptLanguage] = None
 
     continuation_mode: ContinuationMode = "AUTO"
-    h3_prompt_pipeline: Literal["legacy", "phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
+    h3_prompt_pipeline: Literal["phase_b"] = DEFAULT_H3_PROMPT_PIPELINE
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
     optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")

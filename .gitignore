@@ -72,6 +72,9 @@ downloads/
 uploads/
 *.zip
 
+# Local experiments and generated evidence
+/backend/experiments/
+
 # Local docs
 docs/*/
 *.md

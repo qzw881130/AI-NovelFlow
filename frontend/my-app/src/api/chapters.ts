@@ -108,7 +108,7 @@ export const chapterApi = {
   split: (novelId: string, chapterId: string) =>
     api.post<{ shots: unknown[] }>(`/novels/${novelId}/chapters/${chapterId}/split/`),
 
-  /** 批量拆分使用持久化后台队列，最多三个章回并行。 */
+  /** 按小说生视频模式批量拆分：单镜使用三路队列，宫格依次规划叙事 Shot。 */
   createAiSplitBatch: (novelId: string, chapterIds: string[]) =>
     api.post<ChapterAiSplitBatch>(`/novels/${novelId}/chapter-ai-split-batches`, { chapter_ids: chapterIds }),
 

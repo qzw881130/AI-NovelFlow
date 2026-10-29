@@ -3,6 +3,9 @@
  */
 import { api } from './index';
 
+export type CustomVariableKey = 'KEY1' | 'KEY2' | 'KEY3' | 'KEY4' | 'KEY5' | 'KEY6' | 'KEY7' | 'KEY8' | 'KEY9';
+export type CustomVariables = Record<CustomVariableKey, { value: string; note: string }>;
+
 export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
@@ -19,6 +22,7 @@ export interface SystemConfig {
   httpsProxy?: string;
   youtubeProxyEnabled?: boolean;
   youtubeProxyUrl?: string;
+  customVariables?: CustomVariables;
 }
 
 export interface GenerationCheck {
@@ -45,5 +49,7 @@ export const configApi = {
   update: async (config: Partial<SystemConfig>) => {
     return api.post<SystemConfig>('/config/', config);
   },
+  customVariables: async () => api.get<CustomVariables>('/config/custom-variables'),
+  customVariableOptions: async () => api.get<Array<{ key: CustomVariableKey; note: string }>>('/config/custom-variables/options'),
   generationChecks: async () => api.get<{ checks: GenerationCheck[]; policy: Record<string, boolean> }>('/config/generation-checks'),
 };

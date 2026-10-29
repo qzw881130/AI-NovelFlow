@@ -56,6 +56,9 @@ export interface Task {
   comfyuiError?: ComfyUIError | null;
   completedAt?: string | null;
   currentStep?: string | null;
+  gridStep?: string | null;
+  panelIndex?: number | null;
+  clipIndex?: number | null;
   shotImageQuality?: { generation_count?: number; max_generations?: number; status?: 'PASS' | 'WARNING' | 'FAIL' | 'ERROR'; attempts?: Array<{ number: number; image_url: string; review_id?: string | null; verdict: string }> } | null;
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {

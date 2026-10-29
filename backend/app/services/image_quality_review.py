@@ -21,7 +21,7 @@ from app.services.vision_inputs import vision_proxy
 from app.utils.json_parser import safe_parse_llm_json
 
 
-IMAGE_TYPES = {"character_portrait", "shot_image", "shot_image_repair_candidate", "scene_image", "prop_image", "keyframe_image", "single_image_edit"}
+IMAGE_TYPES = {"character_portrait", "shot_image", "shot_image_repair_candidate", "scene_image", "prop_image", "keyframe_image", "single_image_edit", "grid_panel_review"}
 DIMENSIONS = ("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY", "ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY")
 BLOCKING_DIMENSIONS = frozenset(("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY"))
 STATUSES = {"PASS", "WARNING", "FAIL"}
@@ -48,7 +48,8 @@ def _json(value, default):
 
 def build_review_input(task: Task, structured_target: dict | None = None, *, generation_review: bool = False) -> dict:
     in_generation = generation_review and task.type in {"shot_image", "shot_image_repair_candidate", "scene_image"} and task.status == "running"
-    if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation) or not task.result_url or not task.prompt_text:
+    grid_review_running = task.type == "grid_panel_review" and task.status == "running"
+    if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation and not grid_review_running) or not task.result_url or not task.prompt_text:
         raise ValueError("评审需要已完成生图任务、真实生成图和原始提示词")
     metadata = _json(task.metadata_json, {})
     metadata = metadata if isinstance(metadata, dict) else {}
@@ -195,7 +196,7 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
         if shot:
             structured["shot"] = {"description": shot.description, "scene": shot.scene,
                                   "props": _json(shot.props, []),
-                                  "characters": _json(shot.characters, []) if task.type in {"shot_image", "shot_image_repair_candidate"} else None}
+                                  "characters": _json(shot.characters, []) if task.type in {"shot_image", "shot_image_repair_candidate", "grid_panel_review"} else None}
     for id_field, model, key, fields in (
         (task.character_id, Character, "character", ("name", "description", "appearance")),
         (task.scene_id, Scene, "scene", ("name", "description", "setting")),

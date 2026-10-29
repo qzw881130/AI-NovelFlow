@@ -1,0 +1,25 @@
+subject_definitions:
+<Subject 1> is 杜甫, the existing character whose stable identity is bound exclusively to <Picture 2>; recorded stable features: A lean, long face, pronounced fatigue lines beneath the eyes, a short black beard threaded with a little gray, and a faded old cloth robe.; the identity reference does not determine current costume, pose, or floor position.
+
+summary:
+A 8-second execution of the current Canonical Clip.
+
+retention_analysis:
+The current Canonical visual state owns clothing, poses, floor positions, and action; identity references cannot override it.
+<Picture 1> — SCENE / Mountain dirt road outside Shihao Village: environment appearance only; incidental people are not additional Subjects.
+<Picture 2> — CHARACTER_IDENTITY for <Subject 1>: stable identity only; not current clothing, pose, blocking, or action.
+<Picture 3> — PROP / 杜甫's travel bundle: prop appearance only; Canonical state owns placement and use.
+This Clip has no Canonical dialogue. All characters remain silent throughout the newly generated action: no speech, narration or additional vocalization. Only grounded ambience and action Foley may be generated.
+Director-selected Anchor arrivals use GENERATION_LOCAL_SECONDS: generated-fragment time starts at 0s, including any verified Previous AV shared prefix.
+KF2: reach its Canonical visual target at 5.0s in GENERATION_LOCAL_SECONDS.
+KF3: reach its Canonical visual target at 8.0s in GENERATION_LOCAL_SECONDS.
+KF1: no reference-image arrival constraint; their Canonical actions and state outcomes remain required.
+
+detailed_description:
+Open on the mountain dirt road outside Shihao Village at spring dusk, with the setting sun close to the distant ridge and twilight spreading across the desolate route. In a low-angle long shot, exactly one visible figure, <Subject 1>, occupies the center middle distance, facing away from the camera toward the road's depth. His gaze remains lowered to the ground ahead; the travel bundle rests over his shoulder, and his slightly slumped back conveys exhaustion as he walks slowly toward the mountains. For roughly the first 1.5 seconds, hold the camera steady so the empty road and dusky wilderness dominate while his heavy steps create only a gentle rise and fall through his shoulders and a small rhythmic sway in the bundle. Then retreat smoothly and raise the camera slightly, keeping the road's leading line aimed toward <Subject 1> without changing his direction or introducing any other figure or action. By 5 seconds, reach a slightly elevated long-shot position that reveals more of the road's depth; <Subject 1> is farther away near the center, still moving with lowered shoulders, the bundle secured behind him, and his gaze fixed on the path ahead. Continue his slow advance without interruption. From 5 to 6 seconds, withdraw and elevate gently from this position while preserving a clear view of both him and his direction of travel. After 6 seconds, pull farther back at an unhurried pace, allowing the road and barren twilight landscape to become the principal composition as <Subject 1> moves toward the far end and naturally diminishes in scale. The sunset remains near the ridge while the dusk deepens continuously. End at 8 seconds with <Subject 1> small but legible at the distant center of the road, still facing the mountains in a heavy walking posture, shoulders lowered and bundle on his back, while the slightly elevated long shot fully expresses the broad, lonely depth of the road. <Subject 1> remains silent throughout.
+
+overall_soundscape:
+Quiet open-country dusk ambience with a light breeze over dry roadside brush, muted footfalls pressing into the uneven dirt, faint scuffs of worn cloth shoes, and subtle fabric and bundle movement synchronized with each heavy step. No voices or unrelated sound sources.
+
+non_diegetic_music:
+N/A

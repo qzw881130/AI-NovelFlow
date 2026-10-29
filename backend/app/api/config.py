@@ -3,7 +3,7 @@
 
 支持持久化存储到数据库
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel
 from typing import Literal, Optional
 from datetime import datetime, timezone
@@ -41,6 +41,14 @@ class ProxyConfig(BaseModel):
     youtubeProxyUrl: Optional[str] = None
 
 
+CUSTOM_VARIABLE_KEYS = tuple(f"KEY{i}" for i in range(1, 10))
+
+
+class CustomVariable(BaseModel):
+    value: str
+    note: str = ""
+
+
 class SystemConfigUpdate(BaseModel):
     """系统配置更新"""
     llm: Optional[LLMConfig] = None
@@ -59,6 +67,7 @@ class SystemConfigUpdate(BaseModel):
     autoApproveFirstAppearanceNames: Optional[bool] = None
     generationQualityPolicy: Optional[dict[str, bool]] = None
     coverProduction: Optional[str] = None
+    customVariables: Optional[dict[str, CustomVariable]] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -101,6 +110,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         if "cover_production" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN cover_production VARCHAR NOT NULL DEFAULT '旺仔有声小说'"))
             db.commit()
+        if "custom_variables" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN custom_variables TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
     if not config:
@@ -124,6 +136,33 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
 async def get_generation_checks(db: Session = Depends(get_db)):
     policy = config_policy(get_or_create_config(db))
     return {"success": True, "data": {"checks": catalog(policy), "policy": policy}}
+
+
+@router.get("/custom-variables")
+async def get_custom_variables(response: Response, db: Session = Depends(get_db)):
+    """仅在编辑自定义变量时读取值，避免将密钥放入普通配置响应。"""
+    response.headers["Cache-Control"] = "no-store"
+    config = get_or_create_config(db)
+    stored = json.loads(config.custom_variables or "{}")
+    return {"success": True, "data": {
+        key: {
+            "value": decrypt_value(stored.get(key, {}).get("value", "")),
+            "note": stored.get(key, {}).get("note", ""),
+        }
+        for key in CUSTOM_VARIABLE_KEYS
+    }}
+
+
+@router.get("/custom-variables/options")
+async def get_custom_variable_options(db: Session = Depends(get_db)):
+    """工作流映射只需要已填写的 KEY 与备注，不返回密钥。"""
+    config = get_or_create_config(db)
+    stored = json.loads(config.custom_variables or "{}")
+    return {"success": True, "data": [
+        {"key": key, "note": stored[key].get("note", "")}
+        for key in CUSTOM_VARIABLE_KEYS
+        if stored.get(key, {}).get("value")
+    ]}
 
 
 @router.get("/")
@@ -260,6 +299,17 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             if not production or len(production) > 80:
                 raise HTTPException(status_code=400, detail="制作名称长度必须为 1–80 个字符")
             db_config.cover_production = production
+        if config.customVariables is not None:
+            if set(config.customVariables) != set(CUSTOM_VARIABLE_KEYS):
+                raise HTTPException(status_code=400, detail="自定义变量必须包含固定的 KEY1–KEY9")
+            for key, item in config.customVariables.items():
+                if len(item.value) > 256:
+                    raise HTTPException(status_code=400, detail=f"{key} 的值不能超过 256 个字符")
+            db_config.custom_variables = json.dumps({
+                key: {"value": encrypt_value(config.customVariables[key].value),
+                      "note": config.customVariables[key].note}
+                for key in CUSTOM_VARIABLE_KEYS
+            }, ensure_ascii=False)
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

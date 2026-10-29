@@ -175,7 +175,7 @@ export default function NovelDetail() {
         void state.fetchData(false);
       }
     } catch (error) {
-      console.error('读取 AI 拆分任务失败:', error);
+      console.error('读取章回拆分任务失败:', error);
     }
   };
 
@@ -273,7 +273,7 @@ export default function NovelDetail() {
         <div className="flex items-center gap-4">
           <Link to="/novels" className="p-2 text-gray-400 hover:text-gray-600 transition-colors"><ArrowLeft className="h-5 w-5" /></Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{state.novel.title}</h1>
+            <div className="flex items-center gap-2"><h1 className="text-2xl font-bold text-gray-900">{state.novel.title}</h1><span className={`rounded-full px-2 py-0.5 text-xs ${state.novel.videoMode === 'grid' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{state.novel.videoMode === 'grid' ? '宫格图生视频' : '单镜图生视频'}</span></div>
             <p className="text-sm text-gray-500">{state.novel.author} · {state.chapters.length} {t('novelDetail.chapters')} · {t('novelDetail.totalWordCount', { count: totalContentLength.toLocaleString() })}</p>
           </div>
         </div>
@@ -287,7 +287,7 @@ export default function NovelDetail() {
             disabled={selectedChapterIds.length === 0 && latestSplitBatch?.status !== 'running'}
             className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Wand2 className="h-4 w-4 mr-2" />{latestSplitBatch?.status === 'running' ? '查看拆分进度' : t('novelDetail.batchAiSplit.button')}{latestSplitBatch?.status !== 'running' && selectedChapterIds.length > 0 ? ` (${selectedChapterIds.length})` : ''}
+            <Wand2 className="h-4 w-4 mr-2" />{latestSplitBatch?.status === 'running' ? (state.novel.videoMode === 'grid' ? '查看规划进度' : '查看拆分进度') : (state.novel.videoMode === 'grid' ? '批量规划叙事 Shot' : t('novelDetail.batchAiSplit.button'))}{latestSplitBatch?.status !== 'running' && selectedChapterIds.length > 0 ? ` (${selectedChapterIds.length})` : ''}
           </button>
           <details className="relative">
             <summary className="btn-secondary cursor-pointer list-none"><Combine className="h-4 w-4 mr-2" />合并所有章回视频 ▾</summary>
@@ -315,7 +315,7 @@ export default function NovelDetail() {
 
       {latestSplitBatch && <button type="button" onClick={() => setSplitModalMode('progress')}
         className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-left text-sm text-blue-800 hover:bg-blue-100">
-        <span>批量 AI 拆分：{latestSplitBatch.status === 'running' ? '后台处理中' : latestSplitBatch.status === 'completed' ? '已完成' : '部分失败'} · 已处理 {latestSplitBatch.completed + latestSplitBatch.failed}/{latestSplitBatch.total}</span>
+        <span>{state.novel.videoMode === 'grid' ? '批量规划叙事 Shot' : '批量 AI 拆分'}：{latestSplitBatch.status === 'running' ? '后台处理中' : latestSplitBatch.status === 'completed' ? '已完成' : '部分失败'} · 已处理 {latestSplitBatch.completed + latestSplitBatch.failed}/{latestSplitBatch.total}</span>
         <span>查看详情</span>
       </button>}
 
@@ -407,6 +407,7 @@ export default function NovelDetail() {
       {splitModalMode && (
         <BatchAiSplitModal
           novelId={state.id!}
+          videoMode={state.novel.videoMode === 'grid' ? 'grid' : 'single'}
           chapters={state.chapters.filter(chapter => selectedChapterIds.includes(chapter.id))}
           mode={splitModalMode}
           latestBatch={latestSplitBatch}

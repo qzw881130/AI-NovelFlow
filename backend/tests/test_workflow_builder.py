@@ -20,6 +20,46 @@ def load_workflow_builder():
     return module.WorkflowBuilder
 
 
+def test_visual_asset_workflows_submit_1280_by_720_even_for_portrait_projects():
+    builder = load_workflow_builder()()
+    workflows_dir = Path(__file__).parent.parent / "workflows"
+
+    for filename in (
+        "moss_image_t2i_character_four_view_v20261020.json",
+        "moss_image_t2i_scene_v20261020.json",
+        "moss_image_t2i_prop_v20261020.json",
+    ):
+        graph = builder.build_character_workflow(
+            prompt="asset", workflow_json=(workflows_dir / filename).read_text(),
+            aspect_ratio="9:16", node_mapping={},
+        )
+        assert graph["18:6"]["inputs"]["width"] == 1280
+        assert graph["18:6"]["inputs"]["height"] == 720
+        assert graph["19"]["inputs"]["aspect_ratio"] == "16:9 (Widescreen)"
+
+    for filename in (
+        "qwen_image_2_1_pe_shot_v20260922.json",
+        "qwen_image_2_1_turbo_keyframe_image_v20261018.json",
+    ):
+        graph = builder.build_shot_workflow(
+            prompt="shot", workflow_json=(workflows_dir / filename).read_text(),
+            node_mapping={"width_node_id": "517", "height_node_id": "518"},
+            aspect_ratio="9:16",
+        )
+        assert graph["517"]["inputs"]["value"] == 1280
+        assert graph["518"]["inputs"]["value"] == 720
+
+
+def test_asset_image_edits_do_not_inherit_old_source_dimensions():
+    builder = load_workflow_builder()()
+    graph = {
+        "size": {"class_type": "GetImageSize", "inputs": {"image": ["load", 0]}},
+        "latent": {"class_type": "EmptyLatentImage", "inputs": {"width": ["size", 0], "height": ["size", 1]}},
+    }
+    builder.apply_asset_image_dimensions(graph)
+    assert graph["latent"]["inputs"] == {"width": 1280, "height": 720}
+
+
 def test_video_workflow_uses_one_explicit_seed_for_all_seed_nodes():
     builder = load_workflow_builder()()
     workflow = {

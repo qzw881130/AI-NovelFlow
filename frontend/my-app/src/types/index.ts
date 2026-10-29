@@ -78,6 +78,8 @@ export interface LLMModel {
 
 export interface Novel {
   id: string;
+  videoMode?: 'grid' | 'single';
+  hasShots?: boolean;
   title: string;
   author: string;
   description: string;
@@ -109,6 +111,10 @@ export interface Novel {
   clipExecutionPlannerPromptTemplateId?: string;
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
   h3MultiKeyframeDirectorPhaseBTemplateId?: string;  // H3 Phase B 单阶段导演视频提示词模板
+  gridShotPlanPromptTemplateId?: string;
+  gridImagePromptTemplateId?: string;
+  gridClipPlanPromptTemplateId?: string;
+  gridH3PhaseBPromptTemplateId?: string;
   h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
   h3PreflightRepairPromptTemplateId?: string;  // H3 Preflight 自动修复模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
@@ -356,12 +362,15 @@ export interface ClipExecutionMetadata {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'subtitle_render' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'subtitle_render' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export' | 'grid_chapter_plan_batch' | 'grid_chapter_plan' | 'grid_panels_plan' | 'grid_board_prepare' | 'grid_board_image' | 'grid_panel_image' | 'grid_panel_review' | 'grid_clips_plan' | 'grid_clip_prepare' | 'grid_h3_clip' | 'grid_shot_merge' | 'grid_chapter_merge' | 'grid_batch' | 'grid_auto_batch';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
   progress: number;
   currentStep?: string;
+  gridStep?: string | null;
+  panelIndex?: number | null;
+  clipIndex?: number | null;
   resultUrl?: string;
   musicMode?: 'partial' | 'full' | null;
   nameplatePreview?: { url?: string | null; status?: string | null; warnings?: string[]; autoApproved?: boolean } | null;

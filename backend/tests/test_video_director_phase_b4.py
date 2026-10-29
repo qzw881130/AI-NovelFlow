@@ -338,7 +338,7 @@ async def test_b4_31_to_33_all_h3_capabilities_consume_same_soft_contract(monkey
     monkeypatch.setattr(ai, "get_visual_prop_names", lambda db, nid, props: props)
     files = {"h3_multi_keyframe_prompt": "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"}
     monkeypatch.setattr(ai, "resolve_prompt_template", lambda db, novel, attr, kind: SimpleNamespace(
-        name=kind, template=(ROOT / "backend/prompt_templates" / files[kind]).read_text()))
+        name=kind, template=(ROOT / "backend/tests/fixtures/retired_h3" / files[kind]).read_text()))
     shot = SimpleNamespace(**data["shot"], video_director_plan=json.dumps(data["plan"]))
     prompt = await ai.build_h3_video_prompt(
         db=SimpleNamespace(commit=lambda: None), novel=SimpleNamespace(id="novel"), shot=shot,

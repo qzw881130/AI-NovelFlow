@@ -37,11 +37,6 @@ CLIP_BOUNDARY_CONTRACT_RULES = (
     "The first Clip owns the START state with keyframe index 1 as a special case and has no carry-in",
     "END uses ordinary ownership and is not automatically selected",
 )
-H3_TEMPLATES = [
-    ("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt", "h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建", "h3_multi_keyframe_prompt_template_id"),
-]
-
-
 def _prompt(filename: str) -> str:
     return (PROMPT_DIR / filename).read_text(encoding="utf-8")
 
@@ -287,44 +282,6 @@ def test_unrelated_system_prompt_sources_remain_frozen():
 
     for filename, expected_hash in expected_hashes.items():
         assert sha256((PROMPT_DIR / filename).read_bytes()).hexdigest() == expected_hash
-
-
-@pytest.mark.parametrize("filename,template_type,name,attribute", H3_TEMPLATES)
-def test_canonical_h3_system_sources_are_manifest_aware_and_delegate_speech(filename, template_type, name, attribute):
-    prompt = _prompt(filename)
-    for marker in ("semantic_control_count", "ordinary_reference_count", "temporal_anchor_count",
-                   "previous_av_present", "IMAGE_BACKED", "TEXT_ONLY", "physical_picture=null",
-                   "physical_picture_manifest 是唯一", "M 可小于 N", "Previous AV 是独立视频",
-                   "temporal_anchors 是独立 timed", "carry_in_state_index 只是语义上下文",
-                   "程序注入的 dialogue_timeline", "LLM 不输出 dialogue_timeline", "NO_VOICE",
-                   "SILENT_AUDIO", "Foley", "嘴角变化", "咬紧牙关"):
-        assert marker in prompt
-    for obsolete in ("每张 Picture 都是一个 Temporal State", "then speaks exactly one utterance",
-                     "<Picture 1> defines the authoritative", "<Picture 2> is the authoritative",
-                     "必须视为上游路由错误", "它是当前 <Picture 1>"):
-        assert obsolete not in prompt
-    assert "canonical visual states、transitions 与 Clip-local time" in prompt
-    assert "不得引用 D 编号组织视觉正文" in prompt
-    assert "可引用 assigned dialogue D 编号作视觉节拍" not in prompt
-    assert "D 编号作视觉注意力和节奏标记" not in prompt
-
-
-@pytest.mark.parametrize("filename,template_type,name,attribute", H3_TEMPLATES)
-def test_h3_system_sync_updates_stale_body_in_place_and_preserves_novel_override(db_session, filename, template_type, name, attribute):
-    system = PromptTemplate(id=f"stale-{template_type}", name=name, type=template_type,
-                            template="old fixed Picture contract", is_system=True, is_active=True)
-    override = PromptTemplate(name="Novel override", type=template_type, template="custom body")
-    db_session.add_all([system, override])
-    db_session.flush()
-    novel = Novel(title="isolated H3 sync", **{attribute: override.id})
-    db_session.add(novel)
-    db_session.commit()
-    PromptTemplateService(db_session).init_system_templates()
-    default = PromptTemplateService(db_session).get_default_system_template(template_type)
-    assert default.id == system.id
-    assert default.template == _prompt(filename)
-    assert resolve_prompt_template(db_session, novel, attribute, template_type).id == override.id
-    assert override.template == "custom body"
 
 
 def test_attention_replan_template_uses_existing_v1_rules_and_syncs(db_session):

@@ -16,16 +16,8 @@ class WorkflowBuilder:
     # 不需要在 API 中执行的节点类型（UI 辅助节点）
     UI_ONLY_NODE_TYPES = {"Note", "Reroute", "PrimitiveNode", "Comment", "Group"}
     
-    # 画面比例尺寸配置 (按64倍数调整)
-    ASPECT_RATIOS = {
-        "16:9": (1088, 704),    # 横向宽屏
-        "9:16": (1088, 1920),   # 竖屏
-        "4:3": (1088, 832),     # 横向标准
-        "3:4": (832, 1088),     # 竖版
-        "1:1": (1088, 1088),    # 正方形
-        "21:9": (1088, 480),    # 超宽屏
-        "2.35:1": (1088, 480),  # 电影宽银幕
-    }
+    # 角色、场景、道具、分镜和关键帧统一使用此尺寸；视频封面另用 COVER_SIZES。
+    ASSET_IMAGE_SIZE = (1280, 720)
     
     # ==================== 工作流构建 ====================
     
@@ -893,7 +885,8 @@ class WorkflowBuilder:
         # 检测工作流格式
         if "nodes" in workflow:
             print("[Workflow] Detected UI format workflow, using built-in workflow")
-            return self._build_flux_workflow(prompt)
+            width, height = self.get_aspect_ratio_dimensions(aspect_ratio)
+            return self._build_flux_workflow(prompt, width=width, height=height)
         
         api_workflow = workflow
         modified_count = 0
@@ -906,9 +899,6 @@ class WorkflowBuilder:
                 safe_name = "character"
             save_prefix = f"story_{novel_id}/{safe_name}"
             print(f"[Workflow] Save prefix: {save_prefix}")
-        
-        # 根据画面比例获取尺寸
-        width, height = self.get_aspect_ratio_dimensions(aspect_ratio or "9:16")
         
         # 获取节点映射
         prompt_node_id = str(node_mapping.get("prompt_node_id", "")) if node_mapping else ""
@@ -940,20 +930,6 @@ class WorkflowBuilder:
             if class_type in {"SaveImage", "SaveImageAdvanced"} and save_prefix:
                 if not save_image_node_id or str(node_id) == save_image_node_id:
                     inputs["filename_prefix"] = save_prefix
-            
-            # 设置图片尺寸
-            if class_type in ["EmptySD3LatentImage", "EmptyFlux2LatentImage", "EmptyLatentImage"]:
-                if "width" in inputs:
-                    inputs["width"] = width
-                if "height" in inputs:
-                    inputs["height"] = height
-            
-            # 设置调度器尺寸
-            if class_type == "Flux2Scheduler":
-                if "width" in inputs:
-                    inputs["width"] = width
-                if "height" in inputs:
-                    inputs["height"] = height
             
             # 注入提示词
             node_id_str = str(node_id)
@@ -1005,6 +981,7 @@ class WorkflowBuilder:
         
         # 设置随机种子
         self._set_random_seed(api_workflow, random.randint(1, 2**32))
+        self.apply_asset_image_dimensions(api_workflow)
         
         # 替换 ##STYLE## 占位符
         self._replace_style_placeholder(api_workflow, style)
@@ -1194,9 +1171,29 @@ class WorkflowBuilder:
 
     # ==================== 辅助方法 ====================
 
+    def apply_asset_image_dimensions(self, workflow: Dict[str, Any]) -> None:
+        """固定视觉资产生图的画布尺寸，包括由输入图继承尺寸的编辑工作流。"""
+        width, height = self.ASSET_IMAGE_SIZE
+        for node in workflow.values():
+            if not isinstance(node, dict):
+                continue
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict):
+                continue
+            class_type = node.get("class_type")
+            if class_type == "ResolutionSelector":
+                inputs["aspect_ratio"] = "16:9 (Widescreen)"
+                inputs["megapixels"] = width * height / 1_000_000
+                inputs["multiple"] = 16
+            elif class_type in {"EmptySD3LatentImage", "EmptyFlux2LatentImage", "EmptyLatentImage", "Flux2Scheduler"}:
+                if "width" in inputs:
+                    inputs["width"] = width
+                if "height" in inputs:
+                    inputs["height"] = height
+
     def get_aspect_ratio_dimensions(self, aspect_ratio: str) -> Tuple[int, int]:
-        """根据画面比例返回对应的图片尺寸"""
-        return self.ASPECT_RATIOS.get(aspect_ratio, (1088, 1920))
+        """返回角色、场景、道具、分镜及关键帧的统一生图尺寸。"""
+        return self.ASSET_IMAGE_SIZE
     
     def _get_max_side(self, aspect_ratio: str) -> int:
         """根据画面比例获取最长边"""
