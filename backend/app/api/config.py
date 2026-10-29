@@ -16,6 +16,11 @@ from app.core.config import get_settings, update_settings
 from app.core.security import encrypt_value, decrypt_value
 from app.models.system_config import SystemConfig as SystemConfigModel
 from app.services.generation_preflight import catalog, config_policy, normalize_policy
+from app.services.grid_generation_preflight import (
+    catalog as grid_catalog,
+    config_policy as grid_config_policy,
+    normalize_policy as normalize_grid_policy,
+)
 import json
 
 router = APIRouter()
@@ -66,6 +71,7 @@ class SystemConfigUpdate(BaseModel):
     nameplatePreviewMode: Optional[Literal["protagonist_first", "chapter_first"]] = None
     autoApproveFirstAppearanceNames: Optional[bool] = None
     generationQualityPolicy: Optional[dict[str, bool]] = None
+    gridGenerationQualityPolicy: Optional[dict[str, bool]] = None
     coverProduction: Optional[str] = None
     customVariables: Optional[dict[str, CustomVariable]] = None
 
@@ -107,6 +113,9 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         if "generation_quality_policy" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
             db.commit()
+        if "grid_generation_quality_policy" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN grid_generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
         if "cover_production" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN cover_production VARCHAR NOT NULL DEFAULT '旺仔有声小说'"))
             db.commit()
@@ -136,6 +145,12 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
 async def get_generation_checks(db: Session = Depends(get_db)):
     policy = config_policy(get_or_create_config(db))
     return {"success": True, "data": {"checks": catalog(policy), "policy": policy}}
+
+
+@router.get("/grid-generation-checks")
+async def get_grid_generation_checks(db: Session = Depends(get_db)):
+    policy = grid_config_policy(get_or_create_config(db))
+    return {"success": True, "data": {"checks": grid_catalog(policy), "policy": policy}}
 
 
 @router.get("/custom-variables")
@@ -185,6 +200,7 @@ async def get_config(db: Session = Depends(get_db)):
             "nameplatePreviewMode": config.nameplate_preview_mode or "protagonist_first",
             "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
             "generationQualityPolicy": config_policy(config),
+            "gridGenerationQualityPolicy": grid_config_policy(config),
             "coverProduction": config.cover_production or "旺仔有声小说",
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
@@ -231,6 +247,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "nameplate_preview_mode": config.nameplate_preview_mode or "protagonist_first",
             "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
             "generation_quality_policy": config_policy(config),
+            "grid_generation_quality_policy": grid_config_policy(config),
             "cover_production": config.cover_production or "旺仔有声小说",
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
@@ -292,6 +309,11 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.generationQualityPolicy is not None:
             try:
                 db_config.generation_quality_policy = json.dumps(normalize_policy(config.generationQualityPolicy))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if config.gridGenerationQualityPolicy is not None:
+            try:
+                db_config.grid_generation_quality_policy = json.dumps(normalize_grid_policy(config.gridGenerationQualityPolicy))
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
         if config.coverProduction is not None:

@@ -41,6 +41,10 @@ class GridAutoBatchRequest(BaseModel):
     merge_chapter: bool = False
 
 
+class GridReviewPassBatchRequest(BaseModel):
+    shot_ids: list[str]
+
+
 def _context(db: Session, novel_id: str, chapter_id: str, shot_id: str | None = None):
     novel = db.get(Novel, novel_id)
     if not novel:
@@ -83,7 +87,7 @@ def _enqueue(db, novel, chapter, shot, step, **kwargs):
 def _ensure_shot_idle(db: Session, shot_id: str):
     shot = db.get(Shot, shot_id)
     auto = db.query(Task).filter(Task.chapter_id == shot.chapter_id,
-                                 Task.type.in_(["grid_auto_batch", "grid_board_batch"]),
+                                 Task.type.in_(["grid_auto_batch", "grid_board_batch", "grid_review_batch"]),
                                  Task.status.in_(["pending", "running"])).first() if shot else None
     if auto and shot_id in json.loads(auto.metadata_json or "{}").get("shot_ids", []):
         raise HTTPException(409, "此 Shot 正在自动批量生成")
@@ -137,7 +141,7 @@ async def enqueue_batch(novel_id: str, chapter_id: str, request: GridBatchReques
                         candidates.append((shot, clip["clip_index"]))
     if not candidates:
         raise HTTPException(422, "没有已预览且待生成的项目")
-    if db.query(Task.id).filter(Task.chapter_id == chapter_id, Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch", "grid_board_batch"}),
+    if db.query(Task.id).filter(Task.chapter_id == chapter_id, Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch", "grid_board_batch", "grid_review_batch"}),
                                 Task.status.in_(["pending", "running"])).first():
         raise HTTPException(409, "本章有宫格任务正在排队或执行，请完成后再批量提交")
     labels = {"panels_plan": "规划子格", "board_prepare": "准备整板提示词",
@@ -188,6 +192,37 @@ async def enqueue_auto_board_batch(novel_id: str, chapter_id: str, request: Grid
     except (GridPipelineError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
     return _queued(task)
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/grid/auto-review-batch")
+async def enqueue_auto_review_batch(novel_id: str, chapter_id: str, request: GridAutoBatchRequest,
+                                    db: Session = Depends(get_db)):
+    novel, chapter, _ = _context(db, novel_id, chapter_id)
+    try:
+        task = enqueue_grid_auto_batch(db, novel, chapter, request.shot_ids,
+                                       merge_chapter=request.merge_chapter, target_stage="review")
+    except (GridPipelineError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _queued(task)
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/grid/review-pass-batch")
+def review_pass_batch(novel_id: str, chapter_id: str, request: GridReviewPassBatchRequest,
+                      db: Session = Depends(get_db)):
+    _context(db, novel_id, chapter_id)
+    shot_ids = request.shot_ids
+    if not shot_ids or len(set(shot_ids)) != len(shot_ids):
+        raise HTTPException(422, "请选择不重复的 Shot")
+    shots = db.query(Shot).filter(Shot.chapter_id == chapter_id, Shot.id.in_(shot_ids)).all()
+    if len(shots) != len(shot_ids):
+        raise HTTPException(422, "所选 Shot 不属于当前章回")
+    for shot in shots:
+        _ensure_shot_idle(db, shot.id)
+    try:
+        count = GridPipeline(db).approve_shot_panels(shots)
+    except GridPipelineError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"success": True, "data": {"shots": len(shots), "panels": count}}
 
 
 @router.post("/{novel_id}/chapters/{chapter_id}/grid/plan")

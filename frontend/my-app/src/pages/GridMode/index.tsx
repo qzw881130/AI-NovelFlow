@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Film, Image as ImageIcon, LayoutGrid, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, Film, Image as ImageIcon, LayoutGrid, Loader2 } from 'lucide-react';
 import { API_BASE } from '../../api';
 import { novelApi } from '../../api/novels';
 import type { Chapter } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { GridTaskPanel, type GridTask } from './GridTaskPanel';
 import { GridAutoBatchModal } from './GridAutoBatchModal';
+import { GridReviewPassModal } from './GridReviewPassModal';
 import { GridPanelReview } from './GridPanelReview';
+import { GridPanelImageGallery } from './GridPanelImageGallery';
 import { FinalShotVideo } from './FinalShotVideo';
+import { ImagePreviewModal } from '../Tasks/components/PreviewModals';
+import { ChapterOriginalDrawer } from './ChapterOriginalDrawer';
+import { GridBoardDraftImage } from './GridBoardDraftImage';
 
 type Stage = 'shot_split' | 'shot_image' | 'video_gen';
 type Panel = { index: number; beat: string; camera: string; action: string; characters: string[]; dialogue_indexes: number[]; image_url?: string; image_task_id?: string; review_status: string; review_note?: string };
@@ -18,6 +23,12 @@ type Shot = { id: string; index: number; description: string; duration: number; 
 type ChapterData = { novel: { id: string; title: string; videoMode: string }; chapter: { id: string; title: string; finalVideo?: string }; shots: Shot[] };
 type BoardPreview = { prompt: string; referenceImages: { role: string; name: string; url: string }[]; boardSize: number[] };
 type PanelPreview = { prompt: string; referenceImages: { role: string; name: string; url: string }[]; size: number[] };
+type PreviewImage = { label: string; url: string };
+const referenceRoleLabels: Record<string, string> = {
+  CHARACTER_IDENTITY: '角色身份',
+  SCENE: '场景',
+  PROP: '道具',
+};
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { method,
@@ -61,12 +72,15 @@ export default function GridModePage() {
   const [panelIndex, setPanelIndex] = useState(0);
   const [clipIndex, setClipIndex] = useState(0);
   const [layout, setLayout] = useState('auto');
-  const [imageView, setImageView] = useState<'board' | 'panels'>('board');
+  const [imageView, setImageView] = useState<'board' | 'panels'>('panels');
   const [strategy, setStrategy] = useState<'split_panels' | 'whole_board'>('split_panels');
   const [panelPreview, setPanelPreview] = useState<PanelPreview | null>(null);
   const [busy, setBusy] = useState('');
-  const [autoBatchMode, setAutoBatchMode] = useState<'board' | 'video' | null>(null);
+  const [autoBatchMode, setAutoBatchMode] = useState<'board' | 'review' | 'video' | null>(null);
+  const [reviewPassOpen, setReviewPassOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ images: PreviewImage[]; index: number; showDownload?: boolean } | null>(null);
   const [openedNameplateTaskId, setOpenedNameplateTaskId] = useState<string | null>(null);
+  const [originalOpen, setOriginalOpen] = useState(false);
   const currentChapterId = useRef(cid);
   currentChapterId.current = cid;
   const refresh = useCallback(async () => {
@@ -95,12 +109,15 @@ export default function GridModePage() {
     setPanelIndex(0);
     setClipIndex(0);
     setLayout('auto');
-    setImageView('board');
+    setImageView('panels');
     setStrategy('split_panels');
     setPanelPreview(null);
     setBusy('');
     setAutoBatchMode(null);
+    setReviewPassOpen(false);
+    setImagePreview(null);
     setOpenedNameplateTaskId(null);
+    setOriginalOpen(false);
   }, [cid]);
   useEffect(() => { refresh().catch(error => toast.error(String(error))); }, [refresh]);
   const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
@@ -143,6 +160,8 @@ export default function GridModePage() {
   const gridsReady = shots.filter(s => Boolean(s.gridData?.board_image_url)).length;
   const panels = shots.flatMap(s => s.gridData?.panels || []);
   const panelsPassed = panels.filter(p => p.review_status === 'passed').length;
+  const reviewableShots = shots.filter(s => s.gridData?.board_image_url && s.gridData.panels.some(p => p.review_status !== 'passed'));
+  const passableShots = reviewableShots.filter(s => s.gridData?.panels.every(p => Boolean(p.image_url)));
   const allClips = shots.flatMap(s => s.gridClipPlan?.clip_plan || []);
   const clipsDone = allClips.filter(c => Boolean(c.video_url)).length;
   const shotsDone = shots.filter(s => Boolean(s.videoUrl)).length;
@@ -156,7 +175,7 @@ export default function GridModePage() {
     setPanelIndex(0);
     setClipIndex(0);
     setStrategy(shot?.gridClipPlan?.clip_plan[0]?.reference_strategy || 'split_panels');
-    setImageView(hasReplacedPanels ? 'panels' : 'board');
+    setImageView('panels');
     setPanelPreview(null);
   }, [shot?.id]);
   useEffect(() => {
@@ -209,9 +228,31 @@ export default function GridModePage() {
   const submitAutoBatch = (shotIds: string[], mergeChapter: boolean) => {
     const mode = autoBatchMode;
     setAutoBatchMode(null);
-    void run(mode === 'board' ? '批量生成分镜宫格图' : '批量自动生成 Shot', () => request(`${base}/${mode === 'board' ? 'auto-board-batch' : 'auto-batch'}`, 'POST', {
+    const label = mode === 'board' ? '批量生成分镜宫格图并审查' : mode === 'review' ? '批量 AI 审图' : '批量自动生成 Shot';
+    const endpoint = mode === 'board' ? 'auto-board-batch' : mode === 'review' ? 'auto-review-batch' : 'auto-batch';
+    void run(label, () => request(`${base}/${endpoint}`, 'POST', {
       shot_ids: shotIds, merge_chapter: mergeChapter,
-    }), mode === 'board' ? 'shot_image' : 'video_gen');
+    }), mode === 'video' ? 'video_gen' : 'shot_image');
+  };
+  const submitReviewPass = (shotIds: string[]) => {
+    setReviewPassOpen(false);
+    void run('批量审核通过', () => request(`${base}/review-pass-batch`, 'POST', { shot_ids: shotIds }));
+  };
+  const downloadBoard = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`下载失败（${response.status}）`);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '下载宫格图失败');
+    }
   };
 
   return <div className="min-h-full bg-gray-50 pb-10">
@@ -221,6 +262,7 @@ export default function GridModePage() {
           <p className="text-xs text-gray-500">{shots.length} 个叙事 Shot · {shots.reduce((n, s) => n + (s.gridData?.panels.length || 0), 0)} 个子格 · {shots.reduce((n, s) => n + (s.gridClipPlan?.clip_plan.length || 0), 0)} 条 Clip</p></div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {busy && <span className="inline-flex items-center gap-2 text-sm text-blue-700"><Loader2 className="h-4 w-4 animate-spin" />{busy}中，请等待</span>}
+          <button type="button" onClick={() => setOriginalOpen(true)} disabled={!currentData} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40"><BookOpen className="h-4 w-4" />查看原文</button>
           <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40" disabled={!shots.some(item => !item.videoUrl) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('video')}>批量自动生成 Shot</button>
           <button type="button" onClick={() => goToChapter(previousChapter?.id)} disabled={!previousChapter} title={previousChapter?.title || '已经是第一回'} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4" />上一回</button>
           <select aria-label="跳转章回" value={currentChapterIndex >= 0 ? cid : ''} onChange={event => goToChapter(event.target.value)} disabled={sortedChapters.length === 0} className="w-48 max-w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
@@ -239,6 +281,11 @@ export default function GridModePage() {
     </div>
     <div className="px-5 pt-4 2xl:hidden"><GridTaskPanel tasks={tasks} shots={shots} onRefresh={() => refresh().catch(error => toast.error(String(error)))} onAction={(label, action) => { void run(label, action); }} onResumeBatch={step => { void run('继续批量任务', () => request(`${base}/batch`, 'POST', { step })); }} /></div>
     {autoBatchMode && <GridAutoBatchModal shots={shots} mode={autoBatchMode} onClose={() => setAutoBatchMode(null)} onSubmit={submitAutoBatch} />}
+    {reviewPassOpen && <GridReviewPassModal shots={shots} onClose={() => setReviewPassOpen(false)} onSubmit={submitReviewPass} />}
+    {originalOpen && id && cid && <ChapterOriginalDrawer key={cid} novelId={id} chapterId={cid} chapterTitle={currentData?.chapter.title || ''} onClose={() => setOriginalOpen(false)} />}
+    {imagePreview && <ImagePreviewModal imageUrl={imagePreview.images[imagePreview.index].url} images={imagePreview.images} currentIndex={imagePreview.index} showDownload={imagePreview.showDownload}
+      onNavigate={direction => setImagePreview(current => current ? { ...current, index: (current.index + (direction === 'next' ? 1 : -1) + current.images.length) % current.images.length } : null)}
+      onClose={() => setImagePreview(null)} />}
     <div className="grid gap-4 p-5 md:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[250px_minmax(0,1fr)_300px]">
       <aside className="rounded-xl border border-gray-200 bg-white p-4 md:sticky md:top-4 md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-y-auto"><h2 className="font-semibold">叙事 Shot</h2><p className="mt-1 text-xs text-gray-500">一个 Shot 管一段情节，内部按顺序排多个机位。</p>
         <div className="mt-3 space-y-2">{shots.map((item, i) => <button key={item.id} type="button" onClick={() => selectShot(i)} className={`w-full overflow-hidden rounded-lg border text-left ${shotIndex === i ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
@@ -254,6 +301,9 @@ export default function GridModePage() {
               {button('规划当前 Shot 子格', () => request(`${shotBase}/panels/plan`, 'POST', { layout: layout === 'auto' ? null : layout }), Boolean(shot && !grid), true, 'shot_image')}
               {layout === 'auto' && batch('批量规划未规划的 Shot', 'panels_plan', shots.filter(s => !s.gridData).length)}</>}
             {stage === 'shot_image' && <><button type="button" className={primaryClass} disabled={!shots.some(item => !item.gridData?.board_image_url) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('board')}>批量生成分镜宫格图</button>
+              <button type="button" className={buttonClass} disabled={!reviewableShots.length || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('review')}>批量 AI 审图 · {reviewableShots.length}</button>
+              <button type="button" className={buttonClass} disabled={!passableShots.length || hasActiveTask || Boolean(busy)} onClick={() => setReviewPassOpen(true)}>批量审核通过 · {passableShots.length}</button>
+              {button('AI 审图当前 Shot', () => request(`${base}/auto-review-batch`, 'POST', { shot_ids: [shot.id] }), Boolean(grid?.board_image_url && grid.panels.some(p => p.review_status !== 'passed')))}
               {button('生成整板提示词', () => request(`${shotBase}/board/prepare`, 'POST'), Boolean(grid && !grid.board_image_url))}
               {button(grid?.board_image_url ? '重新生成当前宫格' : '生成当前宫格', () => grid?.board_image_url ? confirmAction('重新生成会使当前宫格的逐格审核、Clip 和合片失效，确认继续？', () => request(`${shotBase}/board/generate`, 'POST')) : request(`${shotBase}/board/generate`, 'POST'), Boolean(boardPreview && grid?.board_prompt), true)}
               {batch('批量准备整板提示词', 'board_prepare', shots.filter(s => s.gridData && !s.gridData.board_prompt && !s.gridData.board_image_url).length)}
@@ -270,10 +320,11 @@ export default function GridModePage() {
         {!shot && <section className="rounded-xl border bg-white p-8 text-center text-sm text-gray-500">先在“分镜拆分”中将章节正文规划成叙事 Shot。</section>}
         {shot && <section className="rounded-xl border border-gray-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Shot {shot.index} · {shot.description.split('｜')[0]}</h2><p className="mt-1 text-sm text-gray-600">{shot.description.split('｜').slice(1).join('｜')}</p></div><span className="whitespace-nowrap rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">{grid?.layout || '未规划'} · {shot.duration}s</span></div>
           {stage === 'shot_split' && <div className="mt-5">{grid ? <><p className="mb-2 text-sm font-medium">逐格镜头规划 · 修订 {grid.revision}</p><div className={`grid gap-2 ${grid.layout.endsWith('3') ? 'grid-cols-3' : 'grid-cols-2'}`}>{grid.panels.map(panel => <div key={panel.index} className="rounded-lg border bg-gray-50 p-3 text-sm"><strong>格 {panel.index} · {panel.camera}</strong><p className="mt-1 text-gray-600">{panel.beat}</p></div>)}</div></> : <p className="text-sm text-gray-500">选择版式后规划子格。自动版式会在 2×2 和 2×3 中随机选择并固定种子；3×3 可单独实验。</p>}</div>}
-          {stage === 'shot_image' && <div className="mt-5 space-y-4">{failedBoard && !grid?.board_image_url && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>当前整板生成失败</strong><p className="mt-1">{failedBoard.errorMessage || '请查看右侧任务详情'}</p>{button('重试此整板', () => request(`/tasks/${failedBoard.id}/retry`, 'POST'), true)}</div>}{boardPreview && <section className="rounded-lg border border-blue-200 bg-blue-50 p-4"><h3 className="font-medium">即将提交的整板输入 · {boardPreview.boardSize.join(' × ')}</h3><div className="mt-2 flex gap-2">{boardPreview.referenceImages.map((ref, i) => <div key={i} className="w-24"><img src={ref.url} alt={ref.name} className="aspect-video w-full rounded object-cover" /><span className="text-xs">{ref.role} · {ref.name}</span></div>)}</div><pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap text-xs">{boardPreview.prompt}</pre></section>}
-            {grid?.board_image_url && <>{hasReplacedPanels && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">部分子格已单独重做；整板是初稿，H3 将使用下方逐格视图中的最新版图片。</p>}<div className="flex gap-2"><button type="button" onClick={() => setImageView('board')} className={buttonClass}><LayoutGrid className="mr-1 inline h-4 w-4" />整板初稿</button><button type="button" onClick={() => setImageView('panels')} className={buttonClass}><ImageIcon className="mr-1 inline h-4 w-4" />逐格最新版</button></div>
-              {imageView === 'board' ? <img src={grid.board_image_url} alt="宫格整板" className="w-full rounded-lg" /> : <div className={`grid gap-2 ${grid.layout.endsWith('3') ? 'grid-cols-3' : 'grid-cols-2'}`}>{grid.panels.map((panel, i) => <button key={i} type="button" onClick={() => { setPanelIndex(i); setPanelPreview(null); }} className={`overflow-hidden rounded-lg border-2 text-left ${i === panelIndex ? 'border-blue-500' : 'border-transparent'}`}><img src={panel.image_url} alt={`格 ${panel.index}`} className="aspect-video w-full object-cover" /><span className="block p-2 text-xs">格 {panel.index} · {{ passed: '已通过', failed: '需重做', pending: '待审核' }[panel.review_status] || panel.review_status}</span></button>)}</div>}
+          {stage === 'shot_image' && <div className="mt-5 space-y-4">{failedBoard && !grid?.board_image_url && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>当前整板生成失败</strong><p className="mt-1">{failedBoard.errorMessage || '请查看右侧任务详情'}</p>{button('重试此整板', () => request(`/tasks/${failedBoard.id}/retry`, 'POST'), true)}</div>}{boardPreview && <section className="rounded-lg border border-blue-200 bg-blue-50 p-4"><h3 className="font-medium">即将提交的整板输入 · {boardPreview.boardSize.join(' × ')}</h3><div className="mt-3 flex flex-wrap gap-3">{boardPreview.referenceImages.map((ref, i) => <button key={i} type="button" onClick={() => setImagePreview({ images: boardPreview.referenceImages.map((item, index) => ({ url: item.url, label: `Picture ${index + 1} · ${referenceRoleLabels[item.role] || item.role} · ${item.name}` })), index: i })} className="w-36 max-w-full shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-blue-100 bg-white p-2 text-left hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-600" aria-label={`预览参考图 ${i + 1}：${ref.name}`}><img src={ref.url} alt={ref.name} className="aspect-video w-full rounded bg-gray-100 object-contain" /><span className="mt-2 block break-all text-[11px] text-gray-500">Picture {i + 1} · {referenceRoleLabels[ref.role] || ref.role}</span><span className="mt-0.5 block break-words text-xs leading-4 text-gray-800">{ref.name}</span></button>)}</div><pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap text-xs">{boardPreview.prompt}</pre></section>}
+            {grid?.board_image_url && <>{hasReplacedPanels && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">部分子格已单独重做；整板是初稿，H3 将使用下方逐格视图中的最新版图片。</p>}<div className="flex flex-wrap gap-2"><button type="button" onClick={() => setImageView('board')} className={buttonClass}><LayoutGrid className="mr-1 inline h-4 w-4" />整板初稿</button><button type="button" onClick={() => setImageView('panels')} className={buttonClass}><ImageIcon className="mr-1 inline h-4 w-4" />逐格最新版</button>{imageView === 'board' && <button type="button" onClick={() => void downloadBoard(grid.board_image_url!, `shot-${shot.index}-grid-r${grid.revision}.png`)} className={buttonClass}><Download className="mr-1 inline h-4 w-4" />下载整板图</button>}</div>
+              {imageView === 'board' ? <GridBoardDraftImage key={grid.board_image_url} imageUrl={grid.board_image_url} /> : <GridPanelImageGallery key={shot.id} panels={grid.panels} layout={grid.layout} tasks={shotTasks} shotIndex={shot.index} selectedIndex={panelIndex} onSelect={index => { setPanelIndex(index); setPanelPreview(null); }} />}
               {selectedPanel && <GridPanelReview key={`${shot.id}:${selectedPanel.index}:${selectedPanel.image_url}`} panel={selectedPanel} speakers={panelSpeakers} preview={panelPreview} disabled={Boolean(busy) || hasActiveTask}
+                onOpenImage={() => selectedPanel.image_url && setImagePreview({ images: [{ url: selectedPanel.image_url, label: `Shot ${shot.index} · 格 ${selectedPanel.index} 原图` }], index: 0, showDownload: false })}
                 onApprove={note => { void run('审核通过', () => request(`${shotBase}/panels/${selectedPanel.index}/review`, 'PATCH', { status: 'passed', note })); }}
                 onReject={note => { void run('标记需重做', () => request(`${shotBase}/panels/${selectedPanel.index}/review`, 'PATCH', { status: 'failed', note })); }}
                 onPrepare={() => { void run('预览单格重做输入', async () => { setPanelPreview(await request<PanelPreview>(`${shotBase}/panels/${selectedPanel.index}/prepare`, 'POST')); }); }}

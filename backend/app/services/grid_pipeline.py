@@ -6,6 +6,8 @@ import hashlib
 import json
 import random
 import secrets
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -43,6 +45,12 @@ class GridPipelineError(ValueError):
     pass
 
 
+def _panel_generation_size(width: int, height: int) -> tuple[int, int]:
+    # The image API rejects outputs below 655,360 pixels. Keep stored panels at
+    # their grid size, but generate small 16:9 panels at a supported resolution.
+    return (1280, 720) if width * height < 655_360 else (width, height)
+
+
 def _json(raw, fallback):
     try:
         value = json.loads(raw or "")
@@ -61,7 +69,72 @@ def _template(db: Session, novel: Novel, kind: str):
 def _dialogues(shot: Shot) -> list[dict]:
     rows = _json(shot.dialogues, [])
     return [{"id": f"D{i}", "speaker": str(row.get("speaker") or row.get("character_name") or ""),
-             "text": str(row.get("text") or "")} for i, row in enumerate(rows, 1) if isinstance(row, dict)]
+             "text": str(row.get("text") or ""), "delivery": row.get("delivery") or "onscreen",
+             "voice_description": row.get("voice_description") or ""}
+            for i, row in enumerate(rows, 1) if isinstance(row, dict)]
+
+
+def _h3_bindings(data: GridShotData, clip: dict) -> tuple[dict, list[dict]]:
+    """Keep unpictured voices separate from H3 visual Subjects."""
+    names = list(dict.fromkeys(
+        name for panel_index in clip["panel_indexes"]
+        for name in data.panels[panel_index - 1].characters
+    ))
+    names.extend(name for name in dict.fromkeys(
+        line["speaker"] for line in clip["dialogues"]
+        if line.get("delivery") != "offscreen" and line["speaker"] != "旁白"
+    ) if name not in names)
+    subjects = {f"<Subject {i}>": name for i, name in enumerate(names, 1)}
+    subject_for_name = {name: token for token, name in subjects.items()}
+    voices = {}
+    events = []
+    for line in clip["dialogues"]:
+        if line.get("delivery") == "offscreen":
+            name = line["speaker"]
+            description = str(line.get("voice_description") or "").strip()
+            if not description:
+                raise GridPipelineError(f"画外说话人“{name}”缺少英文声音描述")
+            if name not in voices:
+                voices[name] = f"Off-screen voice: {description}"
+            label = voices[name]
+        else:
+            label = subject_for_name.get(line["speaker"], "<Narrator>")
+        events.append({**line, "speaker": label})
+    return subjects, events
+
+
+def _render_offscreen_clip_visual(h3_path: str, panel_path: str, output_path: str) -> None:
+    """Use H3's speech audio with an approved still, so it cannot animate a listener's mouth."""
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration",
+         "-of", "json", h3_path], capture_output=True, text=True, timeout=45,
+    )
+    if probe.returncode:
+        raise GridPipelineError(f"画外声 Clip 媒体检查失败：{probe.stderr[-300:]}")
+    media = json.loads(probe.stdout)
+    streams = media.get("streams") or []
+    video = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+    if not video or not any(stream.get("codec_type") == "audio" for stream in streams):
+        raise GridPipelineError("画外声 Clip 缺少视频或音轨")
+    width, height = int(video["width"]), int(video["height"])
+    duration = float(media["format"]["duration"])
+    if not 0 < duration <= 25:
+        raise GridPipelineError("画外声 Clip 时长无效")
+    command = [
+        "ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "24",
+        "-i", panel_path, "-i", h3_path, "-map", "0:v:0", "-map", "1:a:0",
+        "-t", str(duration), "-vf", f"scale={width}:{height}", "-r", "24",
+        "-c:v", "libx264", "-crf", "0", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "160k",
+        "-movflags", "+faststart", output_path,
+    ]
+    rendered = subprocess.run(command, capture_output=True, text=True, timeout=300)
+    if rendered.returncode:
+        raise GridPipelineError(f"画外声 Clip 合成失败：{rendered.stderr[-300:]}")
+
+
+def _speech_key(value: str) -> str:
+    return "".join(char for char in value if char.isalnum()).casefold()
 
 
 def _panel_number(value) -> int:
@@ -310,9 +383,33 @@ class GridPipeline:
             if scene and scene not in resources["scenes"]:
                 raise GridPipelineError(f"Shot {index} 引用了未批准场景")
             dialogues = row.get("dialogues") or []
-            if not isinstance(dialogues, list) or any(not isinstance(line, dict) or not line.get("text") or
-                (line.get("speaker") not in characters and line.get("speaker") != "旁白") for line in dialogues):
-                raise GridPipelineError(f"Shot {index} 台词或说话人无效")
+            if not isinstance(dialogues, list):
+                raise GridPipelineError(f"Shot {index} 台词格式无效")
+            for line_index, line in enumerate(dialogues, 1):
+                if not isinstance(line, dict) or not isinstance(line.get("text"), str) or not line["text"].strip():
+                    raise GridPipelineError(f"Shot {index} 第 {line_index} 句台词为空或格式无效")
+                speaker = line.get("speaker")
+                if not isinstance(speaker, str) or not speaker.strip():
+                    raise GridPipelineError(f"Shot {index} 第 {line_index} 句缺少说话人")
+                delivery = line.get("delivery") or "onscreen"
+                if delivery not in {"onscreen", "offscreen"}:
+                    raise GridPipelineError(f"Shot {index} 第 {line_index} 句声音类型无效")
+                if delivery == "offscreen":
+                    description = line.get("voice_description")
+                    if not isinstance(description, str) or not description.strip() or any(
+                        char in description for char in "()\r\n"
+                    ):
+                        raise GridPipelineError(f"Shot {index} 第 {line_index} 句画外声的英文声音描述无效")
+                    continue
+                if speaker != "旁白" and speaker not in resources["characters"]:
+                    raise GridPipelineError(
+                        f"Shot {index} 第 {line_index} 句说话人“{speaker}”不在已批准角色中；"
+                        "若为画外人声，请标记 delivery=offscreen 并提供 voice_description"
+                    )
+                if speaker != "旁白" and speaker not in characters:
+                    raise GridPipelineError(
+                        f"Shot {index} 第 {line_index} 句说话人“{speaker}”未列入本 Shot 的 characters"
+                    )
             shot = Shot(chapter_id=chapter.id, index=index, description=f"{row.get('title') or f'Shot {index}'}｜{row['description']}",
                         duration=duration, characters=json.dumps(characters, ensure_ascii=False), scene=scene,
                         props=json.dumps(props, ensure_ascii=False), dialogues=json.dumps(dialogues, ensure_ascii=False))
@@ -363,6 +460,9 @@ class GridPipeline:
             visible = row.get("visible_characters") or []
             if not isinstance(visible, list) or not set(visible) <= set(_json(shot.characters, [])):
                 raise GridPipelineError(f"子格 {index} 引用了未知角色")
+            if visible and any(1 <= number <= len(dialogues) and
+                               dialogues[number - 1]["delivery"] == "offscreen" for number in ids):
+                raise GridPipelineError(f"子格 {index} 画外台词期间不得出现人物；请使用无人出镜的环境画面")
             assigned.extend(ids)
             panels.append(GridPanel(index=index, beat=row.get("story_beat") or "",
                                     camera=camera_text, action=row.get("action") or "",
@@ -535,10 +635,29 @@ class GridPipeline:
         panel = data.panels[index - 1]
         panel.review_status, panel.review_note = status, note
         shot.grid_data = dump_grid_data(data)
-        if status != "passed":
+        if status == "failed":
             self._invalidate_panel_clips(shot, data, index)
         self.db.commit()
         return data
+
+    def approve_shot_panels(self, shots: list[Shot]) -> int:
+        """Manually approve every pictured, unpassed panel in selected Shots."""
+        grids = []
+        for shot in shots:
+            data = load_grid_data(shot.grid_data)
+            if not data or not data.board_image_url or not data.panels or any(not p.image_url for p in data.panels):
+                raise GridPipelineError(f"Shot {shot.index} 尚未生成完整宫格图，无法批量审核通过")
+            grids.append((shot, data))
+        count = 0
+        for shot, data in grids:
+            for panel in data.panels:
+                if panel.review_status != "passed":
+                    panel.review_status = "passed"
+                    panel.review_note = "人工批量审核通过"
+                    count += 1
+            shot.grid_data = dump_grid_data(data)
+        self.db.commit()
+        return count
 
     def prepare_panel_retry(self, novel: Novel, shot: Shot, index: int) -> dict:
         data = self._grid(shot)
@@ -557,6 +676,7 @@ class GridPipeline:
         speakers = list(dict.fromkeys(
             dialogues[number - 1]["speaker"] for number in panel.dialogue_indexes
             if 1 <= number <= len(dialogues) and dialogues[number - 1]["speaker"] != "旁白"
+            and dialogues[number - 1]["delivery"] != "offscreen"
         ))
         focus = panel.camera.split("focus_subject:", 1)[1].split("；", 1)[0] if "focus_subject:" in panel.camera else ""
         focused_speakers = [speaker for speaker in speakers if speaker in focus]
@@ -586,7 +706,7 @@ class GridPipeline:
         shot.grid_data = dump_grid_data(data)
         self.db.commit()
         return {"prompt": panel.image_prompt, "referenceImages": refs,
-                "size": [data.panel_width, data.panel_height]}
+                "size": list(_panel_generation_size(data.panel_width, data.panel_height))}
 
     async def generate_panel_retry(self, novel: Novel, chapter: Chapter, shot: Shot, index: int,
                                    task: Task | None = None) -> dict:
@@ -607,7 +727,8 @@ class GridPipeline:
                 mapping = _json(workflow.node_mapping, {})
                 seed = task.seed if task and task.seed else secrets.randbelow(2**31 - 1) + 1
                 graph = comfy.builder.build_shot_workflow(panel.image_prompt, workflow.workflow_json, mapping, seed=seed)
-                for key, size in (("width_node_id", data.panel_width), ("height_node_id", data.panel_height)):
+                generation_width, generation_height = _panel_generation_size(data.panel_width, data.panel_height)
+                for key, size in (("width_node_id", generation_width), ("height_node_id", generation_height)):
                     node_id = str(mapping.get(key) or "")
                     if node_id in graph:
                         inputs = graph[node_id].setdefault("inputs", {})
@@ -688,8 +809,8 @@ class GridPipeline:
 
     async def plan_clips(self, novel: Novel, chapter: Chapter, shot: Shot, task: Task | None = None) -> dict:
         data = self._grid(shot)
-        if any(not panel.image_url or panel.review_status != "passed" for panel in data.panels):
-            raise GridPipelineError("请先逐格审核通过所有子图")
+        if any(not panel.image_url or panel.review_status == "failed" for panel in data.panels):
+            raise GridPipelineError("请先生成全部子格并处理初审 FAIL 的子格")
         previous_plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=data.revision)
         if previous_plan and any(clip.get("video_url") for clip in previous_plan["clip_plan"]):
             raise GridPipelineError("已有生成的 Clip；请逐条重做，不可直接重新规划")
@@ -727,6 +848,9 @@ class GridPipeline:
             clip_dialogues = [dialogues[i - 1] for i in ids if 1 <= i <= len(dialogues)]
             if len(clip_dialogues) != len(ids):
                 raise GridPipelineError("Clip 引用了不存在的台词")
+            if any(line["delivery"] == "offscreen" for line in clip_dialogues):
+                if len(panels) != 1 or data.panels[panels[0] - 1].characters:
+                    raise GridPipelineError(f"Clip {index} 含画外台词，必须只用一格无人出镜的环境画面")
             duration = round(end - start, 3)
             spacing = duration / (len(ids) + 1) if ids else 0
             timed = [{**dialogue, "start_time": round(max(.1, spacing * (j + .35)), 2),
@@ -758,8 +882,8 @@ class GridPipeline:
         strategy = clip["reference_strategy"]
         panel_indexes = clip["panel_indexes"]
         reviewed_indexes = range(1, len(data.panels) + 1) if strategy == "whole_board" else panel_indexes
-        if any(data.panels[index - 1].review_status != "passed" for index in reviewed_indexes):
-            raise GridPipelineError("参考子格尚未全部审核通过，不能编译或生成 H3 Clip")
+        if any(data.panels[index - 1].review_status == "failed" for index in reviewed_indexes):
+            raise GridPipelineError("参考子格初审 FAIL，不能编译或生成 H3 Clip")
         if strategy == "whole_board" and any(
             panel.image_task_id != data.board_image_task_id for panel in data.panels
         ):
@@ -779,13 +903,7 @@ class GridPipeline:
                 raise GridPipelineError("未知的参考图策略")
             clip["reference_strategy"] = strategy
         refs = self._clip_refs(data, clip)
-        names = list(dict.fromkeys([name for panel_index in clip["panel_indexes"]
-                                    for name in data.panels[panel_index-1].characters]
-                                   + [d["speaker"] for d in clip["dialogues"] if d["speaker"] != "旁白"]))
-        subjects = {f"<Subject {i}>": name for i, name in enumerate(names, 1)}
-        speaker_map = {name: token for token, name in subjects.items()}
-        dialogue_events = [{**line, "speaker": speaker_map.get(line["speaker"], "<Narrator>")}
-                           for line in clip["dialogues"]]
+        subjects, dialogue_events = _h3_bindings(data, clip)
         payload = {"clip_duration_seconds": clip["duration"], "shot": shot.description,
                    "camera_and_action": clip["camera_and_action"],
                    "panels": [data.panels[i-1].model_dump() for i in clip["panel_indexes"]],
@@ -834,13 +952,7 @@ class GridPipeline:
         refs = self._clip_refs(data, clip)
         if refs != clip.get("reference_images"):
             raise GridPipelineError("参考图已变化，请重新编译 H3 提示词")
-        names = list(dict.fromkeys([name for panel_index in clip["panel_indexes"]
-                                    for name in data.panels[panel_index-1].characters]
-                                   + [d["speaker"] for d in clip["dialogues"] if d["speaker"] != "旁白"]))
-        subjects = {f"<Subject {i}>": name for i, name in enumerate(names, 1)}
-        speaker_map = {name: token for token, name in subjects.items()}
-        dialogue_events = [{**line, "speaker": speaker_map.get(line["speaker"], "<Narrator>")}
-                           for line in clip["dialogues"]]
+        subjects, dialogue_events = _h3_bindings(data, clip)
         validate_grid_h3_prompt(clip["prompt"], subjects, dialogue_events,
                                 [r["picture_index"] for r in refs], clip["duration"])
         workflow = (self.db.get(Workflow, task.workflow_id) if task and task.comfyui_prompt_id else
@@ -897,6 +1009,23 @@ class GridPipeline:
             path = await file_storage.download_video_receipt(result["video_url"], novel.id, chapter.id,
                                                              shot.index, filename_suffix=f"grid_c{index}")
             self._active(task)
+            if any(line.get("delivery") == "offscreen" for line in clip["dialogues"]):
+                if any(data.panels[number - 1].characters for number in clip["panel_indexes"]):
+                    raise GridPipelineError("画外声 Clip 的参考子格必须无人出镜")
+                panel_path = url_to_local_path(data.panels[clip["panel_indexes"][0] - 1].image_url)
+                if not panel_path:
+                    raise GridPipelineError("画外声 Clip 缺少已审核的环境子格")
+                transcript = await self._verify_offscreen_audio(comfy, path, clip["dialogues"])
+                self._active(task)
+                raw_url = local_path_to_url(path)
+                safe_path = str(Path(path).with_name(Path(path).stem + "_offscreen.mp4"))
+                await asyncio.to_thread(_render_offscreen_clip_visual, path, panel_path, safe_path)
+                metadata = _json(task.metadata_json, {})
+                metadata["offscreen_audio_source_video_url"] = raw_url
+                metadata["offscreen_visual_panel_url"] = data.panels[clip["panel_indexes"][0] - 1].image_url
+                metadata["offscreen_asr_transcript"] = transcript
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                path = safe_path
             video_url = local_path_to_url(path)
             if not video_url:
                 raise GridPipelineError("H3 Clip 保存失败")
@@ -911,6 +1040,45 @@ class GridPipeline:
             if task:
                 self._failed(task, exc)
             raise
+
+    async def _verify_offscreen_audio(self, comfy: ComfyUIService, video_path: str,
+                                      dialogues: list[dict]) -> str:
+        workflow = WorkflowRepository(self.db).get_active_by_type("audio_transcription")
+        if not workflow:
+            raise GridPipelineError("画外声验收需要激活的语音转文字工作流")
+        mapping = _json(workflow.node_mapping, {})
+        load_node = str(mapping.get("load_audio_node_id") or "")
+        text_node = str(mapping.get("text_output_node_id") or "")
+        graph = _json(workflow.workflow_json, {})
+        if load_node not in graph or not text_node:
+            raise GridPipelineError("语音转文字工作流节点映射不完整")
+        with tempfile.TemporaryDirectory(prefix="grid_offscreen_asr_") as directory:
+            audio_path = str(Path(directory) / "speech.flac")
+            extraction = await asyncio.to_thread(subprocess.run, [
+                "ffmpeg", "-y", "-loglevel", "error", "-i", video_path,
+                "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", audio_path,
+            ], capture_output=True, text=True, timeout=90)
+            if extraction.returncode:
+                raise GridPipelineError("画外声 Clip 没有可识别的音轨")
+            upload = await comfy.client.upload_audio(audio_path)
+            if not upload.get("success"):
+                raise GridPipelineError(upload.get("message") or "画外声音轨上传失败")
+            graph[load_node]["inputs"]["audio"] = upload["filename"]
+            if "audioUI" in graph[load_node]["inputs"]:
+                graph[load_node]["inputs"]["audioUI"] = (
+                    f"/api/view?filename={upload['filename']}&type=input&subfolder="
+                )
+            queued = await comfy.client.queue_prompt(graph)
+            if not queued.get("success"):
+                raise GridPipelineError(queued.get("message") or "画外声语音识别提交失败")
+            recognized = await comfy.client.wait_for_text_outputs(queued["prompt_id"], [text_node], timeout=600)
+            if not recognized.get("success"):
+                raise GridPipelineError(recognized.get("message") or "画外声语音识别失败")
+            transcript = recognized["outputs"][text_node]
+        expected = "".join(line["text"] for line in dialogues)
+        if _speech_key(transcript) != _speech_key(expected):
+            raise GridPipelineError(f"画外声台词与原文不一致：识别到“{transcript[:100]}”")
+        return transcript
 
     async def merge_shot(self, novel: Novel, chapter: Chapter, shot: Shot,
                          task: Task | None = None) -> str:

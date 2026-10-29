@@ -309,7 +309,13 @@ SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES: List[Dict] = [
         "description": "根据真实生图提示词、生成图及参考图 Manifest 独立评审六项图片质量维度",
         **file_template("15_NovelFlow_Image_Quality_Reviewer_V1.txt"),
         "type": "image_quality_review_prompt",
-    }
+    },
+    {
+        "name": "宫格子格质量评审",
+        "description": "按单格机位、焦点、人物与画外声评审供生视频使用的子格图片",
+        **file_template("GridPanelQualityReview_V1.txt"),
+        "type": "grid_panel_review_prompt",
+    },
 ]
 
 # 系统预设的 MiniMax H3 视频生成最终提示词模板

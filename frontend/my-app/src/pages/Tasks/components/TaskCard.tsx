@@ -232,6 +232,9 @@ export function TaskCard({
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const gridReviewReminder = task.status === 'completed' &&
+    ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(task.type) &&
+    task.currentStep?.includes('待人工复核') ? task.currentStep : null;
   const getCurrentStepLabel = () => {
     if (!task.currentStep) return t('tasks.gridProgress.processing');
     if (!task.type.startsWith('grid_')) return task.currentStep;
@@ -360,6 +363,9 @@ export function TaskCard({
             </p>
           )}
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
+          {gridReviewReminder && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800" data-grid-review-reminder>
+            {gridReviewReminder}
+          </p>}
           {(task.novelName || chapterLabel) && (
             <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {task.novelName && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">📖 {task.novelName}</span>}
@@ -584,12 +590,13 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' || task.type === 'grid_board_image' || task.type === 'grid_panel_image' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' || task.type === 'grid_board_image' || task.type === 'grid_panel_image' || task.type === 'grid_panel_review' ? (
                 <div>
+                  {task.type === 'grid_panel_review' && <div className="mb-1 text-xs font-medium text-gray-600">{t('tasks.reviewedGridPanel')}</div>}
                   <div className="relative group inline-block">
                     <img
                       src={task.resultUrl}
-                      alt={t('tasks.generatedResult')}
+                      alt={task.type === 'grid_panel_review' ? t('tasks.reviewedGridPanel') : t('tasks.generatedResult')}
                       className="h-32 w-auto object-contain rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow bg-gray-50"
                       onClick={() => task.resultUrl && onPreviewImage(task.resultUrl)}
                       onLoad={() => task.resultUrl && fetchImageInfo(task.resultUrl, task.id)}

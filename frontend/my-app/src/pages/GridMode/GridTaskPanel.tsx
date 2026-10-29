@@ -4,9 +4,10 @@ import { toast } from '../../stores/toastStore';
 
 export type GridTask = {
   id: string; type: string; status: string; name: string; currentStep?: string;
+  resultUrl?: string;
   errorMessage?: string; progress?: number; shotId?: string; clipIndex?: number;
   panelIndex?: number; parentTaskId?: string; batchOrder?: number; gridStep?: string;
-  autoShotResults?: Record<string, { status: string; message?: string; step?: string }>;
+  autoShotResults?: Record<string, { status: string; message?: string; step?: string; warnings?: string[] }>;
   nameplatePreview?: { url?: string; status?: string; warnings?: string[]; autoApproved?: boolean };
 };
 
@@ -29,11 +30,13 @@ export function GridTaskPanel({ tasks, shots, onRefresh, onAction, onResumeBatch
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loadingId, setLoadingId] = useState('');
   const batch = tasks.find(item => item.type === 'grid_batch');
-  const auto = tasks.find(item => ['grid_auto_batch', 'grid_board_batch'].includes(item.type));
-  const autoParentIds = new Set(tasks.filter(item => ['grid_auto_batch', 'grid_board_batch'].includes(item.type)).map(item => item.id));
+  const auto = tasks.find(item => ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(item.type));
+  const autoReviewCount = Object.values(auto?.autoShotResults || {}).filter(result => result.status === 'needs_review').length;
+  const autoWarningCount = Object.values(auto?.autoShotResults || {}).filter(result => result.warnings?.length).length;
+  const autoParentIds = new Set(tasks.filter(item => ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(item.type)).map(item => item.id));
   const children = batch ? tasks.filter(item => item.parentTaskId === batch.id).sort((a, b) => (a.batchOrder || 0) - (b.batchOrder || 0)) : [];
   const autoChildren = auto ? tasks.filter(item => item.parentTaskId === auto.id) : [];
-  const recent = tasks.filter(item => !['grid_batch', 'grid_auto_batch', 'grid_board_batch'].includes(item.type) && item.parentTaskId !== batch?.id && !autoParentIds.has(item.parentTaskId || ''));
+  const recent = tasks.filter(item => !['grid_batch', 'grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(item.type) && item.parentTaskId !== batch?.id && !autoParentIds.has(item.parentTaskId || ''));
   const visible = [...recent.filter(item => ['failed', 'running', 'pending'].includes(item.status)),
     ...recent.filter(item => item.status === 'completed').slice(0, 6)];
   const done = children.filter(item => item.status === 'completed').length;
@@ -76,12 +79,12 @@ export function GridTaskPanel({ tasks, shots, onRefresh, onAction, onResumeBatch
   return <section className="rounded-xl border bg-white p-4">
     <div className="flex items-center justify-between"><h2 className="font-semibold">本章生成任务</h2><button type="button" onClick={onRefresh} className="text-xs text-blue-700">刷新</button></div>
     <p className="mt-1 text-xs text-gray-500">任务在后台执行；关闭页面后仍可回来查看。</p>
-    {auto && <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm">
-      <div className="flex justify-between gap-2"><strong>{auto.type === 'grid_board_batch' ? '批量生成分镜宫格图' : '自动批量生成 Shot'}</strong><span>{statusLabel[auto.status] || auto.status}</span></div>
+    {auto && <div className={`mt-3 rounded-lg border p-3 text-sm ${auto.status === 'failed' ? 'border-red-200 bg-red-50' : autoReviewCount || autoWarningCount ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}>
+      <div className="flex justify-between gap-2"><strong>{auto.name.split(' · ')[0]}</strong><span>{statusLabel[auto.status] || auto.status}{autoReviewCount ? ` · ${autoReviewCount} 个 Shot 待人工复核` : ''}{autoWarningCount ? ` · ${autoWarningCount} 个 Shot 带警告` : ''}</span></div>
       <div className="mt-2 h-2 overflow-hidden rounded bg-green-100"><div className="h-full bg-green-600" style={{ width: `${auto.progress || 0}%` }} /></div>
       <p className="mt-1 text-xs text-gray-700">{auto.currentStep}</p>
-      <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">{Object.entries(auto.autoShotResults || {}).map(([id, result]) => <p key={id} className={`text-xs ${result.status === 'failed' || result.status === 'needs_review' ? 'text-red-700' : 'text-gray-700'}`}>
-        Shot {shots.find(shot => shot.id === id)?.index || '?'} · {{ pending: '排队中', running: '执行中', completed: '已完成', failed: '失败', needs_review: '待人工复核' }[result.status] || result.status}{result.message ? ` · ${result.message}` : ''}
+      <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">{Object.entries(auto.autoShotResults || {}).map(([id, result]) => <p key={id} className={`text-xs ${result.status === 'failed' ? 'text-red-700' : result.status === 'needs_review' || result.warnings?.length ? 'text-amber-800' : 'text-gray-700'}`}>
+        Shot {shots.find(shot => shot.id === id)?.index || '?'} · {{ pending: '排队中', running: '执行中', completed: '已完成', failed: '失败', needs_review: '待人工复核' }[result.status] || result.status}{result.message ? ` · ${result.message}` : ''}{result.warnings?.length ? ` · ${result.warnings.join('；')}` : ''}
       </p>)}</div>
       {auto.errorMessage && <p className="mt-2 text-xs text-red-700">{auto.errorMessage}</p>}
       {['failed', 'cancelled'].includes(auto.status) && <button type="button" className="mt-2 text-xs font-medium text-blue-700" onClick={() => onAction('重试未完成 Shot', () => fetch(`${API_BASE}/tasks/${auto.id}/retry`, { method: 'POST' }).then(async response => { const body = await response.json(); if (!response.ok || !body.success) throw new Error(body.detail || body.message || '重试失败'); }))}>重试未完成 Shot</button>}

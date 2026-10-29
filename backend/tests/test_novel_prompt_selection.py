@@ -30,8 +30,8 @@ def test_registry_is_complete_for_novel_selection():
     retired_types = {"h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"}
     chapter_scoped = chapter_music_types | {"subtitle_correction", "subtitle_translation"}
     assert set(NOVEL_PROMPT_TEMPLATE_FIELDS) - retired_types == set(PROMPT_TEMPLATE_TYPES) - chapter_scoped
-    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 27
-    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 27
+    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 28
+    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 28
     assert all(hasattr(Novel, field) for field in NOVEL_PROMPT_TEMPLATE_FIELDS.values())
 
 

@@ -110,6 +110,7 @@ export default {
     temporalSlot: '時間スロット {slot}',
     framePosition: 'フレーム {frame}',
     referenceImages: '参照画像',
+    reviewedGridPanel: '審査対象のコマ（AI の主画像）',
     referenceVideo: '参照動画',
     referenceImage: '参照画像',
     types: {
@@ -128,6 +129,7 @@ export default {
       gridBatch: 'グリッド一括タスク',
       gridAutoBatch: 'グリッド自動一括生成',
       gridBoardBatch: '絵コンテグリッドの一括生成',
+      gridReviewBatch: 'AI 画像一括審査',
       characterPortrait: 'キャラクター生成',
       chapterBackgroundMusic: '背景音楽を生成',
       sceneImage: 'シーン画像',

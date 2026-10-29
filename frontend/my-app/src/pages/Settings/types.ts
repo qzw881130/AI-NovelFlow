@@ -105,6 +105,7 @@ export interface SettingsFormData {
   nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  gridGenerationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;
   proxy: ProxyConfig;
   comfyUIHost: string;

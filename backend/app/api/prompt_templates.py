@@ -54,6 +54,7 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("keyframe_image_prompt", "视频关键帧生图提示词构建"),
         ("image_quality_review_prompt", "AI 图片质量评审"),
     ]),
+    ("宫格子格审查", [("grid_panel_review_prompt", "宫格子格质量评审")]),
     ("视频生成", [
         ("h3_multi_keyframe_director_phase_b", "MiniMax H3 单阶段导演规划（Phase B）"),
         ("grid_h3_phase_b", "宫格 H3 六段式提示词"),

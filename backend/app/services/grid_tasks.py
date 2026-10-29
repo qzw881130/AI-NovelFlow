@@ -101,8 +101,8 @@ def _validate(db: Session, novel: Novel, chapter: Chapter, shot: Shot | None, st
     if step == "panel_generate" and (not panel_index or not 1 <= panel_index <= len(data.panels)
                                      or not data.panels[panel_index - 1].image_prompt):
         raise GridPipelineError("请先预览此格重做输入")
-    if step == "clips_plan" and any(not p.image_url or p.review_status != "passed" for p in data.panels):
-        raise GridPipelineError("请先审核通过全部子格")
+    if step == "clips_plan" and any(not p.image_url or p.review_status == "failed" for p in data.panels):
+        raise GridPipelineError("请先生成全部子格并处理初审 FAIL 的子格")
     if step == "clips_plan" and plan and any(item.get("video_url") for item in plan["clip_plan"]):
         raise GridPipelineError("已有生成的 Clip；请逐条重做，不可直接重新规划")
     if step in {"clip_prepare", "clip_generate", "shot_merge"}:
@@ -124,7 +124,7 @@ def enqueue_grid_job(db: Session, novel: Novel, chapter: Chapter, shot: Shot | N
     if step not in GRID_STEPS:
         raise GridPipelineError("未知的宫格任务步骤")
     if parent_task_id is None and db.query(Task.id).filter(
-            Task.chapter_id == chapter.id, Task.type.in_(["grid_auto_batch", "grid_board_batch"]),
+            Task.chapter_id == chapter.id, Task.type.in_(["grid_auto_batch", "grid_board_batch", "grid_review_batch"]),
             Task.status.in_(["pending", "running"])).first():
         raise GridPipelineError("本章正在自动批量生成，请等待任务结束")
     _validate(db, novel, chapter, shot, step, panel_index=panel_index, clip_index=clip_index)

@@ -139,7 +139,7 @@ def task_context(task):
             "details": {"visual_state_index": state_index, "clip_index": clip_index,
                         "task_type": task.type, "comfyui_prompt_id": task.comfyui_prompt_id,
                         "panel_index": meta.get("panel_index"), "grid_step": meta.get("grid_step"),
-                        "total_count": (len(meta.get("shot_ids") or []) if task.type in {"grid_auto_batch", "grid_board_batch"}
+                        "total_count": (len(meta.get("shot_ids") or []) if task.type in {"grid_auto_batch", "grid_board_batch", "grid_review_batch"}
                                         else meta.get("expected_count") if task.type in {"grid_batch", "grid_chapter_plan_batch"} else None),
                         "error_code": optimizer.get("error_code"),
                         "source_task_id": task.source_task_id,

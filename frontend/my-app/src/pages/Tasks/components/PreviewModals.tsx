@@ -9,9 +9,10 @@ interface ImagePreviewModalProps {
   currentIndex?: number;
   onNavigate?: (direction: 'prev' | 'next') => void;
   onClose: () => void;
+  showDownload?: boolean;
 }
 
-export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onNavigate, onClose }: ImagePreviewModalProps) {
+export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onNavigate, onClose, showDownload = true }: ImagePreviewModalProps) {
   const { t } = useTranslation();
   const [info, setInfo] = useState<{ width?: number; height?: number; size?: string } | null>(null);
   const canNavigate = images.length > 1 && !!onNavigate;
@@ -43,15 +44,18 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
   }, [imageUrl]);
 
   useEffect(() => {
-    if (!canNavigate) return;
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onClose();
+      } else if (canNavigate && event.key === 'ArrowLeft') {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         onNavigate?.('prev');
-      } else if (event.key === 'ArrowRight') {
+      } else if (canNavigate && event.key === 'ArrowRight') {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -61,7 +65,7 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [canNavigate, onNavigate]);
+  }, [canNavigate, onNavigate, onClose]);
 
   const handleDownload = async () => {
     try {
@@ -81,7 +85,7 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label={currentImage?.label || t('tasks.preview')} onClick={onClose}>
       {canNavigate && (
         <button
           type="button"
@@ -116,14 +120,13 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
         <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>
-        {/* 下载按钮 */}
-        <button
+        {showDownload && <button
           onClick={(e) => { e.stopPropagation(); handleDownload(); }}
           className="absolute -top-10 right-10 p-2 text-white hover:text-blue-400 transition-colors"
           title={t('common.download') || '下载'}
         >
           <Download className="h-6 w-6" />
-        </button>
+        </button>}
       </div>
       {canNavigate && (
         <button

@@ -41,6 +41,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   h3_multi_keyframe_director_phase_b: <Video className="h-4 w-4" />,
   grid_shot_plan: <BookOpen className="h-4 w-4" />,
   grid_image_prompt: <Image className="h-4 w-4" />,
+  grid_panel_review_prompt: <Image className="h-4 w-4" />,
   grid_clip_plan: <Film className="h-4 w-4" />,
   grid_h3_phase_b: <Video className="h-4 w-4" />,
 };
@@ -74,6 +75,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   h3_multi_keyframe_director_phase_b: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   grid_shot_plan: { active: 'text-cyan-600 bg-cyan-50 border-cyan-200', inactive: 'text-gray-500 hover:text-cyan-600', border: 'border-cyan-200' },
   grid_image_prompt: { active: 'text-sky-600 bg-sky-50 border-sky-200', inactive: 'text-gray-500 hover:text-sky-600', border: 'border-sky-200' },
+  grid_panel_review_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
   grid_clip_plan: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   grid_h3_phase_b: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
 };
@@ -84,7 +86,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
   asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop', 'scene_setting', 'prop_appearance'] },
   shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split', 'keyframe_description', 'grid_shot_plan'] },
-  shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt', 'grid_image_prompt'] },
+  shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt', 'grid_image_prompt', 'grid_panel_review_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['keyframe_planner', 'keyframe_transition', 'clip_execution_planner', 'grid_clip_plan'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
   video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_multi_keyframe_director_phase_b', 'grid_h3_phase_b'] },
@@ -108,7 +110,7 @@ const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
   video_subtitles: 'subtitle_correction',
 };
 
-const GRID_TEMPLATE_TYPES = new Set<TemplateType>(['grid_shot_plan', 'grid_image_prompt', 'grid_clip_plan', 'grid_h3_phase_b']);
+const GRID_TEMPLATE_TYPES = new Set<TemplateType>(['grid_shot_plan', 'grid_image_prompt', 'grid_panel_review_prompt', 'grid_clip_plan', 'grid_h3_phase_b']);
 const SHARED_TEMPLATE_TYPES = new Set<TemplateType>([
   'story_world_context_recommender', 'style', 'character_parse', 'scene_parse', 'prop_parse',
   'character', 'scene', 'prop', 'scene_setting', 'prop_appearance',

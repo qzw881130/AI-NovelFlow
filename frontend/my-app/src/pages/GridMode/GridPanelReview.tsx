@@ -20,7 +20,7 @@ const checks = [
 ];
 
 export function GridPanelReview({ panel, speakers, preview, disabled, onApprove, onReject,
-  onPrepare, onGenerate, onReplace }: {
+  onPrepare, onGenerate, onReplace, onOpenImage }: {
   panel: Panel;
   speakers: string[];
   preview: Preview | null;
@@ -30,6 +30,7 @@ export function GridPanelReview({ panel, speakers, preview, disabled, onApprove,
   onPrepare: () => void;
   onGenerate: () => void;
   onReplace: (file: File) => void;
+  onOpenImage: () => void;
 }) {
   const [checked, setChecked] = useState<boolean[]>(checks.map(() => false));
   const [note, setNote] = useState('');
@@ -43,8 +44,7 @@ export function GridPanelReview({ panel, speakers, preview, disabled, onApprove,
     <p className="mt-2 text-sm text-gray-700">{panel.beat}</p>
     <p className="mt-1 text-xs text-gray-600">{panel.camera}</p>
     {speakers.length > 0 && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">本格台词人：{speakers.join('、')}。请核对人物身份与镜头规划{offscreenSpeakers.length > 0 ? `；${offscreenSpeakers.join('、')}规划为画外音，不要求其露脸` : '，露脸说话人应清晰且口型正确'}。</p>}
-    {panel.image_url && <a href={panel.image_url} target="_blank" rel="noreferrer" title="打开原图检查细节"><img src={panel.image_url} alt={`格 ${panel.index} 原图`} className="mt-3 aspect-video w-full rounded-lg border object-contain" /></a>}
-    <p className="mt-1 text-xs text-gray-500">点击图片可打开原图检查脸部与道具细节。</p>
+    {panel.image_url && <><button type="button" onClick={onOpenImage} aria-label={`放大查看格 ${panel.index} 原图`} title="在页面内放大查看细节" className="mt-3 block w-full cursor-zoom-in rounded-lg focus-visible:outline-2 focus-visible:outline-blue-600"><img src={panel.image_url} alt={`格 ${panel.index} 原图`} className="aspect-video w-full rounded-lg border object-contain" /></button><p className="mt-1 text-xs text-gray-500">点击图片可在页面内放大检查脸部与道具细节。</p></>}
     <div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((label, index) => <label key={label} className="flex items-start gap-2 rounded border bg-white p-2 text-sm"><input type="checkbox" checked={checked[index]} onChange={event => setChecked(previous => previous.map((value, i) => i === index ? event.target.checked : value))} className="mt-1" /><span>{label}</span></label>)}</div>
     <label className="mt-3 block text-xs text-gray-600">问题备注（标记需重做时建议填写）<textarea value={note} onChange={event => setNote(event.target.value)} rows={2} className="mt-1 w-full rounded border p-2 text-sm" placeholder="例如：说话人与前景人物颠倒；行囊在老翁背上" /></label>
     {panel.review_note && <p className="mt-2 text-xs text-gray-600">上次审核：{panel.review_note}</p>}

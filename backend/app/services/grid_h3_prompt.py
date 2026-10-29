@@ -15,15 +15,16 @@ from app.services.h3_native_prompt import (
 
 
 _GRID_DIALOGUE_PATTERN = re.compile(
-    r"(<Subject \d+>|<Narrator>)\s+\((S\d+)\)\s+(.+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>", re.S,
+    r"(<Subject \d+>|<Narrator>|Off-screen voice: [^()\n]+)\s+\((S\d+)\)\s+(.+?)<d>\[([^\]\n]+)\][ \t]?(.*?)</d>", re.S,
 )
 
 
 def _grid_dialogue_events(prompt: str) -> list[dict]:
     """A listener Subject may be named in the speech lead before the <d> tag."""
     detail = sections(prompt).get("detailed_description", "")
-    return [{"speaker": match[1], "speaker_id": match[2], "speech_lead": match[3],
-             "language": match[4], "exact_dialogue": match[5]}
+    return [{"speaker": match[1].strip(), "speaker_id": match[2], "speech_lead": match[3],
+             "language": match[4], "exact_dialogue": match[5],
+             "postlude": detail[match.end():match.end() + 120]}
             for match in _GRID_DIALOGUE_PATTERN.finditer(detail)]
 
 
@@ -130,7 +131,8 @@ def inspect_grid_h3_prompt(prompt: str, subject_names: dict[str, str],
         speaker = row["speaker"]
         subject_number = re.fullmatch(r"<Subject (\d+)>", speaker)
         expected_id = speaker_ids.setdefault(
-            speaker, f"S{subject_number.group(1)}" if subject_number else f"S{len(subject_names) + 1}",
+            speaker, f"S{subject_number.group(1)}" if subject_number else
+            f"S{len(subject_names) + len([name for name in speaker_ids if not name.startswith('<Subject ')]) + 1}",
         )
         if row["speaker_id"] != expected_id:
             stable_speakers = False
@@ -182,7 +184,16 @@ def inspect_grid_h3_prompt(prompt: str, subject_names: dict[str, str],
             if re.search(r"[\u3400-\u9fff]", row["exact_dialogue"])
         ),
         "no_unknown_speakers": all(row["speaker"] in subject_names or row["speaker"] == "<Narrator>"
+                                   or any(expected.get("delivery") == "offscreen" and
+                                          expected["speaker"] == row["speaker"] for expected in dialogues)
                                    for row in actual),
+        "offscreen_lip_lock": all(
+            row["speaker"].startswith("Off-screen voice: ") and
+            "off-screen" in row["speech_lead"].lower() and
+            bool(re.match(r"\s*while all visible subjects' lips remain completely closed",
+                          row["postlude"], re.I))
+            for row in actual if row["speaker"].startswith("Off-screen voice: ")
+        ),
         "shot_order_and_duration": bool(shot_marks) and all(
             int(mark[0]) == i for i, mark in enumerate(shot_marks, 1)
         ) and len(shot_times) == len(shot_marks) - 1

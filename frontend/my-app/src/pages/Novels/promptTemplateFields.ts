@@ -25,6 +25,7 @@ export const TEMPLATE_FIELDS = [
 export const GRID_TEMPLATE_FIELDS = [
   { key: 'gridShotPlanPromptTemplateId', labelKey: 'promptConfig.types.gridShotPlan', hintKey: 'promptConfig.types.gridShotPlanDesc', templateType: 'grid_shot_plan', category: 'shot_planning' },
   { key: 'gridImagePromptTemplateId', labelKey: 'promptConfig.types.gridImagePrompt', hintKey: 'promptConfig.types.gridImagePromptDesc', templateType: 'grid_image_prompt', category: 'shot_image' },
+  { key: 'gridPanelReviewPromptTemplateId', labelKey: 'promptConfig.types.gridPanelReviewPrompt', hintKey: 'promptConfig.types.gridPanelReviewPromptDesc', templateType: 'grid_panel_review_prompt', category: 'shot_image' },
   { key: 'gridClipPlanPromptTemplateId', labelKey: 'promptConfig.types.gridClipPlan', hintKey: 'promptConfig.types.gridClipPlanDesc', templateType: 'grid_clip_plan', category: 'video_director' },
   { key: 'gridH3PhaseBPromptTemplateId', labelKey: 'promptConfig.types.gridH3PhaseB', hintKey: 'promptConfig.types.gridH3PhaseBDesc', templateType: 'grid_h3_phase_b', category: 'video_generation' },
 ] as const;

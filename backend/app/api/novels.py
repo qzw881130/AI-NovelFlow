@@ -28,6 +28,7 @@ router = APIRouter()
 GRID_TEMPLATE_FIELDS = {
     "gridShotPlanPromptTemplateId": ("grid_shot_plan_prompt_template_id", "grid_shot_plan"),
     "gridImagePromptTemplateId": ("grid_image_prompt_template_id", "grid_image_prompt"),
+    "gridPanelReviewPromptTemplateId": ("grid_panel_review_prompt_template_id", "grid_panel_review_prompt"),
     "gridClipPlanPromptTemplateId": ("grid_clip_plan_prompt_template_id", "grid_clip_plan"),
     "gridH3PhaseBPromptTemplateId": ("grid_h3_phase_b_prompt_template_id", "grid_h3_phase_b"),
 }
@@ -71,6 +72,7 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "h3PreflightRepairPromptTemplateId", "attr": "h3_preflight_repair_prompt_template_id", "label": "H3 Preflight 自动修复模板", "type": "h3_preflight_repair_prompt"},
     {"api_key": "gridShotPlanPromptTemplateId", "attr": "grid_shot_plan_prompt_template_id", "label": "宫格 Shot 与逐格规划", "type": "grid_shot_plan"},
     {"api_key": "gridImagePromptTemplateId", "attr": "grid_image_prompt_template_id", "label": "宫格整板生图", "type": "grid_image_prompt"},
+    {"api_key": "gridPanelReviewPromptTemplateId", "attr": "grid_panel_review_prompt_template_id", "label": "宫格子格质量评审", "type": "grid_panel_review_prompt"},
     {"api_key": "gridClipPlanPromptTemplateId", "attr": "grid_clip_plan_prompt_template_id", "label": "宫格 Clip 规划", "type": "grid_clip_plan"},
     {"api_key": "gridH3PhaseBPromptTemplateId", "attr": "grid_h3_phase_b_prompt_template_id", "label": "宫格 H3 六段式", "type": "grid_h3_phase_b"},
 ]
@@ -160,6 +162,7 @@ def create_novel_in_session(novel: NovelCreate, db: Session) -> Novel:
         video_mode=novel.video_mode,
         grid_shot_plan_prompt_template_id=novel.grid_shot_plan_prompt_template_id if novel.video_mode == "grid" else None,
         grid_image_prompt_template_id=novel.grid_image_prompt_template_id if novel.video_mode == "grid" else None,
+        grid_panel_review_prompt_template_id=novel.grid_panel_review_prompt_template_id if novel.video_mode == "grid" else None,
         grid_clip_plan_prompt_template_id=novel.grid_clip_plan_prompt_template_id if novel.video_mode == "grid" else None,
         grid_h3_phase_b_prompt_template_id=novel.grid_h3_phase_b_prompt_template_id if novel.video_mode == "grid" else None,
     )
@@ -213,6 +216,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "hasShots": False,
             "gridShotPlanPromptTemplateId": db_novel.grid_shot_plan_prompt_template_id,
             "gridImagePromptTemplateId": db_novel.grid_image_prompt_template_id,
+            "gridPanelReviewPromptTemplateId": db_novel.grid_panel_review_prompt_template_id,
             "gridClipPlanPromptTemplateId": db_novel.grid_clip_plan_prompt_template_id,
             "gridH3PhaseBPromptTemplateId": db_novel.grid_h3_phase_b_prompt_template_id,
             "createdAt": format_datetime(db_novel.created_at),

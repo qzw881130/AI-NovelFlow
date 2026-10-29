@@ -37,6 +37,7 @@ class NovelBase(BaseModel):
     video_mode: Literal["single", "grid"] = Field("single", alias="videoMode")
     grid_shot_plan_prompt_template_id: Optional[str] = Field(None, alias="gridShotPlanPromptTemplateId")
     grid_image_prompt_template_id: Optional[str] = Field(None, alias="gridImagePromptTemplateId")
+    grid_panel_review_prompt_template_id: Optional[str] = Field(None, alias="gridPanelReviewPromptTemplateId")
     grid_clip_plan_prompt_template_id: Optional[str] = Field(None, alias="gridClipPlanPromptTemplateId")
     grid_h3_phase_b_prompt_template_id: Optional[str] = Field(None, alias="gridH3PhaseBPromptTemplateId")
 

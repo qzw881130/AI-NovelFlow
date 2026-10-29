@@ -110,6 +110,7 @@ export default {
     temporalSlot: '시간 슬롯 {slot}',
     framePosition: '프레임 {frame}',
     referenceImages: '참조 이미지',
+    reviewedGridPanel: '검토 대상 패널 (AI 기본 이미지)',
     referenceVideo: '참조 비디오',
     referenceImage: '참조 이미지',
     types: {
@@ -128,6 +129,7 @@ export default {
       gridBatch: '그리드 일괄 작업',
       gridAutoBatch: '그리드 자동 일괄 생성',
       gridBoardBatch: '스토리보드 그리드 일괄 생성',
+      gridReviewBatch: 'AI 이미지 일괄 검토',
       characterPortrait: '캐릭터 생성',
       chapterBackgroundMusic: '배경 음악 생성',
       sceneImage: '장면 이미지',

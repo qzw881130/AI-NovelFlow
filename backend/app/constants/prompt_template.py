@@ -47,6 +47,7 @@ class PromptTemplateType:
     # 关键帧生图提示词
     KEYFRAME_IMAGE_PROMPT = "keyframe_image_prompt"
     IMAGE_QUALITY_REVIEW_PROMPT = "image_quality_review_prompt"
+    GRID_PANEL_REVIEW_PROMPT = "grid_panel_review_prompt"
     TEMPORAL_REFERENCE_SELECTOR = "temporal_reference_selector"
     # 关键帧过渡规划提示词
     KEYFRAME_TRANSITION = "keyframe_transition"
@@ -86,6 +87,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.KEYFRAME_PLANNER,
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
     PromptTemplateType.IMAGE_QUALITY_REVIEW_PROMPT,
+    PromptTemplateType.GRID_PANEL_REVIEW_PROMPT,
     PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
     PromptTemplateType.CLIP_EXECUTION_PLANNER,
@@ -123,6 +125,11 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "name_key": "promptConfig.types.gridH3PhaseB",
         "desc_key": "promptConfig.types.gridH3PhaseBDesc",
         "icon": "Video", "color": "rose",
+    },
+    PromptTemplateType.GRID_PANEL_REVIEW_PROMPT: {
+        "name_key": "promptConfig.types.gridPanelReviewPrompt",
+        "desc_key": "promptConfig.types.gridPanelReviewPromptDesc",
+        "icon": "Images", "color": "emerald",
     },
     PromptTemplateType.SUBTITLE_CORRECTION: {
         "name_key": "promptConfig.types.subtitleCorrection",
@@ -335,6 +342,7 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "keyframe_planner": "keyframe_planner_prompt_template_id",
     "keyframe_image_prompt": "keyframe_image_prompt_template_id",
     "image_quality_review_prompt": "image_quality_review_prompt_template_id",
+    "grid_panel_review_prompt": "grid_panel_review_prompt_template_id",
     "temporal_reference_selector": "temporal_reference_selector_prompt_template_id",
     "keyframe_transition": "keyframe_transition_prompt_template_id",
     "clip_execution_planner": "clip_execution_planner_prompt_template_id",

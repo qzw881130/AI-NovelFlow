@@ -40,6 +40,34 @@ def _task(db_session):
     return task
 
 
+def test_grid_panel_review_uses_its_own_template_and_panel_authority(db_session):
+    general = PromptTemplate(id="general-review", name="通用评审", type="image_quality_review_prompt",
+                             template="通用规则", is_system=True, is_active=True)
+    grid = PromptTemplate(id="grid-review", name="子格评审", type="grid_panel_review_prompt",
+                          template="本格焦点优先", is_system=True, is_active=True)
+    novel = Novel(id="grid-review-novel", title="宫格评审", video_mode="grid")
+    task = Task(id="grid-review-task", type="grid_panel_review", status="running",
+                novel_id=novel.id, name="审核格 3", prompt_text="前景听众虚化，老翁清晰",
+                result_url="/api/files/panel.png",
+                metadata_json=json.dumps({"structured_target": {"panel": {
+                    "index": 3, "characters": ["杜甫", "老翁"],
+                    "camera": "focus_subject: 老翁；前景杜甫虚化"},
+                    "speakers": ["老翁"], "offscreen_speakers": []}}, ensure_ascii=False))
+    db_session.add_all([general, grid, novel, task])
+    db_session.commit()
+
+    review = create_image_review(db_session, task.id)
+    snapshot = json.loads(review.input_snapshot_json)
+    assert review.template_id == grid.id and review.template_text == "本格焦点优先"
+    assert snapshot["target"]["grid_panel"]["panel"]["index"] == 3
+    assert "Shot 角色表仅是全镜头背景" in snapshot["target"]["authority_note"]
+
+    task.type = "keyframe_image"
+    task.status = "completed"
+    db_session.commit()
+    assert create_image_review(db_session, task.id).template_id == general.id
+
+
 @pytest.mark.parametrize("workflow_name,expected_mode", [
     ("Qwen image 2.1【四视图】", "four_view"),
     ("Z-image-turbo 单图生成", "single_view"),

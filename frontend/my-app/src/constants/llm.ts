@@ -31,6 +31,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   nameplatePreviewMode: 'protagonist_first',
   autoApproveFirstAppearanceNames: true,
   generationQualityPolicy: {},
+  gridGenerationQualityPolicy: {},
   coverProduction: '旺仔有声小说',
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',

@@ -375,6 +375,8 @@ export default {
       gridShotPlanDesc: '按已选宫格版式规划剧情、镜头、轴线和台词',
       gridImagePrompt: '宫格整板生图提示词',
       gridImagePromptDesc: '按逐格脚本构建一张可裁切的宫格图',
+      gridPanelReviewPrompt: '宫格子格质量评审',
+      gridPanelReviewPromptDesc: '按本格人物、机位焦点、遮挡和画外声审查生视频子格',
       gridClipPlan: '宫格子图到 Clip 规划',
       gridClipPlanDesc: '给短 Clip 分配子图、动作和台词',
       gridH3PhaseB: '宫格 H3 六段式提示词',

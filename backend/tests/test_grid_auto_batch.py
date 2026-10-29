@@ -2,6 +2,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.background_job import BackgroundJob
@@ -50,6 +51,47 @@ def _hold_worker(monkeypatch, engine):
     monkeypatch.setattr(worker_manager, "_session_factory", lambda: Session(engine))
 
 
+def test_review_pass_batch_updates_only_selected_shots_and_keeps_existing_notes(client, db_session):
+    novel, chapter = _chapter(db_session)
+    first = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    second = _shot(db_session, chapter, 2, reviewed=False, with_clip=False)
+    grid = load_grid_data(first.grid_data)
+    grid.panels[0].review_status = "passed"
+    grid.panels[0].review_note = "原有人工确认"
+    grid.panels[1].review_status = "warning"
+    first.grid_data = dump_grid_data(grid)
+    db_session.commit()
+
+    path = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/review-pass-batch"
+    response = client.post(path, json={"shot_ids": [first.id]})
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == {"shots": 1, "panels": 3}
+    reviewed = load_grid_data(first.grid_data).panels
+    assert [panel.review_status for panel in reviewed] == ["passed"] * 4
+    assert reviewed[0].review_note == "原有人工确认"
+    assert all(panel.review_note == "人工批量审核通过" for panel in reviewed[1:])
+    assert all(panel.review_status == "pending" for panel in load_grid_data(second.grid_data).panels)
+
+
+def test_review_pass_batch_rejects_incomplete_or_busy_selection_without_partial_update(client, db_session):
+    novel, chapter = _chapter(db_session)
+    first = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    second = _shot(db_session, chapter, 2, reviewed=False, with_clip=False)
+    path = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/review-pass-batch"
+    grid = load_grid_data(second.grid_data)
+    grid.panels[0].image_url = None
+    second.grid_data = dump_grid_data(grid)
+    db_session.commit()
+    assert client.post(path, json={"shot_ids": [first.id, second.id]}).status_code == 422
+    assert all(panel.review_status == "pending" for panel in load_grid_data(first.grid_data).panels)
+    assert client.post(path, json={"shot_ids": [first.id, first.id]}).status_code == 422
+    db_session.add(Task(type="grid_board_image", status="running", novel_id=novel.id,
+                        chapter_id=chapter.id, shot_id=first.id, name="正在生图"))
+    db_session.commit()
+    assert client.post(path, json={"shot_ids": [first.id]}).status_code == 409
+    assert all(panel.review_status == "pending" for panel in load_grid_data(first.grid_data).panels)
+
+
 def test_auto_batch_is_durable_and_gated_by_novel_mode(client, db_session, db_engine, monkeypatch):
     _hold_worker(monkeypatch, db_engine)
     novel, chapter = _chapter(db_session)
@@ -70,6 +112,86 @@ def test_auto_batch_is_durable_and_gated_by_novel_mode(client, db_session, db_en
     db_session.commit()
     old_path = f"/api/novels/{old_novel.id}/chapters/{old_chapter.id}/grid/auto-batch"
     assert client.post(old_path, json={"shot_ids": [old_shot.id]}).status_code == 409
+
+
+def test_grid_preflight_settings_are_separate_and_snapshot_for_batch(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=True)
+    checks = client.get('/api/config/grid-generation-checks').json()['data']
+    assert checks['policy'] == {'GRID_PANEL_AI_REVIEW': True, 'GRID_PANEL_FAIL_RETRY': True}
+    assert any(item['id'] == 'GRID_PANEL_NON_FAIL' and not item['configurable'] for item in checks['checks'])
+    assert client.post('/api/config/', json={'gridGenerationQualityPolicy': {'unknown': False}}).status_code == 400
+    response = client.post('/api/config/', json={'gridGenerationQualityPolicy': {
+        'GRID_PANEL_AI_REVIEW': False, 'GRID_PANEL_FAIL_RETRY': False}})
+    assert response.status_code == 200, response.text
+    assert client.get('/api/config/').json()['data']['gridGenerationQualityPolicy'] == {
+        'GRID_PANEL_AI_REVIEW': False, 'GRID_PANEL_FAIL_RETRY': False}
+
+    async def unexpected_review(*_args, **_kwargs):
+        raise AssertionError('自动审图已关闭')
+
+    async def fake_clip(self, novel, chapter, shot, index, *, task=None):
+        grid = load_grid_data(shot.grid_data)
+        plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=grid.revision)
+        plan['clip_plan'][0]['video_url'] = '/api/files/clip.mp4'
+        shot.video_director_plan = dump_grid_clip_plan(grid, plan['clip_plan'])
+        self._complete(task, '/api/files/clip.mp4')
+        self.db.commit()
+
+    async def fake_merge(self, novel, chapter, shot, *, task=None):
+        shot.video_url = '/api/files/shot.mp4'
+        self._complete(task, shot.video_url)
+        self.db.commit()
+
+    monkeypatch.setattr(grid_auto_batch, '_review_panel', unexpected_review)
+    monkeypatch.setattr(GridPipeline, 'generate_clip', fake_clip)
+    monkeypatch.setattr(GridPipeline, 'merge_shot', fake_merge)
+    task_id = client.post(f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-batch',
+                          json={'shot_ids': [shot.id]}).json()['data']['taskId']
+    parent = db_session.get(Task, task_id)
+    assert json.loads(parent.metadata_json)['grid_preflight_policy']['GRID_PANEL_AI_REVIEW'] is False
+    client.post('/api/config/', json={'gridGenerationQualityPolicy': {'GRID_PANEL_AI_REVIEW': True}})
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    parent = db_session.get(Task, task_id)
+    result = json.loads(parent.metadata_json)['shot_results'][shot.id]
+    assert parent.status == 'completed' and result['status'] == 'completed'
+    assert result['warnings'] == [f'格 {index}：PENDING' for index in range(1, 5)]
+    assert all(panel.review_status == 'pending' for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+
+
+def test_disabling_general_ai_review_still_reviews_offscreen_panel(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    grid = load_grid_data(shot.grid_data)
+    grid.panels[0].dialogue_indexes = [1]
+    shot.grid_data = dump_grid_data(grid)
+    shot.dialogues = json.dumps([{'speaker': '门外官差', 'text': '开门！', 'delivery': 'offscreen',
+                                  'voice_description': 'an adult male officer outside'}], ensure_ascii=False)
+    db_session.commit()
+    assert client.post('/api/config/', json={'gridGenerationQualityPolicy': {
+        'GRID_PANEL_AI_REVIEW': False}}).status_code == 200
+    reviewed = []
+
+    async def fake_review(_db, _parent, _shot, index):
+        reviewed.append(index)
+        return 'PASS', '无人出镜'
+
+    monkeypatch.setattr(grid_auto_batch, '_review_panel', fake_review)
+    task_id = client.post(f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-board-batch',
+                          json={'shot_ids': [shot.id]}).json()['data']['taskId']
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    assert db_session.get(Task, task_id).status == 'completed'
+    assert reviewed == [1]
+    assert [panel.review_status for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels] == [
+        'passed', 'pending', 'pending', 'pending']
 
 
 def test_auto_batch_continues_other_shots_after_clip_failure(client, db_session, db_engine, monkeypatch):
@@ -115,8 +237,57 @@ def test_auto_batch_continues_other_shots_after_clip_failure(client, db_session,
     assert db_session.query(BackgroundJob).filter(BackgroundJob.task_id == retried.id).count() == 1
 
 
-def test_auto_batch_reviews_each_panel_and_stops_on_unresolved_warning(
-        client, db_session, db_engine, monkeypatch):
+@pytest.mark.parametrize("route", ["auto-batch", "auto-board-batch", "auto-review-batch"])
+def test_auto_batch_keeps_warning_and_continues_without_redrawing(
+        client, db_session, db_engine, monkeypatch, route):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=route == "auto-batch")
+    calls = []
+
+    async def fake_review(db, parent, shot, index):
+        calls.append(index)
+        return "WARNING", "角色焦点存疑"
+
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
+    if route == "auto-batch":
+        async def fake_clip(self, novel, chapter, shot, index, *, task=None):
+            grid = load_grid_data(shot.grid_data)
+            plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=grid.revision)
+            plan["clip_plan"][0]["video_url"] = "/api/files/clip.mp4"
+            shot.video_director_plan = dump_grid_clip_plan(grid, plan["clip_plan"])
+            self._complete(task, "/api/files/clip.mp4")
+            self.db.commit()
+
+        async def fake_merge(self, novel, chapter, shot, *, task=None):
+            shot.video_url = "/api/files/shot.mp4"
+            self._complete(task, shot.video_url)
+            self.db.commit()
+
+        monkeypatch.setattr(GridPipeline, "generate_clip", fake_clip)
+        monkeypatch.setattr(GridPipeline, "merge_shot", fake_merge)
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/{route}",
+                           json={"shot_ids": [shot.id]})
+    task_id = response.json()["data"]["taskId"]
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    parent = db_session.get(Task, task_id)
+    assert calls == [1, 2, 3, 4]
+    assert parent.status == "completed", parent.error_message
+    assert parent.error_message is None
+    shot_result = json.loads(parent.metadata_json)["shot_results"][shot.id]
+    assert shot_result["status"] == "completed"
+    assert shot_result["warnings"] == [f"格 {index}：WARNING" for index in range(1, 5)]
+    assert all(panel.review_status == "warning" for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+    assert db_session.query(Task).filter(Task.parent_task_id == task_id,
+                                         Task.type == "grid_panel_image").count() == 0
+    if route == "auto-batch":
+        assert db_session.get(Shot, shot.id).video_url == "/api/files/shot.mp4"
+
+
+def test_auto_review_redraws_only_failed_panel_once(client, db_session, db_engine, monkeypatch):
     from app.services import grid_auto_batch
 
     _hold_worker(monkeypatch, db_engine)
@@ -125,10 +296,11 @@ def test_auto_batch_reviews_each_panel_and_stops_on_unresolved_warning(
     calls = []
 
     async def fake_review(db, parent, shot, index):
-        calls.append(index)
-        return "WARNING", "角色焦点存疑"
+        calls.append(("review", index))
+        return ("FAIL", "身份错位") if index == 1 and calls.count(("review", 1)) == 1 else ("PASS", "正确")
 
     def fake_prepare(self, novel, shot, index):
+        calls.append(("prepare", index))
         grid = load_grid_data(shot.grid_data)
         grid.panels[index - 1].image_prompt = "重做此格"
         shot.grid_data = dump_grid_data(grid)
@@ -136,8 +308,9 @@ def test_auto_batch_reviews_each_panel_and_stops_on_unresolved_warning(
         return {}
 
     async def fake_retry(self, novel, chapter, shot, index, *, task=None):
+        calls.append(("redraw", index))
         grid = load_grid_data(shot.grid_data)
-        grid.panels[index - 1].image_url = "/api/files/new-panel.png"
+        grid.panels[index - 1].image_url = "/api/files/redrawn-panel.png"
         grid.panels[index - 1].review_status = "pending"
         shot.grid_data = dump_grid_data(grid)
         self._complete(task, grid.panels[index - 1].image_url)
@@ -146,18 +319,40 @@ def test_auto_batch_reviews_each_panel_and_stops_on_unresolved_warning(
     monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
     monkeypatch.setattr(GridPipeline, "prepare_panel_retry", fake_prepare)
     monkeypatch.setattr(GridPipeline, "generate_panel_retry", fake_retry)
-    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-batch",
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-review-batch",
                            json={"shot_ids": [shot.id]})
     task_id = response.json()["data"]["taskId"]
     asyncio.run(run_grid_auto_batch(task_id))
     db_session.expire_all()
+    assert db_session.get(Task, task_id).status == "completed", (db_session.get(Task, task_id).error_message, calls)
+    assert calls == [("review", 1), ("prepare", 1), ("redraw", 1),
+                     ("review", 1), ("review", 2), ("review", 3), ("review", 4)]
+    assert all(panel.review_status == "passed" for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+
+
+def test_grid_policy_can_disable_failed_panel_retry(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    assert client.post('/api/config/', json={'gridGenerationQualityPolicy': {
+        'GRID_PANEL_FAIL_RETRY': False}}).status_code == 200
+
+    async def fail_review(*_args, **_kwargs):
+        return 'FAIL', '身份错位'
+
+    monkeypatch.setattr(grid_auto_batch, '_review_panel', fail_review)
+    task_id = client.post(f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-review-batch',
+                          json={'shot_ids': [shot.id]}).json()['data']['taskId']
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
     parent = db_session.get(Task, task_id)
-    assert calls == [1, 1]
-    assert parent.status == "failed"
-    assert json.loads(parent.metadata_json)["shot_results"][shot.id]["status"] == "needs_review"
-    assert load_grid_data(db_session.get(Shot, shot.id).grid_data).panels[0].review_status == "warning"
+    assert parent.status == 'failed'
+    assert 'FAIL' in parent.error_message
+    assert load_grid_data(db_session.get(Shot, shot.id).grid_data).panels[0].review_status == 'failed'
     assert db_session.query(Task).filter(Task.parent_task_id == task_id,
-                                         Task.type == "grid_clips_plan").count() == 0
+                                         Task.type == 'grid_panel_image').count() == 0
 
 
 def test_auto_batch_can_approve_panel_from_ai_pass(client, db_session, db_engine, monkeypatch):
@@ -228,6 +423,8 @@ def test_panel_review_uses_new_task_after_same_url_image_retry(client, db_sessio
 
 def test_board_batch_plans_prompts_generates_and_stops_before_video(
         client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
     _hold_worker(monkeypatch, db_engine)
     novel, chapter = _chapter(db_session)
     first = Shot(chapter_id=chapter.id, index=1, description="抵达村庄", duration=12,
@@ -267,6 +464,10 @@ def test_board_batch_plans_prompts_generates_and_stops_before_video(
     monkeypatch.setattr(GridPipeline, "plan_panels", fake_plan)
     monkeypatch.setattr(GridPipeline, "prepare_board", fake_prepare)
     monkeypatch.setattr(GridPipeline, "generate_board", fake_generate)
+    async def fake_review(db, parent, shot, index):
+        calls.append((shot.index, f"review-{index}"))
+        return "PASS", "人物与道具正确"
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
     response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-board-batch",
                            json={"shot_ids": [second.id, first.id]})
     assert response.status_code == 200, response.text
@@ -279,11 +480,41 @@ def test_board_batch_plans_prompts_generates_and_stops_before_video(
     db_session.expire_all()
     assert db_session.get(Task, task_id).status == "completed"
     assert calls == [(1, "plan"), (1, "prepare"), (1, "generate"),
-                     (2, "plan"), (2, "prepare"), (2, "generate")]
+                     *[(1, f"review-{index}") for index in range(1, 5)],
+                     (2, "plan"), (2, "prepare"), (2, "generate"),
+                     *[(2, f"review-{index}") for index in range(1, 5)]]
     assert db_session.query(Task).filter(Task.parent_task_id == task_id).count() == 6
     assert all(load_grid_data(db_session.get(Shot, shot.id).grid_data).board_image_url
                for shot in [first, second])
+    assert all(all(panel.review_status == "passed" for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+               for shot in [first, second])
     assert all(not db_session.get(Shot, shot.id).video_url for shot in [first, second])
+
+
+def test_review_batch_checks_existing_board_without_regeneration(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    reviewed = []
+
+    async def fake_review(db, parent, shot, index):
+        reviewed.append(index)
+        return "PASS", "镜头正确"
+
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-review-batch",
+                           json={"shot_ids": [shot.id]})
+    assert response.status_code == 200, response.text
+    task_id = response.json()["data"]["taskId"]
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    assert reviewed == [1, 2, 3, 4]
+    assert db_session.get(Task, task_id).status == "completed"
+    assert db_session.query(Task).filter(Task.parent_task_id == task_id, Task.type == "grid_board_image").count() == 0
+    assert all(panel.review_status == "passed" for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+    assert db_session.get(Shot, shot.id).video_url is None
 
 
 def test_board_batch_is_mode_gated_and_cannot_merge_chapter(client, db_session, db_engine, monkeypatch):

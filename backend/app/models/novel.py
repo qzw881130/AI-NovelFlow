@@ -54,6 +54,7 @@ class Novel(Base):
     h3_preflight_repair_prompt_template_id = Column(String, nullable=True)  # H3 Preflight 自动修复模板
     grid_shot_plan_prompt_template_id = Column(String, nullable=True)
     grid_image_prompt_template_id = Column(String, nullable=True)
+    grid_panel_review_prompt_template_id = Column(String, nullable=True)
     grid_clip_plan_prompt_template_id = Column(String, nullable=True)
     grid_h3_phase_b_prompt_template_id = Column(String, nullable=True)
     

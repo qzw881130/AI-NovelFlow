@@ -39,6 +39,7 @@ export interface SystemConfig {
   nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  gridGenerationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;
   
   // 代理配置
@@ -113,6 +114,7 @@ export interface Novel {
   h3MultiKeyframeDirectorPhaseBTemplateId?: string;  // H3 Phase B 单阶段导演视频提示词模板
   gridShotPlanPromptTemplateId?: string;
   gridImagePromptTemplateId?: string;
+  gridPanelReviewPromptTemplateId?: string;
   gridClipPlanPromptTemplateId?: string;
   gridH3PhaseBPromptTemplateId?: string;
   h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
@@ -362,7 +364,7 @@ export interface ClipExecutionMetadata {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'subtitle_render' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export' | 'grid_chapter_plan_batch' | 'grid_chapter_plan' | 'grid_panels_plan' | 'grid_board_prepare' | 'grid_board_image' | 'grid_panel_image' | 'grid_panel_review' | 'grid_clips_plan' | 'grid_clip_prepare' | 'grid_h3_clip' | 'grid_shot_merge' | 'grid_chapter_merge' | 'grid_batch' | 'grid_auto_batch' | 'grid_board_batch';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'chapter_background_music' | 'scene_image' | 'shot_image' | 'shot_image_repair' | 'shot_image_repair_candidate' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'chapter_ai_split_batch' | 'chapter_ai_split' | 'novel_video' | 'subtitle_render' | 'novel_video_cover' | 'youtube_upload' | 'transition_video' | 'prop_image' | 'shot_export' | 'grid_chapter_plan_batch' | 'grid_chapter_plan' | 'grid_panels_plan' | 'grid_board_prepare' | 'grid_board_image' | 'grid_panel_image' | 'grid_panel_review' | 'grid_clips_plan' | 'grid_clip_prepare' | 'grid_h3_clip' | 'grid_shot_merge' | 'grid_chapter_merge' | 'grid_batch' | 'grid_auto_batch' | 'grid_board_batch' | 'grid_review_batch';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';

@@ -168,6 +168,8 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             if "generation_quality_policy" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            if "grid_generation_quality_policy" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN grid_generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
 
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]

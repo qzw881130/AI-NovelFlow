@@ -18,6 +18,7 @@ export type TemplateType =
   | 'keyframe_planner'
   | 'keyframe_image_prompt'
   | 'image_quality_review_prompt'
+  | 'grid_panel_review_prompt'
   | 'temporal_reference_selector'
   | 'keyframe_transition'
   | 'clip_execution_planner'

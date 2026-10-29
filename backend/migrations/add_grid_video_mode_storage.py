@@ -8,6 +8,7 @@ from app.core.database import engine
 GRID_NOVEL_TEMPLATE_COLUMNS = (
     "grid_shot_plan_prompt_template_id",
     "grid_image_prompt_template_id",
+    "grid_panel_review_prompt_template_id",
     "grid_clip_plan_prompt_template_id",
     "grid_h3_phase_b_prompt_template_id",
 )

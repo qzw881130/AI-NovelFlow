@@ -37,6 +37,7 @@ def test_migration_marks_existing_novels_single_and_preserves_old_shot_image():
         assert conn.execute(text("SELECT grid_data FROM shots WHERE id='s1'")).scalar_one() is None
         columns = {row[1] for row in conn.execute(text("PRAGMA table_info(novels)"))}
         assert "grid_h3_phase_b_prompt_template_id" in columns
+        assert "grid_panel_review_prompt_template_id" in columns
 
 
 def test_grid_contract_keeps_layout_seed_and_panel_order():

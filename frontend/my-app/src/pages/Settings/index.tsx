@@ -12,9 +12,10 @@ import WorkflowManager from './components/WorkflowManager';
 import SystemStatusConfig from './components/SystemStatusConfig';
 import NotificationConfig from './components/NotificationConfig';
 import GenerationQualityConfig from './components/GenerationQualityConfig';
+import GridGenerationQualityConfig from './components/GridGenerationQualityConfig';
 import type { SettingsFormData } from './types';
 import { configApi } from '../../api/config';
-import type { CustomVariableKey, CustomVariables, GenerationCheck } from '../../api/config';
+import type { CustomVariableKey, CustomVariables, GenerationCheck, GridGenerationCheck } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
 type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality' | 'content' | 'customVariables';
@@ -55,6 +56,7 @@ export default function Settings() {
   const [nameplateAvailable, setNameplateAvailable] = useState(false);
   const [autoApproveNameplateAvailable, setAutoApproveNameplateAvailable] = useState(false);
   const [generationChecks, setGenerationChecks] = useState<GenerationCheck[]>([]);
+  const [gridGenerationChecks, setGridGenerationChecks] = useState<GridGenerationCheck[]>([]);
   const [saved, setSaved] = useState(false);
   const [customVariables, setCustomVariables] = useState<CustomVariables>(EMPTY_CUSTOM_VARIABLES);
   const [customVariablesLoaded, setCustomVariablesLoaded] = useState(false);
@@ -119,6 +121,7 @@ export default function Settings() {
             nameplatePreviewMode: config.nameplatePreviewMode ?? 'protagonist_first',
             autoApproveFirstAppearanceNames: config.autoApproveFirstAppearanceNames ?? true,
             generationQualityPolicy: config.generationQualityPolicy ?? {},
+            gridGenerationQualityPolicy: config.gridGenerationQualityPolicy ?? {},
             coverProduction: config.coverProduction ?? '旺仔有声小说',
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
@@ -140,6 +143,9 @@ export default function Settings() {
     configApi.generationChecks().then(result => {
       if (result.success && result.data) setGenerationChecks(result.data.checks);
     }).catch(error => console.error('加载生成检查项失败:', error));
+    configApi.gridGenerationChecks().then(result => {
+      if (result.success && result.data) setGridGenerationChecks(result.data.checks);
+    }).catch(error => console.error('加载宫格预检项失败:', error));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,6 +173,7 @@ export default function Settings() {
           videoPromptLanguage: formData.videoPromptLanguage ?? 'en',
           nameplatePreviewMode: formData.nameplatePreviewMode ?? 'protagonist_first',
           generationQualityPolicy: formData.generationQualityPolicy ?? {},
+          gridGenerationQualityPolicy: formData.gridGenerationQualityPolicy ?? {},
           ...(autoApproveNameplateAvailable ? {
             autoApproveFirstAppearanceNames: formData.autoApproveFirstAppearanceNames ?? true,
           } : {}),
@@ -424,6 +431,18 @@ export default function Settings() {
                 onAutoApproveFirstAppearanceNamesChange={(enabled) => {
                   handleUserModified();
                   setFormData(previous => ({ ...previous, autoApproveFirstAppearanceNames: enabled }));
+                }}
+              />
+            )}
+
+            {activeTab === 'generationQuality' && (
+              <GridGenerationQualityConfig
+                checks={gridGenerationChecks}
+                policy={formData.gridGenerationQualityPolicy ?? {}}
+                onPolicyChange={(id, enabled) => {
+                  handleUserModified();
+                  setFormData(previous => ({ ...previous,
+                    gridGenerationQualityPolicy: { ...(previous.gridGenerationQualityPolicy ?? {}), [id]: enabled } }));
                 }}
               />
             )}

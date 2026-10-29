@@ -373,6 +373,8 @@ export default {
       gridShotPlanDesc: 'Plan story beats, cameras, spatial axis, and dialogue for the selected grid',
       gridImagePrompt: 'Grid image prompt',
       gridImagePromptDesc: 'Build one croppable storyboard grid from the panel plan',
+      gridPanelReviewPrompt: 'Grid panel quality review',
+      gridPanelReviewPromptDesc: 'Review each video panel against its own cast, camera focus, occlusion, and offscreen voices',
       gridClipPlan: 'Grid panels to Clip plan',
       gridClipPlanDesc: 'Assign panels, action, and dialogue to short Clips',
       gridH3PhaseB: 'Grid H3 six-section prompt',

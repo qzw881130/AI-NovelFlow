@@ -75,6 +75,33 @@ def test_grid_h3_prompt_normalizes_voice_id_to_its_canonical_subject():
     assert all(validate_grid_h3_prompt(normalized, SUBJECTS, DIALOGUES, [1, 2], 10).values())
 
 
+def test_grid_h3_accepts_unpictured_offscreen_voice_and_requires_lip_lock():
+    prompt = """subject_definitions:
+<Picture 1> defines the empty farmhouse door.
+
+summary:
+A 5-second full-reference view of the door.
+
+retention_analysis:
+<Picture 1> supplies the empty environment.
+
+detailed_description:
+[Shot 1] Off-screen voice: a rough adult male officer outside the door (S1) [D1 @ 1-2s generated-clip] shouts off-screen, <d>[Chinese] 开门！</d> while all visible subjects' lips remain completely closed.
+
+overall_soundscape:
+Night footsteps and a rattling door.
+
+non_diegetic_music:
+None.
+"""
+    dialogues = [{'id': 'D1', 'speaker': 'Off-screen voice: a rough adult male officer outside the door',
+                  'text': '开门！', 'delivery': 'offscreen', 'start_time': 1, 'end_time': 2}]
+    assert all(validate_grid_h3_prompt(prompt, {}, dialogues, [1], 5).values())
+    with pytest.raises(ValueError, match='offscreen_lip_lock'):
+        validate_grid_h3_prompt(prompt.replace("lips remain completely closed", "does not speak"),
+                                {}, dialogues, [1], 5)
+
+
 def test_grid_no_voice_contract_keeps_six_sections_and_ambience():
     raw = """subject_definitions:
 <Subject 1> is 杜甫, a traveler in <Picture 1>.

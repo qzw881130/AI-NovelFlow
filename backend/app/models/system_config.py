@@ -26,6 +26,7 @@ class SystemConfig(Base):
     nameplate_preview_mode = Column(String, default="protagonist_first", nullable=False)
     auto_approve_first_appearance_names = Column(Boolean, default=True, nullable=False)
     generation_quality_policy = Column(Text, default="{}", nullable=False)
+    grid_generation_quality_policy = Column(Text, default="{}", nullable=False)
     cover_production = Column(String, default="旺仔有声小说", nullable=False)
     custom_variables = Column(Text, default="{}", nullable=False)  # KEY1–KEY9，值加密存储
     

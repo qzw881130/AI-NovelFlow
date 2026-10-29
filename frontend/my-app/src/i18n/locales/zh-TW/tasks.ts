@@ -123,6 +123,7 @@ export default {
     temporalSlot: '時間槽 {slot}',
     framePosition: '影格 {frame}',
     referenceImages: '參考圖',
+    reviewedGridPanel: '本次待審子格（AI 主圖輸入）',
     referenceVideo: '參考影片',
     referenceImage: '參考圖',
     types: {
@@ -141,6 +142,7 @@ export default {
       gridBatch: '宮格批量任務',
       gridAutoBatch: '宮格自動批量生成',
       gridBoardBatch: '批量生成分鏡宮格圖',
+      gridReviewBatch: '批量 AI 審圖',
       characterPortrait: '人設生成',
       chapterBackgroundMusic: '生成背景音樂',
       sceneImage: '場景圖片',

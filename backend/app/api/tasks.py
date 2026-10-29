@@ -107,7 +107,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
             "parentTaskId": value["parent_task_id"], "sourceTaskId": value["source_task_id"],
             "batchOrder": value["batch_order"], "clipIndex": value["clip_index"],
             "gridStep": value["grid_step"], "panelIndex": value["grid_panel_index"],
-            "autoShotResults": _json_value(value["grid_auto_shot_results"]) if value["type"] in {"grid_auto_batch", "grid_board_batch"} else None,
+            "autoShotResults": _json_value(value["grid_auto_shot_results"]) if value["type"] in {"grid_auto_batch", "grid_board_batch", "grid_review_batch"} else None,
             "comfyuiPromptId": value["comfyui_prompt_id"],
             "createdAt": format_datetime(value["created_at"]),
             "startedAt": format_datetime(value["started_at"]),
