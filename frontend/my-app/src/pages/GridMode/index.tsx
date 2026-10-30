@@ -153,7 +153,9 @@ export default function GridModePage() {
   const shots = currentData?.shots || [];
   const busyShotIds = new Set(tasks.filter(item => ['pending', 'running'].includes(item.status)).flatMap(item =>
     ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(item.type)
-      ? Object.keys(item.autoShotResults || {}) : item.shotId ? [item.shotId] : []));
+      ? Object.entries(item.autoShotResults || {}).filter(([, result]) =>
+          !['completed', 'failed', 'needs_review'].includes(result.status)).map(([shotId]) => shotId)
+      : item.shotId ? [item.shotId] : []));
   const availableShots = shots.filter(item => !busyShotIds.has(item.id));
   useEffect(() => {
     if (!currentData || shotIndex < shots.length || (shots.length === 0 && shotIndex === 0)) return;

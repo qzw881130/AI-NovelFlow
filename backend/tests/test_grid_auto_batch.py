@@ -135,6 +135,31 @@ def test_grid_batches_can_queue_for_other_shots_but_reject_overlap(client, db_se
     assert client.post(f"{base}/shots/{second.id}/clips/plan").status_code == 409
 
 
+def test_finished_shot_can_be_manually_reviewed_while_auto_batch_continues(client, db_session):
+    from app.services.grid_tasks import active_grid_shot_ids
+
+    novel, chapter = _chapter(db_session)
+    failed = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    pending = _shot(db_session, chapter, 2, reviewed=False, with_clip=False)
+    db_session.add(Task(type="grid_auto_batch", status="running", novel_id=novel.id,
+                        chapter_id=chapter.id, name="自动批量生成 Shot",
+                        metadata_json=json.dumps({"shot_ids": [failed.id, pending.id],
+                                                  "shot_results": {failed.id: {"status": "failed"},
+                                                                   pending.id: {"status": "running"}}})))
+    db_session.commit()
+
+    assert active_grid_shot_ids(db_session, chapter.id) == {pending.id}
+    base = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/shots"
+    approved = client.patch(f"{base}/{failed.id}/panels/1/review",
+                            json={"status": "passed", "note": "人工确认"})
+    assert approved.status_code == 200, approved.text
+    db_session.refresh(failed)
+    assert load_grid_data(failed.grid_data).panels[0].review_status == "passed"
+    blocked = client.patch(f"{base}/{pending.id}/panels/1/review",
+                           json={"status": "passed", "note": "仍在处理"})
+    assert blocked.status_code == 409
+
+
 def test_manual_clip_batch_accepts_warning_and_pending_but_rejects_fail(client, db_session, db_engine, monkeypatch):
     _hold_worker(monkeypatch, db_engine)
     novel, chapter = _chapter(db_session)

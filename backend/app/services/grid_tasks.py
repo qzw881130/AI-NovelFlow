@@ -123,7 +123,11 @@ def active_grid_shot_ids(db: Session, chapter_id: str) -> set[str]:
     for task in active:
         if task.type in {"grid_auto_batch", "grid_board_batch", "grid_review_batch"}:
             try:
-                reserved.update(json.loads(task.metadata_json or "{}").get("shot_ids", []))
+                metadata = json.loads(task.metadata_json or "{}")
+                results = metadata.get("shot_results") or {}
+                reserved.update(shot_id for shot_id in metadata.get("shot_ids", [])
+                                if results.get(shot_id, {}).get("status") not in
+                                {"completed", "failed", "needs_review"})
             except (TypeError, ValueError):
                 pass
     return reserved
