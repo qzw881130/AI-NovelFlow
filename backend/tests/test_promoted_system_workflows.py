@@ -8,6 +8,7 @@ from app.services.workflow_service import WorkflowService
 
 
 PROMOTED = [config for config in EXTRA_SYSTEM_WORKFLOWS if config.get("legacy_user_filename")]
+FLARE_COPIES = [config for config in EXTRA_SYSTEM_WORKFLOWS if config["filename"].startswith("gpt_image_2_5_flare_sub2api_")]
 
 
 def test_selected_workflows_are_registered_with_their_original_graphs(db_session):
@@ -77,3 +78,38 @@ def test_modified_user_graph_stays_custom(db_session):
     assert not original.is_system and original.is_active
     assert db_session.query(Workflow).filter_by(type=config["type"], is_system=True).count() == 1
     assert db_session.query(Workflow).filter_by(type=config["type"], is_active=True).count() == 1
+
+
+def test_flare_sub2api_workflows_are_separate_system_copies(db_session):
+    assert len(FLARE_COPIES) == 7
+    original_ids = {}
+    for config in FLARE_COPIES:
+        graph = (Path(WorkflowService.get_workflows_dir()) / config["filename"]).read_text(encoding="utf-8")
+        original = Workflow(
+            name=config["name"], description=config["description"], type=config["type"],
+            workflow_json=graph, node_mapping=json.dumps(config["node_mapping"]),
+            file_path=f"/old-install/user_workflows/original_{config['type']}.json",
+            is_system=False, is_active=True,
+        )
+        db_session.add(original)
+        db_session.flush()
+        original_ids[config["type"]] = original.id
+    db_session.commit()
+
+    service = WorkflowService(db_session)
+    service.load_default_workflows()
+    service.load_default_workflows()
+
+    for config in FLARE_COPIES:
+        original = db_session.get(Workflow, original_ids[config["type"]])
+        assert not original.is_system and original.is_active
+        assert original.file_path == f"/old-install/user_workflows/original_{config['type']}.json"
+        system = db_session.query(Workflow).filter_by(
+            type=config["type"], name=config["name"], is_system=True,
+        ).one()
+        assert system.id != original.id and not system.is_active
+        assert system.file_path == str(Path(service.get_workflows_dir()) / config["filename"])
+        assert json.loads(system.workflow_json) == json.loads(original.workflow_json)
+        assert json.loads(system.node_mapping) == config["node_mapping"]
+        assert TaskService.validate_workflow_node_mapping(system, config["type"]) == (True, "")
+        assert db_session.query(Workflow).filter_by(type=config["type"], name=config["name"]).count() == 2

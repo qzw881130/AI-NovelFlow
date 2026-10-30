@@ -26,6 +26,15 @@ type ChapterData = { novel: { id: string; title: string; videoMode: string }; ch
 type BoardPreview = { prompt: string; referenceImages: { role: string; name: string; url: string }[]; boardSize: number[] };
 type PanelPreview = { prompt: string; referenceImages: { role: string; name: string; url: string }[]; size: number[] };
 type PreviewImage = { label: string; url: string };
+const getClipGenerationStatus = (clip: Clip, task?: GridTask) => {
+  if (task?.status === 'pending') return { label: '排队中', className: 'border-sky-200 bg-sky-100 text-sky-800' };
+  if (task?.status === 'running') return { label: '生成中', className: 'border-blue-200 bg-blue-100 text-blue-800' };
+  if (clip.video_url) return { label: '已生成', className: 'border-green-200 bg-green-100 text-green-800' };
+  if (!clip.prompt) return { label: '待编译', className: 'border-gray-200 bg-gray-100 text-gray-700' };
+  if (task?.status === 'failed') return { label: task.gridVisualReview?.category === 'rejected' ? '验收未通过' : '生成失败', className: 'border-red-200 bg-red-100 text-red-800' };
+  if (task?.status === 'cancelled') return { label: '已取消', className: 'border-gray-200 bg-gray-100 text-gray-700' };
+  return { label: '待生成', className: 'border-amber-200 bg-amber-100 text-amber-800' };
+};
 const referenceRoleLabels: Record<string, string> = {
   CHARACTER_IDENTITY: '角色身份',
   SCENE: '场景',
@@ -383,7 +392,14 @@ export default function GridModePage() {
                 onReplace={file => { const form = new FormData(); form.append('file', file); void run('替换子格', () => request(`${shotBase}/panels/${selectedPanel.index}/replace`, 'POST', form)); }} />}
             </>}
             {!grid?.board_image_url && <p className="text-sm text-gray-500">先规划子格，再预览整板提示词与实际素材参考图，然后生成。</p>}</div>}
-          {stage === 'video_gen' && <div className="mt-5 space-y-4">{clips.length === 0 ? <p className="text-sm text-gray-500">子格有图片且没有 FAIL 时，可以按动作和台词规划 Clip；WARNING/PENDING 会保留。</p> : <><div className="grid gap-2 sm:grid-cols-2">{clips.map((item, i) => <button key={i} type="button" onClick={() => { setClipIndex(i); setStrategy(item.dialogues.some(line => line.delivery === 'offscreen') ? 'split_panels' : item.reference_strategy); }} className={`rounded-lg border p-3 text-left ${i === clipIndex ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}><strong>C{item.clip_index} · {item.duration}s</strong><p className="mt-1 text-xs">子格 {item.panel_indexes.join(' → ')} · {item.dialogues.length} 句台词 · {item.video_url ? '已生成' : '待生成'}</p></button>)}</div>
+          {stage === 'video_gen' && <div className="mt-5 space-y-4">{clips.length === 0 ? <p className="text-sm text-gray-500">子格有图片且没有 FAIL 时，可以按动作和台词规划 Clip；WARNING/PENDING 会保留。</p> : <><div className="grid gap-2 sm:grid-cols-2">{clips.map((item, i) => {
+              const latestTask = shotTasks.find(task => task.type === 'grid_h3_clip' && task.clipIndex === item.clip_index);
+              const status = getClipGenerationStatus(item, latestTask);
+              return <button key={i} type="button" onClick={() => { setClipIndex(i); setStrategy(item.dialogues.some(line => line.delivery === 'offscreen') ? 'split_panels' : item.reference_strategy); }} className={`rounded-lg border p-3 text-left ${i === clipIndex ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                <span className="flex flex-wrap items-center justify-between gap-2"><strong>C{item.clip_index} · {item.duration}s</strong><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${status.className}`}>{status.label}</span></span>
+                <span className="mt-1 block text-xs">子格 {item.panel_indexes.join(' → ')} · {item.dialogues.length} 句台词</span>
+              </button>;
+            })}</div>
             {clip && <><div className="rounded-lg border p-4"><h3 className="font-medium">C{clip.clip_index} · 参考图与六段式提示词</h3><p className="mt-1 text-xs text-gray-500">{offscreenClip ? '画外声只用一格无人环境图作为参考，生成保留动态画面的 H3 视频。' : '默认只送当前 Clip 的子格。整板直传可显式选择；不自动附加白底角色图。'}</p><div className="mt-3 flex flex-wrap gap-2"><select value={offscreenClip ? 'split_panels' : strategy} onChange={event => setStrategy(event.target.value as typeof strategy)} className={buttonClass}><option value="split_panels">裁切子格</option><option value="whole_board" disabled={offscreenClip}>整板直传</option></select>{button('编译并校验提示词', () => clip.video_url ? confirmAction('重新编译会使此 Clip 视频和现有合片失效，确认继续？', () => request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy })) : request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy }), true, true)}{button(clip.video_url ? '重做此 Clip' : '生成此 Clip', () => clip.video_url ? confirmAction('确认重新生成此 Clip？完成后需要重新合并 Shot。', () => request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST')) : request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST'), Boolean(clip.prompt && strategy === clip.reference_strategy), true)}</div>
               {failedClip && !clip.video_url && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>C{clip.clip_index} {failedClip.gridVisualReview?.category === 'rejected' ? '成片验收未通过' : failedClip.gridVisualReview?.category === 'execution_error' ? '成片验收调用异常' : '生成失败'}</strong><p className="mt-1">{failedClip.errorMessage || '请查看右侧任务详情'}</p>{failedClip.gridVisualReview && <p className="mt-1">审核抽帧和历史记录可在“本章生成任务 → 批量审核记录”查看。</p>}{button('重新生成此 Clip', () => request(`/tasks/${failedClip.id}/retry`, 'POST'), true)}</div>}
               {clip.reference_images && <div className="mt-4 flex flex-wrap gap-3">{clip.reference_images.map(ref => <div key={ref.picture_index} className="w-36"><img src={ref.url} alt={`Picture ${ref.picture_index}`} className="aspect-video w-full rounded object-cover" /><span className="text-xs">Picture {ref.picture_index} · {ref.role === 'GRID_BOARD' ? '整板' : `子格 ${ref.panel_index}`}</span></div>)}</div>}

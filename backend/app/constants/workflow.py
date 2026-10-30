@@ -609,6 +609,58 @@ EXTRA_SYSTEM_WORKFLOWS.extend([
 ])
 
 
+# These are separate system copies; the user workflows remain available.
+_GPT_FLARE_SUB2API_MAPPING = {
+    "prompt_node_id": "384", "save_image_node_id": "373",
+    "api_key_node_id": "396", "api_key_variable": "KEY3",
+    "api_base_url_node_id": "398", "api_base_url_key_variable": "KEY2",
+}
+_GPT_FLARE_SUB2API_SIZE_MAPPING = {
+    "width_node_id": "382", "height_node_id": "383",
+}
+
+
+def _gpt_flare_sub2api_system_workflow(wf_type, label, reference_description, size_mapping, reference_mapping):
+    name = f"GPT Image 2.5 Flare {label} Sub2API V20261029"
+    description = (
+        f"基于 api_openai_gpt_image_25_flare_image_edit_Sub2API；{reference_description}；"
+        "API 密钥变量 KEY3；本地 Sub2API http://192.168.50.3:8088；同步模式；"
+        "默认请求尺寸 2304×864。"
+    )
+    return {
+        "filename": f"gpt_image_2_5_flare_sub2api_{wf_type}_v20261029.json",
+        "type": wf_type,
+        "name": name,
+        "nameKey": f"{NAME_KEY_PREFIX}.{name}",
+        "description": description,
+        "descriptionKey": f"{DESC_KEY_PREFIX}.{description}",
+        "node_mapping": {**_GPT_FLARE_SUB2API_MAPPING, **size_mapping, **reference_mapping},
+    }
+
+
+EXTRA_SYSTEM_WORKFLOWS.extend([
+    _gpt_flare_sub2api_system_workflow(wf_type, label, reference_description, size_mapping, reference_mapping)
+    for wf_type, label, reference_description, size_mapping, reference_mapping in [
+        ("shot_scene", "分镜生图（场景）", "图1为场景", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"scene_reference_image_node_id": "360"}),
+        ("shot_character_scene", "分镜生图（角色+场景）", "图1为角色；图2为场景", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"character_reference_image_node_id": "360", "scene_reference_image_node_id": "376"}),
+        ("shot_scene_prop", "分镜生图（场景+道具）", "图1为场景；图2为道具", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"scene_reference_image_node_id": "360", "prop_reference_image_node_id": "376"}),
+        ("shot", "分镜生图（角色+场景+道具）", "图1为角色；图2为场景；图3为道具",
+         _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"character_reference_image_node_id": "360", "scene_reference_image_node_id": "376",
+          "custom_reference_image_node_1": "377"}),
+        ("keyframe_image", "关键帧生图", "图1为关键帧", {}, {"reference_image_node_id": "360"}),
+        ("single_image_edit", "单图编辑", "图1为待编辑原图", {}, {"load_image_node_id": "360"}),
+        ("multi_image_edit", "多图编辑", "；".join(f"图{i}为参考图{i}" for i in range(1, 10)),
+         _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {f"load_image_node_{i}": node_id for i, node_id in enumerate(
+             ("360", "376", "377", "389", "390", "391", "392", "393", "394"), 1)}),
+    ]
+])
+
+
 # ==================== 辅助函数 ====================
 
 def get_workflow_name_key(name: str) -> str:
