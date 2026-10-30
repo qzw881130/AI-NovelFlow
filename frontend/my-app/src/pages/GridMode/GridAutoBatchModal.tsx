@@ -22,7 +22,7 @@ export function GridAutoBatchModal({ shots, mode, onClose, onSubmit }: {
     ? Boolean(shot.gridData?.board_image_url && shot.gridData.panels.length && shot.gridData.panels.every(panel => panel.image_url)) : isReview
     ? Boolean(shot.gridData?.board_image_url && shot.gridData.panels.some(panel => panel.review_status !== 'passed')) : !shot.videoUrl);
   const [selected, setSelected] = useState<string[]>(() => isReReview ? [] : eligible.map(shot => shot.id));
-  const [mergeChapter, setMergeChapter] = useState(false);
+  const [mergeChapter, setMergeChapter] = useState(true);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
