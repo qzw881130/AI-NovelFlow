@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, Film, Image as ImageIcon, LayoutGrid, Loader2 } from 'lucide-react';
 import { API_BASE } from '../../api';
@@ -8,6 +9,7 @@ import { toast } from '../../stores/toastStore';
 import { GridTaskPanel, type GridTask } from './GridTaskPanel';
 import { GridAutoBatchModal } from './GridAutoBatchModal';
 import { GridReviewPassModal } from './GridReviewPassModal';
+import { GridStepBatchModal, getGridBatchCandidates, GRID_BATCH_LABELS, isGridBatchStep, type GridBatchItem, type GridBatchStep } from './GridStepBatchModal';
 import { GridPanelReview } from './GridPanelReview';
 import { GridPanelImageGallery } from './GridPanelImageGallery';
 import { FinalShotVideo } from './FinalShotVideo';
@@ -18,7 +20,7 @@ import { GridBoardDraftImage } from './GridBoardDraftImage';
 type Stage = 'shot_split' | 'shot_image' | 'video_gen';
 type Panel = { index: number; beat: string; camera: string; action: string; characters: string[]; dialogue_indexes: number[]; image_url?: string; image_task_id?: string; review_status: string; review_note?: string };
 type GridData = { revision: number; layout: string; panels: Panel[]; board_image_url?: string; board_image_task_id?: string; board_prompt?: string; board_reference_images?: { role: string; name: string; url: string }[]; panel_width: number; panel_height: number };
-type Clip = { clip_index: number; duration: number; panel_indexes: number[]; reference_strategy: 'split_panels' | 'whole_board'; dialogues: { id: string; speaker: string; text: string }[]; reference_images?: { picture_index: number; role: string; url: string; panel_index?: number }[]; prompt?: string; video_url?: string };
+type Clip = { clip_index: number; duration: number; panel_indexes: number[]; reference_strategy: 'split_panels' | 'whole_board'; dialogues: { id: string; speaker: string; text: string; delivery?: string }[]; reference_images?: { picture_index: number; role: string; url: string; panel_index?: number }[]; prompt?: string; video_url?: string };
 type Shot = { id: string; index: number; description: string; duration: number; dialogues: { speaker: string; text: string }[]; gridData?: GridData; gridClipPlan?: { clip_plan: Clip[] }; videoUrl?: string };
 type ChapterData = { novel: { id: string; title: string; videoMode: string }; chapter: { id: string; title: string; finalVideo?: string }; shots: Shot[] };
 type BoardPreview = { prompt: string; referenceImages: { role: string; name: string; url: string }[]; boardSize: number[] };
@@ -76,11 +78,23 @@ export default function GridModePage() {
   const [strategy, setStrategy] = useState<'split_panels' | 'whole_board'>('split_panels');
   const [panelPreview, setPanelPreview] = useState<PanelPreview | null>(null);
   const [busy, setBusy] = useState('');
-  const [autoBatchMode, setAutoBatchMode] = useState<'board' | 'review' | 'video' | null>(null);
+  const [autoBatchMode, setAutoBatchMode] = useState<'board' | 'review' | 'rereview' | 'video' | null>(null);
   const [reviewPassOpen, setReviewPassOpen] = useState(false);
+  const [stepBatch, setStepBatch] = useState<GridBatchStep | null>(null);
   const [imagePreview, setImagePreview] = useState<{ images: PreviewImage[]; index: number; showDownload?: boolean } | null>(null);
   const [openedNameplateTaskId, setOpenedNameplateTaskId] = useState<string | null>(null);
   const [originalOpen, setOriginalOpen] = useState(false);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
+  useLayoutEffect(() => {
+    const header = stickyHeaderRef.current;
+    if (!header) return;
+    const updateHeight = () => setStickyHeaderHeight(header.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
   const currentChapterId = useRef(cid);
   currentChapterId.current = cid;
   const refresh = useCallback(async () => {
@@ -115,6 +129,7 @@ export default function GridModePage() {
     setBusy('');
     setAutoBatchMode(null);
     setReviewPassOpen(false);
+    setStepBatch(null);
     setImagePreview(null);
     setOpenedNameplateTaskId(null);
     setOriginalOpen(false);
@@ -136,6 +151,10 @@ export default function GridModePage() {
   }, [hasActiveTask, refresh]);
   const currentData = data?.chapter.id === cid ? data : null;
   const shots = currentData?.shots || [];
+  const busyShotIds = new Set(tasks.filter(item => ['pending', 'running'].includes(item.status)).flatMap(item =>
+    ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(item.type)
+      ? Object.keys(item.autoShotResults || {}) : item.shotId ? [item.shotId] : []));
+  const availableShots = shots.filter(item => !busyShotIds.has(item.id));
   useEffect(() => {
     if (!currentData || shotIndex < shots.length || (shots.length === 0 && shotIndex === 0)) return;
     setShotIndex(0);
@@ -161,6 +180,7 @@ export default function GridModePage() {
   const panels = shots.flatMap(s => s.gridData?.panels || []);
   const panelsPassed = panels.filter(p => p.review_status === 'passed').length;
   const reviewableShots = shots.filter(s => s.gridData?.board_image_url && s.gridData.panels.some(p => p.review_status !== 'passed'));
+  const rereviewableShots = shots.filter(s => s.gridData?.board_image_url && s.gridData.panels.length && s.gridData.panels.every(p => Boolean(p.image_url)));
   const passableShots = reviewableShots.filter(s => s.gridData?.panels.every(p => Boolean(p.image_url)));
   const allClips = shots.flatMap(s => s.gridClipPlan?.clip_plan || []);
   const clipsDone = allClips.filter(c => Boolean(c.video_url)).length;
@@ -174,7 +194,9 @@ export default function GridModePage() {
   useEffect(() => {
     setPanelIndex(0);
     setClipIndex(0);
-    setStrategy(shot?.gridClipPlan?.clip_plan[0]?.reference_strategy || 'split_panels');
+    const firstClip = shot?.gridClipPlan?.clip_plan[0];
+    setStrategy(firstClip?.dialogues.some(line => line.delivery === 'offscreen')
+      ? 'split_panels' : firstClip?.reference_strategy || 'split_panels');
     setImageView('panels');
     setPanelPreview(null);
   }, [shot?.id]);
@@ -187,6 +209,7 @@ export default function GridModePage() {
   } : null;
   const clips = shot?.gridClipPlan?.clip_plan || [];
   const clip = clips[clipIndex];
+  const offscreenClip = Boolean(clip?.dialogues.some(line => line.delivery === 'offscreen'));
   const selectedPanel = grid?.panels[panelIndex];
   const panelSpeakers = selectedPanel?.dialogue_indexes.map(number => shot?.dialogues[number - 1]?.speaker).filter((name): name is string => Boolean(name && name !== '旁白')) || [];
   const shotBase = shot ? `${base}/shots/${shot.id}` : '';
@@ -216,22 +239,32 @@ export default function GridModePage() {
   const buttonClass = 'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-40';
   const primaryClass = 'rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40';
   const button = (label: string, action: () => Promise<unknown>, enabled = true, primary = false, next?: Stage) =>
-    <button type="button" disabled={Boolean(busy) || hasActiveTask || !enabled} className={primary ? primaryClass : buttonClass} onClick={() => run(label, action, next)}>{label}</button>;
+    <button type="button" disabled={Boolean(busy) || (shot ? busyShotIds.has(shot.id) : hasActiveTask) || !enabled} className={primary ? primaryClass : buttonClass} onClick={() => run(label, action, next)}>{label}</button>;
   const confirmAction = (message: string, action: () => Promise<unknown>) =>
     window.confirm(message) ? action() : Promise.resolve(null);
-  const batch = (label: string, step: string, count: number) => button(`${label} · ${count}`, () => {
-    if (['board_generate', 'clip_generate'].includes(step))
-      return confirmAction(`将提交 ${count} 项「${label}」任务，确认开始？`, () => request(`${base}/batch`, 'POST', { step }));
-    return request(`${base}/batch`, 'POST', { step });
-  }, count > 0);
+  const batch = (step: GridBatchStep) => {
+    const count = getGridBatchCandidates(availableShots, step).length;
+    return <button type="button" disabled={Boolean(busy) || count === 0} className={buttonClass}
+      onClick={() => setStepBatch(step)}>{GRID_BATCH_LABELS[step]} · {count}</button>;
+  };
+  const resumeBatch = (step: string) => {
+    if (isGridBatchStep(step)) setStepBatch(step);
+    else toast.error('此批量步骤不支持续做');
+  };
+  const submitStepBatch = (items: GridBatchItem[]) => {
+    const step = stepBatch;
+    if (!step || !items.length) return;
+    setStepBatch(null);
+    void run(GRID_BATCH_LABELS[step], () => request(`${base}/batch`, 'POST', { step, items }));
+  };
 
   const submitAutoBatch = (shotIds: string[], mergeChapter: boolean) => {
     const mode = autoBatchMode;
     setAutoBatchMode(null);
-    const label = mode === 'board' ? '批量生成分镜宫格图并审查' : mode === 'review' ? '批量 AI 审图' : '批量自动生成 Shot';
-    const endpoint = mode === 'board' ? 'auto-board-batch' : mode === 'review' ? 'auto-review-batch' : 'auto-batch';
+    const label = mode === 'board' ? '批量生成分镜宫格图并审查' : mode === 'rereview' ? '重新 AI 评审' : mode === 'review' ? '批量 AI 审图' : '批量自动生成 Shot';
+    const endpoint = mode === 'board' ? 'auto-board-batch' : mode === 'review' || mode === 'rereview' ? 'auto-review-batch' : 'auto-batch';
     void run(label, () => request(`${base}/${endpoint}`, 'POST', {
-      shot_ids: shotIds, merge_chapter: mergeChapter,
+      shot_ids: shotIds, merge_chapter: mergeChapter, force_review: mode === 'rereview',
     }), mode === 'video' ? 'video_gen' : 'shot_image');
   };
   const submitReviewPass = (shotIds: string[]) => {
@@ -255,15 +288,15 @@ export default function GridModePage() {
     }
   };
 
-  return <div className="min-h-full bg-gray-50 pb-10">
+  return <div className="min-h-full bg-gray-50 pb-10" style={{ '--grid-header-height': `${stickyHeaderHeight}px` } as CSSProperties}>
+    <div ref={stickyHeaderRef} className="sticky top-0 z-30 bg-white shadow-sm">
     <header className="border-b border-gray-200 bg-white px-5 py-4">
       <div className="flex flex-wrap items-center gap-3"><Link to={`/novels/${id}`} aria-label="返回章回列表" className="rounded p-2 text-gray-500 hover:bg-gray-100"><ArrowLeft className="h-5 w-5" /></Link>
         <div className="min-w-0"><h1 className="truncate text-lg font-semibold text-gray-900">{currentData?.chapter.title || '加载中'} <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">宫格图生视频</span></h1>
           <p className="text-xs text-gray-500">{shots.length} 个叙事 Shot · {shots.reduce((n, s) => n + (s.gridData?.panels.length || 0), 0)} 个子格 · {shots.reduce((n, s) => n + (s.gridClipPlan?.clip_plan.length || 0), 0)} 条 Clip</p></div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {busy && <span className="inline-flex items-center gap-2 text-sm text-blue-700"><Loader2 className="h-4 w-4 animate-spin" />{busy}中，请等待</span>}
-          <button type="button" onClick={() => setOriginalOpen(true)} disabled={!currentData} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40"><BookOpen className="h-4 w-4" />查看原文</button>
-          <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40" disabled={!shots.some(item => !item.videoUrl) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('video')}>批量自动生成 Shot</button>
+          <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40" disabled={!availableShots.some(item => !item.videoUrl) || Boolean(busy)} onClick={() => setAutoBatchMode('video')}>批量自动生成 Shot</button>
           <button type="button" onClick={() => goToChapter(previousChapter?.id)} disabled={!previousChapter} title={previousChapter?.title || '已经是第一回'} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4" />上一回</button>
           <select aria-label="跳转章回" value={currentChapterIndex >= 0 ? cid : ''} onChange={event => goToChapter(event.target.value)} disabled={sortedChapters.length === 0} className="w-48 max-w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
             {currentChapterIndex < 0 && <option value="">选择章回</option>}
@@ -277,21 +310,25 @@ export default function GridModePage() {
     <div className="grid gap-2 border-b border-gray-200 bg-white px-5 py-3 text-sm sm:grid-cols-4">
       <div>整板图 <strong>{gridsReady}/{shots.length}</strong></div><div>子格审核 <strong>{panelsPassed}/{panels.length}</strong></div>
       <div>H3 Clip <strong>{clipsDone}/{allClips.length}</strong></div><div>Shot 合片 <strong>{shotsDone}/{shots.length}</strong></div>
-      {activeTask && <p className="sm:col-span-4 text-xs text-blue-700">后台正在执行：{activeTask.name}。可继续查看画面和提示词；生成操作将在任务结束后恢复。</p>}
+      {activeTask && <p className="sm:col-span-4 text-xs text-blue-700">后台正在执行：{activeTask.name}。其他 Shot 可继续提交生成任务；同一 Shot 请等待当前任务结束。</p>}
     </div>
-    <div className="px-5 pt-4 2xl:hidden"><GridTaskPanel tasks={tasks} shots={shots} onRefresh={() => refresh().catch(error => toast.error(String(error)))} onAction={(label, action) => { void run(label, action); }} onResumeBatch={step => { void run('继续批量任务', () => request(`${base}/batch`, 'POST', { step })); }} /></div>
-    {autoBatchMode && <GridAutoBatchModal shots={shots} mode={autoBatchMode} onClose={() => setAutoBatchMode(null)} onSubmit={submitAutoBatch} />}
-    {reviewPassOpen && <GridReviewPassModal shots={shots} onClose={() => setReviewPassOpen(false)} onSubmit={submitReviewPass} />}
+    </div>
+    {autoBatchMode && <GridAutoBatchModal shots={availableShots} mode={autoBatchMode} onClose={() => setAutoBatchMode(null)} onSubmit={submitAutoBatch} />}
+    {reviewPassOpen && <GridReviewPassModal shots={availableShots} onClose={() => setReviewPassOpen(false)} onSubmit={submitReviewPass} />}
+    {stepBatch && <GridStepBatchModal key={stepBatch} shots={availableShots} step={stepBatch} onClose={() => setStepBatch(null)} onSubmit={submitStepBatch} />}
     {originalOpen && id && cid && <ChapterOriginalDrawer key={cid} novelId={id} chapterId={cid} chapterTitle={currentData?.chapter.title || ''} onClose={() => setOriginalOpen(false)} />}
     {imagePreview && <ImagePreviewModal imageUrl={imagePreview.images[imagePreview.index].url} images={imagePreview.images} currentIndex={imagePreview.index} showDownload={imagePreview.showDownload}
       onNavigate={direction => setImagePreview(current => current ? { ...current, index: (current.index + (direction === 'next' ? 1 : -1) + current.images.length) % current.images.length } : null)}
       onClose={() => setImagePreview(null)} />}
     <div className="grid gap-4 p-5 md:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[250px_minmax(0,1fr)_300px]">
-      <aside className="rounded-xl border border-gray-200 bg-white p-4 md:sticky md:top-4 md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-y-auto"><h2 className="font-semibold">叙事 Shot</h2><p className="mt-1 text-xs text-gray-500">一个 Shot 管一段情节，内部按顺序排多个机位。</p>
+      <aside className="space-y-3 md:sticky md:top-[calc(var(--grid-header-height)+1rem)] md:self-start">
+        <button type="button" onClick={() => setOriginalOpen(true)} disabled={!currentData} className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-blue-400 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"><BookOpen className="h-4 w-4" />查看原文</button>
+        <section className="rounded-xl border border-gray-200 bg-white p-4 md:max-h-[calc(100vh-var(--grid-header-height)-7rem)] md:overflow-y-auto"><h2 className="font-semibold">叙事 Shot</h2><p className="mt-1 text-xs text-gray-500">一个 Shot 管一段情节，内部按顺序排多个机位。</p>
         <div className="mt-3 space-y-2">{shots.map((item, i) => <button key={item.id} type="button" onClick={() => selectShot(i)} className={`w-full overflow-hidden rounded-lg border text-left ${shotIndex === i ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
           {item.gridData?.board_image_url && <img src={item.gridData.board_image_url} alt={`Shot ${item.index} 宫格`} className="aspect-video w-full object-cover" />}
-          <span className="block px-3 py-2 text-sm font-medium">Shot {item.index} · {item.description.split('｜')[0]}</span><span className="block px-3 text-xs text-gray-500">{item.gridData?.layout || '待规划'} · {item.gridData?.panels.length || 0} 格 · {item.gridClipPlan?.clip_plan.length || 0} Clips</span><span className={`block px-3 pb-2 pt-1 text-xs ${unresolvedFailure(item.id) ? 'text-red-700' : 'text-green-700'}`}>{tasks.some(t => t.shotId === item.id && ['pending', 'running'].includes(t.status)) ? '任务执行中' : unresolvedFailure(item.id) ? '有失败任务，可重试' : item.videoUrl ? 'Shot 视频完成' : item.gridClipPlan?.clip_plan.some(c => c.video_url) ? `视频 ${item.gridClipPlan.clip_plan.filter(c => c.video_url).length}/${item.gridClipPlan.clip_plan.length}` : item.gridData?.board_image_url ? `子格审核 ${item.gridData.panels.filter(p => p.review_status === 'passed').length}/${item.gridData.panels.length}` : item.gridData?.board_prompt ? '待生成整板' : item.gridData ? '待准备整板提示词' : '待规划子格'}</span>
+          <span className="block px-3 py-2 text-sm font-medium">Shot {item.index} · {item.description.split('｜')[0]}</span><span className="block px-3 text-xs text-gray-500">{item.gridData?.layout || '待规划'} · {item.gridData?.panels.length || 0} 格 · {item.gridClipPlan?.clip_plan.length || 0} Clips</span><span className={`block px-3 pb-2 pt-1 text-xs ${unresolvedFailure(item.id) ? 'text-red-700' : 'text-green-700'}`}>{busyShotIds.has(item.id) ? '任务执行中' : unresolvedFailure(item.id) ? '有失败任务，可重试' : item.videoUrl ? 'Shot 视频完成' : item.gridClipPlan?.clip_plan.some(c => c.video_url) ? `视频 ${item.gridClipPlan.clip_plan.filter(c => c.video_url).length}/${item.gridClipPlan.clip_plan.length}` : item.gridData?.board_image_url ? `子格审核 ${item.gridData.panels.filter(p => p.review_status === 'passed').length}/${item.gridData.panels.length}` : item.gridData?.board_prompt ? '待生成整板' : item.gridData ? '待准备整板提示词' : '待规划子格'}</span>
         </button>)}</div>
+        </section>
       </aside>
       <main className="min-w-0 space-y-4">
         <section className="rounded-xl border border-gray-200 bg-white p-4"><h2 className="font-semibold">{stage === 'shot_split' ? '准备与拆分' : stage === 'shot_image' ? '整板生图与逐格审阅' : 'Clip 与 H3 视频'}</h2>
@@ -299,21 +336,23 @@ export default function GridModePage() {
             {stage === 'shot_split' && <>{button('AI 拆分本章', () => request(`${base}/plan`, 'POST'), shots.length === 0, true)}
               <select value={layout} onChange={event => setLayout(event.target.value)} className={buttonClass}><option value="auto">自动随机 2×2 / 2×3</option><option value="2x2">2×2 · 4 格</option><option value="2x3">2×3 · 6 格</option><option value="3x3">3×3 · 实验</option></select>
               {button('规划当前 Shot 子格', () => request(`${shotBase}/panels/plan`, 'POST', { layout: layout === 'auto' ? null : layout }), Boolean(shot && !grid), true, 'shot_image')}
-              {layout === 'auto' && batch('批量规划未规划的 Shot', 'panels_plan', shots.filter(s => !s.gridData).length)}</>}
-            {stage === 'shot_image' && <><button type="button" className={primaryClass} disabled={!shots.some(item => !item.gridData?.board_image_url) || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('board')}>批量生成分镜宫格图</button>
-              <button type="button" className={buttonClass} disabled={!reviewableShots.length || hasActiveTask || Boolean(busy)} onClick={() => setAutoBatchMode('review')}>批量 AI 审图 · {reviewableShots.length}</button>
-              <button type="button" className={buttonClass} disabled={!passableShots.length || hasActiveTask || Boolean(busy)} onClick={() => setReviewPassOpen(true)}>批量审核通过 · {passableShots.length}</button>
+              {layout === 'auto' && batch('panels_plan')}</>}
+            {stage === 'shot_image' && <><button type="button" className={primaryClass} disabled={!availableShots.some(item => !item.gridData?.board_image_url) || Boolean(busy)} onClick={() => setAutoBatchMode('board')}>批量生成分镜宫格图</button>
+              <button type="button" className={buttonClass} disabled={!reviewableShots.some(item => !busyShotIds.has(item.id)) || Boolean(busy)} onClick={() => setAutoBatchMode('review')}>批量 AI 审图 · {reviewableShots.filter(item => !busyShotIds.has(item.id)).length}</button>
+              <button type="button" className={buttonClass} disabled={!rereviewableShots.some(item => !busyShotIds.has(item.id)) || Boolean(busy)} onClick={() => setAutoBatchMode('rereview')}>重新 AI 评审 · {rereviewableShots.filter(item => !busyShotIds.has(item.id)).length}</button>
+              <button type="button" className={buttonClass} disabled={!passableShots.some(item => !busyShotIds.has(item.id)) || Boolean(busy)} onClick={() => setReviewPassOpen(true)}>批量审核通过 · {passableShots.filter(item => !busyShotIds.has(item.id)).length}</button>
               {button('AI 审图当前 Shot', () => request(`${base}/auto-review-batch`, 'POST', { shot_ids: [shot.id] }), Boolean(grid?.board_image_url && grid.panels.some(p => p.review_status !== 'passed')))}
+              {button('重新 AI 评审当前 Shot', () => confirmAction('将用当前模板重新评审全部子格；新结果若为 FAIL，会使依赖的 Clip 和合片失效。确认继续？', () => request(`${base}/auto-review-batch`, 'POST', { shot_ids: [shot.id], force_review: true })), Boolean(grid?.board_image_url && grid.panels.length && grid.panels.every(p => p.image_url)))}
               {button('生成整板提示词', () => request(`${shotBase}/board/prepare`, 'POST'), Boolean(grid && !grid.board_image_url))}
               {button(grid?.board_image_url ? '重新生成当前宫格' : '生成当前宫格', () => grid?.board_image_url ? confirmAction('重新生成会使当前宫格的逐格审核、Clip 和合片失效，确认继续？', () => request(`${shotBase}/board/generate`, 'POST')) : request(`${shotBase}/board/generate`, 'POST'), Boolean(boardPreview && grid?.board_prompt), true)}
-              {batch('批量准备整板提示词', 'board_prepare', shots.filter(s => s.gridData && !s.gridData.board_prompt && !s.gridData.board_image_url).length)}
-              {batch('批量生成已准备整板', 'board_generate', shots.filter(s => s.gridData?.board_prompt && !s.gridData.board_image_url).length)}</>}
+              {batch('board_prepare')}
+              {batch('board_generate')}</>}
             {stage === 'video_gen' && <>{button(clips.length ? '重新规划本 Shot 的 Clip' : '规划本 Shot 的 Clip', () => clips.length ? confirmAction('重新规划会清除当前 Clip 提示词，确认继续？', () => request(`${shotBase}/clips/plan`, 'POST')) : request(`${shotBase}/clips/plan`, 'POST'), Boolean(grid?.panels.every(p => p.review_status === 'passed')) && !clips.some(c => c.video_url), true)}
-              {batch('批量规划已审核 Shot 的 Clip', 'clips_plan', shots.filter(s => s.gridData?.panels.every(p => p.image_url && p.review_status === 'passed') && !s.gridClipPlan).length)}
-              {batch('批量编译 H3 提示词', 'clip_prepare', allClips.filter(c => !c.prompt).length)}
-              {batch('批量生成已编译 Clip', 'clip_generate', allClips.filter(c => c.prompt && !c.video_url).length)}
+              {batch('clips_plan')}
+              {batch('clip_prepare')}
+              {batch('clip_generate')}
               {button('合并本 Shot', () => request(`${shotBase}/merge`, 'POST'), clips.length > 0 && clips.every(c => Boolean(c.video_url)))}
-              {batch('批量合并已完成 Shot', 'shot_merge', shots.filter(s => !s.videoUrl && s.gridClipPlan?.clip_plan.length && s.gridClipPlan.clip_plan.every(c => Boolean(c.video_url))).length)}
+              {batch('shot_merge')}
               {button('合并章回视频', () => request(`${base}/merge`, 'POST'), shots.length > 0 && shots.every(s => Boolean(s.videoUrl)))}</>}
           </div>
         </section>
@@ -322,8 +361,8 @@ export default function GridModePage() {
           {stage === 'shot_split' && <div className="mt-5">{grid ? <><p className="mb-2 text-sm font-medium">逐格镜头规划 · 修订 {grid.revision}</p><div className={`grid gap-2 ${grid.layout.endsWith('3') ? 'grid-cols-3' : 'grid-cols-2'}`}>{grid.panels.map(panel => <div key={panel.index} className="rounded-lg border bg-gray-50 p-3 text-sm"><strong>格 {panel.index} · {panel.camera}</strong><p className="mt-1 text-gray-600">{panel.beat}</p></div>)}</div></> : <p className="text-sm text-gray-500">选择版式后规划子格。自动版式会在 2×2 和 2×3 中随机选择并固定种子；3×3 可单独实验。</p>}</div>}
           {stage === 'shot_image' && <div className="mt-5 space-y-4">{failedBoard && !grid?.board_image_url && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>当前整板生成失败</strong><p className="mt-1">{failedBoard.errorMessage || '请查看右侧任务详情'}</p>{button('重试此整板', () => request(`/tasks/${failedBoard.id}/retry`, 'POST'), true)}</div>}{boardPreview && <section className="rounded-lg border border-blue-200 bg-blue-50 p-4"><h3 className="font-medium">即将提交的整板输入 · {boardPreview.boardSize.join(' × ')}</h3><div className="mt-3 flex flex-wrap gap-3">{boardPreview.referenceImages.map((ref, i) => <button key={i} type="button" onClick={() => setImagePreview({ images: boardPreview.referenceImages.map((item, index) => ({ url: item.url, label: `Picture ${index + 1} · ${referenceRoleLabels[item.role] || item.role} · ${item.name}` })), index: i })} className="w-36 max-w-full shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-blue-100 bg-white p-2 text-left hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-600" aria-label={`预览参考图 ${i + 1}：${ref.name}`}><img src={ref.url} alt={ref.name} className="aspect-video w-full rounded bg-gray-100 object-contain" /><span className="mt-2 block break-all text-[11px] text-gray-500">Picture {i + 1} · {referenceRoleLabels[ref.role] || ref.role}</span><span className="mt-0.5 block break-words text-xs leading-4 text-gray-800">{ref.name}</span></button>)}</div><pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap text-xs">{boardPreview.prompt}</pre></section>}
             {grid?.board_image_url && <>{hasReplacedPanels && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">部分子格已单独重做；整板是初稿，H3 将使用下方逐格视图中的最新版图片。</p>}<div className="flex flex-wrap gap-2"><button type="button" onClick={() => setImageView('board')} className={buttonClass}><LayoutGrid className="mr-1 inline h-4 w-4" />整板初稿</button><button type="button" onClick={() => setImageView('panels')} className={buttonClass}><ImageIcon className="mr-1 inline h-4 w-4" />逐格最新版</button>{imageView === 'board' && <button type="button" onClick={() => void downloadBoard(grid.board_image_url!, `shot-${shot.index}-grid-r${grid.revision}.png`)} className={buttonClass}><Download className="mr-1 inline h-4 w-4" />下载整板图</button>}</div>
-              {imageView === 'board' ? <GridBoardDraftImage key={grid.board_image_url} imageUrl={grid.board_image_url} /> : <GridPanelImageGallery key={shot.id} panels={grid.panels} layout={grid.layout} tasks={shotTasks} shotIndex={shot.index} selectedIndex={panelIndex} onSelect={index => { setPanelIndex(index); setPanelPreview(null); }} />}
-              {selectedPanel && <GridPanelReview key={`${shot.id}:${selectedPanel.index}:${selectedPanel.image_url}`} panel={selectedPanel} speakers={panelSpeakers} preview={panelPreview} disabled={Boolean(busy) || hasActiveTask}
+              {imageView === 'board' ? <GridBoardDraftImage key={grid.board_image_url} imageUrl={grid.board_image_url} /> : <GridPanelImageGallery key={shot.id} panels={grid.panels} layout={grid.layout} tasks={shotTasks} shotIndex={shot.index} selectedIndex={panelIndex} onSelect={index => { setPanelIndex(index); setPanelPreview(null); }} onReview={index => { void run(`格 ${index} AI 评审`, () => request(`${shotBase}/panels/${index}/ai-review`, 'POST')); }} reviewDisabled={Boolean(busy) || busyShotIds.has(shot.id)} />}
+              {selectedPanel && <GridPanelReview key={`${shot.id}:${selectedPanel.index}:${selectedPanel.image_url}`} panel={selectedPanel} speakers={panelSpeakers} preview={panelPreview} disabled={Boolean(busy) || busyShotIds.has(shot.id)}
                 onOpenImage={() => selectedPanel.image_url && setImagePreview({ images: [{ url: selectedPanel.image_url, label: `Shot ${shot.index} · 格 ${selectedPanel.index} 原图` }], index: 0, showDownload: false })}
                 onApprove={note => { void run('审核通过', () => request(`${shotBase}/panels/${selectedPanel.index}/review`, 'PATCH', { status: 'passed', note })); }}
                 onReject={note => { void run('标记需重做', () => request(`${shotBase}/panels/${selectedPanel.index}/review`, 'PATCH', { status: 'failed', note })); }}
@@ -332,8 +371,8 @@ export default function GridModePage() {
                 onReplace={file => { const form = new FormData(); form.append('file', file); void run('替换子格', () => request(`${shotBase}/panels/${selectedPanel.index}/replace`, 'POST', form)); }} />}
             </>}
             {!grid?.board_image_url && <p className="text-sm text-gray-500">先规划子格，再预览整板提示词与实际素材参考图，然后生成。</p>}</div>}
-          {stage === 'video_gen' && <div className="mt-5 space-y-4">{clips.length === 0 ? <p className="text-sm text-gray-500">所有子格审核通过后，按动作和台词规划 Clip。</p> : <><div className="grid gap-2 sm:grid-cols-2">{clips.map((item, i) => <button key={i} type="button" onClick={() => { setClipIndex(i); setStrategy(item.reference_strategy); }} className={`rounded-lg border p-3 text-left ${i === clipIndex ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}><strong>C{item.clip_index} · {item.duration}s</strong><p className="mt-1 text-xs">子格 {item.panel_indexes.join(' → ')} · {item.dialogues.length} 句台词 · {item.video_url ? '已生成' : '待生成'}</p></button>)}</div>
-            {clip && <><div className="rounded-lg border p-4"><h3 className="font-medium">C{clip.clip_index} · 参考图与六段式提示词</h3><p className="mt-1 text-xs text-gray-500">默认只送当前 Clip 的子格。整板直传可显式选择；不自动附加白底角色图。</p><div className="mt-3 flex flex-wrap gap-2"><select value={strategy} onChange={event => setStrategy(event.target.value as typeof strategy)} className={buttonClass}><option value="split_panels">裁切子格</option><option value="whole_board">整板直传</option></select>{button('编译并校验提示词', () => clip.video_url ? confirmAction('重新编译会使此 Clip 视频和现有合片失效，确认继续？', () => request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy })) : request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy }), true, true)}{button(clip.video_url ? '重做此 Clip' : '生成此 Clip', () => clip.video_url ? confirmAction('确认重新生成此 Clip？完成后需要重新合并 Shot。', () => request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST')) : request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST'), Boolean(clip.prompt && strategy === clip.reference_strategy), true)}</div>
+          {stage === 'video_gen' && <div className="mt-5 space-y-4">{clips.length === 0 ? <p className="text-sm text-gray-500">所有子格审核通过后，按动作和台词规划 Clip。</p> : <><div className="grid gap-2 sm:grid-cols-2">{clips.map((item, i) => <button key={i} type="button" onClick={() => { setClipIndex(i); setStrategy(item.dialogues.some(line => line.delivery === 'offscreen') ? 'split_panels' : item.reference_strategy); }} className={`rounded-lg border p-3 text-left ${i === clipIndex ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}><strong>C{item.clip_index} · {item.duration}s</strong><p className="mt-1 text-xs">子格 {item.panel_indexes.join(' → ')} · {item.dialogues.length} 句台词 · {item.video_url ? '已生成' : '待生成'}</p></button>)}</div>
+            {clip && <><div className="rounded-lg border p-4"><h3 className="font-medium">C{clip.clip_index} · 参考图与六段式提示词</h3><p className="mt-1 text-xs text-gray-500">{offscreenClip ? '画外声只用一格无人环境图作为参考，生成保留动态画面的 H3 视频。' : '默认只送当前 Clip 的子格。整板直传可显式选择；不自动附加白底角色图。'}</p><div className="mt-3 flex flex-wrap gap-2"><select value={offscreenClip ? 'split_panels' : strategy} onChange={event => setStrategy(event.target.value as typeof strategy)} className={buttonClass}><option value="split_panels">裁切子格</option><option value="whole_board" disabled={offscreenClip}>整板直传</option></select>{button('编译并校验提示词', () => clip.video_url ? confirmAction('重新编译会使此 Clip 视频和现有合片失效，确认继续？', () => request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy })) : request(`${shotBase}/clips/${clip.clip_index}/prepare`, 'POST', { reference_strategy: strategy }), true, true)}{button(clip.video_url ? '重做此 Clip' : '生成此 Clip', () => clip.video_url ? confirmAction('确认重新生成此 Clip？完成后需要重新合并 Shot。', () => request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST')) : request(`${shotBase}/clips/${clip.clip_index}/generate`, 'POST'), Boolean(clip.prompt && strategy === clip.reference_strategy), true)}</div>
               {failedClip && !clip.video_url && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>C{clip.clip_index} 生成失败</strong><p className="mt-1">{failedClip.errorMessage || '请查看右侧任务详情'}</p>{button('从此 Clip 续做', () => request(`/tasks/${failedClip.id}/retry`, 'POST'), true)}</div>}
               {clip.reference_images && <div className="mt-4 flex flex-wrap gap-3">{clip.reference_images.map(ref => <div key={ref.picture_index} className="w-36"><img src={ref.url} alt={`Picture ${ref.picture_index}`} className="aspect-video w-full rounded object-cover" /><span className="text-xs">Picture {ref.picture_index} · {ref.role === 'GRID_BOARD' ? '整板' : `子格 ${ref.panel_index}`}</span></div>)}</div>}
               <div className="mt-4"><h4 className="text-sm font-medium">原文台词</h4>{clip.dialogues.length ? clip.dialogues.map(line => <p key={line.id} className="text-sm">{line.id} · {line.speaker}：{line.text}</p>) : <p className="text-sm text-gray-500">无台词</p>}</div>
@@ -343,7 +382,7 @@ export default function GridModePage() {
           </>}</div>}
         </section>}
       </main>
-      <aside className="space-y-4 md:col-span-2 2xl:sticky 2xl:top-4 2xl:col-auto 2xl:max-h-[calc(100vh-2rem)] 2xl:self-start 2xl:overflow-y-auto"><div className="hidden 2xl:block"><GridTaskPanel tasks={tasks} shots={shots} onRefresh={() => refresh().catch(error => toast.error(String(error)))} onAction={(label, action) => { void run(label, action); }} onResumeBatch={step => { void run('继续批量任务', () => request(`${base}/batch`, 'POST', { step })); }} /></div>
+      <aside className="space-y-4 md:col-span-2 2xl:sticky 2xl:top-[calc(var(--grid-header-height)+1rem)] 2xl:col-auto 2xl:max-h-[calc(100vh-var(--grid-header-height)-2rem)] 2xl:self-start 2xl:overflow-y-auto">
         <section className="rounded-xl border bg-white p-4"><h2 className="font-semibold">最终 Shot 视频</h2>{shot?.videoUrl ? <FinalShotVideo key={`${shot.id}:${shot.videoUrl}`} videoUrl={shot.videoUrl} /> : <p className="mt-3 text-sm text-gray-500">Clip 完成后合并本 Shot。</p>}</section>
         <section className="rounded-xl border bg-white p-4"><h2 className="font-semibold">章回合片</h2>{currentData?.chapter.finalVideo ? <><video controls src={nameplatePreviewOpened && nameplatePreview?.url ? nameplatePreview.url : currentData.chapter.finalVideo} className="mt-3 w-full rounded" /><a href={currentData.chapter.finalVideo} download className="mt-2 inline-flex text-sm text-blue-700"><Film className="mr-1 h-4 w-4" />下载视频</a></> : <p className="mt-3 text-sm text-gray-500">全部 Shot 合片后可生成章回视频。</p>}
           {nameplatePreview?.url && <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3 text-sm">
@@ -354,6 +393,7 @@ export default function GridModePage() {
           </div>}
           {!!nameplatePreview?.warnings?.length && <p className="mt-2 text-xs text-amber-700">{nameplatePreview.warnings.join('；')}</p>}
         </section>
+        <GridTaskPanel tasks={tasks} shots={shots} onRefresh={() => refresh().catch(error => toast.error(String(error)))} onAction={(label, action) => { void run(label, action); }} onResumeBatch={resumeBatch} />
         <section className="rounded-xl border bg-white p-4 text-xs text-gray-500"><CheckCircle2 className="mr-1 inline h-4 w-4" />所有输入和结果按 Shot 修订号保存，任务详情可追溯。</section>
       </aside>
     </div>

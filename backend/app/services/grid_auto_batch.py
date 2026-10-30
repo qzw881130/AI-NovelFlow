@@ -15,7 +15,7 @@ from app.schemas.grid_shot import load_grid_data, read_grid_clip_plan
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.grid_pipeline import GridPipeline, GridPipelineError
 from app.services.grid_generation_preflight import config_policy as grid_config_policy, normalize_policy as normalize_grid_policy
-from app.services.grid_tasks import GRID_TASK_TYPES, enqueue_grid_job, run_grid_job
+from app.services.grid_tasks import GRID_TASK_TYPES, active_grid_shot_ids, enqueue_grid_job, run_grid_job
 from app.services.image_quality_review import current_image_reviews, review_image_task
 
 
@@ -33,7 +33,8 @@ def _meta(task: Task) -> dict:
 
 def enqueue_grid_auto_batch(db: Session, novel: Novel, chapter: Chapter,
                             shot_ids: list[str], *, merge_chapter: bool = False,
-                            target_stage: str = "video") -> Task:
+                            target_stage: str = "video", force_review: bool = False,
+                            panel_index: int | None = None) -> Task:
     if novel.video_mode != "grid" or chapter.novel_id != novel.id:
         raise GridPipelineError("仅宫格模式小说可使用自动批量生成")
     if not shot_ids or len(shot_ids) != len(set(shot_ids)) or len(shot_ids) > 100:
@@ -42,30 +43,45 @@ def enqueue_grid_auto_batch(db: Session, novel: Novel, chapter: Chapter,
         raise GridPipelineError("未知的自动批量生成阶段")
     if target_stage != "video" and merge_chapter:
         raise GridPipelineError("宫格生图或审图任务不能合并章回")
+    if force_review and target_stage != "review":
+        raise GridPipelineError("重新 AI 评审仅适用于审图任务")
+    if panel_index is not None and (target_stage != "review" or not force_review or len(shot_ids) != 1):
+        raise GridPipelineError("单格 AI 评审需要指定一个 Shot")
     shots = db.query(Shot).filter(Shot.chapter_id == chapter.id, Shot.id.in_(shot_ids)).all()
     if len(shots) != len(shot_ids):
         raise GridPipelineError("所选 Shot 不属于当前章回")
     if target_stage == "review" and any(not (grid := load_grid_data(shot.grid_data)) or not grid.board_image_url
                                          for shot in shots):
         raise GridPipelineError("AI 审图只能处理已有整板图的 Shot")
+    if force_review:
+        for shot in shots:
+            grid = load_grid_data(shot.grid_data)
+            if not grid or (panel_index is None and any(not panel.image_url for panel in grid.panels)):
+                raise GridPipelineError("重新 AI 评审需要完整的子格图片")
+            if panel_index is not None and (not 1 <= panel_index <= len(grid.panels)
+                                            or not grid.panels[panel_index - 1].image_url):
+                raise GridPipelineError("所选子格不存在或尚无图片")
     shot_ids = [shot.id for shot in sorted(shots, key=lambda shot: shot.index)]
-    active = db.query(Task.id).filter(Task.chapter_id == chapter.id,
-                                      Task.status.in_(["pending", "running"]),
-                                      Task.type.in_(GRID_TASK_TYPES | {"grid_batch", "grid_auto_batch", "grid_board_batch", "grid_review_batch", "grid_chapter_plan_batch"})).first()
-    if active:
-        raise GridPipelineError("本章已有宫格生成任务，请等待或取消后再提交")
+    if set(shot_ids) & active_grid_shot_ids(db, chapter.id):
+        raise GridPipelineError("所选 Shot 已有宫格任务在排队或执行，请选择其他 Shot")
     labels = {"board": ("grid_board_batch", "批量生成分镜宫格图"),
               "review": ("grid_review_batch", "批量 AI 审图"),
               "video": ("grid_auto_batch", "自动批量生成 Shot")}
     grid_policy = grid_config_policy(db.get(SystemConfig, "default"))
+    task_name = (f"AI 评审子格 · Shot {shots[0].index} · 格 {panel_index}"
+                 if panel_index is not None else f"{labels[target_stage][1]} · {chapter.title}")
+    wait_message = (f"等待评审 Shot {shots[0].index} · 格 {panel_index}"
+                    if panel_index is not None else f"等待执行 {len(shot_ids)} 个 Shot")
     parent = Task(type=labels[target_stage][0],
                   status="pending", novel_id=novel.id,
                   chapter_id=chapter.id, execution_scope="BATCH",
-                  name=f"{labels[target_stage][1]} · {chapter.title}", progress=0,
-                  current_step=f"等待执行 {len(shot_ids)} 个 Shot",
+                  name=task_name, progress=0,
+                  current_step=wait_message,
                   metadata_json=json.dumps({"video_mode": "grid", "shot_ids": shot_ids,
                                             "merge_chapter": merge_chapter,
                                             "target_stage": target_stage,
+                                            "force_review": force_review,
+                                            "panel_index": panel_index,
                                             "grid_preflight_policy": grid_policy,
                                             "shot_results": {shot_id: {"status": "pending"} for shot_id in shot_ids},
                                             "panel_retries": {}}, ensure_ascii=False))
@@ -216,12 +232,16 @@ async def _review_panel(db: Session, parent: Task, shot: Shot, index: int) -> tu
 
 
 async def _review_panels(db: Session, parent: Task, novel: Novel, chapter: Chapter,
-                         shot: Shot, *, required_indexes: set[int] | None = None) -> list[int]:
+                         shot: Shot, *, required_indexes: set[int] | None = None,
+                         force_review: bool = False) -> list[int]:
     pipeline = GridPipeline(db)
     policy = normalize_grid_policy(_meta(parent).get("grid_preflight_policy") or {})
     warning_indexes = []
+    failed_indexes = []
     for index in range(1, len(load_grid_data(shot.grid_data).panels) + 1):
         if required_indexes is not None and index not in required_indexes:
+            if force_review:
+                continue
             panel = load_grid_data(shot.grid_data).panels[index - 1]
             if panel.review_status == "failed":
                 raise GridPipelineError(f"格 {index} 初审 FAIL，不能继续")
@@ -232,6 +252,18 @@ async def _review_panels(db: Session, parent: Task, novel: Novel, chapter: Chapt
             _check_active(db, parent)
             db.refresh(shot)
             panel = load_grid_data(shot.grid_data).panels[index - 1]
+            if force_review:
+                result, summary = await _review_panel(db, parent, shot, index)
+                _check_active(db, parent)
+                status = {"PASS": "passed", "WARNING": "warning", "FAIL": "failed"}.get(result)
+                if not status:
+                    raise GridPipelineError(f"格 {index} 重新 AI 评审返回未知状态：{result}")
+                pipeline.review_panel(shot, index, status, f"AI 复评{result}：{summary}")
+                if status == "warning":
+                    warning_indexes.append(index)
+                if status == "failed":
+                    failed_indexes.append(index)
+                break
             if panel.review_status == "passed":
                 break
             if panel.review_status == "warning":
@@ -263,6 +295,8 @@ async def _review_panels(db: Session, parent: Task, novel: Novel, chapter: Chapt
             metadata.setdefault("panel_retries", {})[key] = attempts + 1
             parent.metadata_json = json.dumps(metadata, ensure_ascii=False)
             db.commit()
+    if failed_indexes:
+        raise GridPipelineError(f"格 {', '.join(map(str, failed_indexes))} 重新 AI 评审 FAIL；请逐格核对或重做")
     return warning_indexes
 
 
@@ -291,9 +325,13 @@ async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, s
         await _run_step(db, parent, novel, chapter, shot, "board_generate")
         db.refresh(shot)
     policy = normalize_grid_policy(_meta(parent).get("grid_preflight_policy") or {})
-    update("panel_review", "逐格 AI 初审" if target_stage == "review" or policy["GRID_PANEL_AI_REVIEW"]
+    selected_panel_index = _meta(parent).get("panel_index") if target_stage == "review" else None
+    update("panel_review", f"格 {selected_panel_index} AI 评审" if selected_panel_index is not None
+           else "逐格 AI 初审" if target_stage == "review" or policy["GRID_PANEL_AI_REVIEW"]
            else "检查画外声子格，其余按设置跳过 AI 初审")
     required_indexes = None
+    if selected_panel_index is not None:
+        required_indexes = {int(selected_panel_index)}
     if target_stage != "review" and not policy["GRID_PANEL_AI_REVIEW"]:
         dialogues = json.loads(shot.dialogues or "[]")
         required_indexes = {panel.index for panel in load_grid_data(shot.grid_data).panels
@@ -302,7 +340,8 @@ async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, s
                                    and dialogues[number - 1].get("delivery") == "offscreen"
                                    for number in panel.dialogue_indexes)}
     warning_indexes = await _review_panels(db, parent, novel, chapter, shot,
-                                           required_indexes=required_indexes)
+                                           required_indexes=required_indexes,
+                                           force_review=target_stage == "review" and bool(_meta(parent).get("force_review")))
     if warning_indexes:
         _set_progress(db, parent, shot.id, "running",
                       f"Shot {shot.index} · 部分子格保留 WARNING/PENDING，继续处理",

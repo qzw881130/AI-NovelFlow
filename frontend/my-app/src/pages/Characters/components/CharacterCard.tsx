@@ -86,7 +86,7 @@ export function CharacterCard({
           <img
             src={`${character.imageUrl}${character.updatedAt ? `${character.imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(character.updatedAt)}` : ''}`}
             alt={character.name}
-            className="w-full h-full cursor-pointer"
+            className="w-full h-full object-contain cursor-pointer"
             onClick={() => onImageClick(character.imageUrl!, character.name, character.id)}
           />
         ) : (
@@ -225,7 +225,7 @@ export function CharacterCard({
             {aspectRatio}
           </span>
         </div>
-        {character.imageUrl && <LibraryImageReview quality={imageQuality} name={`角色图：${character.name}`} />}
+        {character.imageUrl && <LibraryImageReview key={`${character.imageUrl}:${character.portraitTaskId || ''}:${character.updatedAt || ''}`} quality={imageQuality} name={`角色图：${character.name}`} kind="character" entityId={character.id} imageUrl={character.imageUrl} />}
 
         {/* 角色描述 */}
         {character.description && (

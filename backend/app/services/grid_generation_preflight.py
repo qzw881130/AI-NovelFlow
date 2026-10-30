@@ -27,7 +27,7 @@ CHECKS = (
     {"id": "GRID_H3_INPUT_BINDING", "stage": "video", "label": "H3 提示词与参考图",
      "description": "核对原文对白、Subject/Speaker、图片引用、工作流节点及输入版本。", "configurable": False},
     {"id": "GRID_OFFSCREEN_AUDIO", "stage": "assembly", "label": "画外声音轨与画面",
-     "description": "核对画外台词音轨与原文，并使用无人出镜的环境子格固定画面。", "configurable": False},
+     "description": "核对画外台词音轨与原文；使用无人出镜的环境子格生成动态视频。", "configurable": False},
     {"id": "GRID_VIDEO_ARTIFACT", "stage": "assembly", "label": "视频文件与合并来源",
      "description": "Clip 和 Shot 文件必须存在，且片段顺序和来源有效。", "configurable": False},
 )

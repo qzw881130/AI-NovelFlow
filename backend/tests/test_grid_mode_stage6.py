@@ -1,8 +1,6 @@
 """Focused Stage 6 API and planning checks; generation is covered at Stage 8."""
 import asyncio
 import json
-import shutil
-import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -10,9 +8,10 @@ import pytest
 from app.models.novel import Chapter, Character, Novel
 from app.models.prompt_template import PromptTemplate
 from app.models.shot import Shot
+from app.models.task import Task
 from app.models.workflow import Workflow
 from app.schemas.grid_shot import GridPanel, GridShotData, dump_grid_clip_plan, dump_grid_data, load_grid_data, read_grid_clip_plan
-from app.services.grid_pipeline import GridPipeline, GridPipelineError, _h3_bindings, _render_offscreen_clip_visual
+from app.services.grid_pipeline import GridPipeline, GridPipelineError, _h3_bindings
 from app.services.grid_tasks import _validate as validate_grid_step
 
 
@@ -55,6 +54,65 @@ def test_silent_clip_plan_accepts_no_voice_marker(db_session, monkeypatch):
         validate_grid_step(db_session, novel, chapter, shot, 'clips_plan')
     with pytest.raises(GridPipelineError, match='FAIL'):
         GridPipeline(db_session)._clip_refs(grid, result['clip_plan'][0])
+
+
+def test_offscreen_clip_plan_repairs_missing_silent_panels(db_session, monkeypatch):
+    novel = Novel(title='画外声完整格序', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='村口', content='夜深了。')
+    db_session.add(chapter)
+    db_session.flush()
+    dialogues = [
+        {'speaker': '旁白', 'text': '夜深了。', 'delivery': 'offscreen',
+         'voice_description': 'a calm adult narrator'},
+        {'speaker': '旁白', 'text': '村庄寂静。', 'delivery': 'offscreen',
+         'voice_description': 'a calm adult narrator'},
+    ]
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat=f'Beat {i}', camera='远景',
+                                          image_url=f'/api/files/panel_{i}.png', review_status='passed')
+                                for i in range(1, 5)])
+    shot = Shot(chapter_id=chapter.id, index=1, description='空村', duration=8,
+                dialogues=json.dumps(dialogues, ensure_ascii=False), grid_data=dump_grid_data(grid))
+    db_session.add(shot)
+    db_session.commit()
+    calls = []
+
+    async def fake_ask(_self, _novel, _chapter, _shot, _kind, payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return {'clips': [
+                {'clip_index': 1, 'start_time': 0, 'end_time': 4,
+                 'physical_reference_panels': [1], 'dialogue_ids': ['D1']},
+                {'clip_index': 2, 'start_time': 4, 'end_time': 8,
+                 'physical_reference_panels': [3], 'dialogue_ids': ['D2']},
+            ]}, 'template'
+        return {'clips': [
+            {'clip_index': i, 'start_time': (i - 1) * 2, 'end_time': i * 2,
+             'physical_reference_panels': [i],
+             'dialogue_ids': ['D1'] if i == 1 else ['D2'] if i == 3 else []}
+            for i in range(1, 5)
+        ]}, 'template'
+
+    monkeypatch.setattr(GridPipeline, '_ask', fake_ask)
+    plan = asyncio.run(GridPipeline(db_session).plan_clips(novel, chapter, shot))
+    assert len(calls) == 2
+    assert '2, 4' in calls[1]['repair_errors']
+    assert [clip['panel_indexes'] for clip in plan['clip_plan']] == [[1], [2], [3], [4]]
+    assert [len(clip['dialogues']) for clip in plan['clip_plan']] == [1, 0, 1, 0]
+
+
+def test_offscreen_clip_cannot_send_whole_board(db_session):
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        board_image_url='/api/files/board.png',
+                        panels=[GridPanel(index=i, beat='门外', camera='近景',
+                                          image_url=f'/api/files/panel_{i}.png', review_status='passed')
+                                for i in range(1, 5)])
+    clip = {'reference_strategy': 'whole_board', 'panel_indexes': [1],
+            'dialogues': [{'delivery': 'offscreen', 'text': '开门！'}]}
+    with pytest.raises(GridPipelineError, match='不能整板直传'):
+        GridPipeline(db_session)._clip_refs(grid, clip)
 
 
 def test_rejecting_panel_invalidates_shot_and_chapter_video(db_session):
@@ -296,29 +354,64 @@ def test_grid_panel_rejects_visible_people_during_offscreen_dialogue(db_session,
         asyncio.run(GridPipeline(db_session).plan_panels(novel, chapter, shot, '2x2'))
 
 
-@pytest.mark.skipif(not shutil.which('ffmpeg') or not shutil.which('ffprobe'), reason='FFmpeg unavailable')
-def test_offscreen_clip_keeps_audio_and_freezes_approved_visual(tmp_path):
-    from PIL import Image
+def test_offscreen_clip_preserves_h3_video_after_audio_check(db_session, tmp_path, monkeypatch):
+    novel = Novel(title='动态画外声', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='门外', content='开门。')
+    db_session.add(chapter)
+    db_session.flush()
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='空门', camera='近景',
+                                          image_url=f'/api/files/panel_{i}.png', review_status='passed')
+                                for i in range(1, 5)])
+    refs = [{'picture_index': 1, 'role': 'GRID_PANEL', 'panel_index': 1,
+             'url': '/api/files/panel_1.png'}]
+    clip = {'clip_index': 1, 'duration': 5, 'panel_indexes': [1],
+            'reference_strategy': 'split_panels', 'prompt': 'validated prompt',
+            'reference_images': refs, 'dialogues': [{
+                'id': 'D1', 'speaker': '门外官差', 'text': '开门！', 'delivery': 'offscreen',
+                'voice_description': 'a rough adult male voice outside the door',
+                'start_time': 1, 'end_time': 2}], 'prompt_template_snapshot': 'template'}
+    shot = Shot(chapter_id=chapter.id, index=1, description='空门', duration=5,
+                grid_data=dump_grid_data(grid), video_director_plan=dump_grid_clip_plan(grid, [clip]))
+    db_session.add(shot)
+    db_session.flush()
+    workflow = Workflow(name='H3', type='multi_reference_video', is_active=True,
+                        workflow_json='{}', node_mapping='{}')
+    db_session.add(workflow)
+    db_session.flush()
+    task = Task(type='grid_h3_clip', status='running', name='C1', novel_id=novel.id,
+                chapter_id=chapter.id, shot_id=shot.id, clip_index=1,
+                comfyui_prompt_id='queued-h3', workflow_id=workflow.id,
+                workflow_json='{"1": {"class_type": "MiniMaxH3ReferenceToVideo"}}', metadata_json='{}')
+    db_session.add(task)
+    db_session.commit()
 
-    image = tmp_path / 'empty_door.png'
-    Image.new('RGB', (320, 180), (87, 54, 32)).save(image)
-    source, output = tmp_path / 'h3.mp4', tmp_path / 'safe.mp4'
-    subprocess.run([
-        'ffmpeg', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=24',
-        '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=32000', '-t', '1',
-        '-c:v', 'libx264', '-c:a', 'aac', str(source),
-    ], check=True, timeout=30)
-    _render_offscreen_clip_visual(str(source), str(image), str(output))
-    metadata = json.loads(subprocess.check_output([
-        'ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'json', str(output),
-    ], text=True))
-    assert {row['codec_type'] for row in metadata['streams']} == {'video', 'audio'}
-    frame_hashes = subprocess.check_output([
-        'ffmpeg', '-v', 'error', '-i', str(output), '-map', '0:v:0',
-        '-vf', 'select=eq(n\\,0)+eq(n\\,20),format=rgb24', '-vsync', '0', '-f', 'framemd5', '-',
-    ], text=True)
-    assert len({line.rsplit(',', 1)[-1].strip() for line in frame_hashes.splitlines()
-                if line and not line.startswith('#')}) == 1
+    async def result(*_args, **_kwargs):
+        return {'success': True, 'video_url': '/remote/h3.mp4'}
+
+    async def download(*_args, **_kwargs):
+        return str(tmp_path / 'h3.mp4')
+
+    async def verify(*_args, **_kwargs):
+        return '开门！'
+
+    monkeypatch.setattr('app.services.grid_pipeline.ComfyUIService',
+                        lambda: SimpleNamespace(client=SimpleNamespace(wait_for_result=result)))
+    monkeypatch.setattr('app.services.grid_pipeline.validate_grid_h3_prompt',
+                        lambda *_args, **_kwargs: {})
+    monkeypatch.setattr('app.services.grid_pipeline.url_to_local_path',
+                        lambda _url: str(tmp_path / 'panel.png'))
+    monkeypatch.setattr('app.services.grid_pipeline.local_path_to_url',
+                        lambda path: '/api/files/h3.mp4' if path == str(tmp_path / 'h3.mp4') else None)
+    monkeypatch.setattr('app.services.grid_pipeline.file_storage.download_video_receipt', download)
+    monkeypatch.setattr(GridPipeline, '_verify_offscreen_audio', verify)
+
+    generated = asyncio.run(GridPipeline(db_session).generate_clip(novel, chapter, shot, 1, task=task))
+    assert generated['videoUrl'] == '/api/files/h3.mp4'
+    assert generated['clip']['video_url'] == '/api/files/h3.mp4'
+    assert json.loads(task.metadata_json)['offscreen_asr_transcript'] == '开门！'
 
 
 @pytest.mark.parametrize('transcript,valid', [

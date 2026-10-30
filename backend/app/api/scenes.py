@@ -436,6 +436,8 @@ async def upload_scene_image(
         
         # 更新场景记录
         scene_repo.update_image(scene, image_url)
+        scene.scene_task_id = None
+        scene_repo.db.commit()
         
         novel = novel_repo.get_by_id(scene.novel_id)
         
@@ -449,6 +451,7 @@ async def upload_scene_image(
                 "setting": scene.setting,
                 "imageUrl": scene.image_url,
                 "generatingStatus": scene.generating_status,
+                "sceneTaskId": scene.scene_task_id,
                 "novelName": novel.title if novel else None,
                 "updatedAt": scene.updated_at.isoformat() if scene.updated_at else None,
             },
@@ -505,6 +508,8 @@ async def replace_scene_image(
         raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
 
     scene_repo.update_image(scene, data.image_url)
+    scene.scene_task_id = None
+    scene_repo.db.commit()
     novel = novel_repo.get_by_id(scene.novel_id)
     return {
         "success": True,

@@ -65,6 +65,8 @@ export default {
     task: 'Task',
     errorMessage: 'Error Message',
     llmResponse: 'LLM Response',
+    prettyJson: 'Format JSON',
+    showRawJson: 'Show original',
     characterCount: 'Characters: {count}',
     proxy: 'Proxy',
     duration: 'Duration',

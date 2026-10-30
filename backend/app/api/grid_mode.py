@@ -13,7 +13,7 @@ from app.models.shot import Shot
 from app.models.task import Task
 from app.schemas.grid_shot import load_grid_data, read_grid_clip_plan
 from app.services.grid_pipeline import GridPipeline, GridPipelineError
-from app.services.grid_tasks import GRID_TASK_TYPES, enqueue_grid_job
+from app.services.grid_tasks import GRID_TASK_TYPES, active_grid_shot_ids, enqueue_grid_job
 from app.services.grid_auto_batch import enqueue_grid_auto_batch
 
 router = APIRouter()
@@ -32,13 +32,20 @@ class ClipPrepareRequest(BaseModel):
     reference_strategy: str | None = None
 
 
+class GridBatchItem(BaseModel):
+    shot_id: str
+    clip_index: int | None = None
+
+
 class GridBatchRequest(BaseModel):
     step: str
+    items: list[GridBatchItem]
 
 
 class GridAutoBatchRequest(BaseModel):
     shot_ids: list[str]
     merge_chapter: bool = False
+    force_review: bool = False
 
 
 class GridReviewPassBatchRequest(BaseModel):
@@ -86,14 +93,7 @@ def _enqueue(db, novel, chapter, shot, step, **kwargs):
 
 def _ensure_shot_idle(db: Session, shot_id: str):
     shot = db.get(Shot, shot_id)
-    auto = db.query(Task).filter(Task.chapter_id == shot.chapter_id,
-                                 Task.type.in_(["grid_auto_batch", "grid_board_batch", "grid_review_batch"]),
-                                 Task.status.in_(["pending", "running"])).first() if shot else None
-    if auto and shot_id in json.loads(auto.metadata_json or "{}").get("shot_ids", []):
-        raise HTTPException(409, "此 Shot 正在自动批量生成")
-    active = db.query(Task.id).filter(Task.shot_id == shot_id, Task.type.in_(GRID_TASK_TYPES),
-                                      Task.status.in_(["pending", "running"])).first()
-    if active:
+    if shot and shot_id in active_grid_shot_ids(db, shot.chapter_id):
         raise HTTPException(409, "此 Shot 有宫格任务待执行或正在执行")
 
 
@@ -131,7 +131,7 @@ async def enqueue_batch(novel_id: str, chapter_id: str, request: GridBatchReques
                 if not plan and grid.panels and all(p.image_url and p.review_status == "passed" for p in grid.panels):
                     candidates.append((shot, None))
             elif request.step == "shot_merge":
-                if plan and not shot.video_url and all(clip.get("video_url") for clip in plan["clip_plan"]):
+                if plan and not shot.video_url and plan["clip_plan"] and all(clip.get("video_url") for clip in plan["clip_plan"]):
                     candidates.append((shot, None))
             elif plan:
                 for clip in plan["clip_plan"]:
@@ -139,11 +139,17 @@ async def enqueue_batch(novel_id: str, chapter_id: str, request: GridBatchReques
                         candidates.append((shot, clip["clip_index"]))
                     elif request.step == "clip_generate" and clip.get("prompt") and not clip.get("video_url"):
                         candidates.append((shot, clip["clip_index"]))
-    if not candidates:
-        raise HTTPException(422, "没有已预览且待生成的项目")
-    if db.query(Task.id).filter(Task.chapter_id == chapter_id, Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch", "grid_board_batch", "grid_review_batch"}),
-                                Task.status.in_(["pending", "running"])).first():
-        raise HTTPException(409, "本章有宫格任务正在排队或执行，请完成后再批量提交")
+    selected = [(item.shot_id, item.clip_index) for item in request.items]
+    selected_set = set(selected)
+    if not selected or len(selected) != len(selected_set):
+        raise HTTPException(422, "请选择不重复的批量处理项目")
+    available = {(shot.id, clip_index) for shot, clip_index in candidates}
+    if not selected_set <= available:
+        raise HTTPException(409, "所选项目已变化，请刷新页面后重新选择")
+    candidates = [(shot, clip_index) for shot, clip_index in candidates
+                  if (shot.id, clip_index) in selected_set]
+    if {shot.id for shot, _ in candidates} & active_grid_shot_ids(db, chapter_id):
+        raise HTTPException(409, "所选 Shot 已有宫格任务在排队或执行，请选择其他 Shot")
     labels = {"panels_plan": "规划子格", "board_prepare": "准备整板提示词",
               "board_generate": "生成宫格整板", "clips_plan": "规划 Clip",
               "clip_prepare": "编译 H3 提示词", "clip_generate": "生成 H3 Clip",
@@ -200,7 +206,20 @@ async def enqueue_auto_review_batch(novel_id: str, chapter_id: str, request: Gri
     novel, chapter, _ = _context(db, novel_id, chapter_id)
     try:
         task = enqueue_grid_auto_batch(db, novel, chapter, request.shot_ids,
-                                       merge_chapter=request.merge_chapter, target_stage="review")
+                                       merge_chapter=request.merge_chapter, target_stage="review",
+                                       force_review=request.force_review)
+    except (GridPipelineError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _queued(task)
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/grid/shots/{shot_id}/panels/{panel_index}/ai-review")
+async def enqueue_panel_ai_review(novel_id: str, chapter_id: str, shot_id: str,
+                                  panel_index: int, db: Session = Depends(get_db)):
+    novel, chapter, _ = _context(db, novel_id, chapter_id, shot_id)
+    try:
+        task = enqueue_grid_auto_batch(db, novel, chapter, [shot_id], target_stage="review",
+                                       force_review=True, panel_index=panel_index)
     except (GridPipelineError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
     return _queued(task)

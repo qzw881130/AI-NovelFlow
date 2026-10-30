@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImageQualityBadge, useImageQuality } from '../ChapterGenerate/components/ImageQualityStatus';
+import { useImageQuality } from '../ChapterGenerate/components/ImageQualityStatus';
 import { ImageReviewModal } from '../Tasks/components/ImageReviewModal';
 import type { GridTask } from './GridTaskPanel';
 
@@ -19,6 +19,8 @@ const reviewStyles: Record<string, string> = {
   warning: 'bg-amber-100 text-amber-800',
   failed: 'bg-red-100 text-red-700',
   pending: 'bg-gray-100 text-gray-600',
+  reviewing: 'bg-blue-100 text-blue-700',
+  error: 'bg-orange-100 text-orange-800',
 };
 
 function imageKey(url?: string) {
@@ -27,13 +29,15 @@ function imageKey(url?: string) {
   catch { return url; }
 }
 
-export function GridPanelImageGallery({ panels, layout, tasks, shotIndex, selectedIndex, onSelect }: {
+export function GridPanelImageGallery({ panels, layout, tasks, shotIndex, selectedIndex, onSelect, onReview, reviewDisabled }: {
   panels: PanelImage[];
   layout: string;
   tasks: GridTask[];
   shotIndex: number;
   selectedIndex: number;
   onSelect: (index: number) => void;
+  onReview: (panelIndex: number) => void;
+  reviewDisabled: boolean;
 }) {
   const [reviewTarget, setReviewTarget] = useState<{ task: GridTask; imageUrl: string; reviewId: string } | null>(null);
   const reviewTasks = panels.map(panel => tasks.find(task => task.type === 'grid_panel_review'
@@ -47,19 +51,24 @@ export function GridPanelImageGallery({ panels, layout, tasks, shotIndex, select
       {panels.map((panel, index) => {
         const quality = qualities[index];
         const reviewTask = reviewTasks[index];
-        const reviewLabel = reviewLabels[panel.review_status] || panel.review_status;
+        const reviewRunning = reviewTask && (['pending', 'running'].includes(reviewTask.status)
+          || (quality && ['PENDING', 'RUNNING'].includes(quality.qualityStatus)));
+        const reviewError = reviewTask && (reviewTask.status === 'failed' || quality?.qualityStatus === 'ERROR');
+        const displayStatus = reviewRunning ? 'reviewing' : reviewError ? 'error' : panel.review_status;
+        const reviewLabel = displayStatus === 'reviewing' ? '评审中' : displayStatus === 'error' ? '评审异常'
+          : reviewLabels[displayStatus] || displayStatus;
         return <div key={panel.index} className={`min-w-0 overflow-hidden rounded-lg border-2 bg-white ${index === selectedIndex ? 'border-blue-500' : 'border-gray-200'}`}>
           <button type="button" onClick={() => onSelect(index)} aria-label={`选择格 ${panel.index}`} aria-current={index === selectedIndex ? 'true' : undefined} className="block w-full text-left focus-visible:outline-2 focus-visible:outline-blue-600">
             {panel.image_url ? <img src={panel.image_url} alt={`格 ${panel.index}`} className="aspect-video w-full object-cover" /> : <div className="flex aspect-video items-center justify-center bg-gray-100 text-xs text-gray-500">尚无子格图片</div>}
             <span className="block p-2">
               <span className="flex flex-wrap items-center gap-1.5 text-xs"><strong className="mr-1">格 {panel.index}</strong>
-                {reviewTask && quality && <ImageQualityBadge status={quality.qualityStatus} summary={quality.summary} />}
-                <span className={`rounded px-1.5 py-0.5 text-[11px] ${reviewStyles[panel.review_status] || reviewStyles.pending}`}>审核 · {reviewLabel}</span>
+                <span title={quality?.summary || undefined} className={`rounded px-1.5 py-0.5 text-[11px] ${reviewStyles[displayStatus] || reviewStyles.pending}`}>评审 · {reviewLabel}</span>
               </span>
             </span>
           </button>
-          {reviewTask && quality?.reviewId && panel.image_url && <div className="border-t border-gray-100 px-2 py-1.5">
-            <button type="button" className="text-xs text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" onClick={() => setReviewTarget({ task: reviewTask, imageUrl: panel.image_url!, reviewId: quality.reviewId! })}>查看评审详情</button>
+          {panel.image_url && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 px-2 py-1.5">
+            <button type="button" disabled={reviewDisabled} aria-label={`格 ${panel.index} · ${quality?.reviewId ? '重新 AI 评审' : '开始 AI 评审'}`} className="text-xs text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => onReview(panel.index)}>{quality?.reviewId ? '重新 AI 评审' : '开始 AI 评审'}</button>
+            {reviewTask && quality?.reviewId && <button type="button" className="text-xs text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" onClick={() => setReviewTarget({ task: reviewTask, imageUrl: panel.image_url!, reviewId: quality.reviewId! })}>查看评审详情</button>}
           </div>}
         </div>;
       })}

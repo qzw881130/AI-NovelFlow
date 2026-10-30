@@ -116,6 +116,21 @@ def _validate(db: Session, novel: Novel, chapter: Chapter, shot: Shot | None, st
             raise GridPipelineError("请先生成所有 Clip")
 
 
+def active_grid_shot_ids(db: Session, chapter_id: str) -> set[str]:
+    """Shot reservations held by queued or running grid jobs and auto batches."""
+    active = db.query(Task).filter(Task.chapter_id == chapter_id,
+                                   Task.status.in_(["pending", "running"]),
+                                   Task.type.in_(GRID_TASK_TYPES | {"grid_auto_batch", "grid_board_batch", "grid_review_batch"})).all()
+    reserved = {task.shot_id for task in active if task.shot_id}
+    for task in active:
+        if task.type in {"grid_auto_batch", "grid_board_batch", "grid_review_batch"}:
+            try:
+                reserved.update(json.loads(task.metadata_json or "{}").get("shot_ids", []))
+            except (TypeError, ValueError):
+                pass
+    return reserved
+
+
 def enqueue_grid_job(db: Session, novel: Novel, chapter: Chapter, shot: Shot | None, step: str,
                      *, panel_index: int | None = None, clip_index: int | None = None,
                      layout: str | None = None, strategy: str | None = None,
@@ -123,10 +138,8 @@ def enqueue_grid_job(db: Session, novel: Novel, chapter: Chapter, shot: Shot | N
                      batch_order: int | None = None, enqueue: bool = True) -> Task:
     if step not in GRID_STEPS:
         raise GridPipelineError("未知的宫格任务步骤")
-    if parent_task_id is None and db.query(Task.id).filter(
-            Task.chapter_id == chapter.id, Task.type.in_(["grid_auto_batch", "grid_board_batch", "grid_review_batch"]),
-            Task.status.in_(["pending", "running"])).first():
-        raise GridPipelineError("本章正在自动批量生成，请等待任务结束")
+    if parent_task_id is None and shot and shot.id in active_grid_shot_ids(db, chapter.id):
+        raise GridPipelineError("此 Shot 已有宫格任务在排队或执行")
     _validate(db, novel, chapter, shot, step, panel_index=panel_index, clip_index=clip_index)
     active = db.query(Task).filter(Task.chapter_id == chapter.id, Task.type.in_(GRID_TASK_TYPES),
                                    Task.status.in_(["pending", "running"])).all()

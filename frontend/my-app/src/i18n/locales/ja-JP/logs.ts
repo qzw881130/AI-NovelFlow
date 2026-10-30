@@ -53,6 +53,8 @@ export default {
     task: 'タスク',
     errorMessage: 'エラーメッセージ',
     llmResponse: 'LLMレスポンス',
+    prettyJson: 'JSONを整形',
+    showRawJson: '元のテキストを表示',
     characterCount: '文字数：{count}',
     proxy: 'プロキシ',
     yes: 'はい',

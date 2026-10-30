@@ -53,6 +53,8 @@ export default {
     task: '任務',
     errorMessage: '錯誤訊息',
     llmResponse: 'LLM 回應',
+    prettyJson: '美化 JSON',
+    showRawJson: '顯示原文',
     characterCount: '字數：{count}',
     proxy: '代理',
     yes: '是',

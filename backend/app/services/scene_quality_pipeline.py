@@ -54,6 +54,20 @@ def _reset_receipt(db, task):
     db.commit()
 
 
+def _review_feedback(state):
+    """Carry the last review's actionable findings into the next generation."""
+    attempts = state.get("attempts") or []
+    if not attempts:
+        return ""
+    previous = next((attempt for attempt in reversed(attempts)
+                     if attempt.get("cycle") == state.get("cycle", 1) - 1), {})
+    review = previous.get("cleaned_review") or previous.get("generated_review") or {}
+    feedback = review.get("feedback") or []
+    if feedback:
+        return "; ".join(str(item)[:240] for item in feedback[:3])
+    return str(review.get("summary") or "")[:600]
+
+
 async def _save_candidate(db, task, image_url, name, cycle, kind):
     if not image_url:
         raise RuntimeError("ComfyUI 未返回场景图片")
@@ -87,7 +101,12 @@ async def _generate(db, task, scene, service, cycle):
         scene.name, scene.setting, "", template.template if template else None, style,
     )
     if cycle > 1:
-        prompt += "\nPrevious scene attempt did not pass review. This is an environment-only asset: ZERO visible people anywhere in the frame."
+        state = _metadata(task).get("scene_quality") or {}
+        feedback = _review_feedback(state)
+        if feedback:
+            prompt += f"\nCorrect the following issues found in the previous image: {feedback}"
+        else:
+            prompt += "\nPrevious scene attempt did not pass review. Keep this an empty environment with ZERO visible people."
     task.prompt_text = prompt
     task.workflow_id = workflow.id if workflow else None
     task.workflow_name = workflow.name if workflow else None
@@ -164,8 +183,16 @@ async def _review(db, task, state, kind):
         raise RuntimeError(f"场景图 AI 审核未完成：{review.error_message or review.status}")
     dimensions = json.loads(review.dimensions_json or "{}")
     count = dimensions.get("CHARACTER_COUNT") or {}
+    try:
+        issues = json.loads(review.issues_json or "[]")
+    except (TypeError, ValueError):
+        issues = []
+    feedback = [issue.get("suggestion") for issue in issues
+                if isinstance(issue, dict) and issue.get("visibility") == "OBSERVED"
+                and issue.get("suggestion")]
     result = {"review_id": review.id, "overall": review.overall,
-              "character_count": count.get("status"), "summary": review.summary}
+              "character_count": count.get("status"), "summary": review.summary,
+              "feedback": feedback[:3]}
     return result
 
 
@@ -271,4 +298,7 @@ async def run_scene_quality_pipeline(db, task, scene, service):
 
         raise RuntimeError(f"未知场景审核阶段：{stage}")
 
-    raise RuntimeError(f"场景图经过 {MAX_SCENE_CYCLES} 轮生成、清理和 AI 审核仍未通过；保留原场景图")
+    last_review = (state["attempts"][-1].get("cleaned_review")
+                   or state["attempts"][-1].get("generated_review") or {})
+    reason = str(last_review.get("summary") or "未达到审核要求")[:240]
+    raise RuntimeError(f"场景图经过 {MAX_SCENE_CYCLES} 轮生成与 AI 审核仍未通过：{reason}；保留原场景图")

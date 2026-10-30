@@ -41,6 +41,7 @@ def _stub_generation(monkeypatch, reviews):
         status, overall, count = reviews[url]
         return SimpleNamespace(id=f"review-{len(saved)}", status=status, overall=overall,
                                dimensions_json=json.dumps({"CHARACTER_COUNT": {"status": count}}),
+                               issues_json="[]",
                                summary=overall, error_message="review error" if status == "error" else None)
 
     monkeypatch.setattr(pipeline, "_generate", generated)
@@ -91,13 +92,24 @@ async def test_non_person_review_issue_regenerates_without_cleanup(db_session, m
     edited.assert_not_awaited()
 
 
+def test_next_scene_cycle_uses_previous_review_feedback():
+    state = {"cycle": 2, "attempts": [
+        {"cycle": 1, "generated_review": {
+            "summary": "火把直接出现在画面中",
+            "feedback": ["移除可见火把，仅保留间接火光"],
+        }},
+        {"cycle": 2},
+    ]}
+    assert pipeline._review_feedback(state) == "移除可见火把，仅保留间接火光"
+
+
 @pytest.mark.asyncio
 async def test_scene_three_failed_cycles_keep_previous_image(db_session, monkeypatch):
     scene, task = _fixture(db_session)
     reviews = {f"/api/files/{kind}_{cycle}.png": ("success", "FAIL", "FAIL")
                for cycle in range(1, 4) for kind in ("generate", "edit")}
     generated, edited = _stub_generation(monkeypatch, reviews)
-    with pytest.raises(RuntimeError, match="经过 3 轮"):
+    with pytest.raises(RuntimeError, match="经过 3 轮.*FAIL；保留原场景图"):
         await pipeline.run_scene_quality_pipeline(db_session, task, scene, object())
     assert scene.image_url == "/api/files/old.png"
     assert generated.await_count == edited.await_count == 3

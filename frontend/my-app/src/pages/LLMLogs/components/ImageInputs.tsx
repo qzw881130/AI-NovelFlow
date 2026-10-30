@@ -6,6 +6,14 @@ function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function formatImageSize(bytes: number | undefined): string {
+  if (typeof bytes !== 'number' || !Number.isSafeInteger(bytes) || bytes < 0) return '未知';
+  if (bytes < 1024) return `${bytes} B`;
+  const unit = bytes < 1024 * 1024 ? 'KB' : 'MB';
+  const value = bytes / (unit === 'KB' ? 1024 : 1024 * 1024);
+  return `${Number(value.toFixed(2))} ${unit}`;
+}
+
 // Parse only a display view. Original records, including JSON strings, stay intact.
 function referenceObject(value: unknown): Record<string, unknown> {
   if (typeof value === 'string') {
@@ -37,7 +45,8 @@ export function imageInputSummary(item: LLMImageInput, index: number) {
   const dimensions = item.source_dimensions;
   const sourceSize = Array.isArray(dimensions) && dimensions.length >= 2 && dimensions.slice(0, 2).every(value => Number.isFinite(value) && value > 0)
     ? `${dimensions[0]} × ${dimensions[1]}` : '未知';
-  return { label, referenceType, source: source.length > 72 ? `${source.slice(0, 71)}…` : source, sourceSize };
+  return { label, referenceType, source: source.length > 72 ? `${source.slice(0, 71)}…` : source, sourceSize,
+    fileSize: formatImageSize(item.size_bytes) };
 }
 
 export function ImageInputs({ images }: { images: LLMImageInput[] }) {
@@ -106,6 +115,7 @@ export function ImageInputs({ images }: { images: LLMImageInput[] }) {
           <div className="min-w-0 flex-1 px-3 py-3 text-xs text-gray-600">
             <p className="line-clamp-2 min-h-[2rem] break-words leading-4" title={summary.source}>{summary.source}</p>
             <p className="mt-1">原图尺寸：{summary.sourceSize}</p>
+            <p className="mt-1">文件大小：{summary.fileSize}</p>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-100 px-3 py-2.5 text-xs">
             <button type="button" onClick={() => open(i, 'image')} className="text-blue-600 hover:underline">查看大图</button>
@@ -133,7 +143,7 @@ export function ImageInputs({ images }: { images: LLMImageInput[] }) {
           <pre tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-gray-50 p-4 text-xs leading-relaxed text-gray-700">{JSON.stringify(images[index], null, 2)}</pre>
         </> : <div className="min-h-0 overflow-auto p-4">
           {picture(index, true)}
-          <div className="mt-3 space-y-1 break-words text-xs text-gray-600"><p>{selected.referenceType} · {selected.source}</p><p>原图尺寸：{selected.sourceSize}</p></div>
+          <div className="mt-3 space-y-1 break-words text-xs text-gray-600"><p>{selected.referenceType} · {selected.source}</p><p>原图尺寸：{selected.sourceSize}</p><p>文件大小：{selected.fileSize}</p></div>
         </div>}
       </div>
     </div>}

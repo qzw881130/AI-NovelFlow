@@ -14,7 +14,7 @@ from app.models.novel import Chapter, Novel
 from app.models.system_config import SystemConfig
 from app.models.shot import Shot
 from app.models.task import Task
-from app.schemas.grid_shot import GridPanel, GridShotData, dump_grid_data, load_grid_data
+from app.schemas.grid_shot import GridPanel, GridShotData, dump_grid_clip_plan, dump_grid_data, load_grid_data
 from app.services.background_workers import worker_manager
 from app.services.file_storage import file_storage
 from app.services.grid_pipeline import GridPipeline, GridPipelineError
@@ -148,10 +148,11 @@ def test_grid_plan_is_persistent_and_does_not_run_in_request(db_session, db_engi
 def test_grid_batch_stops_after_first_failure(client, db_session, db_engine, monkeypatch):
     hold_grid_worker(monkeypatch, db_engine)
     novel, chapter = grid_novel_with_chapter(db_session)
-    ready_shot(db_session, chapter, 1)
-    ready_shot(db_session, chapter, 2)
+    first = ready_shot(db_session, chapter, 1)
+    second = ready_shot(db_session, chapter, 2)
     response = client.post(f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/batch',
-                           json={'step': 'board_generate'})
+                           json={'step': 'board_generate', 'items': [
+                               {'shot_id': first.id}, {'shot_id': second.id}]})
     assert response.status_code == 200, response.text
     batch_id = response.json()['data']['taskId']
     children = db_session.query(Task).filter(Task.parent_task_id == batch_id).order_by(Task.batch_order).all()
@@ -189,7 +190,8 @@ def test_grid_batch_prepares_missing_board_prompts_and_exposes_progress_fields(c
         shot.grid_data = dump_grid_data(grid)
     db_session.commit()
     response = client.post(f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/batch',
-                           json={'step': 'board_prepare'})
+                           json={'step': 'board_prepare', 'items': [
+                               {'shot_id': first.id}, {'shot_id': second.id}]})
     assert response.status_code == 200, response.text
     parent_id = response.json()['data']['taskId']
     children = db_session.query(Task).filter(Task.parent_task_id == parent_id).order_by(Task.batch_order).all()
@@ -201,6 +203,51 @@ def test_grid_batch_prepares_missing_board_prompts_and_exposes_progress_fields(c
     assert child_summary['batchOrder'] == 1
     detail = client.get(f'/api/tasks/{children[0].id}').json()['data']
     assert detail['metadata']['grid_step'] == 'board_prepare'
+
+
+def test_grid_batch_only_enqueues_selected_shots(client, db_session, db_engine, monkeypatch):
+    hold_grid_worker(monkeypatch, db_engine)
+    novel, chapter = grid_novel_with_chapter(db_session)
+    first = ready_shot(db_session, chapter, 1)
+    second = ready_shot(db_session, chapter, 2)
+    url = f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/batch'
+
+    assert client.post(url, json={'step': 'board_generate'}).status_code == 422
+    assert client.post(url, json={'step': 'board_generate', 'items': []}).status_code == 422
+    assert client.post(url, json={'step': 'board_generate', 'items': [
+        {'shot_id': first.id}, {'shot_id': first.id}]}).status_code == 422
+    assert client.post(url, json={'step': 'board_generate', 'items': [
+        {'shot_id': 'missing-shot'}]}).status_code == 409
+
+    response = client.post(url, json={'step': 'board_generate', 'items': [{'shot_id': second.id}]})
+    assert response.status_code == 200, response.text
+    children = db_session.query(Task).filter(Task.parent_task_id == response.json()['data']['taskId']).all()
+    assert len(children) == 1
+    assert children[0].shot_id == second.id
+    assert db_session.query(Task).filter(Task.shot_id == first.id).count() == 0
+
+
+def test_grid_batch_only_enqueues_selected_clips(client, db_session, db_engine, monkeypatch):
+    hold_grid_worker(monkeypatch, db_engine)
+    novel, chapter = grid_novel_with_chapter(db_session)
+    shot = ready_shot(db_session, chapter, 1)
+    grid = load_grid_data(shot.grid_data)
+    shot.video_director_plan = dump_grid_clip_plan(grid, [
+        {'clip_index': 1, 'duration': 4, 'panel_indexes': [1], 'reference_strategy': 'split_panels'},
+        {'clip_index': 2, 'duration': 4, 'panel_indexes': [2], 'reference_strategy': 'split_panels'},
+    ])
+    db_session.commit()
+    url = f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/batch'
+
+    invalid = client.post(url, json={'step': 'clip_prepare', 'items': [{'shot_id': shot.id}]})
+    assert invalid.status_code == 409
+    response = client.post(url, json={'step': 'clip_prepare', 'items': [
+        {'shot_id': shot.id, 'clip_index': 2}]})
+    assert response.status_code == 200, response.text
+    children = db_session.query(Task).filter(Task.parent_task_id == response.json()['data']['taskId']).all()
+    assert len(children) == 1
+    assert children[0].shot_id == shot.id
+    assert children[0].clip_index == 2
 
 
 def test_submitted_grid_board_resumes_saved_receipt_without_resubmitting(db_session, tmp_path, monkeypatch):

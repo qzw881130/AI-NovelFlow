@@ -558,7 +558,8 @@ class TaskService:
             try:
                 retried = enqueue_grid_auto_batch(db, novel, chapter, shot_ids,
                                                   merge_chapter=bool(metadata.get("merge_chapter")),
-                                                  target_stage=metadata.get("target_stage") or ("board" if task.type == "grid_board_batch" else "review" if task.type == "grid_review_batch" else "video"))
+                                                  target_stage=metadata.get("target_stage") or ("board" if task.type == "grid_board_batch" else "review" if task.type == "grid_review_batch" else "video"),
+                                                  force_review=bool(metadata.get("force_review")))
                 retried.source_task_id = task.id
                 db.commit()
             except (ValueError, GridPipelineError) as exc:

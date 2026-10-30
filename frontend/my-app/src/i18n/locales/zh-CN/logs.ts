@@ -66,6 +66,8 @@ export default {
     task: '任务',
     errorMessage: '错误信息',
     llmResponse: 'LLM 响应',
+    prettyJson: '美化 JSON',
+    showRawJson: '显示原文',
     characterCount: '字数：{count}',
     proxy: '代理',
     duration: '耗时',  // 新增耗时字段

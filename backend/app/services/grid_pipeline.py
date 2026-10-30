@@ -103,36 +103,6 @@ def _h3_bindings(data: GridShotData, clip: dict) -> tuple[dict, list[dict]]:
     return subjects, events
 
 
-def _render_offscreen_clip_visual(h3_path: str, panel_path: str, output_path: str) -> None:
-    """Use H3's speech audio with an approved still, so it cannot animate a listener's mouth."""
-    probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration",
-         "-of", "json", h3_path], capture_output=True, text=True, timeout=45,
-    )
-    if probe.returncode:
-        raise GridPipelineError(f"画外声 Clip 媒体检查失败：{probe.stderr[-300:]}")
-    media = json.loads(probe.stdout)
-    streams = media.get("streams") or []
-    video = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
-    if not video or not any(stream.get("codec_type") == "audio" for stream in streams):
-        raise GridPipelineError("画外声 Clip 缺少视频或音轨")
-    width, height = int(video["width"]), int(video["height"])
-    duration = float(media["format"]["duration"])
-    if not 0 < duration <= 25:
-        raise GridPipelineError("画外声 Clip 时长无效")
-    command = [
-        "ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "24",
-        "-i", panel_path, "-i", h3_path, "-map", "0:v:0", "-map", "1:a:0",
-        "-t", str(duration), "-vf", f"scale={width}:{height}", "-r", "24",
-        "-c:v", "libx264", "-crf", "0", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "160k",
-        "-movflags", "+faststart", output_path,
-    ]
-    rendered = subprocess.run(command, capture_output=True, text=True, timeout=300)
-    if rendered.returncode:
-        raise GridPipelineError(f"画外声 Clip 合成失败：{rendered.stderr[-300:]}")
-
-
 def _speech_key(value: str) -> str:
     return "".join(char for char in value if char.isalnum()).casefold()
 
@@ -815,14 +785,29 @@ class GridPipeline:
         if previous_plan and any(clip.get("video_url") for clip in previous_plan["clip_plan"]):
             raise GridPipelineError("已有生成的 Clip；请逐条重做，不可直接重新规划")
         dialogues = _dialogues(shot)
-        result, _ = await self._ask(novel, chapter, shot, "grid_clip_plan", {
+        planning_input = {
             "shot_duration_seconds": shot.duration,
+            "panel_count": len(data.panels),
             "panels": [p.model_dump() for p in data.panels], "dialogues": dialogues,
             "workflow_max_duration_seconds": 20,
-        })
+        }
+        result, _ = await self._ask(novel, chapter, shot, "grid_clip_plan", planning_input)
         rows = result.get("clips")
         if not isinstance(rows, list) or not rows:
             raise GridPipelineError("Clip 规划为空")
+        if all(isinstance(row, dict) for row in rows):
+            proposed_panels = [_panel_number(value) for row in rows
+                               for value in row.get("physical_reference_panels") or []]
+            missing_panels = sorted({panel.index for panel in data.panels} - set(proposed_panels))
+            if missing_panels or proposed_panels != sorted(proposed_panels):
+                result, _ = await self._ask(novel, chapter, shot, "grid_clip_plan", {
+                    **planning_input, "previous_plan": result,
+                    "repair_errors": (f"子格顺序错误或未覆盖全部子格；缺失编号：{missing_panels}。"
+                                      "请重排 Clip，并为无台词子格安排 dialogue_ids=[] 的 Clip。"),
+                })
+                rows = result.get("clips")
+                if not isinstance(rows, list) or not rows:
+                    raise GridPipelineError("Clip 规划修复结果为空")
         clips, assigned, used_panels = [], [], []
         cursor = 0.0
         for index, row in enumerate(rows, 1):
@@ -881,6 +866,11 @@ class GridPipeline:
     def _clip_refs(self, data: GridShotData, clip: dict) -> list[dict]:
         strategy = clip["reference_strategy"]
         panel_indexes = clip["panel_indexes"]
+        if any(line.get("delivery") == "offscreen" for line in clip.get("dialogues", [])):
+            if strategy != "split_panels" or len(panel_indexes) != 1:
+                raise GridPipelineError("画外声 Clip 只能使用一格无人环境子格，不能整板直传")
+            if data.panels[panel_indexes[0] - 1].characters:
+                raise GridPipelineError("画外声 Clip 的参考子格必须无人出镜")
         reviewed_indexes = range(1, len(data.panels) + 1) if strategy == "whole_board" else panel_indexes
         if any(data.panels[index - 1].review_status == "failed" for index in reviewed_indexes):
             raise GridPipelineError("参考子格初审 FAIL，不能编译或生成 H3 Clip")
@@ -1012,20 +1002,11 @@ class GridPipeline:
             if any(line.get("delivery") == "offscreen" for line in clip["dialogues"]):
                 if any(data.panels[number - 1].characters for number in clip["panel_indexes"]):
                     raise GridPipelineError("画外声 Clip 的参考子格必须无人出镜")
-                panel_path = url_to_local_path(data.panels[clip["panel_indexes"][0] - 1].image_url)
-                if not panel_path:
-                    raise GridPipelineError("画外声 Clip 缺少已审核的环境子格")
                 transcript = await self._verify_offscreen_audio(comfy, path, clip["dialogues"])
                 self._active(task)
-                raw_url = local_path_to_url(path)
-                safe_path = str(Path(path).with_name(Path(path).stem + "_offscreen.mp4"))
-                await asyncio.to_thread(_render_offscreen_clip_visual, path, panel_path, safe_path)
                 metadata = _json(task.metadata_json, {})
-                metadata["offscreen_audio_source_video_url"] = raw_url
-                metadata["offscreen_visual_panel_url"] = data.panels[clip["panel_indexes"][0] - 1].image_url
                 metadata["offscreen_asr_transcript"] = transcript
                 task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-                path = safe_path
             video_url = local_path_to_url(path)
             if not video_url:
                 raise GridPipelineError("H3 Clip 保存失败")

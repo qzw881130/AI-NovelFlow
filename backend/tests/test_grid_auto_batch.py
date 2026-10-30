@@ -114,6 +114,27 @@ def test_auto_batch_is_durable_and_gated_by_novel_mode(client, db_session, db_en
     assert client.post(old_path, json={"shot_ids": [old_shot.id]}).status_code == 409
 
 
+def test_grid_batches_can_queue_for_other_shots_but_reject_overlap(client, db_session, db_engine, monkeypatch):
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    first = _shot(db_session, chapter, 1, with_clip=False)
+    second = _shot(db_session, chapter, 2, with_clip=False)
+    third = _shot(db_session, chapter, 3, with_clip=False)
+    base = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid"
+
+    first_response = client.post(f"{base}/auto-board-batch", json={"shot_ids": [first.id]})
+    assert first_response.status_code == 200, first_response.text
+    second_response = client.post(f"{base}/auto-batch", json={"shot_ids": [second.id]})
+    assert second_response.status_code == 200, second_response.text
+    step_response = client.post(f"{base}/batch", json={"step": "clips_plan", "items": [{"shot_id": third.id}]})
+    assert step_response.status_code == 200, step_response.text
+
+    assert client.post(f"{base}/auto-review-batch", json={"shot_ids": [first.id]}).status_code == 409
+    assert client.post(f"{base}/auto-batch", json={"shot_ids": [third.id]}).status_code == 409
+    assert client.post(f"{base}/batch", json={"step": "clips_plan", "items": [{"shot_id": second.id}]}).status_code == 409
+    assert client.post(f"{base}/shots/{second.id}/clips/plan").status_code == 409
+
+
 def test_grid_preflight_settings_are_separate_and_snapshot_for_batch(client, db_session, db_engine, monkeypatch):
     from app.services import grid_auto_batch
 
@@ -419,6 +440,14 @@ def test_panel_review_uses_new_task_after_same_url_image_retry(client, db_sessio
     second = asyncio.run(grid_auto_batch._review_panel(db_session, parent, shot, 1))
     assert first[0] == "WARNING" and second[0] == "PASS"
     assert len(set(calls)) == 2
+    new_parent = Task(type="grid_review_batch", status="running", novel_id=novel.id,
+                      chapter_id=chapter.id, name="重新 AI 评审")
+    db_session.add(new_parent)
+    db_session.commit()
+    third = asyncio.run(grid_auto_batch._review_panel(db_session, new_parent, shot, 1))
+    assert third[0] == "PASS"
+    assert len(set(calls)) == 3
+    assert db_session.query(Task).filter(Task.type == "grid_panel_review", Task.shot_id == shot.id).count() == 3
 
 
 def test_board_batch_plans_prompts_generates_and_stops_before_video(
@@ -515,6 +544,119 @@ def test_review_batch_checks_existing_board_without_regeneration(client, db_sess
     assert db_session.query(Task).filter(Task.parent_task_id == task_id, Task.type == "grid_board_image").count() == 0
     assert all(panel.review_status == "passed" for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
     assert db_session.get(Shot, shot.id).video_url is None
+
+
+def test_force_review_rechecks_passed_panels_and_keeps_previous_tasks(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=True, with_clip=False)
+    previous = Task(type="grid_panel_review", status="completed", novel_id=novel.id,
+                    chapter_id=chapter.id, shot_id=shot.id, name="旧评审", result_url="/api/files/s1p1.png")
+    db_session.add(previous)
+    db_session.commit()
+    seen = []
+
+    async def fake_review(db, parent, shot, index):
+        seen.append(index)
+        return "PASS", "复评通过"
+
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-review-batch",
+                           json={"shot_ids": [shot.id], "force_review": True})
+    assert response.status_code == 200, response.text
+    task_id = response.json()["data"]["taskId"]
+    assert json.loads(db_session.get(Task, task_id).metadata_json)["force_review"] is True
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    assert seen == [1, 2, 3, 4]
+    assert db_session.get(Task, task_id).status == "completed"
+    assert db_session.get(Task, previous.id).status == "completed"
+    assert all(panel.review_note == "AI 复评PASS：复评通过"
+               for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
+    assert db_session.query(Task).filter(Task.parent_task_id == task_id,
+                                         Task.type == "grid_panel_image").count() == 0
+
+
+def test_force_review_fail_checks_remaining_panels_and_invalidates_video(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=True, with_clip=True)
+    shot.video_url, shot.video_status = "/api/files/shot.mp4", "completed"
+    chapter.final_video = "/api/files/chapter.mp4"
+    db_session.commit()
+    seen = []
+
+    async def fake_review(db, parent, shot, index):
+        seen.append(index)
+        return ("FAIL", "身份冲突") if index == 1 else ("PASS", "符合要求")
+
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
+    response = client.post(f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/auto-review-batch",
+                           json={"shot_ids": [shot.id], "force_review": True})
+    assert response.status_code == 200, response.text
+    task_id = response.json()["data"]["taskId"]
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    updated = db_session.get(Shot, shot.id)
+    assert seen == [1, 2, 3, 4]
+    assert db_session.get(Task, task_id).status == "failed"
+    assert load_grid_data(updated.grid_data).panels[0].review_status == "failed"
+    assert updated.video_url is None and db_session.get(Chapter, chapter.id).final_video is None
+
+
+def test_single_panel_ai_review_only_rechecks_selected_panel(client, db_session, db_engine, monkeypatch):
+    from app.services import grid_auto_batch
+
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1, reviewed=True, with_clip=True)
+    grid = load_grid_data(shot.grid_data)
+    grid.panels[0].review_status = "failed"
+    grid.panels[0].review_note = "保留其他格的审核结果"
+    grid.panels[1].review_status = "warning"
+    shot.grid_data = dump_grid_data(grid)
+    db_session.commit()
+    seen = []
+
+    async def fake_review(db, parent, reviewed_shot, index):
+        seen.append(index)
+        return "PASS", "单格复评通过"
+
+    monkeypatch.setattr(grid_auto_batch, "_review_panel", fake_review)
+    path = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/shots/{shot.id}/panels/2/ai-review"
+    response = client.post(path)
+    assert response.status_code == 200, response.text
+    task_id = response.json()["data"]["taskId"]
+    assert json.loads(db_session.get(Task, task_id).metadata_json)["panel_index"] == 2
+    asyncio.run(run_grid_auto_batch(task_id))
+    db_session.expire_all()
+    panels = load_grid_data(db_session.get(Shot, shot.id).grid_data).panels
+    assert seen == [2]
+    assert db_session.get(Task, task_id).status == "completed"
+    assert panels[1].review_status == "passed"
+    assert panels[1].review_note == "AI 复评PASS：单格复评通过"
+    assert panels[0].review_status == "failed"
+    assert panels[0].review_note == "保留其他格的审核结果"
+    assert panels[2].review_status == "passed"
+
+
+def test_single_panel_ai_review_rejects_missing_image_and_invalid_index(client, db_session, db_engine, monkeypatch):
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    shot = _shot(db_session, chapter, 1)
+    grid = load_grid_data(shot.grid_data)
+    grid.panels[1].image_url = None
+    shot.grid_data = dump_grid_data(grid)
+    db_session.commit()
+    base = f"/api/novels/{novel.id}/chapters/{chapter.id}/grid/shots/{shot.id}/panels"
+    assert client.post(f"{base}/2/ai-review").status_code == 409
+    assert client.post(f"{base}/5/ai-review").status_code == 409
+    assert db_session.query(Task).filter(Task.type == "grid_review_batch").count() == 0
+    assert client.post(f"{base}/1/ai-review").status_code == 200
 
 
 def test_board_batch_is_mode_gated_and_cannot_merge_chapter(client, db_session, db_engine, monkeypatch):

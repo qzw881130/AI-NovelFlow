@@ -53,6 +53,8 @@ export default {
     task: '작업',
     errorMessage: '오류 메시지',
     llmResponse: 'LLM 응답',
+    prettyJson: 'JSON 정리',
+    showRawJson: '원문 보기',
     characterCount: '문자 수: {count}',
     proxy: '프록시',
     yes: '예',

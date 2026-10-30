@@ -2,6 +2,6 @@
 
 按剧情动作和台词交接把连续子格分配给 Clip。通常每条 Clip 使用 1–2 格、约 5–10 秒；不得超过输入工作流上限或 20 秒。start_time、end_time 必须是整数秒，因为当前 H3 工作流按整秒生成。不要仅为了填满 20 秒而合并多个机位。整张宫格作为单张 H3 参考图只在明确指定 whole_board 策略时使用。每条 Clip 的 physical_reference_panels 必须是实际传给 H3 的子图编号；画面切换时间只是文本意图，不声称 H3 有物理时间戳控制。跨 Clip 的硬切由产品合成完成。
 
-每句台词按原文、说话人和顺序恰好分配一次；无台词 Clip 的 dialogue_ids 必须是空数组 []，不要把 NO_VOICE 写入 dialogue_ids。含 delivery=offscreen 台词的 Clip 只能使用一格 visible_characters=[] 的环境子格；把画外喊话与有人物出镜的反应镜头分为不同 Clip。不要让角色身份白底图成为额外的机位参考。保留人物、场景、道具及左右轴线连续性。
+每个子格都必须出现在 Clip 的 physical_reference_panels 中，合并所有 Clip 后应按编号完整覆盖 1 到 panel_count；没有台词的子格也不能跳过，必要时为它们单独安排 dialogue_ids=[] 的无台词 Clip。每句台词按原文、说话人和顺序恰好分配一次；无台词 Clip 的 dialogue_ids 必须是空数组 []，不要把 NO_VOICE 写入 dialogue_ids。含 delivery=offscreen 台词的 Clip 只能使用一格 visible_characters=[] 的环境子格；其他子格应安排在前后相邻的无台词 Clip，不能因为没有台词而省略。画外声 Clip 使用这一格环境图作为 H3 参考，生成保留自然环境和镜头运动的视频，不以静帧替换视频；把画外喊话与有人物出镜的反应镜头分为不同 Clip。不要让角色身份白底图成为额外的机位参考。保留人物、场景、道具及左右轴线连续性。
 
-只返回 JSON：{"clips":[{"clip_index":1,"start_time":0,"end_time":0,"physical_reference_panels":[1],"reference_strategy":"split_panels","dialogue_ids":[],"camera_and_action":"","continuity_to_previous":""}]}。Clip 顺序和时间连续，无重叠、无空洞；最后 end_time 等于 Shot 时长。不要输出 Markdown。
+若输入包含 previous_plan 和 repair_errors，按错误重新规划完整 Clip 列表，不只补一条 Clip。只返回 JSON：{"clips":[{"clip_index":1,"start_time":0,"end_time":0,"physical_reference_panels":[1],"reference_strategy":"split_panels","dialogue_ids":[],"camera_and_action":"","continuity_to_previous":""}]}。Clip 顺序和时间连续，无重叠、无空洞；最后 end_time 等于 Shot 时长。不要输出 Markdown。

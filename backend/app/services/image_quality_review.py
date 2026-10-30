@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from urllib.parse import urlsplit
 
-from app.services.llm.http_retry import single_attempt_llm_request
-
 from app.models.image_quality_review import ImageQualityReview
 from app.models.novel import Character, Scene, Prop
 from app.models.novel import Novel
@@ -280,12 +278,11 @@ async def execute_image_review(db: Session, review_id: str) -> ImageQualityRevie
         llm = LLMService()
         review.provider, review.model = llm.provider, llm.model
         db.commit()
-        with single_attempt_llm_request():
-            response = await llm.chat_completion(
-                system_prompt=review.template_text, user_content=json.dumps(user_input, ensure_ascii=False),
-                response_format="json_object", task_type=("grid_panel_review_prompt" if snapshot["task_type"] == "grid_panel_review" else "image_quality_review_prompt"),
-                prompt_template_name=review.template_name, novel_id=snapshot.get("novel_id"),
-                chapter_id=snapshot.get("chapter_id"), shot_id=snapshot.get("shot_id"), images=images)
+        response = await llm.chat_completion(
+            system_prompt=review.template_text, user_content=json.dumps(user_input, ensure_ascii=False),
+            response_format="json_object", task_type=("grid_panel_review_prompt" if snapshot["task_type"] == "grid_panel_review" else "image_quality_review_prompt"),
+            prompt_template_name=review.template_name, novel_id=snapshot.get("novel_id"),
+            chapter_id=snapshot.get("chapter_id"), shot_id=snapshot.get("shot_id"), images=images)
         review.llm_log_id = response.get("log_id")
         review.raw_response = json.dumps(response.get("raw_response"), ensure_ascii=False, default=str) if response.get("raw_response") else response.get("content")
         if not response.get("success"):

@@ -57,7 +57,7 @@ export function PropCard({
           <img
             src={prop.imageUrl}
             alt={prop.name}
-            className="w-full h-full cursor-pointer"
+            className="w-full h-full object-contain cursor-pointer"
             onClick={() => onImageClick(prop.imageUrl!, prop.name, prop.id)}
           />
         ) : (
@@ -160,7 +160,7 @@ export function PropCard({
         <h3 className="text-lg font-semibold text-gray-900 truncate">
           {prop.name}
         </h3>
-        {prop.imageUrl && !isNonexistent && <LibraryImageReview quality={imageQuality} name={`道具图：${prop.name}`} />}
+        {prop.imageUrl && !isNonexistent && <LibraryImageReview key={`${prop.imageUrl}:${prop.propTaskId || ''}:${prop.updatedAt || ''}`} quality={imageQuality} name={`道具图：${prop.name}`} kind="prop" entityId={prop.id} imageUrl={prop.imageUrl} />}
 
         {/* 道具描述 */}
         {prop.description && (
