@@ -270,10 +270,12 @@ export default {
     explicitBinding: '明示的に指定',
     boundNovelCount: '合計 {count} 件',
 
-    categories: { ...enUS.promptConfig.categories, backgroundMusic: '背景音楽', videoSubtitles: '動画字幕' },
+    categories: { ...enUS.promptConfig.categories, shotImage: 'ショット画像生成', videoGeneration: '動画生成', backgroundMusic: '背景音楽', videoSubtitles: '動画字幕' },
 
     // プロンプトテンプレートタイプ
     types: {
+      gridPanelReviewPrompt: 'グリッドのコマ品質審査',
+      gridPanelReviewPromptDesc: '各コマの登場人物、カメラの焦点、遮蔽、画面外の声を審査します',
       backgroundMusicDirector: '部分音楽ディレクション',
       backgroundMusicDirectorDesc: '必要な区間だけに音楽を付け、残りは無音にします',
       backgroundMusicDirectorFull: '全章音楽ディレクション',

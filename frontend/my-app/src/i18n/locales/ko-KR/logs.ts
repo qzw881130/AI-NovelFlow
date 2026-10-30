@@ -22,6 +22,7 @@ export default {
     clipExecutionPlanner: '클립 실행 플래너',
     expandVideoPrompt: '비디오 프롬프트 확장',
     firstAppearanceNameplate: '첫 등장 이름표 위치 찾기',
+    gridClipVisualReview: '그리드 Clip 등장인물 검수',
     timestamp: '타임스탬프',
     novel: '소설',
     chapter: '장',

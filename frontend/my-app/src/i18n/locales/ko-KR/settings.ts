@@ -262,10 +262,12 @@ export default {
     explicitBinding: '명시적으로 지정',
     boundNovelCount: '총 {count}편',
 
-    categories: { ...enUS.promptConfig.categories, backgroundMusic: '배경 음악', videoSubtitles: '동영상 자막' },
+    categories: { ...enUS.promptConfig.categories, shotImage: '샷 이미지 생성', videoGeneration: '비디오 생성', backgroundMusic: '배경 음악', videoSubtitles: '동영상 자막' },
 
     // 프롬프트 템플릿 타입
     types: {
+      gridPanelReviewPrompt: '그리드 패널 품질 검토',
+      gridPanelReviewPromptDesc: '각 패널의 등장인물, 카메라 초점, 가림과 화면 밖 음성을 검토합니다',
       backgroundMusicDirector: '부분 음악 연출',
       backgroundMusicDirectorDesc: '필요한 구간만 골라 음악을 넣고 나머지는 비워 둡니다',
       backgroundMusicDirectorFull: '전체 장 음악 연출',

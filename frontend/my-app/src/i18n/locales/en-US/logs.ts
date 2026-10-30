@@ -34,6 +34,7 @@ export default {
     clipExecutionPlanner: 'Clip Execution Planner',
     expandVideoPrompt: 'Expand Video Prompt',
     firstAppearanceNameplate: 'Locate First Appearance Nameplate',
+    gridClipVisualReview: 'Grid Clip Cast Verification',
     timestamp: 'Timestamp',
     novel: 'Novel',
     chapter: 'Chapter',

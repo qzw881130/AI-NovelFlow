@@ -22,6 +22,7 @@ export default {
     clipExecutionPlanner: 'クリップ実行プランナー',
     expandVideoPrompt: '動画プロンプトを展開',
     firstAppearanceNameplate: '初登場ネームプレート位置を特定',
+    gridClipVisualReview: 'グリッド Clip の登場人物確認',
     timestamp: 'タイムスタンプ',
     novel: '小説',
     chapter: '章',

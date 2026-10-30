@@ -22,6 +22,7 @@ export default {
     clipExecutionPlanner: '影片片段執行規劃',
     expandVideoPrompt: '擴寫影片提示詞',
     firstAppearanceNameplate: '首次出鏡姓名牌定位',
+    gridClipVisualReview: '宮格 Clip 成片人物驗收',
     timestamp: '時間',
     novel: '小說',
     chapter: '章節',
