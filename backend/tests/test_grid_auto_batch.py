@@ -135,6 +135,26 @@ def test_grid_batches_can_queue_for_other_shots_but_reject_overlap(client, db_se
     assert client.post(f"{base}/shots/{second.id}/clips/plan").status_code == 409
 
 
+def test_manual_clip_batch_accepts_warning_and_pending_but_rejects_fail(client, db_session, db_engine, monkeypatch):
+    _hold_worker(monkeypatch, db_engine)
+    novel, chapter = _chapter(db_session)
+    ready = _shot(db_session, chapter, 1, reviewed=False, with_clip=False)
+    blocked = _shot(db_session, chapter, 2, reviewed=False, with_clip=False)
+    ready_grid = load_grid_data(ready.grid_data)
+    ready_grid.panels[0].review_status = 'warning'
+    ready.grid_data = dump_grid_data(ready_grid)
+    blocked_grid = load_grid_data(blocked.grid_data)
+    blocked_grid.panels[0].review_status = 'failed'
+    blocked.grid_data = dump_grid_data(blocked_grid)
+    db_session.commit()
+
+    path = f'/api/novels/{novel.id}/chapters/{chapter.id}/grid/batch'
+    response = client.post(path, json={'step': 'clips_plan', 'items': [{'shot_id': ready.id}]})
+    assert response.status_code == 200, response.text
+    rejected = client.post(path, json={'step': 'clips_plan', 'items': [{'shot_id': blocked.id}]})
+    assert rejected.status_code == 409
+
+
 def test_grid_preflight_settings_are_separate_and_snapshot_for_batch(client, db_session, db_engine, monkeypatch):
     from app.services import grid_auto_batch
 

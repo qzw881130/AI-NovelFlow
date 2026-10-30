@@ -7,7 +7,7 @@ export const GRID_BATCH_LABELS: Record<GridBatchStep, string> = {
   panels_plan: '批量规划未规划的 Shot',
   board_prepare: '批量准备整板提示词',
   board_generate: '批量生成已准备整板',
-  clips_plan: '批量规划已审核 Shot 的 Clip',
+  clips_plan: '批量规划已有可用子格的 Clip',
   clip_prepare: '批量编译 H3 提示词',
   clip_generate: '批量生成已编译 Clip',
   shot_merge: '批量合并已完成 Shot',
@@ -36,8 +36,8 @@ export function getGridBatchCandidates(shots: BatchShot[], step: GridBatchStep):
     if (step === 'panels_plan') return !grid ? wholeShot('规划宫格子格') : [];
     if (step === 'board_prepare') return grid && !grid.board_prompt && !grid.board_image_url ? wholeShot('准备整板提示词') : [];
     if (step === 'board_generate') return grid?.board_prompt && !grid.board_image_url ? wholeShot('生成整板图') : [];
-    if (step === 'clips_plan') return grid?.panels.length && grid.panels.every(panel => panel.image_url && panel.review_status === 'passed') && !shot.gridClipPlan
-      ? wholeShot('规划 Clip') : [];
+    if (step === 'clips_plan') return grid?.panels.length && grid.panels.every(panel => panel.image_url && panel.review_status !== 'failed') && !shot.gridClipPlan
+      ? wholeShot(grid.panels.some(panel => panel.review_status !== 'passed') ? '规划 Clip；WARNING/PENDING 保留原状态' : '规划 Clip') : [];
     if (step === 'shot_merge') return !shot.videoUrl && clips.length > 0 && clips.every(clip => clip.video_url)
       ? wholeShot(`合并 ${clips.length} 条 Clip`) : [];
     return clips.filter(clip => step === 'clip_prepare' ? !clip.prompt : clip.prompt && !clip.video_url).map(clip => ({

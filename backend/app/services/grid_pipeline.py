@@ -6,8 +6,6 @@ import hashlib
 import json
 import random
 import secrets
-import subprocess
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -26,6 +24,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.background_workers import ensure_task_active, resume_image_prompt, save_image_prompt
 from app.services.file_storage import file_storage
 from app.services.first_appearance_nameplates import (
+    _extract_frame as extract_review_frame,
     _probe_video as probe_nameplate_video,
     build_nameplate_events,
     render_first_appearance_nameplates,
@@ -43,6 +42,13 @@ from app.utils.workflow_disconnect import disconnect_reference_chain
 
 class GridPipelineError(ValueError):
     pass
+
+
+class GridVisualReviewError(GridPipelineError):
+    def __init__(self, message: str, *, category: str, result: dict | None = None):
+        super().__init__(message)
+        self.category = category
+        self.result = result or {}
 
 
 def _panel_generation_size(width: int, height: int) -> tuple[int, int]:
@@ -68,10 +74,54 @@ def _template(db: Session, novel: Novel, kind: str):
 
 def _dialogues(shot: Shot) -> list[dict]:
     rows = _json(shot.dialogues, [])
-    return [{"id": f"D{i}", "speaker": str(row.get("speaker") or row.get("character_name") or ""),
-             "text": str(row.get("text") or ""), "delivery": row.get("delivery") or "onscreen",
-             "voice_description": row.get("voice_description") or ""}
-            for i, row in enumerate(rows, 1) if isinstance(row, dict)]
+    cast = _json(shot.characters, [])
+    dialogues = []
+    preceding_subjects = []
+    for i, row in enumerate(rows, 1):
+        if not isinstance(row, dict):
+            continue
+        speaker = str(row.get("speaker") or row.get("character_name") or "")
+        text = str(row.get("text") or "")
+        delivery = row.get("delivery") or "onscreen"
+        subjects = row.get("visual_subjects") or []
+        if speaker == "旁白" and delivery == "offscreen":
+            named = [name for name in cast if name in text]
+            if not named and text.startswith(("他", "她")) and len(preceding_subjects) == 1:
+                named = preceding_subjects.copy()
+            elif "他的" in text and len(preceding_subjects) == 1 and preceding_subjects[0] not in named:
+                named.append(preceding_subjects[0])
+            if named:
+                delivery, subjects = "narration", named
+        if speaker == "旁白" and subjects:
+            preceding_subjects = subjects
+        elif speaker != "旁白":
+            preceding_subjects = []
+        dialogues.append({"id": f"D{i}", "speaker": speaker, "text": text,
+                          "delivery": delivery, "voice_description": row.get("voice_description") or "",
+                          "visual_subjects": subjects})
+    return dialogues
+
+
+def _required_narration_subjects(dialogue: dict, shot_characters: list[str]) -> list[str]:
+    if dialogue.get("speaker") != "旁白" or dialogue.get("delivery") != "narration":
+        return []
+    return [name for name in dialogue.get("visual_subjects") or [] if name in shot_characters]
+
+
+def _assert_narration_coverage(shot: Shot, data: GridShotData, panel_indexes: list[int],
+                               dialogue_indexes: list[int]) -> None:
+    dialogues = _dialogues(shot)
+    visible = {name for number in panel_indexes for name in data.panels[number - 1].characters}
+    for number in dialogue_indexes:
+        if not 1 <= number <= len(dialogues):
+            raise GridPipelineError("Clip 引用了不存在的台词")
+        missing = set(_required_narration_subjects(dialogues[number - 1], _json(shot.characters, []))) - visible
+        if missing:
+            raise GridPipelineError(f"旁白 D{number} 描述的动作缺少可见人物：{', '.join(sorted(missing))}；请修订子格")
+
+
+def _clip_dialogue_indexes(clip: dict) -> list[int]:
+    return clip.get("dialogue_indexes") or [int(line["id"][1:]) for line in clip.get("dialogues", [])]
 
 
 def _h3_bindings(data: GridShotData, clip: dict) -> tuple[dict, list[dict]]:
@@ -101,10 +151,6 @@ def _h3_bindings(data: GridShotData, clip: dict) -> tuple[dict, list[dict]]:
             label = subject_for_name.get(line["speaker"], "<Narrator>")
         events.append({**line, "speaker": label})
     return subjects, events
-
-
-def _speech_key(value: str) -> str:
-    return "".join(char for char in value if char.isalnum()).casefold()
 
 
 def _panel_number(value) -> int:
@@ -204,9 +250,11 @@ def _board_bindings(refs: list[dict], mapping: dict, graph: dict) -> list[tuple[
     result = []
     for role, key in (("CHARACTER_IDENTITY", "character_reference_image_node_id"),
                       ("SCENE", "scene_reference_image_node_id"),
-                      ("PROP", "custom_reference_image_node_1")):
+                      ("PANEL_COMPOSITION", "custom_reference_image_node_1")):
         node_id = str(mapping.get(key) or "")
         ref = next((item for item in refs if item["role"] == role), None)
+        if role == "PANEL_COMPOSITION" and ref is None:
+            ref = next((item for item in refs if item["role"] == "PROP"), None)
         if ref and node_id in graph and graph[node_id].get("class_type") == "LoadImage":
             result.append((node_id, ref))
     return result
@@ -232,6 +280,9 @@ def _panel_asset_refs(refs: list[dict], panel: GridPanel) -> list[dict]:
         if owner and owner not in visible:
             continue
         filtered.append(ref)
+    if panel.composition_reference_url and url_to_local_path(panel.composition_reference_url):
+        filtered.append({"role": "PANEL_COMPOSITION", "name": f"原格 {panel.index} 场景构图",
+                         "url": panel.composition_reference_url})
     return filtered
 
 
@@ -362,7 +413,10 @@ class GridPipeline:
                 if not isinstance(speaker, str) or not speaker.strip():
                     raise GridPipelineError(f"Shot {index} 第 {line_index} 句缺少说话人")
                 delivery = line.get("delivery") or "onscreen"
-                if delivery not in {"onscreen", "offscreen"}:
+                if speaker == "旁白":
+                    delivery = "narration"
+                    line["delivery"] = delivery
+                if delivery not in {"onscreen", "offscreen", "narration"} or (delivery == "narration" and speaker != "旁白"):
                     raise GridPipelineError(f"Shot {index} 第 {line_index} 句声音类型无效")
                 if delivery == "offscreen":
                     description = line.get("voice_description")
@@ -380,6 +434,9 @@ class GridPipeline:
                     raise GridPipelineError(
                         f"Shot {index} 第 {line_index} 句说话人“{speaker}”未列入本 Shot 的 characters"
                     )
+                visual_subjects = line.get("visual_subjects") or []
+                if not isinstance(visual_subjects, list) or not set(visual_subjects) <= set(characters):
+                    raise GridPipelineError(f"Shot {index} 第 {line_index} 句可见人物不在本 Shot 角色中")
             shot = Shot(chapter_id=chapter.id, index=index, description=f"{row.get('title') or f'Shot {index}'}｜{row['description']}",
                         duration=duration, characters=json.dumps(characters, ensure_ascii=False), scene=scene,
                         props=json.dumps(props, ensure_ascii=False), dialogues=json.dumps(dialogues, ensure_ascii=False))
@@ -394,8 +451,6 @@ class GridPipeline:
     async def plan_panels(self, novel: Novel, chapter: Chapter, shot: Shot, layout: str | None = None,
                           task: Task | None = None) -> GridShotData:
         existing = load_grid_data(shot.grid_data)
-        if existing and (existing.board_image_url or any(p.image_url for p in existing.panels)):
-            raise GridPipelineError("已有宫格图片，重新规划会改变画面合同；请新建 Shot 进行比较")
         if layout is None:
             layout = existing.layout if existing else random.choice(["2x2", "2x3"])
         if layout not in {"2x2", "2x3", "3x3"}:
@@ -433,6 +488,10 @@ class GridPipeline:
             if visible and any(1 <= number <= len(dialogues) and
                                dialogues[number - 1]["delivery"] == "offscreen" for number in ids):
                 raise GridPipelineError(f"子格 {index} 画外台词期间不得出现人物；请使用无人出镜的环境画面")
+            required = {name for number in ids if 1 <= number <= len(dialogues)
+                        for name in _required_narration_subjects(dialogues[number - 1], _json(shot.characters, []))}
+            if not required <= set(visible):
+                raise GridPipelineError(f"子格 {index} 旁白描述的可见动作缺少人物：{', '.join(sorted(required - set(visible)))}")
             assigned.extend(ids)
             panels.append(GridPanel(index=index, beat=row.get("story_beat") or "",
                                     camera=camera_text, action=row.get("action") or "",
@@ -443,14 +502,26 @@ class GridPipeline:
         data = GridShotData(revision=(existing.revision + 1 if existing else 1), layout=layout,
                             seed=existing.seed if existing else secrets.randbelow(2**31 - 1) + 1,
                             panel_width=768, panel_height=432, panels=panels)
+        raw_dialogues = _json(shot.dialogues, [])
+        for number, dialogue in enumerate(dialogues):
+            if (dialogue["speaker"] == "旁白" and dialogue["delivery"] == "narration"
+                    and number < len(raw_dialogues) and raw_dialogues[number].get("delivery") == "offscreen"):
+                raw_dialogues[number]["delivery"] = "narration"
+                raw_dialogues[number]["visual_subjects"] = dialogue["visual_subjects"]
+        shot.dialogues = json.dumps(raw_dialogues, ensure_ascii=False)
         shot.grid_data = dump_grid_data(data)
         shot.video_director_plan = "{}"
+        if existing:
+            self._invalidate_shot_video(shot, chapter)
+            shot.video_task_id = None
         self._complete(task)
         self.db.commit()
         return data
 
     async def prepare_board(self, novel: Novel, chapter: Chapter, shot: Shot, task: Task | None = None) -> dict:
         data = self._grid(shot)
+        for panel in data.panels:
+            _assert_narration_coverage(shot, data, [panel.index], panel.dialogue_indexes)
         workflow = WorkflowRepository(self.db).get_active_by_type("shot")
         if not workflow:
             raise GridPipelineError("未配置激活的分镜生图工作流")
@@ -483,6 +554,8 @@ class GridPipeline:
     async def generate_board(self, novel: Novel, chapter: Chapter, shot: Shot,
                              task: Task | None = None) -> dict:
         data = self._grid(shot)
+        for panel in data.panels:
+            _assert_narration_coverage(shot, data, [panel.index], panel.dialogue_indexes)
         if not data.board_prompt:
             raise GridPipelineError("请先预览并保存整板生图提示词")
         workflow = (self.db.get(Workflow, task.workflow_id) if task and task.comfyui_prompt_id else
@@ -548,18 +621,29 @@ class GridPipeline:
                 response.raise_for_status()
             board = Image.open(io.BytesIO(response.content)).convert("RGB")
             self._active(task)
-            if abs(board.width / board.height - width / height) > 0.02:
-                raise GridPipelineError(f"整板比例不符：实际 {board.width}×{board.height}，预期 {width}×{height}")
-            board_bytes = io.BytesIO()
-            board.save(board_bytes, format="PNG")
-            data.board_image_url = save_grid_png(board_bytes.getvalue(), grid_asset_path(novel.id, chapter.id, shot.id, data.revision))
-            data.board_image_task_id = task.id
             rows, cols = map(int, data.layout.split("x"))
+            if board.width < cols or board.height < rows:
+                raise GridPipelineError(f"整板图片过小，无法切成 {rows}×{cols} 格")
+            source_size = board.size
+            normalized_board = Image.new("RGB", (width, height))
+            crops = []
             for panel in data.panels:
                 col, row = (panel.index - 1) % cols, (panel.index - 1) // cols
                 box = (round(col * board.width / cols), round(row * board.height / rows),
                        round((col + 1) * board.width / cols), round((row + 1) * board.height / rows))
                 crop = board.crop(box).resize((data.panel_width, data.panel_height), Image.Resampling.LANCZOS)
+                normalized_board.paste(crop, (col * data.panel_width, row * data.panel_height))
+                crops.append((panel, crop))
+            board_bytes = io.BytesIO()
+            normalized_board.save(board_bytes, format="PNG")
+            data.board_image_url = save_grid_png(board_bytes.getvalue(), grid_asset_path(novel.id, chapter.id, shot.id, data.revision))
+            data.board_image_task_id = task.id
+            if source_size != (width, height):
+                metadata = _json(task.metadata_json, {})
+                metadata["board_size_normalization"] = {
+                    "source": list(source_size), "saved": [width, height], "method": "split_panels_then_resize"}
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            for panel, crop in crops:
                 output = io.BytesIO()
                 crop.save(output, format="PNG")
                 panel.image_url = save_grid_png(output.getvalue(), grid_asset_path(novel.id, chapter.id, shot.id,
@@ -607,6 +691,35 @@ class GridPipeline:
         shot.grid_data = dump_grid_data(data)
         if status == "failed":
             self._invalidate_panel_clips(shot, data, index)
+        self.db.commit()
+        return data
+
+    def revise_panel(self, shot: Shot, index: int, *, beat: str, camera: str,
+                     action: str, characters: list[str]) -> GridShotData:
+        data = self._grid(shot)
+        if not 1 <= index <= len(data.panels):
+            raise GridPipelineError("子格不存在")
+        if not all(isinstance(value, str) and value.strip() for value in (beat, camera, action)):
+            raise GridPipelineError("剧情、机位和动作不能为空")
+        if not isinstance(characters, list) or len(characters) != len(set(characters)) or not set(characters) <= set(_json(shot.characters, [])):
+            raise GridPipelineError("可见人物必须来自本 Shot 的已批准角色")
+        panel = data.panels[index - 1]
+        rows = _json(shot.dialogues, [])
+        for number in panel.dialogue_indexes:
+            if 1 <= number <= len(rows) and rows[number - 1].get("speaker") == "旁白" and \
+                    rows[number - 1].get("delivery") == "offscreen" and characters:
+                rows[number - 1]["delivery"] = "narration"
+                rows[number - 1]["visual_subjects"] = characters.copy()
+        shot.dialogues = json.dumps(rows, ensure_ascii=False)
+        if not panel.composition_reference_url and panel.image_task_id == data.board_image_task_id:
+            panel.composition_reference_url = panel.image_url
+        panel.beat, panel.camera, panel.action, panel.characters = beat.strip(), camera.strip(), action.strip(), characters
+        _assert_narration_coverage(shot, data, [index], panel.dialogue_indexes)
+        self._invalidate_panel_clips(shot, data, index)
+        panel.image_url = panel.image_task_id = panel.image_prompt = None
+        panel.image_reference_images = []
+        panel.review_status, panel.review_note = "pending", "规划已修订，请重做此格并审核"
+        shot.grid_data = dump_grid_data(data)
         self.db.commit()
         return data
 
@@ -668,8 +781,10 @@ class GridPipeline:
             f"as the approved panel plan. The old board crop may have incorrect blocking; follow this "
             f"panel's camera and speaker focus instead. Match each named person to the corresponding Picture identity reference; "
             f"do not clone a person, swap the middle-aged and elderly faces, or give one person's prop to another. "
-            f"Use attached character references only for identity, scene image "
-            f"only for location, and prop image only for appearance. Fill the entire frame. "
+            f"Use attached character references only for identity, scene image only for location, "
+            f"and prop image only for appearance. If a PANEL_COMPOSITION reference is supplied, "
+            f"keep its farmhouse doorway and camera geography, but add the required visible actors and action; "
+            f"do not mistake the outer courtyard gate for the house interior door. Fill the entire frame. "
             f"No grid, borders, labels, text, subtitles, white background or contact sheet."
         )
         panel.image_reference_images = refs
@@ -785,6 +900,8 @@ class GridPipeline:
         if previous_plan and any(clip.get("video_url") for clip in previous_plan["clip_plan"]):
             raise GridPipelineError("已有生成的 Clip；请逐条重做，不可直接重新规划")
         dialogues = _dialogues(shot)
+        for panel in data.panels:
+            _assert_narration_coverage(shot, data, [panel.index], panel.dialogue_indexes)
         planning_input = {
             "shot_duration_seconds": shot.duration,
             "panel_count": len(data.panels),
@@ -836,6 +953,10 @@ class GridPipeline:
             if any(line["delivery"] == "offscreen" for line in clip_dialogues):
                 if len(panels) != 1 or data.panels[panels[0] - 1].characters:
                     raise GridPipelineError(f"Clip {index} 含画外台词，必须只用一格无人出镜的环境画面")
+            for dialogue in clip_dialogues:
+                required = _required_narration_subjects(dialogue, _json(shot.characters, []))
+                if not set(required) <= {name for panel in panels for name in data.panels[panel - 1].characters}:
+                    raise GridPipelineError(f"Clip {index} 旁白描述的动作缺少可见人物：{', '.join(required)}")
             duration = round(end - start, 3)
             spacing = duration / (len(ids) + 1) if ids else 0
             timed = [{**dialogue, "start_time": round(max(.1, spacing * (j + .35)), 2),
@@ -885,9 +1006,77 @@ class GridPipeline:
                  "panel_index": None if strategy == "whole_board" else clip["panel_indexes"][i-1], "url": url}
                 for i, url in enumerate(urls, 1)]
 
+    async def _review_clip_video(self, novel: Novel, chapter: Chapter, shot: Shot,
+                                 data: GridShotData, clip: dict, path: str,
+                                 evidence_urls: list[str] | None = None) -> dict:
+        """Check actual video frames against the approved visible people contract."""
+        _, _, duration = await asyncio.to_thread(probe_nameplate_video, path)
+        expected = list(dict.fromkeys(name for number in clip["panel_indexes"]
+                                      for name in data.panels[number - 1].characters))
+        base = (file_storage._get_story_dir(novel.id) / f"chapter_{chapter.id[:8]}" / "reviews"
+                if novel.id and chapter.id else Path(path).parent)
+        directory = base / f"grid_shot_{shot.index}_c{clip['clip_index']}_{secrets.token_hex(6)}"
+        directory.mkdir(parents=True, exist_ok=True)
+        images = []
+        for ref in clip["reference_images"]:
+            images.append(await asyncio.to_thread(
+                vision_proxy, ref["url"], logical_id=f"REFERENCE_{ref['picture_index']}",
+                name=f"已审核子格 {ref.get('panel_index') or '整板'}", role="approved_reference"))
+        for index, fraction in enumerate((.1, .35, .65, .9), 1):
+            frame = directory / f"frame_{index}.jpg"
+            await asyncio.to_thread(extract_review_frame, Path(path), min(duration - .02, duration * fraction), frame)
+            if evidence_urls is not None and frame.is_file():
+                evidence_urls.append(local_path_to_url(str(frame)))
+            images.append(await asyncio.to_thread(
+                vision_proxy, frame, logical_id=f"VIDEO_FRAME_{index}",
+                name=f"成片帧 {index}", role="generated_video_frame"))
+        response = await self.llm.chat_completion(
+                system_prompt=(
+                    "你是宫格 Clip 成片视觉验收员。前面的图片是批准的参考子格，后四张按时间排序是实际视频帧。"
+                    "只根据视频帧判断画面实际出现的人物，不把参考图人物当成视频帧。"
+                    "核对预期可见角色、明显多余人物、人物身份和原文描述的可见动作。"
+                    "若预期为空而任一视频帧出现清晰人物，必须 FAIL；若出现明显错误身份，也必须 FAIL。"
+                    "抽帧无法证明动作缺失时用 WARNING，不凭单帧推断整段无动作。"
+                    "只返回 JSON：{\"overall\":\"PASS|WARNING|FAIL\",\"unexpected_people\":true|false,"
+                    "\"missing_subjects\":[],\"summary\":\"具体可见证据\"}。"
+                ),
+                user_content=json.dumps({"shot": shot.description, "clip_index": clip["clip_index"],
+                                         "expected_visible_characters": expected,
+                                         "panels": [data.panels[i - 1].model_dump(include={"index", "beat", "action", "characters"})
+                                                    for i in clip["panel_indexes"]]}, ensure_ascii=False),
+                response_format="json_object", task_type="grid_clip_visual_review",
+                novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id, images=images,
+            )
+        if not response.get("success"):
+            raise GridVisualReviewError(response.get("error") or "成片视觉验收调用失败",
+                                        category="execution_error", result={"llm_log_id": response.get("log_id")})
+        result = safe_parse_llm_json(response.get("content") or "", default=None)
+        if not isinstance(result, dict) or result.get("overall") not in {"PASS", "WARNING", "FAIL"}:
+            raise GridVisualReviewError("成片视觉验收结果无效", category="execution_error",
+                                        result={"llm_log_id": response.get("log_id")})
+        if result["overall"] == "FAIL" or result.get("unexpected_people") is True:
+            raise GridVisualReviewError(f"成片视觉验收未通过：{result.get('summary') or '人物与分镜不符'}",
+                                        category="rejected", result={**result, "overall": "FAIL",
+                                                                     "llm_log_id": response.get("log_id")})
+        return {"overall": result["overall"], "summary": str(result.get("summary") or "")[:500],
+                "missing_subjects": result.get("missing_subjects") or [],
+                "llm_log_id": response.get("log_id")}
+
     async def prepare_clip(self, novel: Novel, chapter: Chapter, shot: Shot, index: int,
                            strategy: str | None = None, task: Task | None = None) -> dict:
         data, plan, clip = self._clip(shot, index)
+        _assert_narration_coverage(shot, data, clip["panel_indexes"], _clip_dialogue_indexes(clip))
+        canonical = {line["id"]: line for line in _dialogues(shot)}
+        for line in clip["dialogues"]:
+            source = canonical.get(line.get("id"))
+            if source and source["delivery"] == "narration":
+                line["delivery"] = "narration"
+                line["visual_subjects"] = source["visual_subjects"]
+        if any(line.get("visual_subjects") for line in clip["dialogues"]):
+            clip["camera_and_action"] = "\n".join(
+                f"格 {number}：{data.panels[number - 1].beat}；机位：{data.panels[number - 1].camera}；"
+                f"动作：{data.panels[number - 1].action}"
+                for number in clip["panel_indexes"])
         if strategy:
             if strategy not in {"split_panels", "whole_board"}:
                 raise GridPipelineError("未知的参考图策略")
@@ -937,6 +1126,7 @@ class GridPipeline:
     async def generate_clip(self, novel: Novel, chapter: Chapter, shot: Shot, index: int,
                             task: Task | None = None) -> dict:
         data, plan, clip = self._clip(shot, index)
+        _assert_narration_coverage(shot, data, clip["panel_indexes"], _clip_dialogue_indexes(clip))
         if not clip.get("prompt"):
             raise GridPipelineError("请先预览并保存 H3 六段式提示词")
         refs = self._clip_refs(data, clip)
@@ -999,14 +1189,40 @@ class GridPipeline:
             path = await file_storage.download_video_receipt(result["video_url"], novel.id, chapter.id,
                                                              shot.index, filename_suffix=f"grid_c{index}")
             self._active(task)
-            if any(line.get("delivery") == "offscreen" for line in clip["dialogues"]):
-                if any(data.panels[number - 1].characters for number in clip["panel_indexes"]):
-                    raise GridPipelineError("画外声 Clip 的参考子格必须无人出镜")
-                transcript = await self._verify_offscreen_audio(comfy, path, clip["dialogues"])
-                self._active(task)
-                metadata = _json(task.metadata_json, {})
-                metadata["offscreen_asr_transcript"] = transcript
-                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            if any(line.get("delivery") == "narration" and line.get("visual_subjects")
+                   for line in clip["dialogues"]):
+                for attempt in range(2):
+                    evidence_urls: list[str] = []
+                    try:
+                        visual_review = await self._review_clip_video(
+                            novel, chapter, shot, data, clip, path, evidence_urls)
+                        category = "accepted"
+                    except GridVisualReviewError as exc:
+                        visual_review = exc.result
+                        category = exc.category
+                        error = str(exc)
+                    except Exception as exc:
+                        visual_review = {}
+                        category = "execution_error"
+                        error = f"成片视觉验收异常：{exc}"
+                    event = {"clip_index": index, "category": category,
+                             "overall": visual_review.get("overall", "ERROR"),
+                             "summary": visual_review.get("summary") or (error if category != "accepted" else ""),
+                             "video_url": local_path_to_url(path),
+                             "unexpected_people": visual_review.get("unexpected_people"),
+                             "missing_subjects": visual_review.get("missing_subjects") or [],
+                             "evidence_frames": [url for url in evidence_urls if url],
+                             "llm_log_id": visual_review.get("llm_log_id"),
+                             "created_at": datetime.utcnow().isoformat() + "Z"}
+                    metadata = _json(task.metadata_json, {})
+                    metadata.setdefault("visual_review_attempts", []).append(event)
+                    metadata["visual_review"] = event
+                    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                    self.db.commit()
+                    if category == "accepted":
+                        break
+                    if category == "rejected" or attempt == 1:
+                        raise GridPipelineError(error)
             video_url = local_path_to_url(path)
             if not video_url:
                 raise GridPipelineError("H3 Clip 保存失败")
@@ -1022,44 +1238,6 @@ class GridPipeline:
                 self._failed(task, exc)
             raise
 
-    async def _verify_offscreen_audio(self, comfy: ComfyUIService, video_path: str,
-                                      dialogues: list[dict]) -> str:
-        workflow = WorkflowRepository(self.db).get_active_by_type("audio_transcription")
-        if not workflow:
-            raise GridPipelineError("画外声验收需要激活的语音转文字工作流")
-        mapping = _json(workflow.node_mapping, {})
-        load_node = str(mapping.get("load_audio_node_id") or "")
-        text_node = str(mapping.get("text_output_node_id") or "")
-        graph = _json(workflow.workflow_json, {})
-        if load_node not in graph or not text_node:
-            raise GridPipelineError("语音转文字工作流节点映射不完整")
-        with tempfile.TemporaryDirectory(prefix="grid_offscreen_asr_") as directory:
-            audio_path = str(Path(directory) / "speech.flac")
-            extraction = await asyncio.to_thread(subprocess.run, [
-                "ffmpeg", "-y", "-loglevel", "error", "-i", video_path,
-                "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", audio_path,
-            ], capture_output=True, text=True, timeout=90)
-            if extraction.returncode:
-                raise GridPipelineError("画外声 Clip 没有可识别的音轨")
-            upload = await comfy.client.upload_audio(audio_path)
-            if not upload.get("success"):
-                raise GridPipelineError(upload.get("message") or "画外声音轨上传失败")
-            graph[load_node]["inputs"]["audio"] = upload["filename"]
-            if "audioUI" in graph[load_node]["inputs"]:
-                graph[load_node]["inputs"]["audioUI"] = (
-                    f"/api/view?filename={upload['filename']}&type=input&subfolder="
-                )
-            queued = await comfy.client.queue_prompt(graph)
-            if not queued.get("success"):
-                raise GridPipelineError(queued.get("message") or "画外声语音识别提交失败")
-            recognized = await comfy.client.wait_for_text_outputs(queued["prompt_id"], [text_node], timeout=600)
-            if not recognized.get("success"):
-                raise GridPipelineError(recognized.get("message") or "画外声语音识别失败")
-            transcript = recognized["outputs"][text_node]
-        expected = "".join(line["text"] for line in dialogues)
-        if _speech_key(transcript) != _speech_key(expected):
-            raise GridPipelineError(f"画外声台词与原文不一致：识别到“{transcript[:100]}”")
-        return transcript
 
     async def merge_shot(self, novel: Novel, chapter: Chapter, shot: Shot,
                          task: Task | None = None) -> str:

@@ -91,8 +91,6 @@ def _validate(db: Session, novel: Novel, chapter: Chapter, shot: Shot | None, st
         raise GridPipelineError("缺少 Shot")
     data, plan = _plan(shot)
     if step == "panels_plan":
-        if data and data.board_image_url:
-            raise GridPipelineError("已有宫格整板，不能覆盖规划")
         return
     if not data:
         raise GridPipelineError("请先规划宫格子图")

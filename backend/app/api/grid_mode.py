@@ -12,7 +12,7 @@ from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
 from app.models.task import Task
 from app.schemas.grid_shot import load_grid_data, read_grid_clip_plan
-from app.services.grid_pipeline import GridPipeline, GridPipelineError
+from app.services.grid_pipeline import GridPipeline, GridPipelineError, _assert_narration_coverage
 from app.services.grid_tasks import GRID_TASK_TYPES, active_grid_shot_ids, enqueue_grid_job
 from app.services.grid_auto_batch import enqueue_grid_auto_batch
 
@@ -26,6 +26,13 @@ class PanelPlanRequest(BaseModel):
 class PanelReviewRequest(BaseModel):
     status: str
     note: str = ""
+
+
+class PanelRevisionRequest(BaseModel):
+    beat: str
+    camera: str
+    action: str
+    characters: list[str]
 
 
 class ClipPrepareRequest(BaseModel):
@@ -72,11 +79,19 @@ def _context(db: Session, novel_id: str, chapter_id: str, shot_id: str | None = 
 def _shot_payload(shot):
     data = load_grid_data(shot.grid_data)
     plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=data.revision) if data else None
+    narration_issues = []
+    if data:
+        for panel in data.panels:
+            try:
+                _assert_narration_coverage(shot, data, [panel.index], panel.dialogue_indexes)
+            except GridPipelineError as exc:
+                narration_issues.append({"panelIndex": panel.index, "message": str(exc)})
     return {"id": shot.id, "index": shot.index, "description": shot.description,
             "duration": shot.duration, "characters": json.loads(shot.characters or "[]"),
             "scene": shot.scene, "dialogues": json.loads(shot.dialogues or "[]"),
             "gridData": data.model_dump() if data else None,
-            "gridClipPlan": plan, "videoUrl": shot.video_url}
+            "gridClipPlan": plan, "videoUrl": shot.video_url,
+            "narrationIssues": narration_issues}
 
 
 def _queued(task: Task):
@@ -128,7 +143,7 @@ async def enqueue_batch(novel_id: str, chapter_id: str, request: GridBatchReques
         elif grid:
             plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=grid.revision)
             if request.step == "clips_plan":
-                if not plan and grid.panels and all(p.image_url and p.review_status == "passed" for p in grid.panels):
+                if not plan and grid.panels and all(p.image_url and p.review_status != "failed" for p in grid.panels):
                     candidates.append((shot, None))
             elif request.step == "shot_merge":
                 if plan and not shot.video_url and plan["clip_plan"] and all(clip.get("video_url") for clip in plan["clip_plan"]):
@@ -291,6 +306,18 @@ def prepare_panel_retry(novel_id: str, chapter_id: str, shot_id: str, panel_inde
     _ensure_shot_idle(db, shot.id)
     try:
         return {"success": True, "data": GridPipeline(db).prepare_panel_retry(novel, shot, panel_index)}
+    except GridPipelineError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.patch("/{novel_id}/chapters/{chapter_id}/grid/shots/{shot_id}/panels/{panel_index}/plan")
+def revise_panel_plan(novel_id: str, chapter_id: str, shot_id: str, panel_index: int,
+                      request: PanelRevisionRequest, db: Session = Depends(get_db)):
+    _, _, shot = _context(db, novel_id, chapter_id, shot_id)
+    _ensure_shot_idle(db, shot.id)
+    try:
+        data = GridPipeline(db).revise_panel(shot, panel_index, **request.model_dump())
+        return {"success": True, "data": data.model_dump()}
     except GridPipelineError as exc:
         raise HTTPException(422, str(exc)) from exc
 

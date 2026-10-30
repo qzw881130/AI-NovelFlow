@@ -80,7 +80,7 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "shot_image": ["shot_image_prompt", "grid_image_prompt", "grid_panel_review_prompt"],
     "video_director": ["keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner", "grid_clip_plan"],
     "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt", "image_quality_review_prompt"],
-    "video_generation": ["expand_video_prompt", "h3_multi_keyframe_prompt", "h3_multi_keyframe_director_phase_b", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt", "grid_h3_phase_b", "first_appearance_nameplate"],
+    "video_generation": ["expand_video_prompt", "h3_multi_keyframe_prompt", "h3_multi_keyframe_director_phase_b", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt", "grid_h3_phase_b", "grid_clip_visual_review", "first_appearance_nameplate"],
     "video_subtitles": ["subtitle_correction", "subtitle_translation"],
 }
 
@@ -119,6 +119,7 @@ LLM_LOG_TASK_LABELS = {
     "h3_multi_keyframe_prompt": "视频生成-H3多关键帧视频提示词",
     "h3_multi_keyframe_director_phase_b": "视频生成-H3单阶段导演（Phase B）",
     "grid_h3_phase_b": "视频生成-宫格 H3 六段式提示词",
+    "grid_clip_visual_review": "宫格生视频-Clip 成片人物验收",
     "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
     "h3_preflight_repair_prompt": "视频生成-MiniMax H3 Preflight 自动修复",
     "first_appearance_nameplate": "视频生成-首次出镜姓名牌定位",
@@ -155,6 +156,7 @@ LLM_TASK_TEMPLATE_TYPES = {
     "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt",
     "h3_multi_keyframe_director_phase_b": "h3_multi_keyframe_director_phase_b",
     "grid_h3_phase_b": "grid_h3_phase_b",
+    "grid_clip_visual_review": "grid_clip_visual_review",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt",
     "h3_preflight_repair_prompt": "h3_preflight_repair_prompt",
     "subtitle_correction": "subtitle_correction",

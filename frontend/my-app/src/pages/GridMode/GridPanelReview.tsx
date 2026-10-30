@@ -5,6 +5,7 @@ type Panel = {
   index: number;
   beat: string;
   camera: string;
+  action: string;
   characters: string[];
   image_url?: string;
   review_status: string;
@@ -20,7 +21,7 @@ const checks = [
 ];
 
 export function GridPanelReview({ panel, speakers, preview, disabled, onApprove, onReject,
-  onPrepare, onGenerate, onReplace, onOpenImage }: {
+  onPrepare, onGenerate, onReplace, onOpenImage, availableCharacters, onRevise }: {
   panel: Panel;
   speakers: string[];
   preview: Preview | null;
@@ -31,9 +32,14 @@ export function GridPanelReview({ panel, speakers, preview, disabled, onApprove,
   onGenerate: () => void;
   onReplace: (file: File) => void;
   onOpenImage: () => void;
+  availableCharacters: string[];
+  onRevise: (plan: { beat: string; camera: string; action: string; characters: string[] }) => void;
 }) {
   const [checked, setChecked] = useState<boolean[]>(checks.map(() => false));
   const [note, setNote] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [plan, setPlan] = useState(() => ({ beat: panel.beat, camera: panel.camera,
+    action: panel.action, characters: panel.characters }));
   const fileRef = useRef<HTMLInputElement>(null);
   const buttonClass = 'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-40';
   const status = ({ passed: '已通过', failed: '需重做', pending: '待审核', warning: '待复核' } as Record<string, string>)[panel.review_status] || panel.review_status;
@@ -43,6 +49,15 @@ export function GridPanelReview({ panel, speakers, preview, disabled, onApprove,
     <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">格 {panel.index} · 逐格验收</h3><span className="text-xs">{status}</span></div>
     <p className="mt-2 text-sm text-gray-700">{panel.beat}</p>
     <p className="mt-1 text-xs text-gray-600">{panel.camera}</p>
+    <button type="button" disabled={disabled} onClick={() => setEditing(value => !value)} className="mt-2 text-xs text-blue-700">{editing ? '收起规划修订' : '修订本格规划'}</button>
+    {editing && <div className="mt-2 space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+      <label className="block">剧情画面<textarea value={plan.beat} onChange={event => setPlan(value => ({ ...value, beat: event.target.value }))} rows={2} className="mt-1 w-full rounded border p-2" /></label>
+      <label className="block">机位与焦点<textarea value={plan.camera} onChange={event => setPlan(value => ({ ...value, camera: event.target.value }))} rows={2} className="mt-1 w-full rounded border p-2" /></label>
+      <label className="block">画面动作<textarea value={plan.action} onChange={event => setPlan(value => ({ ...value, action: event.target.value }))} rows={2} className="mt-1 w-full rounded border p-2" /></label>
+      <div>可见人物<div className="mt-1 flex flex-wrap gap-3">{availableCharacters.map(name => <label key={name} className="flex items-center gap-1"><input type="checkbox" checked={plan.characters.includes(name)} onChange={event => setPlan(value => ({ ...value, characters: event.target.checked ? [...value.characters, name] : value.characters.filter(item => item !== name) }))} />{name}</label>)}</div></div>
+      <p className="text-xs text-blue-800">保存后需重做并重新审核本格；引用本格的 Clip 会等待重新编译和生成。</p>
+      <button type="button" disabled={disabled || !plan.beat.trim() || !plan.camera.trim() || !plan.action.trim()} onClick={() => onRevise(plan)} className="rounded bg-blue-600 px-3 py-2 text-white disabled:opacity-40">保存修订</button>
+    </div>}
     {speakers.length > 0 && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">本格台词人：{speakers.join('、')}。请核对人物身份与镜头规划{offscreenSpeakers.length > 0 ? `；${offscreenSpeakers.join('、')}规划为画外音，不要求其露脸` : '，露脸说话人应清晰且口型正确'}。</p>}
     {panel.image_url && <><button type="button" onClick={onOpenImage} aria-label={`放大查看格 ${panel.index} 原图`} title="在页面内放大查看细节" className="mt-3 block w-full cursor-zoom-in rounded-lg focus-visible:outline-2 focus-visible:outline-blue-600"><img src={panel.image_url} alt={`格 ${panel.index} 原图`} className="aspect-video w-full rounded-lg border object-contain" /></button><p className="mt-1 text-xs text-gray-500">点击图片可在页面内放大检查脸部与道具细节。</p></>}
     <div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((label, index) => <label key={label} className="flex items-start gap-2 rounded border bg-white p-2 text-sm"><input type="checkbox" checked={checked[index]} onChange={event => setChecked(previous => previous.map((value, i) => i === index ? event.target.checked : value))} className="mt-1" /><span>{label}</span></label>)}</div>

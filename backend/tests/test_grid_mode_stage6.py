@@ -1,6 +1,7 @@
 """Focused Stage 6 API and planning checks; generation is covered at Stage 8."""
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +12,7 @@ from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.schemas.grid_shot import GridPanel, GridShotData, dump_grid_clip_plan, dump_grid_data, load_grid_data, read_grid_clip_plan
-from app.services.grid_pipeline import GridPipeline, GridPipelineError, _h3_bindings
+from app.services.grid_pipeline import GridPipeline, GridPipelineError, _assert_narration_coverage, _dialogues, _h3_bindings
 from app.services.grid_tasks import _validate as validate_grid_step
 
 
@@ -200,6 +201,55 @@ def test_replanning_cannot_discard_generated_clip(db_session):
         asyncio.run(GridPipeline(db_session).plan_clips(novel, chapter, shot))
 
 
+def test_replanning_completed_shot_replaces_only_after_valid_plan(db_session, monkeypatch):
+    novel = Novel(title='重新规划宫格', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='土墙', content='老翁爬上土墙。',
+                      final_video='/api/files/chapter.mp4')
+    db_session.add(chapter)
+    db_session.flush()
+    old = GridShotData(revision=3, layout='2x2', seed=7, panel_width=768, panel_height=432,
+                       board_image_url='/api/files/board.png',
+                       panels=[GridPanel(index=i, beat='无人土墙', camera='近景',
+                                         image_url=f'/api/files/old_{i}.png', review_status='passed')
+                               for i in range(1, 5)])
+    shot = Shot(chapter_id=chapter.id, index=6, description='老翁翻墙', duration=8,
+                characters='["老翁"]', dialogues=json.dumps([
+                    {'speaker': '旁白', 'text': '老翁爬上土墙。', 'delivery': 'offscreen'}], ensure_ascii=False),
+                grid_data=dump_grid_data(old), video_url='/api/files/shot.mp4',
+                video_director_plan=dump_grid_clip_plan(old, [{
+                    'clip_index': 1, 'panel_indexes': [1], 'video_url': '/api/files/clip.mp4'}]))
+    db_session.add(shot)
+    db_session.commit()
+    validate_grid_step(db_session, novel, chapter, shot, 'panels_plan')
+
+    async def invalid_plan(*_args, **_kwargs):
+        return {'panels': []}, 'template'
+
+    monkeypatch.setattr(GridPipeline, '_ask', invalid_plan)
+    with pytest.raises(GridPipelineError, match='子格数量'):
+        asyncio.run(GridPipeline(db_session).plan_panels(novel, chapter, shot))
+    assert load_grid_data(shot.grid_data).board_image_url == '/api/files/board.png'
+    assert shot.video_url == '/api/files/shot.mp4'
+    assert chapter.final_video == '/api/files/chapter.mp4'
+
+    async def valid_plan(*_args, **_kwargs):
+        return {'panels': [
+            {'index': i, 'story_beat': '老翁爬墙' if i == 1 else '土墙近景',
+             'camera': {'shot_size': '中景'}, 'visible_characters': ['老翁'] if i == 1 else [],
+             'action': '老翁攀爬' if i == 1 else '夜风', 'dialogue_ids': ['D1'] if i == 1 else []}
+            for i in range(1, 5)]}, 'template'
+
+    monkeypatch.setattr(GridPipeline, '_ask', valid_plan)
+    new = asyncio.run(GridPipeline(db_session).plan_panels(novel, chapter, shot))
+    assert new.revision == 4 and new.layout == '2x2' and new.seed == 7
+    assert new.board_image_url is None and all(not panel.image_url for panel in new.panels)
+    assert shot.video_director_plan == '{}'
+    assert shot.video_url is None and chapter.final_video is None
+    assert json.loads(shot.dialogues)[0]['delivery'] == 'narration'
+
+
 def test_novel_mode_create_edit_and_existing_shot_lock(client, db_session):
     grid = client.post('/api/novels/', json={'title': '宫格小说', 'videoMode': 'grid'})
     assert grid.status_code == 200
@@ -345,7 +395,8 @@ def test_grid_panel_rejects_visible_people_during_offscreen_dialogue(db_session,
     db_session.commit()
     async def fake_ask(*_args, **_kwargs):
         return {'panels': [
-            {'index': i, 'visible_characters': ['老翁'] if i == 1 else [],
+            {'index': i, 'story_beat': '老翁听到喊话', 'camera': {'shot_size': '近景'},
+             'visible_characters': ['老翁'] if i == 1 else [],
              'dialogue_ids': ['D1'] if i == 1 else []}
             for i in range(1, 5)
         ]}, 'template'
@@ -354,7 +405,120 @@ def test_grid_panel_rejects_visible_people_during_offscreen_dialogue(db_session,
         asyncio.run(GridPipeline(db_session).plan_panels(novel, chapter, shot, '2x2'))
 
 
-def test_offscreen_clip_preserves_h3_video_after_audio_check(db_session, tmp_path, monkeypatch):
+def test_narrated_action_requires_its_actor_in_the_assigned_panel(db_session):
+    shot = Shot(index=4, description='老妇冲出', characters='["老妇", "老翁"]',
+                dialogues=json.dumps([{'speaker': '旁白', 'text': '老妇从屋里冲出来。',
+                                       'delivery': 'narration', 'visual_subjects': ['老妇']}], ensure_ascii=False))
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='门口', camera='中景',
+                                          characters=['老妇'] if i == 2 else [],
+                                          dialogue_indexes=[1] if i == 1 else []) for i in range(1, 5)])
+    assert _dialogues(shot)[0]['visual_subjects'] == ['老妇']
+    with pytest.raises(GridPipelineError, match='缺少可见人物'):
+        _assert_narration_coverage(shot, grid, [1], [1])
+    grid.panels[0].characters = ['老妇']
+    _assert_narration_coverage(shot, grid, [1], [1])
+
+
+def test_legacy_narrator_action_requires_people_visible_in_shot_six():
+    shot = Shot(index=6, characters='["老翁", "老妇"]', dialogues=json.dumps([
+        {'speaker': '旁白', 'delivery': 'offscreen', 'text': '老翁扶着柴垛，艰难地爬上土墙。'},
+        {'speaker': '旁白', 'delivery': 'offscreen', 'text': '他年纪大了，动作十分迟缓。'},
+        {'speaker': '旁白', 'delivery': 'offscreen', 'text': '老妇跑过去，在下面托住他的脚。'},
+        {'speaker': '旁白', 'delivery': 'offscreen', 'text': '老翁翻过墙头。'},
+    ], ensure_ascii=False))
+    dialogues = _dialogues(shot)
+    assert [line['visual_subjects'] for line in dialogues] == [
+        ['老翁'], ['老翁'], ['老妇', '老翁'], ['老翁']]
+    assert all(line['delivery'] == 'narration' for line in dialogues)
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='土墙', camera='近景', dialogue_indexes=[i])
+                                for i in range(1, 5)])
+    with pytest.raises(GridPipelineError, match='旁白 D1.*老翁'):
+        _assert_narration_coverage(shot, grid, [1], [1])
+    grid.panels[0].characters = ['老翁']
+    _assert_narration_coverage(shot, grid, [1], [1])
+
+
+def test_revising_legacy_narration_panel_updates_voice_contract(db_session):
+    novel = Novel(title='旧旁白修订', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='夜半惊变', content='老翁爬上土墙。')
+    db_session.add(chapter)
+    db_session.flush()
+    shot = Shot(chapter_id=chapter.id, index=6, characters='["老翁"]', dialogues=json.dumps([
+        {'speaker': '旁白', 'delivery': 'offscreen', 'text': '老翁爬上土墙。'}], ensure_ascii=False))
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='空墙', camera='近景', action='墙下无人',
+                                          dialogue_indexes=[1] if i == 1 else [],
+                                          image_url=f'/api/files/panel_{i}.png') for i in range(1, 5)])
+    shot.grid_data = dump_grid_data(grid)
+    db_session.add(shot)
+    db_session.commit()
+    revised = GridPipeline(db_session).revise_panel(shot, 1, beat='老翁爬墙', camera='中景',
+                                                     action='老翁扶柴垛爬墙', characters=['老翁'])
+    assert json.loads(shot.dialogues)[0]['delivery'] == 'narration'
+    assert json.loads(shot.dialogues)[0]['visual_subjects'] == ['老翁']
+    assert revised.panels[0].characters == ['老翁']
+    assert revised.panels[0].image_url is None
+
+
+def test_video_visual_review_rejects_unexpected_person(db_session, monkeypatch, tmp_path):
+    novel = Novel(title='成片验收', video_mode='grid')
+    chapter = Chapter(title='门口', number=1)
+    shot = Shot(index=1, description='空门')
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='空门', camera='近景') for i in range(1, 5)])
+    clip = {'clip_index': 1, 'panel_indexes': [1], 'reference_images': [
+        {'picture_index': 1, 'panel_index': 1, 'url': '/api/files/panel.png'}]}
+    monkeypatch.setattr('app.services.grid_pipeline.probe_nameplate_video', lambda _path: (1280, 720, 3.0))
+    monkeypatch.setattr('app.services.grid_pipeline.extract_review_frame',
+                        lambda _video, _time, frame: frame.write_bytes(b'frame'))
+    monkeypatch.setattr('app.services.grid_pipeline.local_path_to_url',
+                        lambda frame: f'/api/files/{Path(frame).name}')
+    monkeypatch.setattr('app.services.grid_pipeline.vision_proxy',
+                        lambda _source, **metadata: {'url': 'data:image/jpeg;base64,AA==', **metadata})
+    class FakeLLM:
+        async def chat_completion(self, **kwargs):
+            assert len([image for image in kwargs['images'] if image['role'] == 'generated_video_frame']) == 4
+            return {'success': True, 'content': '{"overall":"FAIL","unexpected_people":true,"missing_subjects":[],"summary":"第1帧出现男子"}'}
+    evidence_urls = []
+    with pytest.raises(GridPipelineError, match='第1帧出现男子'):
+        asyncio.run(GridPipeline(db_session, llm=FakeLLM())._review_clip_video(
+            novel, chapter, shot, grid, clip, str(tmp_path / 'clip.mp4'), evidence_urls))
+    assert len(evidence_urls) == 4
+
+
+def test_revise_narrated_panel_keeps_unrelated_clip(db_session):
+    novel = Novel(title='局部修订', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='夜半', content='老妇从屋里冲出来。')
+    db_session.add(chapter)
+    db_session.flush()
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        board_image_url='/api/files/board.png',
+                        panels=[GridPanel(index=i, beat='空门', camera='中景', action='灯光摇晃',
+                                          image_url=f'/api/files/panel_{i}.png', review_status='passed',
+                                          dialogue_indexes=[1] if i == 1 else []) for i in range(1, 5)])
+    clips = [{'clip_index': i, 'panel_indexes': [i], 'dialogue_indexes': [1] if i == 1 else [],
+              'video_url': f'/api/files/clip_{i}.mp4', 'prompt': 'old'} for i in range(1, 5)]
+    shot = Shot(chapter_id=chapter.id, index=1, description='老妇冲出',
+                characters='["老妇"]', dialogues='[{"speaker":"旁白","text":"老妇从屋里冲出来。","delivery":"narration","visual_subjects":["老妇"]}]',
+                grid_data=dump_grid_data(grid), video_director_plan=dump_grid_clip_plan(grid, clips))
+    db_session.add(shot)
+    db_session.commit()
+    pipeline = GridPipeline(db_session)
+    with pytest.raises(GridPipelineError, match='缺少可见人物'):
+        pipeline.revise_panel(shot, 1, beat='冲出', camera='中景', action='冲出门', characters=[])
+    revised = pipeline.revise_panel(shot, 1, beat='老妇冲出', camera='中景', action='老妇冲出门', characters=['老妇'])
+    plan = read_grid_clip_plan(shot.video_director_plan, grid_revision=revised.revision)['clip_plan']
+    assert revised.panels[0].image_url is None
+    assert 'video_url' not in plan[0] and plan[1]['video_url'] == '/api/files/clip_2.mp4'
+
+
+def test_offscreen_clip_preserves_h3_video_without_asr_gate(db_session, tmp_path, monkeypatch):
     novel = Novel(title='动态画外声', video_mode='grid')
     db_session.add(novel)
     db_session.flush()
@@ -374,6 +538,8 @@ def test_offscreen_clip_preserves_h3_video_after_audio_check(db_session, tmp_pat
                 'voice_description': 'a rough adult male voice outside the door',
                 'start_time': 1, 'end_time': 2}], 'prompt_template_snapshot': 'template'}
     shot = Shot(chapter_id=chapter.id, index=1, description='空门', duration=5,
+                dialogues=json.dumps([{'speaker': '门外官差', 'text': '开门！',
+                                       'delivery': 'offscreen', 'voice_description': 'a rough adult male voice outside the door'}], ensure_ascii=False),
                 grid_data=dump_grid_data(grid), video_director_plan=dump_grid_clip_plan(grid, [clip]))
     db_session.add(shot)
     db_session.flush()
@@ -394,9 +560,6 @@ def test_offscreen_clip_preserves_h3_video_after_audio_check(db_session, tmp_pat
     async def download(*_args, **_kwargs):
         return str(tmp_path / 'h3.mp4')
 
-    async def verify(*_args, **_kwargs):
-        return '开门！'
-
     monkeypatch.setattr('app.services.grid_pipeline.ComfyUIService',
                         lambda: SimpleNamespace(client=SimpleNamespace(wait_for_result=result)))
     monkeypatch.setattr('app.services.grid_pipeline.validate_grid_h3_prompt',
@@ -406,44 +569,94 @@ def test_offscreen_clip_preserves_h3_video_after_audio_check(db_session, tmp_pat
     monkeypatch.setattr('app.services.grid_pipeline.local_path_to_url',
                         lambda path: '/api/files/h3.mp4' if path == str(tmp_path / 'h3.mp4') else None)
     monkeypatch.setattr('app.services.grid_pipeline.file_storage.download_video_receipt', download)
-    monkeypatch.setattr(GridPipeline, '_verify_offscreen_audio', verify)
+    async def visual_review(*_args, **_kwargs):
+        return {'overall': 'PASS', 'summary': '空门无人物', 'missing_subjects': []}
+    monkeypatch.setattr(GridPipeline, '_review_clip_video', visual_review)
 
     generated = asyncio.run(GridPipeline(db_session).generate_clip(novel, chapter, shot, 1, task=task))
     assert generated['videoUrl'] == '/api/files/h3.mp4'
     assert generated['clip']['video_url'] == '/api/files/h3.mp4'
-    assert json.loads(task.metadata_json)['offscreen_asr_transcript'] == '开门！'
+    assert 'offscreen_asr_transcript' not in json.loads(task.metadata_json)
 
 
-@pytest.mark.parametrize('transcript,valid', [
-    ('开门！官府查丁，各家开门。', True),
-    ('开门！各家开门。', False),
-])
-def test_offscreen_audio_is_checked_against_original_dialogue(db_session, tmp_path, monkeypatch,
-                                                              transcript, valid):
-    workflow = Workflow(name='ASR', type='audio_transcription', is_active=True,
-                        workflow_json=json.dumps({'12': {'inputs': {'audio': 'sample.flac'}}}),
-                        node_mapping=json.dumps({'load_audio_node_id': '12', 'text_output_node_id': '13'}))
+@pytest.mark.parametrize('reject', [False, True])
+def test_narrated_clip_records_visual_review_attempts_and_retries_only_errors(
+        db_session, tmp_path, monkeypatch, reject):
+    from app.services.grid_pipeline import GridVisualReviewError
+
+    novel = Novel(title='验收记录', video_mode='grid')
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title='门口', content='老妇出门。')
+    db_session.add(chapter)
+    db_session.flush()
+    grid = GridShotData(revision=1, layout='2x2', seed=1, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat='老妇出门', camera='近景',
+                                          characters=['老妇'] if i == 1 else [],
+                                          image_url=f'/api/files/panel_{i}.png', review_status='passed')
+                                for i in range(1, 5)])
+    dialogue = {'id': 'D1', 'speaker': '旁白', 'text': '老妇出门。', 'delivery': 'narration',
+                'visual_subjects': ['老妇']}
+    clip = {'clip_index': 1, 'duration': 5, 'panel_indexes': [1],
+            'reference_strategy': 'split_panels', 'prompt': 'validated prompt',
+            'reference_images': [{'picture_index': 1, 'role': 'GRID_PANEL', 'panel_index': 1,
+                                  'url': '/api/files/panel_1.png'}],
+            'dialogues': [dialogue], 'prompt_template_snapshot': 'template'}
+    shot = Shot(chapter_id=chapter.id, index=1, description='老妇出门', duration=5,
+                characters='["老妇"]', dialogues=json.dumps([dialogue], ensure_ascii=False),
+                grid_data=dump_grid_data(grid), video_director_plan=dump_grid_clip_plan(grid, [clip]))
+    db_session.add(shot)
+    db_session.flush()
+    workflow = Workflow(name='H3', type='multi_reference_video', is_active=True,
+                        workflow_json='{}', node_mapping='{}')
     db_session.add(workflow)
+    db_session.flush()
+    task = Task(type='grid_h3_clip', status='running', name='C1', novel_id=novel.id,
+                chapter_id=chapter.id, shot_id=shot.id, clip_index=1,
+                comfyui_prompt_id='queued-h3', workflow_id=workflow.id,
+                workflow_json='{"1": {"class_type": "MiniMaxH3ReferenceToVideo"}}', metadata_json='{}')
+    db_session.add(task)
     db_session.commit()
-    def fake_run(command, **_kwargs):
-        return SimpleNamespace(returncode=0)
-    monkeypatch.setattr('app.services.grid_pipeline.subprocess.run', fake_run)
-    class FakeClient:
-        async def upload_audio(self, _path):
-            return {'success': True, 'filename': 'speech.flac'}
-        async def queue_prompt(self, graph):
-            assert graph['12']['inputs']['audio'] == 'speech.flac'
-            return {'success': True, 'prompt_id': 'asr-prompt'}
-        async def wait_for_text_outputs(self, _id, _nodes, **_kwargs):
-            return {'success': True, 'outputs': {'13': transcript}}
-    dialogues = [{'text': '开门！'}, {'text': '官府查丁！各家开门！'}]
-    call = GridPipeline(db_session)._verify_offscreen_audio(SimpleNamespace(client=FakeClient()),
-                                                            str(tmp_path / 'h3.mp4'), dialogues)
-    if valid:
-        assert asyncio.run(call) == transcript
+    video_calls = []
+
+    async def video_result(*_args, **_kwargs):
+        video_calls.append(1)
+        return {'success': True, 'video_url': '/remote/h3.mp4'}
+
+    async def download(*_args, **_kwargs):
+        return str(tmp_path / 'h3.mp4')
+
+    monkeypatch.setattr('app.services.grid_pipeline.ComfyUIService',
+                        lambda: SimpleNamespace(client=SimpleNamespace(wait_for_result=video_result)))
+    monkeypatch.setattr('app.services.grid_pipeline.validate_grid_h3_prompt', lambda *_args, **_kwargs: {})
+    monkeypatch.setattr('app.services.grid_pipeline.url_to_local_path', lambda _url: str(tmp_path / 'panel.png'))
+    monkeypatch.setattr('app.services.grid_pipeline.local_path_to_url',
+                        lambda path: '/api/files/h3.mp4' if path == str(tmp_path / 'h3.mp4') else None)
+    monkeypatch.setattr('app.services.grid_pipeline.file_storage.download_video_receipt', download)
+    review_calls = []
+
+    async def visual_review(*_args, **_kwargs):
+        review_calls.append(1)
+        if reject:
+            raise GridVisualReviewError('成片视觉验收未通过：多余人物', category='rejected',
+                                        result={'overall': 'FAIL', 'summary': '多余人物'})
+        if len(review_calls) == 1:
+            raise GridVisualReviewError('模型暂时不可用', category='execution_error')
+        return {'overall': 'PASS', 'summary': '人物正确'}
+
+    monkeypatch.setattr(GridPipeline, '_review_clip_video', visual_review)
+    if reject:
+        with pytest.raises(GridPipelineError, match='多余人物'):
+            asyncio.run(GridPipeline(db_session).generate_clip(novel, chapter, shot, 1, task=task))
     else:
-        with pytest.raises(GridPipelineError, match='台词与原文不一致'):
-            asyncio.run(call)
+        asyncio.run(GridPipeline(db_session).generate_clip(novel, chapter, shot, 1, task=task))
+    db_session.refresh(task)
+    events = json.loads(task.metadata_json)['visual_review_attempts']
+    assert len(video_calls) == 1
+    assert len(events) == (1 if reject else 2)
+    assert events[0]['category'] == ('rejected' if reject else 'execution_error')
+    assert events[-1]['category'] == ('rejected' if reject else 'accepted')
+    assert task.status == ('failed' if reject else 'completed')
 
 
 def test_wrong_mode_and_wrong_template_cannot_start_grid(client, db_session):
@@ -509,7 +722,11 @@ def test_single_video_plan_route_remains_available(client, db_session):
     assert response.json()['data']['validation'] == {'passed': True}
 
 
-def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(db_session, tmp_path, monkeypatch):
+@pytest.mark.parametrize(('layout', 'source_size'), [
+    ('2x2', (1536, 864)), ('2x2', (1536, 1024)), ('2x3', (1800, 1024)),
+])
+def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(
+        db_session, tmp_path, monkeypatch, layout, source_size):
     import io
     from pathlib import Path
     from PIL import Image
@@ -531,8 +748,9 @@ def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(db
     db_session.add(chapter)
     db_session.flush()
     shot = Shot(chapter_id=chapter.id, index=1, description='四格', duration=8)
-    grid = GridShotData(revision=1, layout='2x2', seed=42, panel_width=768, panel_height=432,
-                        panels=[GridPanel(index=i, beat=f'Beat {i}', camera='近景') for i in range(1, 5)])
+    rows, cols = map(int, layout.split('x'))
+    grid = GridShotData(revision=1, layout=layout, seed=42, panel_width=768, panel_height=432,
+                        panels=[GridPanel(index=i, beat=f'Beat {i}', camera='近景') for i in range(1, rows * cols + 1)])
     shot.grid_data = dump_grid_data(grid)
     db_session.add(shot)
     db_session.commit()
@@ -540,11 +758,14 @@ def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(db
     async def complete(**kwargs):
         return {'success': True, 'content': 'Four equal cinematic panels; no text.'}
 
-    image = Image.new('RGB', (1536, 864))
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+    image = Image.new('RGB', source_size)
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255),
+              (255, 255, 0), (255, 0, 255), (0, 255, 255)][:rows * cols]
     for i, color in enumerate(colors):
-        x, y = (i % 2) * 768, (i // 2) * 432
-        image.paste(color, (x, y, x + 768, y + 432))
+        col, row = i % cols, i // cols
+        box = (round(col * source_size[0] / cols), round(row * source_size[1] / rows),
+               round((col + 1) * source_size[0] / cols), round((row + 1) * source_size[1] / rows))
+        image.paste(color, box)
     output = io.BytesIO()
     image.save(output, format='PNG')
 
@@ -560,7 +781,7 @@ def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(db
         def __init__(self):
             self.builder, self.client = FakeBuilder(), FakeClient()
         async def generate_shot_image_with_workflow(self, **kwargs):
-            assert kwargs['workflow']['w']['inputs']['value'] == 1536
+            assert kwargs['workflow']['w']['inputs']['value'] == cols * 768
             assert kwargs['workflow']['h']['inputs']['value'] == 864
             kwargs['on_prompt_queued']('prompt-1', kwargs['workflow'])
             return {'success': True, 'image_url': 'http://comfy/image.png'}
@@ -583,12 +804,26 @@ def test_board_generation_crops_in_reading_order_and_keeps_legacy_image_empty(db
     generated = load_grid_data(shot.grid_data)
     assert shot.image_url is None
     assert generated.board_image_url and all(p.image_url for p in generated.panels)
+    board_path = Path(tmp_path) / generated.board_image_url.removeprefix('/api/files/')
+    with Image.open(board_path) as saved_board:
+        assert saved_board.size == (cols * 768, rows * 432)
+        for i, color in enumerate(colors):
+            assert saved_board.getpixel(((i % cols) * 768 + 384, (i // cols) * 432 + 216)) == color
     for panel, color in zip(generated.panels, colors):
         path = Path(tmp_path) / panel.image_url.removeprefix('/api/files/')
-        assert Image.open(path).getpixel((384, 216)) == color
+        with Image.open(path) as saved_panel:
+            assert saved_panel.size == (768, 432)
+            assert saved_panel.getpixel((384, 216)) == color
     task = db_session.query(Task).filter(Task.type == 'grid_board_image').one()
     assert task.prompt_text == 'Four equal cinematic panels; no text.'
-    assert json.loads(task.metadata_json)['grid_revision'] == 1
+    metadata = json.loads(task.metadata_json)
+    assert metadata['grid_revision'] == 1
+    if source_size != (cols * 768, rows * 432):
+        assert metadata['board_size_normalization'] == {
+            'source': list(source_size), 'saved': [cols * 768, rows * 432],
+            'method': 'split_panels_then_resize'}
+    else:
+        assert 'board_size_normalization' not in metadata
 
 
 def test_panel_retry_submits_supported_size_and_stores_grid_size(db_session, tmp_path, monkeypatch):

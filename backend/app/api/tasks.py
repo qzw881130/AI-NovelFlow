@@ -71,6 +71,7 @@ def _task_summary_query(db: Session, *, status_only: bool):
     columns.append(func.json_extract(safe_metadata, "$.grid_step").label("grid_step"))
     columns.append(func.json_extract(safe_metadata, "$.panel_index").label("grid_panel_index"))
     columns.append(func.json_extract(safe_metadata, "$.shot_results").label("grid_auto_shot_results"))
+    columns.append(func.json_extract(safe_metadata, "$.visual_review").label("grid_visual_review"))
     if not status_only:
         for key in (
             "candidate_result", "source_revision", "source_clip_plan_fingerprint",
@@ -108,6 +109,7 @@ def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
             "batchOrder": value["batch_order"], "clipIndex": value["clip_index"],
             "gridStep": value["grid_step"], "panelIndex": value["grid_panel_index"],
             "autoShotResults": _json_value(value["grid_auto_shot_results"]) if value["type"] in {"grid_auto_batch", "grid_board_batch", "grid_review_batch"} else None,
+            "gridVisualReview": _json_value(value["grid_visual_review"]) if value["type"] == "grid_h3_clip" else None,
             "comfyuiPromptId": value["comfyui_prompt_id"],
             "createdAt": format_datetime(value["created_at"]),
             "startedAt": format_datetime(value["started_at"]),

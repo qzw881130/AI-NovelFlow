@@ -172,7 +172,7 @@ async def _review_panel(db: Session, parent: Task, shot: Shot, index: int) -> tu
     offscreen_speakers = list(dict.fromkeys(
         str(lines[number - 1].get("speaker") or "") for number in panel.dialogue_indexes
         if 1 <= number <= len(lines) and isinstance(lines[number - 1], dict)
-        and lines[number - 1].get("delivery") == "offscreen"))
+        and lines[number - 1].get("delivery") in {"offscreen", "narration"}))
     references = panel.image_reference_images or grid.board_reference_images or []
     references = [ref for ref in references if ref.get("role") != "CHARACTER_IDENTITY"
                   or ref.get("name") in panel.characters or "、" in str(ref.get("name") or "")]
@@ -337,7 +337,7 @@ async def _run_shot(db: Session, parent: Task, novel: Novel, chapter: Chapter, s
         required_indexes = {panel.index for panel in load_grid_data(shot.grid_data).panels
                             if any(1 <= number <= len(dialogues)
                                    and isinstance(dialogues[number - 1], dict)
-                                   and dialogues[number - 1].get("delivery") == "offscreen"
+                                   and dialogues[number - 1].get("delivery") in {"offscreen", "narration"}
                                    for number in panel.dialogue_indexes)}
     warning_indexes = await _review_panels(db, parent, novel, chapter, shot,
                                            required_indexes=required_indexes,

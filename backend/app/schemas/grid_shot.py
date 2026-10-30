@@ -22,6 +22,7 @@ class GridPanel(BaseModel):
     image_task_id: str | None = None
     image_prompt: str | None = None
     image_reference_images: list[dict] = Field(default_factory=list)
+    composition_reference_url: str | None = None
     review_status: ReviewStatus = "pending"
     review_note: str | None = None
 
