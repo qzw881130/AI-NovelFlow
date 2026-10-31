@@ -187,14 +187,18 @@ def test_grid_preflight_settings_are_separate_and_snapshot_for_batch(client, db_
     novel, chapter = _chapter(db_session)
     shot = _shot(db_session, chapter, 1, reviewed=False, with_clip=True)
     checks = client.get('/api/config/grid-generation-checks').json()['data']
-    assert checks['policy'] == {'GRID_PANEL_AI_REVIEW': True, 'GRID_PANEL_FAIL_RETRY': True}
+    assert checks['policy'] == {'GRID_PANEL_AI_REVIEW': True, 'GRID_PANEL_FAIL_RETRY': True,
+                                'GRID_VIDEO_VISUAL_REVIEW': False}
+    assert any(item['id'] == 'GRID_VIDEO_VISUAL_REVIEW' and item['configurable']
+               and not item['enabled'] for item in checks['checks'])
     assert any(item['id'] == 'GRID_PANEL_NON_FAIL' and not item['configurable'] for item in checks['checks'])
     assert client.post('/api/config/', json={'gridGenerationQualityPolicy': {'unknown': False}}).status_code == 400
     response = client.post('/api/config/', json={'gridGenerationQualityPolicy': {
         'GRID_PANEL_AI_REVIEW': False, 'GRID_PANEL_FAIL_RETRY': False}})
     assert response.status_code == 200, response.text
     assert client.get('/api/config/').json()['data']['gridGenerationQualityPolicy'] == {
-        'GRID_PANEL_AI_REVIEW': False, 'GRID_PANEL_FAIL_RETRY': False}
+        'GRID_PANEL_AI_REVIEW': False, 'GRID_PANEL_FAIL_RETRY': False,
+        'GRID_VIDEO_VISUAL_REVIEW': False}
 
     async def unexpected_review(*_args, **_kwargs):
         raise AssertionError('自动审图已关闭')
@@ -225,6 +229,8 @@ def test_grid_preflight_settings_are_separate_and_snapshot_for_batch(client, db_
     parent = db_session.get(Task, task_id)
     result = json.loads(parent.metadata_json)['shot_results'][shot.id]
     assert parent.status == 'completed' and result['status'] == 'completed'
+    clip_task = db_session.query(Task).filter_by(parent_task_id=task_id, type='grid_h3_clip').one()
+    assert json.loads(clip_task.metadata_json)['grid_preflight_policy']['GRID_VIDEO_VISUAL_REVIEW'] is False
     assert result['warnings'] == [f'格 {index}：PENDING' for index in range(1, 5)]
     assert all(panel.review_status == 'pending' for panel in load_grid_data(db_session.get(Shot, shot.id).grid_data).panels)
 

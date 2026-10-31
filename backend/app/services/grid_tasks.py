@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
+from app.models.system_config import SystemConfig
 from app.models.task import Task
 from app.schemas.grid_shot import load_grid_data, read_grid_clip_plan
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.grid_pipeline import GridPipeline, GridPipelineError
+from app.services.grid_generation_preflight import config_policy as grid_config_policy, normalize_policy as normalize_grid_policy
 
 
 GRID_STEPS = {
@@ -156,7 +158,12 @@ def enqueue_grid_job(db: Session, novel: Novel, chapter: Chapter, shot: Shot | N
         name += f" · 格 {panel_index}"
     if clip_index:
         name += f" · C{clip_index}"
-    metadata = {"video_mode": "grid", "grid_step": step, "grid_revision":
+    parent = db.get(Task, parent_task_id) if parent_task_id else None
+    parent_metadata = json.loads(parent.metadata_json or "{}") if parent else {}
+    grid_policy = (normalize_grid_policy(parent_metadata["grid_preflight_policy"])
+                   if "grid_preflight_policy" in parent_metadata
+                   else grid_config_policy(db.get(SystemConfig, "default")))
+    metadata = {"video_mode": "grid", "grid_step": step, "grid_preflight_policy": grid_policy, "grid_revision":
                 load_grid_data(shot.grid_data).revision if shot and shot.grid_data else None,
                 "grid_input_fingerprint": fingerprint, "layout": layout, "strategy": strategy,
                 "panel_index": panel_index}

@@ -1,4 +1,4 @@
-"""Grid-only batch validation catalog and the two runtime review controls."""
+"""Grid-only batch validation catalog and runtime review controls."""
 
 import json
 
@@ -29,10 +29,11 @@ CHECKS = (
     {"id": "GRID_VIDEO_ARTIFACT", "stage": "assembly", "label": "视频文件与合并来源",
      "description": "Clip 和 Shot 文件必须存在，且片段顺序和来源有效。", "configurable": False},
     {"id": "GRID_VIDEO_VISUAL_REVIEW", "stage": "video", "label": "Clip 成片人物验收",
-     "description": "对标记可见人物或旧旁白识别出人物的 Clip 抽帧核对；拒绝结果阻断该 Shot，调用异常原地重试一次。实际结果见本章生成任务的批量审核记录。", "configurable": False},
+     "description": "开启后对含可见人物标记的旁白 Clip 抽帧核对；拒绝结果阻断该 Shot，调用异常原地重试一次。关闭后跳过此验收。实际结果见本章生成任务的批量审核记录。", "configurable": True},
 )
 
-DEFAULT_POLICY = {"GRID_PANEL_AI_REVIEW": True, "GRID_PANEL_FAIL_RETRY": True}
+DEFAULT_POLICY = {"GRID_PANEL_AI_REVIEW": True, "GRID_PANEL_FAIL_RETRY": True,
+                  "GRID_VIDEO_VISUAL_REVIEW": False}
 
 
 def normalize_policy(value):

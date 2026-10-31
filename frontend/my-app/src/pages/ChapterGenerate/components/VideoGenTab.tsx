@@ -48,6 +48,7 @@ import { ImageQualityBadge, ImageQualityIcon, ImageQualitySummary, useImageQuali
 import type { KeyframeData } from '../../../types';
 import type { VideoResultMode, ContinuationMode, CanonicalVisualState, SemanticClipPlan, VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
+import { videoCheckLabels } from '../../../utils/preflightErrorCategory';
 import { getSemanticClipCounts, getSemanticClipStatus, getSemanticShotStatus, getTemporalTargetLabel, isSemanticShot, type SemanticClipStatus } from '../../../utils/semanticBatch';
 import {
   buildVideoDirectorShotSavePayload,
@@ -4966,7 +4967,7 @@ export function VideoGenTab({
               <div className="mt-2 max-h-28 space-y-1 overflow-y-auto">
                 {batchPreflightReport.checks.map((check, index) => <p key={`${check.shotId}-${check.id}-${index}`}
                   className={check.blocking ? 'text-red-700' : check.status === 'FAIL' ? 'text-amber-700' : 'text-gray-500'}>
-                  Shot #{check.shotIndex ?? '?'} · {check.id} · {check.status} · {check.message}
+                  Shot #{check.shotIndex ?? '?'} · [{videoCheckLabels[check.id] || check.id}] · {check.status} · {check.message}
                 </p>)}
               </div>
             </div>}

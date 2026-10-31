@@ -579,9 +579,9 @@ def test_offscreen_clip_preserves_h3_video_without_asr_gate(db_session, tmp_path
     assert 'offscreen_asr_transcript' not in json.loads(task.metadata_json)
 
 
-@pytest.mark.parametrize('reject', [False, True])
+@pytest.mark.parametrize(('reject', 'review_enabled'), [(False, True), (True, True), (False, False)])
 def test_narrated_clip_records_visual_review_attempts_and_retries_only_errors(
-        db_session, tmp_path, monkeypatch, reject):
+        db_session, tmp_path, monkeypatch, reject, review_enabled):
     from app.services.grid_pipeline import GridVisualReviewError
 
     novel = Novel(title='验收记录', video_mode='grid')
@@ -614,7 +614,9 @@ def test_narrated_clip_records_visual_review_attempts_and_retries_only_errors(
     task = Task(type='grid_h3_clip', status='running', name='C1', novel_id=novel.id,
                 chapter_id=chapter.id, shot_id=shot.id, clip_index=1,
                 comfyui_prompt_id='queued-h3', workflow_id=workflow.id,
-                workflow_json='{"1": {"class_type": "MiniMaxH3ReferenceToVideo"}}', metadata_json='{}')
+                workflow_json='{"1": {"class_type": "MiniMaxH3ReferenceToVideo"}}',
+                metadata_json=json.dumps({'grid_preflight_policy': {
+                    'GRID_VIDEO_VISUAL_REVIEW': review_enabled}}))
     db_session.add(task)
     db_session.commit()
     video_calls = []
@@ -636,6 +638,7 @@ def test_narrated_clip_records_visual_review_attempts_and_retries_only_errors(
     review_calls = []
 
     async def visual_review(*_args, **_kwargs):
+        assert review_enabled, '关闭成片人物验收后不应调用审核'
         review_calls.append(1)
         if reject:
             raise GridVisualReviewError('成片视觉验收未通过：多余人物', category='rejected',
@@ -651,12 +654,15 @@ def test_narrated_clip_records_visual_review_attempts_and_retries_only_errors(
     else:
         asyncio.run(GridPipeline(db_session).generate_clip(novel, chapter, shot, 1, task=task))
     db_session.refresh(task)
-    events = json.loads(task.metadata_json)['visual_review_attempts']
+    events = json.loads(task.metadata_json).get('visual_review_attempts', [])
     assert len(video_calls) == 1
-    assert len(events) == (1 if reject else 2)
-    assert events[0]['category'] == ('rejected' if reject else 'execution_error')
-    assert events[-1]['category'] == ('rejected' if reject else 'accepted')
+    assert len(events) == (0 if not review_enabled else 1 if reject else 2)
+    if review_enabled:
+        assert events[0]['category'] == ('rejected' if reject else 'execution_error')
+        assert events[-1]['category'] == ('rejected' if reject else 'accepted')
     assert task.status == ('failed' if reject else 'completed')
+    if reject:
+        assert '[Clip 成片人物验收]' in task.error_message
 
 
 def test_wrong_mode_and_wrong_template_cannot_start_grid(client, db_session):

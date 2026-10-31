@@ -30,6 +30,7 @@ from app.services.first_appearance_nameplates import (
     render_first_appearance_nameplates,
 )
 from app.services.grid_h3_prompt import enforce_grid_no_voice, normalize_grid_dialogue_markers, validate_grid_h3_prompt
+from app.services.grid_generation_preflight import config_policy as grid_config_policy, normalize_policy as normalize_grid_policy
 from app.services.grid_storage import grid_asset_path, record_grid_task_inputs, save_grid_png
 from app.services.llm_service import LLMService
 from app.services.novel_prompt_templates import resolve_novel_prompt_template
@@ -1189,8 +1190,13 @@ class GridPipeline:
             path = await file_storage.download_video_receipt(result["video_url"], novel.id, chapter.id,
                                                              shot.index, filename_suffix=f"grid_c{index}")
             self._active(task)
-            if any(line.get("delivery") == "narration" and line.get("visual_subjects")
-                   for line in clip["dialogues"]):
+            task_metadata = _json(task.metadata_json, {}) if task else {}
+            grid_policy = (normalize_grid_policy(task_metadata["grid_preflight_policy"])
+                           if "grid_preflight_policy" in task_metadata
+                           else grid_config_policy(self.db.get(SystemConfig, "default")))
+            if grid_policy["GRID_VIDEO_VISUAL_REVIEW"] and any(
+                    line.get("delivery") == "narration" and line.get("visual_subjects")
+                    for line in clip["dialogues"]):
                 for attempt in range(2):
                     evidence_urls: list[str] = []
                     try:
@@ -1222,7 +1228,7 @@ class GridPipeline:
                     if category == "accepted":
                         break
                     if category == "rejected" or attempt == 1:
-                        raise GridPipelineError(error)
+                        raise GridPipelineError(f"[Clip 成片人物验收] {error}")
             video_url = local_path_to_url(path)
             if not video_url:
                 raise GridPipelineError("H3 Clip 保存失败")
