@@ -66,6 +66,9 @@ def test_registry_defaults_and_config_persistence(notification_db, notification_
     assert all(event["enabled"] == EVENT_REGISTRY[event["event_code"]].enabled for event in data["events"])
     assert EVENT_REGISTRY["image.review.passed"].enabled
     assert EVENT_REGISTRY["image.review.failed"].enabled
+    grid_events = [event for event in data["events"] if event["event_code"].startswith("grid.")]
+    assert len(grid_events) == 30
+    assert all(event["category"].startswith("宫格") and event["enabled"] for event in grid_events)
     assert data["pageSound"] == {"enabled": True, "soundId": "chime", "volume": 0.7}
     assert not data["feishu"]["enabled"] and not data["telegram"]["enabled"]
     assert len(data["sounds"]) >= 5
@@ -85,6 +88,14 @@ def test_registry_defaults_and_config_persistence(notification_db, notification_
     data = api_request(notification_app, "GET", "/api/notifications/config").json()["data"]
     assert next(event for event in data["events"] if event["event_code"] == "clip.generation.completed")["enabled"] is False
     assert next(event for event in data["events"] if event["event_code"] == "shot.planning.completed")["enabled"] is True
+
+    response = api_request(notification_app, "PUT", "/api/notifications/config", {
+        "eventSwitches": {"grid.clip.generation.completed": False},
+    })
+    assert response.status_code == 200
+    events = api_request(notification_app, "GET", "/api/notifications/config").json()["data"]["events"]
+    assert next(event for event in events if event["event_code"] == "grid.clip.generation.completed")["enabled"] is False
+    assert next(event for event in events if event["event_code"] == "clip.generation.completed")["enabled"] is False
 
 
 def test_secrets_are_encrypted_and_masked(notification_db, notification_app):

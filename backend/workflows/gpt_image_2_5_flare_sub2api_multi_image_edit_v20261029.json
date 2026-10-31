@@ -1,0 +1,249 @@
+{
+  "360": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "shot_006_d95d2f2b3970e261e59f61dbeb0676ea490f17e35d79bac207f31cdf9a450a69_characters.png"
+    },
+    "_meta": {
+      "title": "图1：参考图1"
+    }
+  },
+  "373": {
+    "class_type": "SaveImageAdvanced",
+    "inputs": {
+      "images": [
+        "378",
+        0
+      ],
+      "filename_prefix": "GPT_Image_2.5_Flare_Sub2API/multi_image_edit",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB"
+    },
+    "_meta": {
+      "title": "#373 Save Image (Advanced)"
+    }
+  },
+  "376": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "破旧农舍前院_555e28d5_round2_edit_20261027_020908.png"
+    },
+    "_meta": {
+      "title": "图2：参考图2"
+    }
+  },
+  "377": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "农舍木门_20261027_014643.png"
+    },
+    "_meta": {
+      "title": "图3：参考图3"
+    }
+  },
+  "378": {
+    "class_type": "T8Zhenzhen_GPT_Image_2_5_Workshop",
+    "inputs": {
+      "api_config": [
+        "397",
+        1
+      ],
+      "prompt": [
+        "384",
+        0
+      ],
+      "api_key": [
+        "397",
+        0
+      ],
+      "model": "gpt-image-2.5-flare",
+      "quality": "auto",
+      "size": "custom",
+      "custom_width": [
+        "382",
+        0
+      ],
+      "custom_height": [
+        "383",
+        0
+      ],
+      "n": 1,
+      "background": "auto",
+      "moderation": "auto",
+      "skip_error": false,
+      "seed": 449389932049468,
+      "async_mode": false,
+      "poll_interval": 5,
+      "max_poll_time": 3600,
+      "image1": [
+        "360",
+        0
+      ],
+      "image2": [
+        "376",
+        0
+      ],
+      "image3": [
+        "377",
+        0
+      ],
+      "image4": [
+        "389",
+        0
+      ],
+      "image5": [
+        "390",
+        0
+      ],
+      "image6": [
+        "391",
+        0
+      ],
+      "image7": [
+        "392",
+        0
+      ],
+      "image8": [
+        "393",
+        0
+      ],
+      "image9": [
+        "394",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "#378 #-1 zhenzhen-gpt-image-2.5（6合1·AI工坊）"
+    }
+  },
+  "382": {
+    "class_type": "easy int",
+    "inputs": {
+      "value": 2304
+    },
+    "_meta": {
+      "title": "#382 Width"
+    }
+  },
+  "383": {
+    "class_type": "easy int",
+    "inputs": {
+      "value": 864
+    },
+    "_meta": {
+      "title": "#383 Height"
+    }
+  },
+  "384": {
+    "class_type": "CR Prompt Text",
+    "inputs": {
+      "prompt": "图1为参考图1；图2为参考图2；图3为参考图3；图4为参考图4；图5为参考图5；图6为参考图6；图7为参考图7；图8为参考图8；图9为参考图9。根据编辑要求生成图片，保持参考内容一致性。"
+    },
+    "_meta": {
+      "title": "#384 #-1 ⚙️ CR Prompt Text"
+    }
+  },
+  "386": {
+    "class_type": "TextPreview",
+    "inputs": {
+      "text": [
+        "378",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "#386 #-1 Preview Text"
+    }
+  },
+  "389": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图4：参考图4"
+    }
+  },
+  "390": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图5：参考图5"
+    }
+  },
+  "391": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图6：参考图6"
+    }
+  },
+  "392": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图7：参考图7"
+    }
+  },
+  "393": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图8：参考图8"
+    }
+  },
+  "394": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "_meta": {
+      "title": "图9：参考图9"
+    }
+  },
+  "396": {
+    "class_type": "easy string",
+    "inputs": {
+      "value": ""
+    },
+    "_meta": {
+      "title": "ApiKey"
+    }
+  },
+  "397": {
+    "class_type": "T8Zhenzhen_API_Settings",
+    "inputs": {
+      "api_base": "ip",
+      "apikey": [
+        "396",
+        0
+      ],
+      "custom_ip": [
+        "398",
+        0
+      ],
+      "skip_error": false
+    },
+    "_meta": {
+      "title": "#397 #-1 Zhenzhen API Settings"
+    }
+  },
+  "398": {
+    "class_type": "easy string",
+    "inputs": {
+      "value": "http://192.168.50.3:8088"
+    },
+    "_meta": {
+      "title": "ApiBaseUrl"
+    }
+  }
+}

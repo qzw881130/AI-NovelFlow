@@ -7,7 +7,7 @@ import asyncio
 import json
 
 from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos, background_music
-from app.api import novels, chapters, shots, hd_repaint
+from app.api import novels, chapters, shots, grid_mode, hd_repaint
 from app.api import clip_execution_inspector, notifications, image_reviews, events, youtube
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
@@ -119,6 +119,8 @@ def ensure_schema_updates():
     """补齐 create_all 不会自动添加的轻量字段。"""
     with engine.connect() as conn:
         try:
+            from migrations.add_grid_video_mode_storage import upgrade_connection
+            upgrade_connection(conn)
             result = conn.execute(text("PRAGMA table_info(shots)"))
             shot_columns = [row[1] for row in result.fetchall()]
             if "merged_prop_image" not in shot_columns:
@@ -166,6 +168,8 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_approve_first_appearance_names BOOLEAN NOT NULL DEFAULT 1"))
             if "generation_quality_policy" not in config_columns:
                 conn.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            if "grid_generation_quality_policy" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN grid_generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
 
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]
@@ -354,6 +358,8 @@ async def lifespan(app: FastAPI):
         await monitor.start()
     from app.services.background_workers import resume_legacy_asset_jobs, worker_manager
     worker_manager.resume_persisted()
+    from app.services.grid_tasks import reconcile_grid_batches
+    reconcile_grid_batches()
     resume_legacy_asset_jobs()
     from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches, resume_active_chapter_video_merges
     resume_active_shot_image_batches()
@@ -428,6 +434,7 @@ app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
+app.include_router(grid_mode.router, prefix="/api/novels", tags=["grid-mode"])
 from app.api import shot_repairs
 app.include_router(shot_repairs.router, prefix="/api/novels", tags=["shot-repairs"])
 app.include_router(hd_repaint.router, prefix="/api/novels", tags=["hd-repaint"])

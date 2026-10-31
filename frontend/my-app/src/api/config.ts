@@ -3,12 +3,16 @@
  */
 import { api } from './index';
 
+export type CustomVariableKey = 'KEY1' | 'KEY2' | 'KEY3' | 'KEY4' | 'KEY5' | 'KEY6' | 'KEY7' | 'KEY8' | 'KEY9';
+export type CustomVariables = Record<CustomVariableKey, { value: string; note: string }>;
+
 export interface SystemConfig {
   autoImageReviewEnabled?: boolean;
   videoPromptLanguage?: 'en' | 'zh';
   nameplatePreviewMode?: 'protagonist_first' | 'chapter_first';
   autoApproveFirstAppearanceNames?: boolean;
   generationQualityPolicy?: Record<string, boolean>;
+  gridGenerationQualityPolicy?: Record<string, boolean>;
   coverProduction?: string;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
@@ -19,6 +23,7 @@ export interface SystemConfig {
   httpsProxy?: string;
   youtubeProxyEnabled?: boolean;
   youtubeProxyUrl?: string;
+  customVariables?: CustomVariables;
 }
 
 export interface GenerationCheck {
@@ -29,6 +34,15 @@ export interface GenerationCheck {
   blocking: boolean;
   stage: 'before_queue' | 'director' | 'submission' | 'assembly';
   error_codes?: string[];
+}
+
+export interface GridGenerationCheck {
+  id: string;
+  label: string;
+  description: string;
+  configurable: boolean;
+  enabled: boolean;
+  stage: 'before_queue' | 'planning' | 'image' | 'video' | 'assembly';
 }
 
 export const configApi = {
@@ -45,5 +59,8 @@ export const configApi = {
   update: async (config: Partial<SystemConfig>) => {
     return api.post<SystemConfig>('/config/', config);
   },
+  customVariables: async () => api.get<CustomVariables>('/config/custom-variables'),
+  customVariableOptions: async () => api.get<Array<{ key: CustomVariableKey; note: string }>>('/config/custom-variables/options'),
   generationChecks: async () => api.get<{ checks: GenerationCheck[]; policy: Record<string, boolean> }>('/config/generation-checks'),
+  gridGenerationChecks: async () => api.get<{ checks: GridGenerationCheck[]; policy: Record<string, boolean> }>('/config/grid-generation-checks'),
 };

@@ -27,9 +27,11 @@ def test_registry_is_complete_for_novel_selection():
     chapter_music_types = {
         "background_music_director", "background_music_director_full", "background_music_generation",
     }
-    assert set(NOVEL_PROMPT_TEMPLATE_FIELDS) == set(PROMPT_TEMPLATE_TYPES) - chapter_music_types
-    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 23
-    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 23
+    retired_types = {"h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"}
+    chapter_scoped = chapter_music_types | {"subtitle_correction", "subtitle_translation"}
+    assert set(NOVEL_PROMPT_TEMPLATE_FIELDS) - retired_types == set(PROMPT_TEMPLATE_TYPES) - chapter_scoped
+    assert len(NOVEL_PROMPT_TEMPLATE_FIELDS) == 28
+    assert len(set(NOVEL_PROMPT_TEMPLATE_FIELDS.values())) == 28
     assert all(hasattr(Novel, field) for field in NOVEL_PROMPT_TEMPLATE_FIELDS.values())
 
 
@@ -49,7 +51,11 @@ def test_create_edit_and_old_novel_default(client, db_session):
             assert selected_id == resolve_novel_prompt_template(db_session, default_novel, template_type).id
         else:
             assert selected_id is None
-            assert resolve_novel_prompt_template(db_session, default_novel, template_type).is_system
+            resolved = resolve_novel_prompt_template(db_session, default_novel, template_type)
+            if template_type in {"h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"}:
+                assert resolved is None
+            else:
+                assert resolved.is_system
     assert default_novel.temporal_reference_selector_prompt_template_id is None
     assert default_novel.image_quality_review_prompt_template_id is None
     assert resolve_novel_prompt_template(db_session, default_novel, "temporal_reference_selector").is_system
@@ -110,7 +116,7 @@ def test_copy_inherits_valid_references_and_only_source_chapters(client, db_sess
     stale = client.post(f"/api/novels/{source.id}/copy", json={"title": "失效版本副本"})
     stale_copy = db_session.get(Novel, stale.json()["data"]["id"])
     assert stale_copy.h3_preflight_repair_prompt_template_id is None
-    assert resolve_novel_prompt_template(db_session, stale_copy, "h3_preflight_repair_prompt").is_system
+    assert resolve_novel_prompt_template(db_session, stale_copy, "h3_preflight_repair_prompt") is None
     assert source.h3_preflight_repair_prompt_template_id == versions["h3_preflight_repair_prompt"].id
 
 

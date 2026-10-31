@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Play, Trash2, Sparkles, MapPin, Film, Package } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Play, Trash2, Sparkles, MapPin, Package } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { Chapter, Novel } from '../../types';
 import type { ParseResultData } from './types';
 import { useChapterDetailState } from './hooks/useChapterDetailState';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
-import { getStatusInfo } from './utils/getStatusInfo';
 
 function ParseResultCard({ result, type, onViewClick }: { result: ParseResultData; type: 'characters' | 'scenes' | 'props'; onViewClick: () => void }) {
   const { t } = useTranslation();
@@ -117,10 +116,6 @@ export default function ChapterDetail() {
     );
   }
 
-  const statusInfo = getStatusInfo(state.chapter.status, t);
-  const StatusIcon = statusInfo.icon;
-  const shouldSpin = !['completed', 'failed', 'pending'].includes(state.chapter.status);
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -151,24 +146,6 @@ export default function ChapterDetail() {
           <button onClick={state.handleGenerate} className="btn-primary bg-green-600 hover:bg-green-700 whitespace-nowrap flex-shrink-0" disabled={state.chapter.status !== 'pending' && state.chapter.status !== 'failed'}>
             <Play className="h-4 w-4 mr-2 flex-shrink-0" />{t('chapterDetail.generateVideo')}
           </button>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <div className={`card ${statusInfo.bg}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <StatusIcon className={`h-6 w-6 ${statusInfo.color} ${shouldSpin ? 'animate-spin' : ''}`} />
-            <div>
-              <p className={`font-medium ${statusInfo.color}`}>{statusInfo.text}</p>
-              {state.chapter.progress > 0 && <p className="text-sm text-gray-500">{t('chapterDetail.progress', { progress: state.chapter.progress })}</p>}
-            </div>
-          </div>
-          {state.chapter.status === 'completed' && state.chapter.finalVideo && (
-            <a href={state.chapter.finalVideo} target="_blank" rel="noopener noreferrer" className="btn-primary">
-              <Film className="h-4 w-4 mr-2" />{t('chapterDetail.viewVideo')}
-            </a>
-          )}
         </div>
       </div>
 

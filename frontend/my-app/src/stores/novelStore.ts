@@ -64,11 +64,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   createNovel: async (novelData) => {
     try {
       const data = await novelApi.create(novelData);
-      if (data.success && data.data) {
-        set((state) => ({ novels: [data.data!, ...state.novels] }));
-      }
+      if (!data.success || !data.data) throw new Error((data as { detail?: string; message?: string }).detail || data.message || '创建小说失败');
+      set((state) => ({ novels: [data.data!, ...state.novels] }));
     } catch (error) {
       set({ error: '创建小说失败' });
+      throw error;
     }
   },
 
@@ -107,14 +107,14 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   updateNovel: async (id, novelData) => {
     try {
       const data = await novelApi.update(id, novelData);
-      if (data.success && data.data) {
-        set((state) => ({
-          novels: state.novels.map((n) => (n.id === id ? data.data! : n)),
-          currentNovel: state.currentNovel?.id === id ? data.data! : state.currentNovel,
-        }));
-      }
+      if (!data.success || !data.data) throw new Error((data as { detail?: string; message?: string }).detail || data.message || '更新小说失败');
+      set((state) => ({
+        novels: state.novels.map((n) => (n.id === id ? data.data! : n)),
+        currentNovel: state.currentNovel?.id === id ? data.data! : state.currentNovel,
+      }));
     } catch (error) {
       set({ error: '更新小说失败' });
+      throw error;
     }
   },
 

@@ -1,0 +1,171 @@
+{
+  "360": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "shot_001_bf2c13bc_characters.png"
+    },
+    "_meta": {
+      "title": "图1：角色"
+    }
+  },
+  "373": {
+    "class_type": "SaveImageAdvanced",
+    "inputs": {
+      "images": [
+        "378",
+        0
+      ],
+      "filename_prefix": "GPT_Image_2.5_Flare_Sub2API/shot",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB"
+    },
+    "_meta": {
+      "title": "#373 Save Image (Advanced)"
+    }
+  },
+  "376": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "皇宫_20260921_100028.png"
+    },
+    "_meta": {
+      "title": "图2：场景"
+    }
+  },
+  "377": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "新衣_20260921_100130.png"
+    },
+    "_meta": {
+      "title": "图3：道具"
+    }
+  },
+  "378": {
+    "class_type": "T8Zhenzhen_GPT_Image_2_5_Workshop",
+    "inputs": {
+      "api_config": [
+        "397",
+        1
+      ],
+      "prompt": [
+        "384",
+        0
+      ],
+      "api_key": [
+        "397",
+        0
+      ],
+      "model": "gpt-image-2.5-flare",
+      "quality": "auto",
+      "size": "custom",
+      "custom_width": [
+        "382",
+        0
+      ],
+      "custom_height": [
+        "383",
+        0
+      ],
+      "n": 1,
+      "background": "auto",
+      "moderation": "auto",
+      "skip_error": false,
+      "seed": 449389932049468,
+      "async_mode": false,
+      "poll_interval": 5,
+      "max_poll_time": 3600,
+      "image1": [
+        "360",
+        0
+      ],
+      "image2": [
+        "376",
+        0
+      ],
+      "image3": [
+        "377",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "#378 #-1 zhenzhen-gpt-image-2.5（6合1·AI工坊）"
+    }
+  },
+  "382": {
+    "class_type": "easy int",
+    "inputs": {
+      "value": 2304
+    },
+    "_meta": {
+      "title": "#382 Width"
+    }
+  },
+  "383": {
+    "class_type": "easy int",
+    "inputs": {
+      "value": 864
+    },
+    "_meta": {
+      "title": "#383 Height"
+    }
+  },
+  "384": {
+    "class_type": "CR Prompt Text",
+    "inputs": {
+      "prompt": "图1为角色；图2为场景；图3为道具。根据编辑要求生成图片，保持参考内容一致性。"
+    },
+    "_meta": {
+      "title": "#384 #-1 ⚙️ CR Prompt Text"
+    }
+  },
+  "386": {
+    "class_type": "TextPreview",
+    "inputs": {
+      "text": [
+        "378",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "#386 #-1 Preview Text"
+    }
+  },
+  "396": {
+    "class_type": "easy string",
+    "inputs": {
+      "value": ""
+    },
+    "_meta": {
+      "title": "ApiKey"
+    }
+  },
+  "397": {
+    "class_type": "T8Zhenzhen_API_Settings",
+    "inputs": {
+      "api_base": "ip",
+      "apikey": [
+        "396",
+        0
+      ],
+      "custom_ip": [
+        "398",
+        0
+      ],
+      "skip_error": false
+    },
+    "_meta": {
+      "title": "#397 #-1 Zhenzhen API Settings"
+    }
+  },
+  "398": {
+    "class_type": "easy string",
+    "inputs": {
+      "value": "http://192.168.50.3:8088"
+    },
+    "_meta": {
+      "title": "ApiBaseUrl"
+    }
+  }
+}

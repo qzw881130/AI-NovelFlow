@@ -41,4 +41,6 @@ export const imageReviewApi = {
   list: (taskId: string) => api.get<ImageReview[]>(`/tasks/${taskId}/image-reviews`),
   create: (taskId: string) => api.post<ImageReview>(`/tasks/${taskId}/image-reviews`),
   statuses: (images: CurrentReviewImage[]) => api.post<CurrentImageQuality[]>('/tasks/image-review-statuses', { images }),
+  createLibrary: (kind: 'character' | 'scene' | 'prop', entityId: string) =>
+    api.post<{ taskId: string; review: ImageReview }>('/tasks/library-image-reviews', { kind, entityId }),
 };

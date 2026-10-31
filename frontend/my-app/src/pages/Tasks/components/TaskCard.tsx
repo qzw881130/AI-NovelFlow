@@ -10,6 +10,7 @@ import { toast } from '../../../stores/toastStore';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 import { formatAspectRatio } from '../../../utils/aspectRatio';
+import { preflightErrorCategory, videoCheckLabels } from '../../../utils/preflightErrorCategory';
 import { WaveformAudioPlayer } from '../../../components/WaveformAudioPlayer';
 import { SubtitleEditor } from './SubtitleEditor';
 
@@ -38,16 +39,6 @@ interface TaskCardProps {
   formatDate: (dateStr: string) => string;
 }
 
-const preflightCheckLabels: Record<string, string> = {
-  SHOT_EXISTS: '分镜归属',
-  SHOT_IMAGE_READY: '主分镜图',
-  CLIP_PLAN_READY: '片段计划',
-  TASK_RELATION_VALID: '任务关系',
-  ACTIVE_VIDEO_TASK: '重复执行',
-  IDENTITY_FEATURES_RECORDED: '人物稳定特征',
-  IDENTITY_PORTRAIT_READY: '人物参考图',
-};
-
 function backgroundMusicFilename(task: Task): string {
   const chapter = task.chapterTitle?.trim() || (task.chapterNumber != null ? `第${task.chapterNumber}章` : '章回');
   const name = [task.novelName?.trim() || '小说', chapter, '背景音乐'].join('-')
@@ -60,21 +51,15 @@ function backgroundMusicFilename(task: Task): string {
 
 function videoErrorCategory(message?: string | null, currentStep?: string | null): string | null {
   if (!message) return null;
-  if (message.includes('GENERATION_PREFLIGHT_FAILED')) {
-    const checkId = Object.keys(preflightCheckLabels).find(id => message.includes(id));
-    return checkId ? `视频生成预检 · ${preflightCheckLabels[checkId]}` : '视频生成预检';
-  }
+  const catalogCategory = preflightErrorCategory(message);
+  if (catalogCategory) return catalogCategory;
   if (currentStep === '已完成视频回执接受失败' || message.includes('CLIP_RECEIPT_ACCEPTANCE_')) {
-    return '视频生成预检 · 已完成 Clip 回执接受';
+    return videoCheckLabels.CLIP_RECEIPT_ACCEPTANCE;
   }
   if (currentStep === 'Clip 结果恢复被拒绝' || message.includes('CLIP_RECOVERY_')
       || message.includes('CANONICAL_RECOVERY_CONFLICT')) {
-    return '视频生成预检 · Clip 结果恢复与回写';
+    return videoCheckLabels.CLIP_RESULT_RECOVERY;
   }
-  if (message.includes('PREVIOUS_AV_BINDING_UNVERIFIED')) return '执行阶段 · 续接工作流绑定';
-  if (message.includes('PHASE_B_INPUT_NOT_COVERED')) return '执行阶段 · H3 Phase B 输入';
-  if (message.includes('H3_PROMPT_LANGUAGE_MISMATCH')) return '执行阶段 · 提示词语言一致性';
-  if (message.includes('PHASE_B_PREFLIGHT_FAILED')) return '执行阶段 · 提示词结构校验';
   return null;
 }
 
@@ -164,6 +149,8 @@ export function TaskCard({
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
+      case 'grid_board_image':
+      case 'grid_panel_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image_repair':
       case 'shot_image_repair_candidate': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
@@ -173,6 +160,9 @@ export function TaskCard({
       case 'narrator_audio':
       case 'chapter_background_music': return <Music className="h-5 w-5" />;
       case 'shot_video':
+      case 'grid_h3_clip':
+      case 'grid_shot_merge':
+      case 'grid_chapter_merge':
       case 'shot_video_hd':
       case 'shot_video_hd_batch':
       case 'chapter_video':
@@ -226,8 +216,36 @@ export function TaskCard({
     const directorSlot = label?.match(/^Director Visual Ref (\d+)$/);
     return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
   };
-  const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
-  const errorCategory = isVideoTask ? videoErrorCategory(task.errorMessage, task.currentStep) : null;
+  const rawDisplayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const gridReviewReminder = task.status === 'completed' &&
+    ['grid_auto_batch', 'grid_board_batch', 'grid_review_batch'].includes(task.type) &&
+    task.currentStep?.includes('待人工复核') ? task.currentStep : null;
+  const getCurrentStepLabel = () => {
+    if (!task.currentStep) return t('tasks.gridProgress.processing');
+    if (!task.type.startsWith('grid_')) return task.currentStep;
+    if (task.currentStep === task.name.split(' · ')[0]) return getTaskTypeName(task.type);
+    const pendingCount = task.currentStep.match(/^等待执行 (\d+) 项$/);
+    if (pendingCount) return t('tasks.gridProgress.waitingItems', { count: pendingCount[1] });
+    const stepKeys: Record<string, string> = {
+      '等待宫格任务队列': 'queued',
+      '按顺序执行宫格任务': 'batchRunning',
+      '批量生成完成': 'batchCompleted',
+      '批量提交中断': 'batchInterrupted',
+      '前一步失败，未执行': 'previousFailed',
+      '前一步未完成，未执行': 'previousIncomplete',
+      '已完成': 'completed',
+      '执行失败': 'failed',
+      '已提交 ComfyUI，等待生成结果': 'comfySubmitted',
+      '生成完成，正在保存并裁切子格': 'savingBoard',
+      '生成完成，正在保存子格': 'savingPanel',
+      'H3 完成，正在保存 Clip': 'savingClip',
+    };
+    const key = stepKeys[task.currentStep];
+    return key ? t(`tasks.gridProgress.${key}`) : task.currentStep;
+  };
+  const errorCategory = videoErrorCategory(task.errorMessage, task.currentStep)
+    || preflightErrorCategory(task.errorMessage, task.gridStep) || getTaskTypeName(task.type);
+  const displayErrorMessage = rawDisplayErrorMessage?.replace(`[${errorCategory}]`, '').trim();
   const hasErrorDetails = Boolean(task.errorMessage && displayErrorMessage &&
     (errorCategory || task.errorMessage !== displayErrorMessage || displayErrorMessage.length > 100));
   const recoveryMismatches = clipRecoveryPlanMismatches(task.errorMessage);
@@ -332,6 +350,9 @@ export function TaskCard({
             </p>
           )}
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
+          {gridReviewReminder && <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800" data-grid-review-reminder>
+            {gridReviewReminder}
+          </p>}
           {(task.novelName || chapterLabel) && (
             <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {task.novelName && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">📖 {task.novelName}</span>}
@@ -341,7 +362,7 @@ export function TaskCard({
           {task.status === 'running' && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span>{task.currentStep || '处理中...'}</span>
+                <span>{getCurrentStepLabel()}</span>
                 <span>{task.progress}%</span>
               </div>
               <div className="h-2 bg-white rounded-full overflow-hidden">
@@ -354,7 +375,7 @@ export function TaskCard({
               <button type="button" className="flex w-full items-start gap-2 text-left" onClick={() => onToggleError(task.id)} aria-expanded={expandedErrors.has(task.id)}>
                 <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <span className="flex-1 min-w-0">
-                  <span className="block font-medium">{comfyErrorTitles[comfyError.error_code] || comfyError.error_code}{comfyStages[comfyError.stage] ? ` · ${comfyStages[comfyError.stage]}` : ''}</span>
+                  <span className="block font-medium"><span data-error-category>[{errorCategory}]</span> {comfyErrorTitles[comfyError.error_code] || comfyError.error_code}{comfyStages[comfyError.stage] ? ` · ${comfyStages[comfyError.stage]}` : ''}</span>
                   <span className="block mt-1 break-words">{comfyErrorSummary}</span>
                 </span>
                 {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -386,7 +407,7 @@ export function TaskCard({
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center justify-between">
                     <span className="font-medium">
-                      {t('tasks.error')}: {errorCategory && <span data-error-category className="mr-1 rounded bg-red-200 px-1.5 py-0.5">{errorCategory}</span>}
+                      {t('tasks.error')}: {errorCategory && <span data-error-category className="mr-1 rounded bg-red-200 px-1.5 py-0.5">[{errorCategory}]</span>}
                       {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}
                     </span>
                     {hasErrorDetails && (
@@ -525,8 +546,8 @@ export function TaskCard({
                       )}
                     </div>
                     {clip.errorMessage && <div className="mt-1 text-red-600">
-                      {videoErrorCategory(clip.errorMessage) && <span data-error-category className="mr-1 rounded bg-red-100 px-1.5 py-0.5">{videoErrorCategory(clip.errorMessage)}</span>}
-                      {formatUserFacingError(clip.errorMessage)}
+                      <span data-error-category className="mr-1 rounded bg-red-100 px-1.5 py-0.5">[{videoErrorCategory(clip.errorMessage) || 'Clip 生成'}]</span>
+                      {formatUserFacingError(clip.errorMessage).replace(/^\[[^\]]+\]\s*/, '')}
                     </div>}
                     {clip.promptText && <div className="mt-1 line-clamp-2 text-gray-500" title={clip.promptText}>Prompt: {clip.promptText}</div>}
                     {!!clip.referenceImages?.length && (
@@ -556,12 +577,13 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'shot_image_repair' || task.type === 'shot_image_repair_candidate' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' || task.type === 'novel_video_cover' || task.type === 'grid_board_image' || task.type === 'grid_panel_image' || task.type === 'grid_panel_review' ? (
                 <div>
+                  {task.type === 'grid_panel_review' && <div className="mb-1 text-xs font-medium text-gray-600">{t('tasks.reviewedGridPanel')}</div>}
                   <div className="relative group inline-block">
                     <img
                       src={task.resultUrl}
-                      alt={t('tasks.generatedResult')}
+                      alt={task.type === 'grid_panel_review' ? t('tasks.reviewedGridPanel') : t('tasks.generatedResult')}
                       className="h-32 w-auto object-contain rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow bg-gray-50"
                       onClick={() => task.resultUrl && onPreviewImage(task.resultUrl)}
                       onLoad={() => task.resultUrl && fetchImageInfo(task.resultUrl, task.id)}
@@ -595,7 +617,7 @@ export function TaskCard({
                   className="w-full max-w-2xl rounded-lg bg-black"
                   aria-label={task.name}
                 />
-              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'subtitle_render' || task.type === 'transition_video' ? (
+              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'subtitle_render' || task.type === 'transition_video' || task.type === 'grid_h3_clip' || task.type === 'grid_shot_merge' || task.type === 'grid_chapter_merge' ? (
                 <div>
                   <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
                     <div className="h-32 w-48 bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
@@ -645,7 +667,7 @@ export function TaskCard({
               )}
             </div>
           )}
-          {task.type === 'chapter_video' && task.nameplatePreview?.url && (
+          {['chapter_video', 'grid_chapter_merge'].includes(task.type) && task.nameplatePreview?.url && (
             <div className="mt-3 rounded-lg border border-red-100 bg-red-50/40 p-3 text-sm">
               <div className="font-medium text-gray-800">首次出镜姓名牌</div>
               <div className="mt-1 text-xs text-gray-500">
@@ -670,7 +692,7 @@ export function TaskCard({
               </div>
             </div>
           )}
-          {task.type === 'chapter_video' && (task.nameplatePreview?.warnings?.length ?? 0) > 0 && (
+          {['chapter_video', 'grid_chapter_merge'].includes(task.type) && (task.nameplatePreview?.warnings?.length ?? 0) > 0 && (
             <div className="mt-2 text-xs text-amber-700">
               {task.nameplatePreview?.warnings?.join('；')}
             </div>
@@ -713,7 +735,7 @@ export function TaskCard({
           )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
-          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch' && task.type !== 'shot_image_repair' && task.type !== 'shot_image_repair_candidate') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
+          {(task.type !== 'chapter_ai_split' && task.type !== 'chapter_ai_split_batch' && task.type !== 'grid_chapter_plan_batch' && task.type !== 'grid_panel_review' && task.type !== 'shot_image_repair' && task.type !== 'shot_image_repair_candidate') && (task.status === 'failed' || (task.type === 'shot_video_batch' && task.status === 'paused')) && (
             <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={task.type === 'shot_video_batch' ? '恢复未完成的 Shot' : t('tasks.retry')}>
               <Play className="h-4 w-4" />
             </button>
@@ -723,7 +745,7 @@ export function TaskCard({
               <Code className="h-4 w-4" />
             </button>
           )}
-          {(!(task.type === 'chapter_ai_split' || task.type === 'chapter_ai_split_batch') || !['pending', 'running'].includes(task.status)) && <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
+          {(!(['chapter_ai_split', 'chapter_ai_split_batch', 'grid_chapter_plan_batch'].includes(task.type)) || !['pending', 'running'].includes(task.status)) && <button onClick={() => onDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title={t('common.delete')}>
             <Trash2 className="h-4 w-4" />
           </button>}
         </div>

@@ -271,6 +271,9 @@ export default {
 
   // 提示词配置
   promptConfig: {
+    scopeShared: '两种模式共用',
+    scopeSingle: '单镜图模式',
+    scopeGrid: '宫格图模式',
     title: '提示词配置',
     subtitle: '管理 AI 角色生成和章节拆分提示词模板',
     parseCharactersPrompt: 'AI解析角色系统提示词',
@@ -368,6 +371,16 @@ export default {
       keyframeTransitionDesc: '用于根据相邻关键帧生成 Segment 动态导演描述',
       clipExecutionPlanner: '视频片段执行规划',
       clipExecutionPlannerDesc: '用于把已规划的关键帧时间轴拆分为可执行的视频 Clip 计划',
+      gridShotPlan: '宫格 Shot 与逐格机位规划',
+      gridShotPlanDesc: '按已选宫格版式规划剧情、镜头、轴线和台词',
+      gridImagePrompt: '宫格整板生图提示词',
+      gridImagePromptDesc: '按逐格脚本构建一张可裁切的宫格图',
+      gridPanelReviewPrompt: '宫格子格质量评审',
+      gridPanelReviewPromptDesc: '按本格人物、机位焦点、遮挡和画外声审查生视频子格',
+      gridClipPlan: '宫格子图到 Clip 规划',
+      gridClipPlanDesc: '给短 Clip 分配子图、动作和台词',
+      gridH3PhaseB: '宫格 H3 六段式提示词',
+      gridH3PhaseBDesc: '为宫格 Clip 构建 H3 Ref2VA 六段式提示词',
       h3PreflightRepairPrompt: 'MiniMax H3 Preflight 自动修复',
       h3PreflightRepairPromptDesc: '局部修复合同问题，最多一次 LLM 调用',
       h3ExecutionOptimizerPrompt: 'MiniMax H3 执行提示词优化',

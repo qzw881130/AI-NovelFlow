@@ -269,6 +269,9 @@ export default {
 
   // Prompt Config
   promptConfig: {
+    scopeShared: 'Shared by both modes',
+    scopeSingle: 'Single-image mode',
+    scopeGrid: 'Grid mode',
     title: 'Prompt Configuration',
     subtitle: 'Manage AI character generation and chapter split prompt templates',
     parseCharactersPrompt: 'AI Parse Characters System Prompt',
@@ -366,6 +369,16 @@ export default {
       keyframeTransitionDesc: 'Generate dynamic director descriptions for segments from adjacent keyframes',
       clipExecutionPlanner: 'Clip Execution Planner',
       clipExecutionPlannerDesc: 'Convert a planned keyframe timeline into an executable video clip plan',
+      gridShotPlan: 'Grid Shot and panel camera plan',
+      gridShotPlanDesc: 'Plan story beats, cameras, spatial axis, and dialogue for the selected grid',
+      gridImagePrompt: 'Grid image prompt',
+      gridImagePromptDesc: 'Build one croppable storyboard grid from the panel plan',
+      gridPanelReviewPrompt: 'Grid panel quality review',
+      gridPanelReviewPromptDesc: 'Review each video panel against its own cast, camera focus, occlusion, and offscreen voices',
+      gridClipPlan: 'Grid panels to Clip plan',
+      gridClipPlanDesc: 'Assign panels, action, and dialogue to short Clips',
+      gridH3PhaseB: 'Grid H3 six-section prompt',
+      gridH3PhaseBDesc: 'Build an H3 Ref2VA six-section prompt for a grid-derived Clip',
       h3PreflightRepairPrompt: 'MiniMax H3 Preflight Auto Repair',
       h3PreflightRepairPromptDesc: 'Bounded local contract repair; one LLM call',
       h3ExecutionOptimizerPrompt: 'MiniMax H3 Execution Prompt Optimizer',

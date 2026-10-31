@@ -47,6 +47,7 @@ class PromptTemplateType:
     # 关键帧生图提示词
     KEYFRAME_IMAGE_PROMPT = "keyframe_image_prompt"
     IMAGE_QUALITY_REVIEW_PROMPT = "image_quality_review_prompt"
+    GRID_PANEL_REVIEW_PROMPT = "grid_panel_review_prompt"
     TEMPORAL_REFERENCE_SELECTOR = "temporal_reference_selector"
     # 关键帧过渡规划提示词
     KEYFRAME_TRANSITION = "keyframe_transition"
@@ -57,6 +58,10 @@ class PromptTemplateType:
     H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B = "h3_multi_keyframe_director_phase_b"
     H3_PREFLIGHT_REPAIR_PROMPT = "h3_preflight_repair_prompt"
     H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
+    GRID_SHOT_PLAN = "grid_shot_plan"
+    GRID_IMAGE_PROMPT = "grid_image_prompt"
+    GRID_CLIP_PLAN = "grid_clip_plan"
+    GRID_H3_PHASE_B = "grid_h3_phase_b"
     BACKGROUND_MUSIC_DIRECTOR = "background_music_director"
     BACKGROUND_MUSIC_DIRECTOR_FULL = "background_music_director_full"
     BACKGROUND_MUSIC_GENERATION = "background_music_generation"
@@ -82,13 +87,15 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.KEYFRAME_PLANNER,
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
     PromptTemplateType.IMAGE_QUALITY_REVIEW_PROMPT,
+    PromptTemplateType.GRID_PANEL_REVIEW_PROMPT,
     PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
     PromptTemplateType.CLIP_EXECUTION_PLANNER,
-    PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_DIRECTOR_PHASE_B,
-    PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
-    PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
+    PromptTemplateType.GRID_SHOT_PLAN,
+    PromptTemplateType.GRID_IMAGE_PROMPT,
+    PromptTemplateType.GRID_CLIP_PLAN,
+    PromptTemplateType.GRID_H3_PHASE_B,
     PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR,
     PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR_FULL,
     PromptTemplateType.BACKGROUND_MUSIC_GENERATION,
@@ -99,6 +106,31 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.GRID_SHOT_PLAN: {
+        "name_key": "promptConfig.types.gridShotPlan",
+        "desc_key": "promptConfig.types.gridShotPlanDesc",
+        "icon": "LayoutGrid", "color": "cyan",
+    },
+    PromptTemplateType.GRID_IMAGE_PROMPT: {
+        "name_key": "promptConfig.types.gridImagePrompt",
+        "desc_key": "promptConfig.types.gridImagePromptDesc",
+        "icon": "Images", "color": "cyan",
+    },
+    PromptTemplateType.GRID_CLIP_PLAN: {
+        "name_key": "promptConfig.types.gridClipPlan",
+        "desc_key": "promptConfig.types.gridClipPlanDesc",
+        "icon": "Film", "color": "violet",
+    },
+    PromptTemplateType.GRID_H3_PHASE_B: {
+        "name_key": "promptConfig.types.gridH3PhaseB",
+        "desc_key": "promptConfig.types.gridH3PhaseBDesc",
+        "icon": "Video", "color": "rose",
+    },
+    PromptTemplateType.GRID_PANEL_REVIEW_PROMPT: {
+        "name_key": "promptConfig.types.gridPanelReviewPrompt",
+        "desc_key": "promptConfig.types.gridPanelReviewPromptDesc",
+        "icon": "Images", "color": "emerald",
+    },
     PromptTemplateType.SUBTITLE_CORRECTION: {
         "name_key": "promptConfig.types.subtitleCorrection",
         "desc_key": "promptConfig.types.subtitleCorrectionDesc",
@@ -133,11 +165,6 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "name_key": "promptConfig.types.imageQualityReviewPrompt",
         "desc_key": "promptConfig.types.imageQualityReviewPromptDesc",
         "icon": "Images", "color": "emerald", "file_number": "15",
-    },
-    PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT: {
-        "name_key": "promptConfig.types.h3PreflightRepairPrompt",
-        "desc_key": "promptConfig.types.h3PreflightRepairPromptDesc",
-        "icon": "Video", "color": "blue", "file_number": "14A",
     },
     PromptTemplateType.SCENE_SETTING: {
         "name_key": "promptConfig.types.sceneSetting",
@@ -261,21 +288,34 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "icon": "Route",
         "color": "violet",
     },
-    PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT: {
-        "name_key": "promptConfig.types.h3MultiKeyframePrompt",
-        "desc_key": "promptConfig.types.h3MultiKeyframePromptDesc",
-        "icon": "Video",
-        "color": "rose",
-        "file_number": "13",
-    },
-    PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT: {
-        "name_key": "promptConfig.types.h3ExecutionOptimizerPrompt",
-        "desc_key": "promptConfig.types.h3ExecutionOptimizerPromptDesc",
-        "icon": "Video",
-        "color": "rose",
-        "file_number": "14",
-    },
 }
+
+# Prompt applicability is part of the type contract; it is not a new database field.
+GRID_PROMPT_TYPES = frozenset({
+    PromptTemplateType.GRID_SHOT_PLAN, PromptTemplateType.GRID_IMAGE_PROMPT,
+    PromptTemplateType.GRID_CLIP_PLAN, PromptTemplateType.GRID_H3_PHASE_B,
+})
+SHARED_PROMPT_TYPES = frozenset({
+    PromptTemplateType.STORY_WORLD_CONTEXT_RECOMMENDER, PromptTemplateType.STYLE,
+    PromptTemplateType.CHARACTER_PARSE, PromptTemplateType.SCENE_PARSE,
+    PromptTemplateType.PROP_PARSE, PromptTemplateType.CHARACTER,
+    PromptTemplateType.SCENE, PromptTemplateType.PROP,
+    PromptTemplateType.SCENE_SETTING, PromptTemplateType.PROP_APPEARANCE,
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR,
+    PromptTemplateType.BACKGROUND_MUSIC_DIRECTOR_FULL,
+    PromptTemplateType.BACKGROUND_MUSIC_GENERATION,
+    PromptTemplateType.SUBTITLE_CORRECTION, PromptTemplateType.SUBTITLE_TRANSLATION,
+})
+
+
+def prompt_template_scope(template_type: str) -> str:
+    if template_type in GRID_PROMPT_TYPES:
+        return "grid"
+    if template_type in SHARED_PROMPT_TYPES:
+        return "shared"
+    if template_type in PROMPT_TEMPLATE_TYPES:
+        return "single"
+    raise ValueError(f"UNKNOWN_PROMPT_TEMPLATE_TYPE: {template_type}")
 
 PROMPT_TEMPLATE_FILE_NUMBERS = {
     template_type: config["file_number"]
@@ -302,6 +342,7 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "keyframe_planner": "keyframe_planner_prompt_template_id",
     "keyframe_image_prompt": "keyframe_image_prompt_template_id",
     "image_quality_review_prompt": "image_quality_review_prompt_template_id",
+    "grid_panel_review_prompt": "grid_panel_review_prompt_template_id",
     "temporal_reference_selector": "temporal_reference_selector_prompt_template_id",
     "keyframe_transition": "keyframe_transition_prompt_template_id",
     "clip_execution_planner": "clip_execution_planner_prompt_template_id",
@@ -309,6 +350,10 @@ NOVEL_PROMPT_TEMPLATE_FIELDS = {
     "h3_multi_keyframe_director_phase_b": "h3_multi_keyframe_director_phase_b_template_id",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt_template_id",
     "h3_preflight_repair_prompt": "h3_preflight_repair_prompt_template_id",
+    "grid_shot_plan": "grid_shot_plan_prompt_template_id",
+    "grid_image_prompt": "grid_image_prompt_template_id",
+    "grid_clip_plan": "grid_clip_plan_prompt_template_id",
+    "grid_h3_phase_b": "grid_h3_phase_b_prompt_template_id",
 }
 
 

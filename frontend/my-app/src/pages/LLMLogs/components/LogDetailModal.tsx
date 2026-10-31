@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ImageInputs } from './ImageInputs';
 import { H3AVTimeline } from '../../../components/H3AVTimeline';
 import { Copy, Download, X } from 'lucide-react';
@@ -21,6 +22,7 @@ interface LogDetailModalProps {
 
 export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDate, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: LogDetailModalProps) {
   const { t } = useTranslation();
+  const [formattedView, setFormattedView] = useState<{ logId: string; tab: PromptTab } | null>(null);
 
   const getRequestInfo = () => {
     if (log.request_info) return log.request_info;
@@ -54,18 +56,18 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
     return log.response || '';
   };
 
-  const getDisplayContent = () => {
-    const content = getActiveContent();
-    if ((activeTab !== 'response' && activeTab !== 'params') || !content) return content || '-';
-
+  const activeContent = getActiveContent();
+  const formattedJson = (() => {
+    if (activeTab === 'images' || !activeContent) return null;
     try {
-      return JSON.stringify(JSON.parse(content), null, 2);
+      const parsed = JSON.parse(activeContent);
+      return parsed !== null && typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : null;
     } catch {
-      return content;
+      return null;
     }
-  };
-
-  const activeContentLength = getActiveContent().length;
+  })();
+  const isFormatted = formattedJson !== null && formattedView?.logId === log.id && formattedView.tab === activeTab;
+  const activeContentLength = activeContent.length;
   const avTimeline = (() => {
     if (log.task_type !== 'h3_execution_optimizer_prompt') return undefined;
     try { return JSON.parse(log.response || '{}').av_timeline; } catch { return undefined; }
@@ -179,10 +181,20 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                {formattedJson !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setFormattedView(isFormatted ? null : { logId: log.id, tab: activeTab })}
+                    className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-blue-50"
+                    aria-pressed={isFormatted}
+                  >
+                    {t(isFormatted ? 'llmLogs.showRawJson' : 'llmLogs.prettyJson')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCopy}
-                  disabled={!getActiveContent()}
+                  disabled={!activeContent}
                   className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   title={t('common.copy')}
                   aria-label={t('common.copy')}
@@ -192,7 +204,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
                 <button
                   type="button"
                   onClick={handleDownload}
-                  disabled={!getActiveContent()}
+                  disabled={!activeContent}
                   className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   title={t('common.download')}
                   aria-label={t('common.download')}
@@ -206,7 +218,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             {activeTab === 'response' && <H3AVTimeline timeline={avTimeline} />}
             {activeTab === 'images' && log.image_inputs?.length ? <ImageInputs images={log.image_inputs} /> : <div className="bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-700 whitespace-pre-wrap break-words overflow-x-auto">
-                {getDisplayContent()}
+                {isFormatted ? formattedJson : activeContent || '-'}
               </pre>
             </div>}
           </div>

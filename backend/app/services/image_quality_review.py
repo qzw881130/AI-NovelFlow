@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from urllib.parse import urlsplit
 
-from app.services.llm.http_retry import single_attempt_llm_request
-
 from app.models.image_quality_review import ImageQualityReview
 from app.models.novel import Character, Scene, Prop
 from app.models.novel import Novel
@@ -21,7 +19,7 @@ from app.services.vision_inputs import vision_proxy
 from app.utils.json_parser import safe_parse_llm_json
 
 
-IMAGE_TYPES = {"character_portrait", "shot_image", "shot_image_repair_candidate", "scene_image", "prop_image", "keyframe_image", "single_image_edit"}
+IMAGE_TYPES = {"character_portrait", "shot_image", "shot_image_repair_candidate", "scene_image", "prop_image", "keyframe_image", "single_image_edit", "grid_panel_review"}
 DIMENSIONS = ("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY", "ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY")
 BLOCKING_DIMENSIONS = frozenset(("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY"))
 STATUSES = {"PASS", "WARNING", "FAIL"}
@@ -48,7 +46,8 @@ def _json(value, default):
 
 def build_review_input(task: Task, structured_target: dict | None = None, *, generation_review: bool = False) -> dict:
     in_generation = generation_review and task.type in {"shot_image", "shot_image_repair_candidate", "scene_image"} and task.status == "running"
-    if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation) or not task.result_url or not task.prompt_text:
+    grid_review_running = task.type == "grid_panel_review" and task.status == "running"
+    if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation and not grid_review_running) or not task.result_url or not task.prompt_text:
         raise ValueError("评审需要已完成生图任务、真实生成图和原始提示词")
     metadata = _json(task.metadata_json, {})
     metadata = metadata if isinstance(metadata, dict) else {}
@@ -107,6 +106,14 @@ def build_review_input(task: Task, structured_target: dict | None = None, *, gen
             "workflow_name": task.workflow_name,
             "counting_rule": "角色形象图按不同角色身份计数。四视图中的正面、侧面、背面和头像特写是同一角色的重复展示，不是四个人；单一形象图按目标中的单幅人物构图评审。若工作流未明确版式，结合原始提示词判断，不得仅凭同一角色的多视角展示判定多出人物。",
         }
+    if task.type == "grid_panel_review":
+        panel_target = metadata.get("structured_target") or {}
+        target["grid_panel"] = panel_target if isinstance(panel_target, dict) else {}
+        target["authority_note"] = (
+            "只评审 GENERATED_OUTPUT 中的当前子格。target.grid_panel.panel 的人物、剧情、机位、动作和台词"
+            "是本格目标；Shot 角色表仅是全镜头背景，不要求所有角色在本格出镜。"
+            "景深、过肩遮挡与画外声按本格机位和台词判断。"
+        )
     return {
         "task_id": task.id, "task_type": "shot_image" if task.type == "shot_image_repair_candidate" else task.type, "novel_id": task.novel_id,
         "chapter_id": task.chapter_id, "shot_id": task.shot_id,
@@ -195,7 +202,7 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
         if shot:
             structured["shot"] = {"description": shot.description, "scene": shot.scene,
                                   "props": _json(shot.props, []),
-                                  "characters": _json(shot.characters, []) if task.type in {"shot_image", "shot_image_repair_candidate"} else None}
+                                  "characters": _json(shot.characters, []) if task.type in {"shot_image", "shot_image_repair_candidate", "grid_panel_review"} else None}
     for id_field, model, key, fields in (
         (task.character_id, Character, "character", ("name", "description", "appearance")),
         (task.scene_id, Scene, "scene", ("name", "description", "setting")),
@@ -214,9 +221,10 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
         snapshot = build_review_input(task, structured, generation_review=trigger == "generation")
         review.input_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
         novel = db.get(Novel, task.novel_id) if task.novel_id else None
-        template = resolve_novel_prompt_template(db, novel, "image_quality_review_prompt")
+        template_type = "grid_panel_review_prompt" if task.type == "grid_panel_review" else "image_quality_review_prompt"
+        template = resolve_novel_prompt_template(db, novel, template_type)
         if not template or not template.template.strip():
-            raise ValueError("AI 图片质量评审系统提示词未登记")
+            raise ValueError(f"{template_type} 系统提示词未登记")
         review.template_id, review.template_name = template.id, template.name
         review.template_version = hashlib.sha256(template.template.encode("utf-8")).hexdigest()
         review.template_text = template.template
@@ -270,12 +278,11 @@ async def execute_image_review(db: Session, review_id: str) -> ImageQualityRevie
         llm = LLMService()
         review.provider, review.model = llm.provider, llm.model
         db.commit()
-        with single_attempt_llm_request():
-            response = await llm.chat_completion(
-                system_prompt=review.template_text, user_content=json.dumps(user_input, ensure_ascii=False),
-                response_format="json_object", task_type="image_quality_review_prompt",
-                prompt_template_name=review.template_name, novel_id=snapshot.get("novel_id"),
-                chapter_id=snapshot.get("chapter_id"), shot_id=snapshot.get("shot_id"), images=images)
+        response = await llm.chat_completion(
+            system_prompt=review.template_text, user_content=json.dumps(user_input, ensure_ascii=False),
+            response_format="json_object", task_type=("grid_panel_review_prompt" if snapshot["task_type"] == "grid_panel_review" else "image_quality_review_prompt"),
+            prompt_template_name=review.template_name, novel_id=snapshot.get("novel_id"),
+            chapter_id=snapshot.get("chapter_id"), shot_id=snapshot.get("shot_id"), images=images)
         review.llm_log_id = response.get("log_id")
         review.raw_response = json.dumps(response.get("raw_response"), ensure_ascii=False, default=str) if response.get("raw_response") else response.get("content")
         if not response.get("success"):

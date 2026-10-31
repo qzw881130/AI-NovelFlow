@@ -20,6 +20,8 @@ class Novel(Base):
     cover = Column(String, nullable=True)
     status = Column(String, default="pending", index=True)  # 状态过滤
     is_archived = Column(Boolean, default=False, server_default="0", nullable=False, index=True)
+    # Existing novels and legacy API calls remain single-image unless explicitly routed.
+    video_mode = Column(String, default="single", server_default="single", nullable=False)
     chapter_count = Column(Integer, default=0)
     is_preset = Column(Boolean, default=False, index=True)  # 预设过滤
     
@@ -50,6 +52,11 @@ class Novel(Base):
     h3_multi_keyframe_director_phase_b_template_id = Column(String, nullable=True)  # H3 Phase B 单阶段导演视频提示词模板
     h3_execution_optimizer_prompt_template_id = Column(String, nullable=True)  # H3 执行提示词优化模板
     h3_preflight_repair_prompt_template_id = Column(String, nullable=True)  # H3 Preflight 自动修复模板
+    grid_shot_plan_prompt_template_id = Column(String, nullable=True)
+    grid_image_prompt_template_id = Column(String, nullable=True)
+    grid_panel_review_prompt_template_id = Column(String, nullable=True)
+    grid_clip_plan_prompt_template_id = Column(String, nullable=True)
+    grid_h3_phase_b_prompt_template_id = Column(String, nullable=True)
     
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

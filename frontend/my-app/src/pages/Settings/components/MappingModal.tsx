@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { workflowApi } from '../../../api/workflows';
+import { configApi } from '../../../api/config';
+import type { CustomVariableKey } from '../../../api/config';
 import type { Workflow, AvailableNodes } from '../types';
 
 interface MappingForm {
@@ -13,6 +15,10 @@ interface MappingForm {
   subtitleStartTimesNodeId?: string;
   subtitleEndTimesNodeId?: string;
   promptNodeId: string;
+  apiKeyNodeId?: string;
+  apiKeyVariable?: string;
+  apiBaseUrlNodeId?: string;
+  apiBaseUrlKeyVariable?: string;
   appearanceNodeId?: string;
   styleNodeId?: string;
   saveImageNodeId: string;
@@ -86,6 +92,7 @@ const MEGAPIXEL_OPTIONS = [
 const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video', 'multi_reference_video'].includes(type || '');
 const isFirstLastVideoType = (type?: string) => ['transition', 'first_last_video'].includes(type || '');
 const isShotImageType = (type?: string) => ['shot', 'shot_scene', 'shot_character_scene', 'shot_scene_prop'].includes(type || '');
+const isImageWorkflowType = (type?: string) => ['character', 'scene', 'prop', 'keyframe_image', 'single_image_edit', 'multi_image_edit'].includes(type || '') || isShotImageType(type);
 const getRequiredKeyframeCount = (type?: string) => {
   if (type === 'three_frame_video') return 2;
   if (type === 'four_frame_video') return 3;
@@ -100,6 +107,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
   const { t } = useTranslation();
   const [mappingForm, setMappingForm] = useState<MappingForm>({
     promptNodeId: '',
+    apiKeyNodeId: '',
+    apiKeyVariable: '',
+    apiBaseUrlNodeId: '',
+    apiBaseUrlKeyVariable: '',
     appearanceNodeId: '',
     styleNodeId: '',
     saveImageNodeId: '',
@@ -163,12 +174,30 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
   const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [savingMapping, setSavingMapping] = useState(false);
+  const [apiKeyChoices, setApiKeyChoices] = useState<Array<{ key: CustomVariableKey; note: string }>>([]);
+  const [apiKeyChoicesLoaded, setApiKeyChoicesLoaded] = useState(false);
+  const [apiKeyChoicesLoading, setApiKeyChoicesLoading] = useState(false);
+  const [apiKeyChoicesLoadAttempt, setApiKeyChoicesLoadAttempt] = useState(0);
 
   useEffect(() => {
     if (workflow) {
       loadWorkflowMapping(workflow);
     }
   }, [workflow]);
+
+  useEffect(() => {
+    if (!isImageWorkflowType(workflow?.type)) return;
+    setApiKeyChoicesLoaded(false);
+    setApiKeyChoicesLoading(true);
+    configApi.customVariableOptions().then(result => {
+      if (!result.success || !result.data) throw new Error('加载自定义变量失败');
+      setApiKeyChoices(result.data);
+      setApiKeyChoicesLoaded(true);
+    }).catch(error => {
+      console.error('加载自定义变量失败:', error);
+      toast.error('加载自定义变量失败，请重试');
+    }).finally(() => setApiKeyChoicesLoading(false));
+  }, [workflow?.id, workflow?.type, apiKeyChoicesLoadAttempt]);
 
   const loadWorkflowMapping = async (wf: Workflow) => {
     try {
@@ -601,6 +630,12 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 durationSecondsNodeId: ''
               });
             }
+            setMappingForm(previous => ({ ...previous,
+              apiKeyNodeId: mapping.api_key_node_id || '',
+              apiKeyVariable: mapping.api_key_node_id ? mapping.api_key_variable || '' : '',
+              apiBaseUrlNodeId: mapping.api_base_url_node_id || '',
+              apiBaseUrlKeyVariable: mapping.api_base_url_node_id ? mapping.api_base_url_key_variable || '' : '',
+            }));
           } catch (e) {
             console.error('解析工作流 JSON 失败:', e);
           }
@@ -615,6 +650,28 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     e.preventDefault();
     e.stopPropagation();
     if (!workflow) return;
+    if (isImageWorkflowType(workflow.type)) {
+      if (Boolean(mappingForm.apiKeyNodeId) !== Boolean(mappingForm.apiKeyVariable)) {
+        toast.error('apiKey 节点和 apiKey 变量需要同时选择');
+        return;
+      }
+      if (mappingForm.apiKeyNodeId && !apiKeyChoices.some(item => item.key === mappingForm.apiKeyVariable)) {
+        toast.error('所选 apiKey 变量没有值，请重新选择');
+        return;
+      }
+      if (Boolean(mappingForm.apiBaseUrlNodeId) !== Boolean(mappingForm.apiBaseUrlKeyVariable)) {
+        toast.error('apiBaseUrl 节点和 apiBaseUrlKey 变量需要同时选择');
+        return;
+      }
+      if (mappingForm.apiBaseUrlNodeId && !apiKeyChoices.some(item => item.key === mappingForm.apiBaseUrlKeyVariable)) {
+        toast.error('所选 apiBaseUrlKey 变量没有值，请重新选择');
+        return;
+      }
+      if (mappingForm.apiKeyNodeId && mappingForm.apiKeyNodeId === mappingForm.apiBaseUrlNodeId) {
+        toast.error('apiKey 节点和 apiBaseUrl 节点不能相同');
+        return;
+      }
+    }
     
     setSavingMapping(true);
     try {
@@ -855,6 +912,14 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         };
       }
       
+      // 保存可选变量映射
+      if (isImageWorkflowType(workflow.type)) {
+        nodeMapping.api_key_node_id = mappingForm.apiKeyNodeId || null;
+        nodeMapping.api_key_variable = mappingForm.apiKeyVariable || null;
+        nodeMapping.api_base_url_node_id = mappingForm.apiBaseUrlNodeId || null;
+        nodeMapping.api_base_url_key_variable = mappingForm.apiBaseUrlKeyVariable || null;
+      }
+
       // 添加自定义参考图节点
       if (workflow.type === 'shot') {
         mappingForm.customReferenceImageNodes.forEach((nodeId, index) => {
@@ -885,6 +950,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     setMappingForm(current => ({
       ...current,
       [field]: value,
+      ...(field === 'apiKeyNodeId' && !value ? { apiKeyVariable: '' } : {}),
+      ...(field === 'apiBaseUrlNodeId' && !value ? { apiBaseUrlKeyVariable: '' } : {}),
       ...(field === 'secondPassUpscaleStepNodeId'
         ? { secondPassUpscaleStep: value ? current.secondPassUpscaleStep || '2' : '' } : {}),
       ...(field === 'secondPassUpscaleScaleNodeId'
@@ -1116,6 +1183,49 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'w-full lg:w-[68%]' : 'w-1/2'} min-h-0 overflow-y-auto`}>
             <form id="node-mapping-form" onSubmit={handleSaveMapping} className="space-y-4">
               {/* 根据工作流类型显示不同的映射字段 */}
+              {isImageWorkflowType(workflow.type) && (
+                <div className="grid grid-cols-1 items-start gap-4 border-b border-gray-200 pb-4 sm:grid-cols-2">
+                  <NodeSelectField label="apiKey 节点（可选）" nodeTypeHint="CR Text, CR Prompt Text, String, easy string"
+                    value={mappingForm.apiKeyNodeId || ''}
+                    options={Object.entries(workflowJsonData)
+                      .filter(([, node]) => ['CR Text', 'CR Prompt Text', 'String', 'easy string'].includes(node?.class_type))
+                      .map(([id, node]) => `${id} (${node?._meta?.title || node?.class_type})`)}
+                    onChange={value => handleNodeSelect(value, 'apiKeyNodeId')}
+                    onFocus={handleNodeFocus} t={t} />
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">apiKey 变量（可选）</label>
+                    <p className="mb-1.5 text-xs text-gray-400">只列出已填写 Value 的自定义变量</p>
+                    <select value={mappingForm.apiKeyVariable || ''}
+                      onChange={event => setMappingForm(previous => ({ ...previous, apiKeyVariable: event.target.value }))}
+                      disabled={!apiKeyChoicesLoaded || !mappingForm.apiKeyNodeId}
+                      className="input-field disabled:bg-gray-100">
+                      <option value="">-- {mappingForm.apiKeyNodeId ? t('common.select') : '请先选择 apiKey 节点'} --</option>
+                      {apiKeyChoices.map(item => <option key={item.key} value={item.key}>{item.key}{item.note ? ` ${item.note}` : ''}</option>)}
+                    </select>
+                    {!apiKeyChoicesLoaded && (apiKeyChoicesLoading ? <span className="mt-1 block text-xs text-gray-500">加载中...</span> :
+                      <button type="button" className="mt-1 text-xs text-blue-600 hover:underline"
+                        onClick={() => setApiKeyChoicesLoadAttempt(previous => previous + 1)}>加载失败，点击重试</button>)}
+                  </div>
+                  <NodeSelectField label="apiBaseUrl 节点（可选）" nodeTypeHint="CR Text, CR Prompt Text, String, easy string"
+                    value={mappingForm.apiBaseUrlNodeId || ''}
+                    options={Object.entries(workflowJsonData)
+                      .filter(([, node]) => ['CR Text', 'CR Prompt Text', 'String', 'easy string'].includes(node?.class_type))
+                      .map(([id, node]) => `${id} (${node?._meta?.title || node?.class_type})`)}
+                    onChange={value => handleNodeSelect(value, 'apiBaseUrlNodeId')}
+                    onFocus={handleNodeFocus} t={t} />
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">apiBaseUrlKey 变量（可选）</label>
+                    <p className="mb-1.5 text-xs text-gray-400">只列出已填写 Value 的自定义变量</p>
+                    <select value={mappingForm.apiBaseUrlKeyVariable || ''}
+                      onChange={event => setMappingForm(previous => ({ ...previous, apiBaseUrlKeyVariable: event.target.value }))}
+                      disabled={!apiKeyChoicesLoaded || !mappingForm.apiBaseUrlNodeId}
+                      className="input-field disabled:bg-gray-100">
+                      <option value="">-- {mappingForm.apiBaseUrlNodeId ? t('common.select') : '请先选择 apiBaseUrl 节点'} --</option>
+                      {apiKeyChoices.map(item => <option key={item.key} value={item.key}>{item.key}{item.note ? ` ${item.note}` : ''}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
               {(workflow.type === 'character' || workflow.type === 'scene' || workflow.type === 'prop') && (
                 <>
                   {workflow.type !== 'character' && (
@@ -2038,7 +2148,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           <button type="button" onClick={onClose} className="btn-secondary">
             {t('common.cancel')}
           </button>
-          <button type="submit" form="node-mapping-form" disabled={savingMapping} className="btn-primary">
+          <button type="submit" form="node-mapping-form" disabled={savingMapping || (isImageWorkflowType(workflow.type) && !apiKeyChoicesLoaded)} className="btn-primary">
             {savingMapping ? t('common.loading') : t('common.save')}
           </button>
         </div>

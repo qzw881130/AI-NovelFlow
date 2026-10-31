@@ -61,6 +61,7 @@ export function NovelCard({
   const characterTemplate = getTemplate(templatesByType, 'character', novel.promptTemplateId);
   const sceneTemplate = getTemplate(templatesByType, 'scene', novel.scenePromptTemplateId);
   const chapterSplitTemplate = getTemplate(templatesByType, 'chapter_split', novel.chapterSplitPromptTemplateId);
+  const gridShotPlanTemplate = getTemplate(templatesByType, 'grid_shot_plan', novel.gridShotPlanPromptTemplateId);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
@@ -93,7 +94,7 @@ export function NovelCard({
         </button>
       </div>
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-gray-900 truncate">{novel.title}</h3>
+        <div className="flex items-center justify-between gap-2"><h3 className="truncate text-lg font-semibold text-gray-900">{novel.title}</h3><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${novel.videoMode === 'grid' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{novel.videoMode === 'grid' ? '宫格' : '单镜'}</span></div>
         <p className="text-sm text-gray-500 mt-1">{novel.author}</p>
         <p className="text-sm text-gray-600 mt-2 line-clamp-2 h-10">
           {novel.description || t('novels.noDescription')}
@@ -112,8 +113,8 @@ export function NovelCard({
             <span className="truncate max-w-[80px]">{getTemplateDisplayName(sceneTemplate)}</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded whitespace-nowrap">
-            <span className="font-medium">{t('novels.splitPrompt')}</span>
-            <span className="truncate max-w-[80px]">{getTemplateDisplayName(chapterSplitTemplate)}</span>
+            <span className="font-medium">{novel.videoMode === 'grid' ? '宫格规划' : t('novels.splitPrompt')}</span>
+            <span className="truncate max-w-[80px]">{getTemplateDisplayName(novel.videoMode === 'grid' ? gridShotPlanTemplate : chapterSplitTemplate)}</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded whitespace-nowrap">
             <span className="font-medium">{t('novels.aspectRatioShort')}</span>

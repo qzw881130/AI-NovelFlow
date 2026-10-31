@@ -40,6 +40,31 @@ _EVENTS = (
 )
 
 EVENT_REGISTRY = {code: NotificationEvent(code, name, category, description) for code, name, category, description in _EVENTS}
+
+# Grid mode has its own task types. Keep its subscriptions separate from the
+# single-image / Phase B events so turning off one mode does not mute the other.
+GRID_TASK_EVENTS = {
+    "grid_chapter_plan": ("grid.chapter.plan", "叙事 Shot 规划", "宫格规划"),
+    "grid_chapter_plan_batch": ("grid.chapter.plan.batch", "批量叙事 Shot 规划", "宫格规划"),
+    "grid_panels_plan": ("grid.panels.plan", "子格规划", "宫格规划"),
+    "grid_board_prepare": ("grid.board.prompt", "整板提示词编写", "宫格提示词"),
+    "grid_board_image": ("grid.board.generation", "宫格整板生成", "宫格生图"),
+    "grid_panel_image": ("grid.panel.generation", "子格重做", "宫格生图"),
+    "grid_clips_plan": ("grid.clips.plan", "Clip 分配", "宫格规划"),
+    "grid_clip_prepare": ("grid.clip.prompt", "H3 提示词编译", "宫格提示词"),
+    "grid_h3_clip": ("grid.clip.generation", "H3 Clip 生成", "宫格生视频"),
+    "grid_shot_merge": ("grid.shot.assembly", "Shot 合并", "宫格合并"),
+    "grid_chapter_merge": ("grid.chapter.assembly", "章回合并", "宫格合并"),
+    "grid_batch": ("grid.batch", "批量任务", "宫格批量"),
+    "grid_auto_batch": ("grid.auto.batch", "自动批量生成 Shot", "宫格批量"),
+    "grid_board_batch": ("grid.board.batch", "批量生成分镜宫格图", "宫格批量"),
+    "grid_review_batch": ("grid.review.batch", "批量 AI 审图", "宫格批量"),
+}
+for prefix, name, category in GRID_TASK_EVENTS.values():
+    for suffix, result, description in (("completed", "完成", "已完成"), ("failed", "失败", "未能完成")):
+        code = f"{prefix}.{suffix}"
+        EVENT_REGISTRY[code] = NotificationEvent(code, f"{name}{result}", category, f"{name}{description}")
+
 for code, name, category, description, enabled in (
     ("story_world_context.parse.completed", "故事世界上下文解析完成", "小说解析", "故事世界上下文建议已生成", True),
     ("story_world_context.parse.failed", "故事世界上下文解析失败", "小说解析", "故事世界上下文建议未能生成", True),

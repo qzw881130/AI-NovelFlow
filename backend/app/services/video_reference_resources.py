@@ -11,8 +11,18 @@ from app.utils.path_utils import url_to_local_path
 def resolve_video_reference_resources(db, novel_id: str, shot, keyframes: list, transitions: list, clip: dict) -> dict:
     """Resolve optional assets; the compiler packs these after owned-state anchors."""
     references, skipped = [], []
+    # Camera images remain owned by the visual-state plan. This Clip-local switch
+    # controls only optional asset sheets, which can otherwise become extra shots.
+    allowed_exclusions = {"SCENE", "CHARACTER_IDENTITY", "PROP"}
+    excluded = clip.get("reference_exclude_kinds") or []
+    if not isinstance(excluded, list) or any(kind not in allowed_exclusions for kind in excluded):
+        raise ValueError("INVALID_REFERENCE_EXCLUDE_KINDS")
+    excluded = set(excluded)
 
     def add(model, kind, name):
+        if kind in excluded:
+            skipped.append({"kind": kind, "source_name": name, "reason": "CLIP_REFERENCE_POLICY"})
+            return
         asset = db.query(model).filter(model.novel_id == novel_id, model.name == name).order_by(model.id).first()
         reason = None
         if not asset:

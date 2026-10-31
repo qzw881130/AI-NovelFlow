@@ -10,7 +10,12 @@ import { StoryWorldContextModal } from './components/StoryWorldContextModal';
 import { EditNovelModal } from './components/EditNovelModal';
 import { ParseConfirmDialog } from './components/ParseConfirmDialog';
 import type { NovelFormData } from './types';
-import { TEMPLATE_FIELDS, emptyNovelTemplateSelection } from './promptTemplateFields';
+import { emptyNovelTemplateSelection, templateFieldsForMode } from './promptTemplateFields';
+
+const emptyNewNovelForm = (): NovelFormData => ({
+  title: '', author: '', description: '', aspectRatio: '16:9', videoMode: 'grid',
+  ...emptyNovelTemplateSelection(),
+});
 
 export default function Novels() {
   const { t } = useTranslation();
@@ -47,10 +52,7 @@ export default function Novels() {
     getTemplateDisplayName,
   } = useNovelsState();
 
-  const [newNovel, setNewNovel] = useState<NovelFormData>({
-    title: '', author: '', description: '', aspectRatio: '16:9',
-    ...emptyNovelTemplateSelection(),
-  });
+  const [newNovel, setNewNovel] = useState<NovelFormData>(emptyNewNovelForm);
   const [storyContextNovel, setStoryContextNovel] = useState<(typeof novels)[number] | null>(null);
   const [archiveView, setArchiveView] = useState(false);
   const [archivingNovelId, setArchivingNovelId] = useState<string | null>(null);
@@ -58,20 +60,28 @@ export default function Novels() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createNovel(newNovel);
-    setShowCreateModal(false);
-    setNewNovel({ title: '', author: '', description: '', aspectRatio: '16:9', ...emptyNovelTemplateSelection() });
+    try {
+      await createNovel({
+        title: newNovel.title, author: newNovel.author,
+        description: newNovel.description, aspectRatio: newNovel.aspectRatio, videoMode: newNovel.videoMode,
+        ...Object.fromEntries(templateFieldsForMode(newNovel.videoMode).map(field => [field.key, newNovel[field.key]])),
+      });
+      setShowCreateModal(false);
+      setNewNovel(emptyNewNovelForm());
+    } catch (error) { toast.error(error instanceof Error ? error.message : '创建小说失败'); }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingNovel) return;
-    await updateNovel(editingNovel.id, {
-      title: editingNovel.title, author: editingNovel.author,
-      description: editingNovel.description, aspectRatio: editingNovel.aspectRatio,
-      ...Object.fromEntries(TEMPLATE_FIELDS.map(field => [field.key, editingNovel[field.key]])),
-    });
-    setEditingNovel(null);
+    try {
+      await updateNovel(editingNovel.id, {
+        title: editingNovel.title, author: editingNovel.author,
+        description: editingNovel.description, aspectRatio: editingNovel.aspectRatio, videoMode: editingNovel.videoMode ?? 'single',
+        ...Object.fromEntries(templateFieldsForMode(editingNovel.videoMode ?? 'single').map(field => [field.key, editingNovel[field.key]])),
+      });
+      setEditingNovel(null);
+    } catch (error) { toast.error(error instanceof Error ? error.message : '更新小说失败'); }
   };
 
   const handleDeleteNovel = async (novelId: string) => {
@@ -105,7 +115,7 @@ export default function Novels() {
           <p className="mt-1 text-sm text-gray-500">{t('novels.subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+          <button onClick={() => { setNewNovel(emptyNewNovelForm()); setShowCreateModal(true); }} className="btn-primary">
             <Plus className="mr-2 h-4 w-4" />
             {t('novels.createNovel')}
           </button>

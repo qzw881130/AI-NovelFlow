@@ -22,7 +22,7 @@ from app.utils.path_utils import url_to_local_path
 
 
 NAMEPLATE_SECONDS = 2.8
-DETECTION_VERSION = 2
+DETECTION_VERSION = 3
 RENDER_VERSION = 3
 MIN_CONFIDENCE = 0.72
 LAYOUT_STEP = 0.25
@@ -186,7 +186,8 @@ def _locate_protagonist_local(video: Path, shot: Shot, character: Character,
     return positions
 
 
-async def _locate_protagonist(video: Path, character: Character, duration: float, shot: Shot | None = None) -> list[dict]:
+async def _locate_protagonist(video: Path, character: Character, duration: float,
+                              shot: Shot | None = None, db=None) -> list[dict]:
     """Compare character reference with sampled frames; skip uncertain identity."""
     reference_path = url_to_local_path(character.image_url or "")
     if not reference_path or not Path(reference_path).is_file():
@@ -197,11 +198,22 @@ async def _locate_protagonist(video: Path, character: Character, duration: float
     times = sorted(set(round(max(0, value), 3) for value in times))
     reference = await asyncio.to_thread(vision_proxy, reference_path,
                                         logical_id="REFERENCE_CHARACTER", name=character.name)
+    distractors = []
+    if db is not None and shot is not None:
+        for other in db.query(Character).filter(Character.novel_id == character.novel_id).all():
+            if other.name == character.name or other.name not in _shot_character_names(shot):
+                continue
+            other_path = url_to_local_path(other.image_url or "")
+            if other_path and Path(other_path).is_file():
+                distractors.append(await asyncio.to_thread(
+                    vision_proxy, other_path, logical_id=f"OTHER_CHARACTER_{len(distractors)+1}",
+                    name=other.name))
     llm = LLMService()
     video_stat = video.stat()
     cache_key = hashlib.sha256(json.dumps({
         "version": DETECTION_VERSION, "character_id": character.id,
         "reference_sha256": reference["source_sha256"], "video": str(video.resolve()),
+        "other_reference_sha256": [item["source_sha256"] for item in distractors],
         "video_size": video_stat.st_size, "video_mtime_ns": video_stat.st_mtime_ns,
         "provider": llm.provider, "model": llm.model,
     }, sort_keys=True).encode()).hexdigest()
@@ -217,7 +229,7 @@ async def _locate_protagonist(video: Path, character: Character, duration: float
     with tempfile.TemporaryDirectory(prefix="nameplate-frames-") as tmp:
         for start in range(0, len(times), 4):
             frame_times = times[start:start + 4]
-            images = [reference]
+            images = [reference, *distractors]
             for index, second in enumerate(frame_times, 1):
                 frame = Path(tmp) / f"frame-{start + index}.jpg"
                 await asyncio.to_thread(_extract_frame, video, second, frame)
@@ -225,8 +237,10 @@ async def _locate_protagonist(video: Path, character: Character, duration: float
                     vision_proxy, frame, logical_id=f"FRAME_{index}", name=f"视频帧 {index}"))
             response = await llm.chat_completion(
                 system_prompt=(
-                    "你是视频画面中的角色定位器。第1张图是角色参考形象（可能是四视图），后续是按时间顺序抽取的视频帧。"
-                    "只有明确确认同一角色才标记 visible=true；不同角色或无法确认时标记 false。"
+                    "你是视频画面中的角色定位器。第1张图是目标角色参考形象（可能是四视图），"
+                    f"接着 {len(distractors)} 张是同场景其他角色的反例参考图，其余才是按时间顺序抽取的视频帧。"
+                    "先区分目标与反例的性别、年龄、脸、发型和服饰。反例角色出镜时，绝不能当作目标。"
+                    "只有明确确认目标本人实际可见才标记 visible=true；只看到反例、画外声音或无法确认时标记 false。"
                     "对每帧返回人物可见身体的包围框，坐标范围0到1000。只输出 JSON："
                     '{"frames":[{"index":1,"visible":true,"confidence":0.9,"bbox":[x1,y1,x2,y2]}]}。'
                     "index 从1开始对应本次输入的视频帧。不要根据人物数量猜测身份。"
@@ -396,7 +410,8 @@ def _layout_nameplate_events(events: list[dict], output_size: tuple[int, int]) -
 async def build_nameplate_events(db, novel_id: str, chapter_id: str,
                                  segments: list[dict],
                                  output_size: tuple[int, int] | None = None,
-                                 mode: str = "protagonist_first") -> tuple[list[dict], list[str]]:
+                                 mode: str = "protagonist_first",
+                                 use_distractor_references: bool = False) -> tuple[list[dict], list[str]]:
     first_by_shot = first_appearance_names_by_shot(db, novel_id, mode=mode)
     character_query = db.query(Character).filter(
         Character.novel_id == novel_id, Character.is_narrator.is_(False))
@@ -418,7 +433,9 @@ async def build_nameplate_events(db, novel_id: str, chapter_id: str,
                     positions = await asyncio.to_thread(
                         _locate_protagonist_local, Path(segment["path"]), shot, character, duration)
                     if not positions:
-                        positions = await _locate_protagonist(Path(segment["path"]), character, duration, shot)
+                        positions = await _locate_protagonist(
+                            Path(segment["path"]), character, duration, shot,
+                            db if use_distractor_references else None)
                 except Exception as exc:
                     warnings.append(f"{name}：{exc}")
                     continue

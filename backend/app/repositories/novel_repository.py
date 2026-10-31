@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
-from app.constants.prompt_template import NOVEL_PROMPT_TEMPLATE_FIELDS
+from app.constants.prompt_template import NOVEL_PROMPT_TEMPLATE_FIELDS, GRID_PROMPT_TYPES, SHARED_PROMPT_TYPES
 
 
 class NovelRepository:
@@ -24,6 +24,8 @@ class NovelRepository:
         Returns:
             小说列表，包含封面信息
         """
+        from app.schemas.grid_shot import load_grid_data
+
         novels = self.db.query(Novel).order_by(Novel.created_at.desc()).all()
 
         if not novels:
@@ -41,18 +43,33 @@ class NovelRepository:
             if chapter.novel_id not in first_chapters:
                 first_chapters[chapter.novel_id] = chapter
 
+        chapter_novel_ids = {chapter.id: chapter.novel_id for chapter in chapters}
+        novels_by_id = {novel.id: novel for novel in novels}
+        novels_with_shots = set()
+        if chapter_novel_ids:
+            shot_chapters = self.db.query(Shot.chapter_id).filter(
+                Shot.chapter_id.in_(chapter_novel_ids)
+            ).distinct().all()
+            novels_with_shots = {chapter_novel_ids[row[0]] for row in shot_chapters}
+
         # 批量查询所有第一章的分镜，获取第一个有图片的分镜
         first_chapter_ids = [c.id for c in first_chapters.values()]
         first_shots = {}
         if first_chapter_ids:
             shots = self.db.query(Shot).filter(
                 Shot.chapter_id.in_(first_chapter_ids),
-                Shot.image_url.isnot(None)
             ).order_by(Shot.chapter_id, Shot.index).all()
 
             for shot in shots:
-                if shot.chapter_id not in first_shots:
-                    first_shots[shot.chapter_id] = shot
+                if shot.chapter_id in first_shots:
+                    continue
+                novel = novels_by_id.get(chapter_novel_ids[shot.chapter_id])
+                if novel and novel.video_mode == "grid":
+                    grid = load_grid_data(shot.grid_data)
+                    if grid and grid.board_image_url:
+                        first_shots[shot.chapter_id] = grid.board_image_url
+                elif shot.image_url:
+                    first_shots[shot.chapter_id] = shot.image_url
 
         # 构建结果
         result = []
@@ -62,9 +79,9 @@ class NovelRepository:
                 first_chapter = first_chapters.get(n.id)
                 if first_chapter:
                     # 优先从 Shot 表获取第一个分镜图片
-                    first_shot = first_shots.get(first_chapter.id)
-                    if first_shot and first_shot.image_url:
-                        cover = first_shot.image_url
+                    first_shot_image = first_shots.get(first_chapter.id)
+                    if first_shot_image:
+                        cover = first_shot_image
                     else:
                         # 回退：从旧的 shot_images 字段获取（兼容旧数据）
                         if first_chapter.shot_images:
@@ -85,6 +102,8 @@ class NovelRepository:
                 "status": n.status,
                 "isArchived": bool(n.is_archived),
                 "chapterCount": n.chapter_count,
+                "videoMode": n.video_mode or "single",
+                "hasShots": n.id in novels_with_shots,
                 "storyWorldContextPromptTemplateId": n.story_world_context_prompt_template_id,
                 "hasStoryWorldContext": bool(n.story_world_context),
                 "storyWorldContextLocked": bool(n.story_world_context_locked),
@@ -110,6 +129,11 @@ class NovelRepository:
                 "h3MultiKeyframeDirectorPhaseBTemplateId": n.h3_multi_keyframe_director_phase_b_template_id,
                 "h3ExecutionOptimizerPromptTemplateId": n.h3_execution_optimizer_prompt_template_id,
                 "h3PreflightRepairPromptTemplateId": n.h3_preflight_repair_prompt_template_id,
+                "gridShotPlanPromptTemplateId": n.grid_shot_plan_prompt_template_id,
+                "gridImagePromptTemplateId": n.grid_image_prompt_template_id,
+                "gridPanelReviewPromptTemplateId": n.grid_panel_review_prompt_template_id,
+                "gridClipPlanPromptTemplateId": n.grid_clip_plan_prompt_template_id,
+                "gridH3PhaseBPromptTemplateId": n.grid_h3_phase_b_prompt_template_id,
                 "aspectRatio": n.aspect_ratio if n.aspect_ratio and n.aspect_ratio.strip() else "16:9",
                 "createdAt": n.created_at.isoformat() if n.created_at else None,
                 "updatedAt": n.updated_at.isoformat() if n.updated_at else None,
@@ -175,6 +199,7 @@ class NovelRepository:
             author=source.author,
             description=source.description,
             aspect_ratio=source.aspect_ratio or "16:9",
+            video_mode=source.video_mode or "single",
             chapter_count=len(chapters),
             chapters=[
                 Chapter(number=chapter.number, title=chapter.title, content=chapter.content or "")
@@ -182,6 +207,10 @@ class NovelRepository:
             ],
         )
         for template_type, field in NOVEL_PROMPT_TEMPLATE_FIELDS.items():
+            scope = ("grid" if template_type in GRID_PROMPT_TYPES else
+                     "shared" if template_type in SHARED_PROMPT_TYPES else "single")
+            if scope not in ("shared", copied.video_mode):
+                continue
             if getattr(source, field, None):
                 selected = resolve_novel_prompt_template(self.db, source, template_type)
                 # A missing/deactivated version returns to default through a null
@@ -237,6 +266,8 @@ class NovelRepository:
             "status": novel.status,
             "isArchived": bool(novel.is_archived),
             "chapterCount": novel.chapter_count,
+            "videoMode": novel.video_mode or "single",
+            "hasShots": self.db.query(Shot.id).join(Chapter, Shot.chapter_id == Chapter.id).filter(Chapter.novel_id == novel.id).first() is not None,
             "storyWorldContextPromptTemplateId": novel.story_world_context_prompt_template_id,
             "hasStoryWorldContext": bool(novel.story_world_context),
             "storyWorldContextLocked": bool(novel.story_world_context_locked),
@@ -262,6 +293,11 @@ class NovelRepository:
             "h3MultiKeyframeDirectorPhaseBTemplateId": novel.h3_multi_keyframe_director_phase_b_template_id,
             "h3ExecutionOptimizerPromptTemplateId": novel.h3_execution_optimizer_prompt_template_id,
             "h3PreflightRepairPromptTemplateId": novel.h3_preflight_repair_prompt_template_id,
+            "gridShotPlanPromptTemplateId": novel.grid_shot_plan_prompt_template_id,
+            "gridImagePromptTemplateId": novel.grid_image_prompt_template_id,
+            "gridPanelReviewPromptTemplateId": novel.grid_panel_review_prompt_template_id,
+            "gridClipPlanPromptTemplateId": novel.grid_clip_plan_prompt_template_id,
+            "gridH3PhaseBPromptTemplateId": novel.grid_h3_phase_b_prompt_template_id,
             "aspectRatio": novel.aspect_ratio or "16:9",
             "createdAt": novel.created_at.isoformat() if novel.created_at else None,
             "updatedAt": novel.updated_at.isoformat() if novel.updated_at else None,

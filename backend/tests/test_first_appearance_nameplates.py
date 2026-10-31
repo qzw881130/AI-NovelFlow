@@ -3,6 +3,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 from sqlalchemy.orm import sessionmaker
@@ -42,7 +43,7 @@ def test_first_appearance_uses_novel_order_and_excludes_narrator(db_session, mon
         shot_later.id: ["乙", "甲"],
     }
     monkeypatch.setattr(nameplates, "_probe_video", lambda path: (640, 360, 4.0 if "shot" in str(path) else 1.0))
-    async def fake_locate(video, character, duration, shot=None):
+    async def fake_locate(video, character, duration, shot=None, db=None):
         return [{"time": 0.25, "bbox": [300, 100, 600, 950]},
                 {"time": 1.25, "bbox": [320, 100, 620, 950]}]
     monkeypatch.setattr(nameplates, "_locate_protagonist", fake_locate)
@@ -278,3 +279,46 @@ def test_nameplate_layout_avoids_people_and_other_badges():
             for other in badges:
                 assert nameplates._overlap_area(rect, other) == 0
             badges.append(rect)
+
+
+def test_grid_nameplate_detection_includes_other_character_references(db_session, monkeypatch, tmp_path):
+    novel = Novel(title="宫格姓名牌反例")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章")
+    db_session.add(chapter)
+    db_session.flush()
+    shot = Shot(chapter_id=chapter.id, index=1, characters=json.dumps(["老翁", "老妇"]))
+    target = Character(novel_id=novel.id, name="老翁", image_url="/target.png")
+    other = Character(novel_id=novel.id, name="老妇", image_url="/other.png")
+    db_session.add_all([shot, target, other])
+    db_session.commit()
+    for filename in ("target.png", "other.png", "shot.mp4"):
+        (tmp_path / filename).write_bytes(b"test")
+    monkeypatch.setattr(nameplates, "url_to_local_path", lambda url: tmp_path / url.lstrip("/"))
+    monkeypatch.setattr(nameplates, "vision_proxy", lambda path, **kwargs: {
+        "source_sha256": Path(path).name, "url": str(path),
+    })
+    monkeypatch.setattr(nameplates, "_extract_frame", lambda video, second, destination: destination.write_bytes(b"frame"))
+    monkeypatch.setattr(nameplates.file_storage, "base_dir", str(tmp_path))
+    calls = []
+
+    class FakeLLM:
+        provider = "test"
+        model = "test"
+
+        async def chat_completion(self, **kwargs):
+            calls.append(kwargs)
+            return {"success": True, "content": json.dumps({"frames": [
+                {"index": 1, "visible": True, "confidence": 0.95,
+                 "bbox": [600, 100, 900, 900]},
+            ]})}
+
+    monkeypatch.setattr(nameplates, "LLMService", FakeLLM)
+    positions = asyncio.run(nameplates._locate_protagonist(
+        tmp_path / "shot.mp4", target, 4.0, shot, db_session))
+    assert positions[0]["time"] == 0.25
+    assert calls[0]["images"][0]["source_sha256"] == "target.png"
+    assert calls[0]["images"][1]["source_sha256"] == "other.png"
+    assert len(calls[0]["images"]) >= 3
+    assert "反例" in calls[0]["system_prompt"]

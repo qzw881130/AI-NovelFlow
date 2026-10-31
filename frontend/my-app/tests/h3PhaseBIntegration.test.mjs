@@ -131,7 +131,7 @@ test('historical Phase B log uses managed category and existing filter request',
 test('log detail keeps raw task type visible even when request_info already exists',async()=>{
  const noop=()=>null;
  const Modal=await load('pages/LLMLogs/components/LogDetailModal.tsx','LogDetailModal',{
-  ImageInputs:noop,H3AVTimeline,Copy:noop,Download:noop,X:noop,ProviderLogo:noop,
+  ImageInputs:noop,H3AVTimeline,Copy:noop,Download:noop,X:noop,ProviderLogo:noop,useState:()=>[null,()=>{}],chapterLabel:noop,
   useTranslation:()=>({t:k=>k}),toast:{}
  });
  const html=renderToStaticMarkup(React.createElement(Modal,{log:{id:'historical',created_at:'2026-10-15',task_type:'h3_multi_keyframe_director_phase_b',status:'success',request_info:'{"model":"gpt-5.6-sol"}'},activeTab:'params',onTabChange:()=>{},onClose:()=>{},formatDate:x=>x,getTaskTypeLabel:()=> '视频生成 / #13 单阶段导演',getDisplayDuration:()=> '47s',getStatusBadgeConfig:()=>({bg:'',text:'',label:'成功'})}));

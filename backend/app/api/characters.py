@@ -484,6 +484,8 @@ async def upload_character_image(
         
         # 更新角色记录
         character_repo.update_image(character, image_url)
+        character.portrait_task_id = None
+        character_repo.db.commit()
         
         novel = novel_repo.get_by_id(character.novel_id)
         
@@ -499,6 +501,7 @@ async def upload_character_image(
                 "stableIdentitySource": character.stable_identity_source,
                 "imageUrl": character.image_url,
                 "generatingStatus": character.generating_status,
+                "portraitTaskId": character.portrait_task_id,
                 "novelName": novel.title if novel else None,
                 "updatedAt": character.updated_at.isoformat() if character.updated_at else None,
             },
@@ -632,6 +635,8 @@ async def replace_character_image(
         raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
 
     character_repo.update_image(character, data.image_url)
+    character.portrait_task_id = None
+    character_repo.db.commit()
     novel = novel_repo.get_by_id(character.novel_id)
 
     return {

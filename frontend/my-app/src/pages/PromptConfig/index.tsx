@@ -38,10 +38,12 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   temporal_reference_selector: <Image className="h-4 w-4" />,
   keyframe_transition: <Route className="h-4 w-4" />,
   clip_execution_planner: <Route className="h-4 w-4" />,
-  h3_multi_keyframe_prompt: <Video className="h-4 w-4" />,
   h3_multi_keyframe_director_phase_b: <Video className="h-4 w-4" />,
-  h3_execution_optimizer_prompt: <Video className="h-4 w-4" />,
-  h3_preflight_repair_prompt: <Video className="h-4 w-4" />,
+  grid_shot_plan: <BookOpen className="h-4 w-4" />,
+  grid_image_prompt: <Image className="h-4 w-4" />,
+  grid_panel_review_prompt: <Image className="h-4 w-4" />,
+  grid_clip_plan: <Film className="h-4 w-4" />,
+  grid_h3_phase_b: <Video className="h-4 w-4" />,
 };
 
 // Tab 标签页颜色映射
@@ -70,10 +72,12 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   temporal_reference_selector: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
   keyframe_transition: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   clip_execution_planner: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
-  h3_multi_keyframe_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_multi_keyframe_director_phase_b: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
-  h3_execution_optimizer_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
-  h3_preflight_repair_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  grid_shot_plan: { active: 'text-cyan-600 bg-cyan-50 border-cyan-200', inactive: 'text-gray-500 hover:text-cyan-600', border: 'border-cyan-200' },
+  grid_image_prompt: { active: 'text-sky-600 bg-sky-50 border-sky-200', inactive: 'text-gray-500 hover:text-sky-600', border: 'border-sky-200' },
+  grid_panel_review_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
+  grid_clip_plan: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
+  grid_h3_phase_b: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
 };
 
 const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
@@ -81,11 +85,11 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
   asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
   asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop', 'scene_setting', 'prop_appearance'] },
-  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split', 'keyframe_description'] },
-  shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
-  video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
+  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split', 'keyframe_description', 'grid_shot_plan'] },
+  shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt', 'grid_image_prompt', 'grid_panel_review_prompt'] },
+  video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['keyframe_planner', 'keyframe_transition', 'clip_execution_planner', 'grid_clip_plan'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
-  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_multi_keyframe_prompt', 'h3_multi_keyframe_director_phase_b', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'] },
+  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_multi_keyframe_director_phase_b', 'grid_h3_phase_b'] },
   background_music: { nameKey: 'promptConfig.categories.backgroundMusic', types: ['background_music_director', 'background_music_director_full', 'background_music_generation'] },
   video_subtitles: { nameKey: 'promptConfig.categories.videoSubtitles', types: ['subtitle_correction', 'subtitle_translation'] },
 };
@@ -101,10 +105,18 @@ const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
   shot_image: 'shot_image_prompt',
   video_director: 'keyframe_planner',
   keyframe_image: 'temporal_reference_selector',
-  video_generation: 'h3_multi_keyframe_prompt',
+  video_generation: 'h3_multi_keyframe_director_phase_b',
   background_music: 'background_music_director',
   video_subtitles: 'subtitle_correction',
 };
+
+const GRID_TEMPLATE_TYPES = new Set<TemplateType>(['grid_shot_plan', 'grid_image_prompt', 'grid_panel_review_prompt', 'grid_clip_plan', 'grid_h3_phase_b']);
+const SHARED_TEMPLATE_TYPES = new Set<TemplateType>([
+  'story_world_context_recommender', 'style', 'character_parse', 'scene_parse', 'prop_parse',
+  'character', 'scene', 'prop', 'scene_setting', 'prop_appearance',
+  'background_music_director', 'background_music_director_full', 'background_music_generation',
+  'subtitle_correction', 'subtitle_translation',
+]);
 
 const isTemplateCategory = (value: string | null): value is TemplateCategory => (
   !!value && CATEGORIES.includes(value as TemplateCategory)
@@ -202,14 +214,19 @@ function TemplateSection({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{t(config.descKey)}</p>
+        <p className="text-sm text-gray-500">{t(config.descKey)} <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+          {t(GRID_TEMPLATE_TYPES.has(type) ? 'promptConfig.scopeGrid' : SHARED_TEMPLATE_TYPES.has(type) ? 'promptConfig.scopeShared' : 'promptConfig.scopeSingle')}
+        </span></p>
         <button onClick={() => onEdit(type)}
           className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors">
           <Plus className="h-4 w-4" />{t('promptConfig.newPrompt')}
         </button>
       </div>
       {type === 'h3_multi_keyframe_director_phase_b' && <p className="rounded bg-violet-50 p-3 text-sm text-violet-900">
-        Phase B 正式候选。系统预设表示本类型的默认模板；仅在生成页面显式选择 Phase B 后启用。小说可选择同类型的自定义版本。旧 #13/#14/#14A 保留兼容；历史实验模板不参与此选择。
+        单镜图模式的正式 Phase B 模板。现有小说已绑定的自定义版本继续保留；宫格图模式使用独立的「宫格 H3 六段式提示词」类型。
+      </p>}
+      {type === 'grid_h3_phase_b' && <p className="rounded bg-cyan-50 p-3 text-sm text-cyan-900">
+        宫格图模式专用。按实际传入 H3 的子格参考图、Clip 台词与时间，生成六段式提示词。
       </p>}
       <TemplateList templates={templates} loading={loading} type={type}
         onView={onView} onEdit={onEdit} onCopy={onCopy} onDelete={onDelete} onBindings={onBindings}

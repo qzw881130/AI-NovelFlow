@@ -231,6 +231,34 @@ SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES: List[Dict] = [
     }
 ]
 
+# Separate types and names: startup must never overwrite the single-image presets.
+SYSTEM_GRID_VIDEO_TEMPLATES: List[Dict] = [
+    {
+        "name": "宫格叙事 Shot 与逐格机位规划 V1",
+        "description": "按已选版式规划逐格景别、机位、动作、轴线与原文台词",
+        **file_template("GridShotPlanner_V1.txt"),
+        "type": "grid_shot_plan",
+    },
+    {
+        "name": "宫格整板生图提示词 V1",
+        "description": "按已选行列和逐格脚本构建一张可裁切的宫格图",
+        **file_template("GridImagePrompt_V1.txt"),
+        "type": "grid_image_prompt",
+    },
+    {
+        "name": "宫格子图到 Clip 规划 V1",
+        "description": "为短 Clip 分配子图、动作和唯一台词归属",
+        **file_template("GridClipPlanner_V1.txt"),
+        "type": "grid_clip_plan",
+    },
+    {
+        "name": "宫格 H3 六段式提示词 V1",
+        "description": "按官方 Ref2VA 六段式编写宫格 Clip 最终提示词",
+        **file_template("GridH3PhaseB_V1.txt"),
+        "type": "grid_h3_phase_b",
+    },
+]
+
 # 系统预设的视频导演提示词模板
 SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
     {
@@ -281,35 +309,23 @@ SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES: List[Dict] = [
         "description": "根据真实生图提示词、生成图及参考图 Manifest 独立评审六项图片质量维度",
         **file_template("15_NovelFlow_Image_Quality_Reviewer_V1.txt"),
         "type": "image_quality_review_prompt",
-    }
+    },
+    {
+        "name": "宫格子格质量评审",
+        "description": "按单格机位、焦点、人物与画外声评审供生视频使用的子格图片",
+        **file_template("GridPanelQualityReview_V1.txt"),
+        "type": "grid_panel_review_prompt",
+    },
 ]
 
 # 系统预设的 MiniMax H3 视频生成最终提示词模板
 SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
-    {
-        "name": "MiniMax H3 多关键帧视频提示词构建",
-        "description": "根据多张时间顺序关键帧、过渡 Segment 和精确对白构建 H3 多关键帧提示词",
-        **file_template("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"),
-        "type": "h3_multi_keyframe_prompt"
-    },
-    {
-        "name": "MiniMax H3 执行提示词优化",
-        "description": "依据说话人脸嘴可见性选择保留构图、连续运镜或切镜，保留 Canonical、对白归属与场景连续性",
-        **file_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
-        "type": "h3_execution_optimizer_prompt"
-    },
     {
         "name": "MiniMax H3 单阶段导演规划（Phase B）",
         "description": "#13 正式候选，仅显式 Phase B 路径启用；一次导演规划后确定性编译，不调用 #14/#14A；当前支持无配乐合同。",
         **file_template("H3_MultiKeyframe_Director_PhaseB.txt"),
         "type": "h3_multi_keyframe_director_phase_b",
     },
-    {
-        "name": "MiniMax H3 Preflight 自动修复",
-        "description": "视频生成 / MiniMax H3 / Preflight 修复 V1；仅局部补齐合同，禁止重新规划",
-        **file_template("14A_MiniMax_H3_Preflight_Repair_V1.txt"),
-        "type": "h3_preflight_repair_prompt",
-    }
 ]
 
 # 系统预设的场景解析提示词模板（从小说文本解析场景信息）
@@ -470,6 +486,7 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_PROP_TEMPLATES +
     SYSTEM_CHAPTER_SPLIT_TEMPLATES +
     SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES +
+    SYSTEM_GRID_VIDEO_TEMPLATES +
     SYSTEM_VIDEO_DIRECTOR_TEMPLATES +
     SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES +
     SYSTEM_KEYFRAME_PLANNING_TEMPLATES +
@@ -499,6 +516,25 @@ class PromptTemplateService:
     def init_system_templates(self) -> None:
         """初始化系统预设提示词模板"""
         print("[初始化] 更新系统预设提示词模板...")
+        # Historical LLM logs retain their text snapshots. Retired system rows
+        # must not reappear as selectable templates after a restart. User copies
+        # are left intact for explicit review/export before any data migration.
+        retired_types = (
+            "h3_multi_keyframe_prompt",
+            "h3_execution_optimizer_prompt",
+            "h3_preflight_repair_prompt",
+        )
+        retired_rows = self.db.query(PromptTemplate).filter(
+            PromptTemplate.type.in_(retired_types),
+            PromptTemplate.is_system.is_(True),
+        ).all()
+        for row in retired_rows:
+            field_name = NOVEL_PROMPT_TEMPLATE_FIELDS[row.type]
+            bound = self.db.query(Novel.id).filter(getattr(Novel, field_name) == row.id).first()
+            if bound:
+                row.is_active = False
+            else:
+                self.db.delete(row)
         self.db.query(PromptTemplate).filter(PromptTemplate.type.in_((
             "video_mode_recommender",
             "h3_single_frame_prompt",
@@ -528,23 +564,6 @@ class PromptTemplateService:
                 tmpl_data.get("type", "character"),
                 is_system=True
             )
-
-            # #14A 曾以“定向修复”登记。沿用原记录的 ID，避免启动时再创建一份系统模板。
-            if tmpl_data["type"] == "h3_preflight_repair_prompt":
-                legacy = self.template_repo.get_by_name_and_type(
-                    "MiniMax H3 Preflight 定向修复", tmpl_data["type"], is_system=True
-                )
-                if legacy and not existing:
-                    legacy.name = tmpl_data["name"]
-                    existing = legacy
-                elif legacy and existing and legacy.id != existing.id:
-                    self.db.query(Novel).filter(
-                        Novel.h3_preflight_repair_prompt_template_id == legacy.id
-                    ).update(
-                        {Novel.h3_preflight_repair_prompt_template_id: existing.id},
-                        synchronize_session=False,
-                    )
-                    self.db.delete(legacy)
 
             if existing:
                 # V1 remains a selectable historical record, never upgraded in place.

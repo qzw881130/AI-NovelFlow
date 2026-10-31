@@ -27,6 +27,7 @@ from app.models.prompt_template import PromptTemplate
 from app.repositories.shot_repository import ShotRepository
 from app.services.novel_prompt_templates import resolve_novel_prompt_template
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.api_key_variables import bind_image_api_key
 from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
@@ -912,6 +913,8 @@ class ShotKeyframeService:
             comfyui_service = ComfyUIService()
             if task.comfyui_prompt_id:
                 submitted_workflow, attempt = saved_image_attempt(task)
+                saved_workflow = db.get(Workflow, task.workflow_id) if task.workflow_id else None
+                node_mapping = json.loads(saved_workflow.node_mapping or "{}") if saved_workflow else {}
                 save_image_node_id = attempt.get("save_image_node_id")
                 prompt_id = task.comfyui_prompt_id
             else:
@@ -1125,7 +1128,8 @@ class ShotKeyframeService:
                 save_image_node_id = node_mapping.get("save_image_node_id")
                 prompt_id = task.comfyui_prompt_id
                 if not prompt_id:
-                    queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
+                    queue_result = await comfyui_service.client.queue_prompt(
+                        bind_image_api_key(submitted_workflow, node_mapping, db))
 
                     if not queue_result.get("success"):
                         persist_task_comfyui_error(task, queue_result)
@@ -1160,7 +1164,8 @@ class ShotKeyframeService:
                 task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 task.current_step = "提示词改写格式异常，正在更换 Seed 重试..."
                 db.commit()
-                retry_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
+                retry_queue = await comfyui_service.client.queue_prompt(
+                    bind_image_api_key(submitted_workflow, node_mapping, db))
                 if retry_queue.get("success") and retry_queue.get("prompt_id"):
                     prompt_id = retry_queue["prompt_id"]
                     save_image_prompt(db, task, prompt_id, submitted_workflow, save_image_node_id)
@@ -1180,7 +1185,8 @@ class ShotKeyframeService:
                 task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 task.current_step = "提示词改写持续格式异常，已跳过改写节点重试..."
                 db.commit()
-                fallback_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
+                fallback_queue = await comfyui_service.client.queue_prompt(
+                    bind_image_api_key(submitted_workflow, node_mapping, db))
                 if fallback_queue.get("success") and fallback_queue.get("prompt_id"):
                     prompt_id = fallback_queue["prompt_id"]
                     save_image_prompt(db, task, prompt_id, submitted_workflow, save_image_node_id)

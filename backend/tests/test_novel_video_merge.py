@@ -214,6 +214,44 @@ def test_chapter_video_assets_are_grouped_by_target_megapixels(db_session, monke
     assert [asset["label"] for asset in assets] == ["初稿", "高清 1 MP", "高清 1.2 MP"]
 
 
+def test_grid_chapter_video_is_available_for_novel_merge(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="宫格章回合并")
+    db_session.add(novel)
+    db_session.flush()
+    chapters = []
+    paths = {}
+    for number in (1, 2):
+        video_url = f"/api/files/grid-chapter-{number}.mp4"
+        video_path = tmp_path / f"grid-chapter-{number}.mp4"
+        video_path.write_bytes(b"grid video")
+        paths[video_url] = str(video_path)
+        chapter = Chapter(novel_id=novel.id, number=number, title=f"第{number}章", final_video=video_url)
+        db_session.add(chapter)
+        db_session.flush()
+        db_session.add(Task(type="grid_chapter_merge", status="completed", novel_id=novel.id,
+                            chapter_id=chapter.id, name="宫格章回合并", result_url=video_url,
+                            metadata_json='{"is_final_video":true,"video_variant":"draft"}'))
+        chapters.append(chapter)
+    db_session.commit()
+    monkeypatch.setattr("app.repositories.chapter_repository.url_to_local_path", paths.get)
+    monkeypatch.setattr("app.repositories.chapter_repository.ChapterRepository._probe_video_duration", lambda *_: 137)
+    monkeypatch.setattr("app.api.novel_videos.url_to_local_path", paths.get)
+    worker = MagicMock()
+    monkeypatch.setattr("app.api.novel_videos.worker_manager.worker", lambda _: worker)
+
+    from app.repositories.chapter_repository import ChapterRepository
+    for chapter in chapters:
+        response = ChapterRepository(db_session).to_response(chapter)
+        assert response["videoAssets"][0]["profileKey"] == "draft"
+        assert response["videoAssets"][0]["videoUrl"] == chapter.final_video
+
+    result = client.post(f"/api/novels/{novel.id}/video-merges",
+                         json={"chapter_ids": [chapter.id for chapter in chapters]})
+    assert result.status_code == 200
+    assert [item["videoUrl"] for item in result.json()["data"]["chapters"]] == [chapter.final_video for chapter in chapters]
+    worker.enqueue.assert_called_once()
+
+
 def test_create_hd_novel_video_merge_uses_only_hd_chapter_videos(client, db_session, monkeypatch, tmp_path):
     novel = Novel(title="高清章回合并")
     db_session.add(novel)

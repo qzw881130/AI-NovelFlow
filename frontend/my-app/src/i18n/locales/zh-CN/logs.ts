@@ -34,6 +34,7 @@ export default {
     clipExecutionPlanner: '视频片段执行规划',
     expandVideoPrompt: '扩写视频提示词',
     firstAppearanceNameplate: '首次出镜姓名牌定位',
+    gridClipVisualReview: '宫格 Clip 成片人物验收',
     timestamp: '时间',
     novel: '小说',
     chapter: '章节',
@@ -66,6 +67,8 @@ export default {
     task: '任务',
     errorMessage: '错误信息',
     llmResponse: 'LLM 响应',
+    prettyJson: '美化 JSON',
+    showRawJson: '显示原文',
     characterCount: '字数：{count}',
     proxy: '代理',
     duration: '耗时',  // 新增耗时字段

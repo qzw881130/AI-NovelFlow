@@ -1,9 +1,10 @@
-import { TEMPLATE_FIELDS, TEMPLATE_CATEGORIES } from '../promptTemplateFields';
+import { TEMPLATE_CATEGORIES, templateFieldsForMode } from '../promptTemplateFields';
 import { useState } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { ASPECT_RATIO_OPTIONS } from '../../../utils';
 import type { Novel, PromptTemplate } from '../../../types';
 import type { NovelFormData } from '../types';
+import { NovelVideoModeSelector } from './NovelVideoModeSelector';
 
 interface CreateNovelModalProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export function CreateNovelModal({
 }: CreateNovelModalProps) {
   const { t } = useTranslation();
   const [showDescription, setShowDescription] = useState(false);
+  const visibleTemplateFields = templateFieldsForMode(formData.videoMode);
+  const sameModeReferences = referenceNovels.filter(novel => (novel.videoMode ?? 'single') === formData.videoMode);
 
   const aspectRatioOptions = ASPECT_RATIO_OPTIONS.map(opt => ({
     value: opt.value,
@@ -38,11 +41,11 @@ export function CreateNovelModal({
   if (!isOpen) return null;
 
   const applyReferenceNovel = (novelId: string) => {
-    const referenceNovel = referenceNovels.find((novel) => novel.id === novelId);
+    const referenceNovel = sameModeReferences.find((novel) => novel.id === novelId);
     if (!referenceNovel) return;
     setFormData({
       ...formData,
-      ...Object.fromEntries(TEMPLATE_FIELDS.map((field) => [field.key, (referenceNovel as any)[field.key] || ''])),
+      ...Object.fromEntries(visibleTemplateFields.map((field) => [field.key, referenceNovel[field.key] || ''])),
     });
   };
 
@@ -116,13 +119,19 @@ export function CreateNovelModal({
           </div>
               </div>
             </section>
+
+            <NovelVideoModeSelector
+              value={formData.videoMode}
+              onChange={videoMode => setFormData(current => ({ ...current, videoMode }))}
+              note="选择后保存到小说；已有 Shot 时不能再切换模式。"
+            />
           
           {/* 提示词模板选择 */}
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-gray-800">{t('novels.promptTemplatesSection')}</h3>
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-gray-600">
+                {sameModeReferences.length > 0 && <label className="flex items-center gap-2 text-sm text-gray-600">
                   <span className="whitespace-nowrap">快速参考</span>
                   <select
                     value=""
@@ -130,17 +139,17 @@ export function CreateNovelModal({
                     className="input-field h-9 min-w-[220px] py-1 text-sm"
                   >
                     <option value="">选择其他小说...</option>
-                    {referenceNovels.map((novel) => (
+                    {sameModeReferences.map((novel) => (
                       <option key={novel.id} value={novel.id}>{novel.title}</option>
                     ))}
                   </select>
-                </label>
-                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.filter(field => field.templateType in templatesByType).length} 项</span>
+                </label>}
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{visibleTemplateFields.filter(field => field.templateType in templatesByType).length} 项</span>
               </div>
             </div>
             <div className="space-y-4">
               {TEMPLATE_CATEGORIES.map(category => {
-                const fields = TEMPLATE_FIELDS.filter(field => field.category === category.key && field.templateType in templatesByType);
+                const fields = visibleTemplateFields.filter(field => field.category === category.key && field.templateType in templatesByType);
                 if (!fields.length) return null;
                 return (
                   <div key={category.key} className="rounded-xl border border-gray-100 bg-gray-50 p-3">

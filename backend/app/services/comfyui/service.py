@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
 from .workflows import WorkflowBuilder
+from .api_key_variables import bind_image_api_key
 from .errors import with_error_stage
 from app.core.config import get_settings
 from app.utils.workflow_seed import randomize_prompt_rewrite_seeds, synchronize_prompt_rewrite_seeds
@@ -62,6 +63,7 @@ class ComfyUIService:
         workflow: Dict[str, Any],
         save_image_node_id: Optional[str],
         on_prompt_queued=None,
+        node_mapping=None,
     ) -> Dict[str, Any]:
         """Retry an image workflow once when Qwen PE returns malformed output."""
         if not isinstance(result, dict):
@@ -75,7 +77,7 @@ class ComfyUIService:
         if not self._randomize_prompt_rewrite_seeds(workflow):
             return result
 
-        queue_result = await self.client.queue_prompt(workflow)
+        queue_result = await self.client.queue_prompt(bind_image_api_key(workflow, node_mapping))
         retry_prompt_id = queue_result.get("prompt_id") if queue_result.get("success") else None
         if not retry_prompt_id:
             return result
@@ -141,7 +143,7 @@ class ComfyUIService:
             )
             
             synchronize_prompt_rewrite_seeds(workflow)
-            queue_result = await self.client.queue_prompt(workflow)
+            queue_result = await self.client.queue_prompt(bind_image_api_key(workflow, node_mapping))
             
             if not queue_result.get("success"):
                 return {
@@ -161,6 +163,7 @@ class ComfyUIService:
                 workflow,
                 save_image_node_id,
                 on_prompt_queued,
+                node_mapping,
             )
             
             return {
@@ -226,9 +229,10 @@ class ComfyUIService:
 
             workflow[load_image_node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
             self.builder._set_prompt(workflow, prompt_node_id, prompt)
+            self.builder.apply_asset_image_dimensions(workflow)
 
             synchronize_prompt_rewrite_seeds(workflow)
-            queue_result = await self.client.queue_prompt(workflow)
+            queue_result = await self.client.queue_prompt(bind_image_api_key(workflow, node_mapping))
             if not queue_result.get("success"):
                 return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
 
@@ -246,6 +250,7 @@ class ComfyUIService:
                 workflow,
                 save_image_node_id,
                 on_prompt_queued,
+                node_mapping,
             )
 
             return {
@@ -315,7 +320,7 @@ class ComfyUIService:
             
             # 提交任务
             synchronize_prompt_rewrite_seeds(workflow)
-            queue_result = await self.client.queue_prompt(workflow)
+            queue_result = await self.client.queue_prompt(bind_image_api_key(workflow, node_mapping))
             
             if not queue_result.get("success"):
                 return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
@@ -331,6 +336,7 @@ class ComfyUIService:
                 workflow,
                 save_image_node_id,
                 on_prompt_queued,
+                node_mapping,
             )
             
             return {

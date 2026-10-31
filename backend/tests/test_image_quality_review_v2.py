@@ -125,7 +125,7 @@ def test_batch_quality_mapping_and_result_mismatch_api(client, db_session, setup
     history = client.get(f'/api/tasks/{setup_review.id}/image-reviews').json()["data"]
     assert history[0]["id"] == review.id
 
-def test_http_transient_failure_has_one_attempt_for_review_only():
+def test_single_attempt_override_limits_http_request():
     from app.services.llm.http_retry import post_llm_request, single_attempt_llm_request, _request_attempt_limit, MAX_REQUEST_ATTEMPTS
     client = AsyncMock()
     client.post.return_value.status_code = 503
@@ -136,6 +136,21 @@ def test_http_transient_failure_has_one_attempt_for_review_only():
             asyncio.run(post_llm_request(client, None, 'endpoint', headers={}, body={}, timeout=10))
     client.post.assert_awaited_once()
     assert _request_attempt_limit.get() == MAX_REQUEST_ATTEMPTS
+
+
+def test_image_review_keeps_transient_http_retry_budget(db_session, setup_review, fake_llm):
+    from app.services.llm.http_retry import _request_attempt_limit, MAX_REQUEST_ATTEMPTS
+
+    review = create_image_review(db_session, setup_review.id)
+
+    async def reply(**kwargs):
+        assert _request_attempt_limit.get() == MAX_REQUEST_ATTEMPTS
+        return {"success": True, "content": _response(), "log_id": None}
+
+    with patch.object(FakeLLM, "chat_completion", side_effect=reply):
+        asyncio.run(execute_image_review(db_session, review.id))
+    assert review.status == "success"
+
 
 def test_actual_reference_binding_and_changed_asset_error(db_session, setup_review, fake_llm):
     metadata = json.loads(setup_review.metadata_json)

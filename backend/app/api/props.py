@@ -299,6 +299,8 @@ async def upload_prop_image(
         
         # 更新道具记录
         prop_repo.update_image(prop, image_url)
+        prop.prop_task_id = None
+        prop_repo.db.commit()
         
         novel = novel_repo.get_by_id(prop.novel_id)
         
@@ -312,6 +314,7 @@ async def upload_prop_image(
                 "appearance": prop.appearance,
                 "imageUrl": prop.image_url,
                 "generatingStatus": prop.generating_status,
+                "propTaskId": prop.prop_task_id,
                 "novelName": novel.title if novel else None,
                 "updatedAt": prop.updated_at.isoformat() if prop.updated_at else None,
             },
@@ -372,6 +375,8 @@ async def replace_prop_image(
         raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
 
     prop_repo.update_image(prop, data.image_url)
+    prop.prop_task_id = None
+    prop_repo.db.commit()
     novel = novel_repo.get_by_id(prop.novel_id)
     return {
         "success": True,

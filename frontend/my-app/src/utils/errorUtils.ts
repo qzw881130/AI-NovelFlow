@@ -1,4 +1,6 @@
-export const formatUserFacingError = (message?: unknown): string => {
+import { preflightErrorCategory } from './preflightErrorCategory';
+
+const formatErrorBody = (message?: unknown): string => {
   const rawMessage = String(message || '').trim();
   if (!rawMessage) return '';
 
@@ -59,4 +61,12 @@ export const formatUserFacingError = (message?: unknown): string => {
   }
 
   return rawMessage;
+};
+
+export const formatUserFacingError = (message?: unknown): string => {
+  const body = formatErrorBody(message);
+  if (!body) return body;
+  const category = preflightErrorCategory(String(message));
+  if (!category || body.includes(`[${category}]`)) return body;
+  return `[${category}] ${body}`;
 };

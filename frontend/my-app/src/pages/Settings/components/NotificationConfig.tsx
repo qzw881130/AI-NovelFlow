@@ -180,7 +180,7 @@ export default function NotificationConfig() {
     <section className="notification-event-container rounded-xl border border-gray-200 p-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex items-center gap-2"><Bell className="h-5 w-5 text-blue-600" /><h3 className="font-semibold text-gray-900">事件通知配置</h3></div>
-        <p className="text-xs text-gray-500">按事件设置订阅；新增成功事件默认关闭，每项修改后立即保存</p>
+        <p className="text-xs text-gray-500">按事件设置订阅；每项修改后立即保存</p>
       </div>
       <div className="notification-category-grid mt-4 grid min-w-0 gap-3">
         {groups.map(category => <div key={category} className="notification-category-card min-w-0 rounded-lg border border-gray-200 bg-white p-3">

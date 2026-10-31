@@ -27,6 +27,7 @@ class Shot(Base):
     duration = Column(Integer, default=4)  # 时长（秒）
     continuity_mode = Column(String, default="NORMAL")  # NORMAL/CONTINUOUS_TAKE
     video_director_plan = Column(Text, default="{}")  # 视频导演模式推荐、关键帧、转场和 Clips
+    grid_data = Column(Text, nullable=True)  # 宫格专用 V1 JSON；旧 Shot 保持 NULL
 
     # 图片资源
     image_url = Column(String, nullable=True)

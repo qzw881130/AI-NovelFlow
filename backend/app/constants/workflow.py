@@ -70,6 +70,12 @@ RETIRED_IMAGE_WORKFLOW_FILES = frozenset({
     "shot_scene_prop_qwen_edit_2511.json",
 })
 
+RETIRED_LTX2_TRANSITION_WORKFLOW_FILES = frozenset({
+    "transition_ltx2_camera.json",
+    "transition_ltx2_lighting.json",
+    "transition_ltx2_first_last_frame.json",
+})
+
 
 # 默认工作流文件名映射（仅包含仍提供系统预设的类型）
 DEFAULT_WORKFLOWS = {
@@ -443,33 +449,6 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["four_frame_video"],
         "extension": {"max_clip_duration": CLIP_MAX_DURATION, "frame_count": 4},
     },
-    {
-        "filename": "transition_ltx2_camera.json",
-        "type": "transition",
-        "name": "LTX2 镜头转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 镜头转场视频",
-        "description": "适合：首尾帧是同一场景不同景别/角度",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧是同一场景不同景别/角度",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
-    },
-    {
-        "filename": "transition_ltx2_lighting.json",
-        "type": "transition",
-        "name": "LTX2 光线转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 光线转场视频",
-        "description": "适合：首尾帧颜色差很多，但场景/人物不变",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧颜色差很多，但场景/人物不变",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
-    },
-    {
-        "filename": "transition_ltx2_first_last_frame.json",
-        "type": "transition",
-        "name": "LTX2 遮挡转场视频",
-        "nameKey": f"{NAME_KEY_PREFIX}.LTX2 遮挡转场视频",
-        "description": "适合：两张图差异大，想自然衔接",
-        "descriptionKey": f"{DESC_KEY_PREFIX}.适合：两张图差异大，想自然衔接",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
-    },
     # 音色设计工作流（基于文本提示词设计音色）
     {
         "filename": "Qwen3-TTS-Voice-Design.json",
@@ -627,6 +606,58 @@ EXTRA_SYSTEM_WORKFLOWS.extend([
         },
         {"workflow_capability": "TEMPORAL_EXTEND"},
     ),
+])
+
+
+# These are separate system copies; the user workflows remain available.
+_GPT_FLARE_SUB2API_MAPPING = {
+    "prompt_node_id": "384", "save_image_node_id": "373",
+    "api_key_node_id": "396", "api_key_variable": "KEY3",
+    "api_base_url_node_id": "398", "api_base_url_key_variable": "KEY2",
+}
+_GPT_FLARE_SUB2API_SIZE_MAPPING = {
+    "width_node_id": "382", "height_node_id": "383",
+}
+
+
+def _gpt_flare_sub2api_system_workflow(wf_type, label, reference_description, size_mapping, reference_mapping):
+    name = f"GPT Image 2.5 Flare {label} Sub2API V20261029"
+    description = (
+        f"基于 api_openai_gpt_image_25_flare_image_edit_Sub2API；{reference_description}；"
+        "API 密钥变量 KEY3；本地 Sub2API http://192.168.50.3:8088；同步模式；"
+        "默认请求尺寸 2304×864。"
+    )
+    return {
+        "filename": f"gpt_image_2_5_flare_sub2api_{wf_type}_v20261029.json",
+        "type": wf_type,
+        "name": name,
+        "nameKey": f"{NAME_KEY_PREFIX}.{name}",
+        "description": description,
+        "descriptionKey": f"{DESC_KEY_PREFIX}.{description}",
+        "node_mapping": {**_GPT_FLARE_SUB2API_MAPPING, **size_mapping, **reference_mapping},
+    }
+
+
+EXTRA_SYSTEM_WORKFLOWS.extend([
+    _gpt_flare_sub2api_system_workflow(wf_type, label, reference_description, size_mapping, reference_mapping)
+    for wf_type, label, reference_description, size_mapping, reference_mapping in [
+        ("shot_scene", "分镜生图（场景）", "图1为场景", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"scene_reference_image_node_id": "360"}),
+        ("shot_character_scene", "分镜生图（角色+场景）", "图1为角色；图2为场景", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"character_reference_image_node_id": "360", "scene_reference_image_node_id": "376"}),
+        ("shot_scene_prop", "分镜生图（场景+道具）", "图1为场景；图2为道具", _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"scene_reference_image_node_id": "360", "prop_reference_image_node_id": "376"}),
+        ("shot", "分镜生图（角色+场景+道具）", "图1为角色；图2为场景；图3为道具",
+         _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {"character_reference_image_node_id": "360", "scene_reference_image_node_id": "376",
+          "custom_reference_image_node_1": "377"}),
+        ("keyframe_image", "关键帧生图", "图1为关键帧", {}, {"reference_image_node_id": "360"}),
+        ("single_image_edit", "单图编辑", "图1为待编辑原图", {}, {"load_image_node_id": "360"}),
+        ("multi_image_edit", "多图编辑", "；".join(f"图{i}为参考图{i}" for i in range(1, 10)),
+         _GPT_FLARE_SUB2API_SIZE_MAPPING,
+         {f"load_image_node_{i}": node_id for i, node_id in enumerate(
+             ("360", "376", "377", "389", "390", "391", "392", "393", "394"), 1)}),
+    ]
 ])
 
 

@@ -2,6 +2,7 @@
 章节路由 - 章节 CRUD 和批量导入相关接口
 """
 import io
+import json
 import re
 import zipfile
 from datetime import datetime
@@ -17,10 +18,12 @@ from app.models.shot import Shot
 from app.models.task import Task
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository, PropRepository
 from app.services.image_quality_review import current_image_reviews
+from app.schemas.grid_shot import load_grid_data
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.chapter_ai_split_service import (
     SPLIT_HANDLER, SPLIT_QUEUE_COUNT, format_split_batch, refresh_split_batch, run_chapter_ai_split_task,
 )
+from app.services.grid_tasks import enqueue_grid_job
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_scene_repo, get_prop_repo
 from app.utils.time_utils import format_datetime
 from app.utils.text_utils import detect_encoding, parse_chapters_from_text
@@ -50,7 +53,6 @@ async def list_chapters(
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
-    
     chapters = chapter_repo.list_by_novel(novel_id)
     chapter_ids = [chapter.id for chapter in chapters]
     shot_image_stats = {
@@ -66,9 +68,9 @@ async def list_chapters(
     first_shot_images = {}
     split_chapter_ids = set()
     if chapter_ids:
-        for chapter_id, shot_index, duration, image_url, image_task_id, video_url, video_status in db.query(
+        for chapter_id, shot_index, duration, image_url, image_task_id, video_url, video_status, grid_data in db.query(
             Shot.chapter_id, Shot.index, Shot.duration, Shot.image_url, Shot.image_task_id,
-            Shot.video_url, Shot.video_status,
+            Shot.video_url, Shot.video_status, Shot.grid_data,
         ).filter(Shot.chapter_id.in_(chapter_ids)).all():
             split_chapter_ids.add(chapter_id)
             estimated_durations[chapter_id] = estimated_durations.get(chapter_id, 0) + (duration or 0)
@@ -78,7 +80,20 @@ async def list_chapters(
             video_stats["total"] += 1
             if video_status == "completed" and video_url:
                 video_stats["completed"] += 1
-            if image_url:
+            if novel.video_mode == "grid":
+                grid = load_grid_data(grid_data)
+                if grid and grid.board_image_url:
+                    stats["generated"] += 1
+                    if shot_index == 1:
+                        first_shot_images[chapter_id] = grid.board_image_url
+                    statuses = [panel.review_status for panel in grid.panels]
+                    if statuses and all(status == "passed" for status in statuses):
+                        stats["passed"] += 1
+                    elif "failed" in statuses:
+                        stats["failed"] += 1
+                    else:
+                        stats["warning"] += 1
+            elif image_url:
                 stats["generated"] += 1
                 generated_images.append((chapter_id, image_task_id, image_url))
                 if shot_index == 1:
@@ -100,7 +115,8 @@ async def list_chapters(
         "success": True,
         "data": [
             {**chapter_repo.to_response(chapter),
-             "aiSplitCompleted": bool(chapter.parsed_data) and chapter.id in split_chapter_ids,
+             "aiSplitCompleted": chapter.id in split_chapter_ids and
+                                 (novel.video_mode == "grid" or bool(chapter.parsed_data)),
              "estimatedDuration": estimated_durations.get(chapter.id),
              "firstShotImageUrl": first_shot_images.get(chapter.id),
              "shotImageStats": shot_image_stats[chapter.id],
@@ -119,17 +135,62 @@ async def create_chapter_ai_split_batch(novel_id: str, request: BatchAiSplitRequ
     chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id, Chapter.id.in_(chapter_ids)).all()
     if len(chapters) != len(chapter_ids):
         raise HTTPException(status_code=400, detail="选择的章回不存在或不属于当前小说")
+    grid_mode = novel.video_mode == "grid"
+    batch_type = "grid_chapter_plan_batch" if grid_mode else "chapter_ai_split_batch"
     active_batches = db.query(Task).filter(
-        Task.novel_id == novel_id, Task.type == "chapter_ai_split_batch",
+        Task.novel_id == novel_id, Task.type == batch_type,
         Task.status.in_(["pending", "running"]),
     ).all()
     for active in active_batches:
         refresh_split_batch(db, active.id)
     if any(active.status in {"pending", "running"} for active in active_batches):
-        raise HTTPException(status_code=409, detail="当前小说已有正在进行的批量 AI 拆分")
+        raise HTTPException(status_code=409, detail="当前小说已有正在进行的批量叙事 Shot 规划" if grid_mode else "当前小说已有正在进行的批量 AI 拆分")
 
     by_id = {chapter.id: chapter for chapter in chapters}
     ordered = [by_id[chapter_id] for chapter_id in chapter_ids]
+    if grid_mode:
+        for chapter in ordered:
+            if not (chapter.content or "").strip():
+                raise HTTPException(status_code=409, detail=f"{chapter.title}：正文为空，不能规划叙事 Shot")
+        existing_shots = {chapter_id for (chapter_id,) in db.query(Shot.chapter_id).filter(
+            Shot.chapter_id.in_(chapter_ids)).distinct().all()}
+        active_plans = {chapter_id for (chapter_id,) in db.query(Task.chapter_id).filter(
+            Task.chapter_id.in_(chapter_ids), Task.type == "grid_chapter_plan",
+            Task.status.in_(["pending", "running"])).distinct().all()}
+        for chapter in ordered:
+            if chapter.id in existing_shots:
+                raise HTTPException(status_code=409, detail=f"{chapter.title}：已有叙事 Shot，不能覆盖")
+            if chapter.id in active_plans:
+                raise HTTPException(status_code=409, detail=f"{chapter.title}：叙事 Shot 正在规划中")
+        batch = Task(type=batch_type, status="running", novel_id=novel_id,
+                     name=f"批量规划叙事 Shot · {novel.title}", progress=0,
+                     current_step=f"等待规划 {len(ordered)} 个章回",
+                     metadata_json=json.dumps({"video_mode": "grid", "grid_step": "chapter_plan",
+                                               "expected_count": len(ordered)}, ensure_ascii=False),
+                     created_at=datetime.utcnow(), started_at=datetime.utcnow())
+        db.add(batch)
+        db.commit()
+        children = []
+        try:
+            for index, chapter in enumerate(ordered):
+                children.append(enqueue_grid_job(db, novel, chapter, None, "chapter_plan",
+                                                 parent_task_id=batch.id, batch_order=index))
+        except Exception as exc:
+            db.rollback()
+            for child in children:
+                persisted = db.get(Task, child.id)
+                if persisted and persisted.status == "pending":
+                    persisted.status, persisted.current_step = "cancelled", "批量提交未完成"
+                    persisted.error_message = str(exc)
+                    persisted.completed_at = datetime.utcnow()
+            batch = db.get(Task, batch.id)
+            batch.status, batch.error_message, batch.current_step = "failed", str(exc), "批量提交失败"
+            batch.completed_at = datetime.utcnow()
+            db.commit()
+            raise HTTPException(status_code=503, detail=f"批量规划提交失败：{exc}") from exc
+        refresh_split_batch(db, batch.id)
+        return {"success": True, "data": format_split_batch(batch, children)}
+
     batch = Task(type="chapter_ai_split_batch", status="running", novel_id=novel_id,
                  name=f"批量 AI 拆分: {novel.title}", progress=0,
                  current_step=f"等待拆分 {len(ordered)} 个章回", created_at=datetime.utcnow(), started_at=datetime.utcnow())
@@ -161,13 +222,16 @@ async def create_chapter_ai_split_batch(novel_id: str, request: BatchAiSplitRequ
 
 @router.get("/{novel_id}/chapter-ai-split-batches")
 def list_chapter_ai_split_batches(novel_id: str, db: Session = Depends(get_db)):
-    if not db.get(Novel, novel_id):
+    novel = db.get(Novel, novel_id)
+    if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
+    batch_type = "grid_chapter_plan_batch" if novel.video_mode == "grid" else "chapter_ai_split_batch"
+    child_type = "grid_chapter_plan" if novel.video_mode == "grid" else "chapter_ai_split"
     batches = db.query(Task).filter(
-        Task.novel_id == novel_id, Task.type == "chapter_ai_split_batch",
+        Task.novel_id == novel_id, Task.type == batch_type,
     ).order_by(Task.created_at.desc(), Task.id.desc()).limit(20).all()
     children = db.query(Task).filter(
-        Task.parent_task_id.in_([batch.id for batch in batches]), Task.type == "chapter_ai_split",
+        Task.parent_task_id.in_([batch.id for batch in batches]), Task.type == child_type,
     ).all() if batches else []
     by_batch = {batch.id: [] for batch in batches}
     for child in children:
@@ -471,6 +535,15 @@ async def split_chapter(
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
+    if novel.video_mode == "grid":
+        from app.services.grid_pipeline import GridPipelineError
+        from app.services.grid_tasks import enqueue_grid_job
+        try:
+            task = enqueue_grid_job(db, novel, chapter, None, "chapter_plan")
+        except GridPipelineError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"success": True, "data": {"chapter": chapter.title,
+                                            "taskId": task.id, "status": task.status}}
     
     # 获取当前小说的所有角色、场景和道具列表
     character_names = character_repo.get_names_by_novel(novel_id)

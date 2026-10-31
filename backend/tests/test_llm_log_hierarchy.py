@@ -1,10 +1,64 @@
 import json
+from io import BytesIO
+from zipfile import ZipFile
 from sqlalchemy import text
 
 from app.main import backfill_llm_log_shot_ids
 from app.models.llm_log import LLMLog
 from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
+
+
+def test_grid_log_types_are_labeled_filterable_and_exportable_without_hiding_history(client, db_session):
+    novel = Novel(id="grid-novel", title="宫格小说")
+    chapter = Chapter(id="grid-chapter", novel_id=novel.id, number=1, title="黄昏投宿")
+    shot = Shot(id="grid-shot", chapter_id=chapter.id, index=2)
+    db_session.add_all([novel, chapter, shot])
+    grid_types = {
+        "grid_shot_plan": "shot_planning",
+        "grid_image_prompt": "shot_image",
+        "grid_clip_plan": "video_director",
+        "grid_h3_phase_b": "video_generation",
+    }
+    for task_type in grid_types:
+        db_session.add(LLMLog(
+            id=task_type, provider="openai", model="test", user_prompt=task_type,
+            task_type=task_type, status="success", novel_id=novel.id,
+            chapter_id=chapter.id, shot_id=shot.id,
+            prompt_template_name=f"测试-{task_type}",
+        ))
+    retired_types = {"h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"}
+    for task_type in retired_types:
+        db_session.add(LLMLog(
+            id=task_type, provider="openai", model="test", user_prompt="旧提示词",
+            task_type=task_type, status="success", novel_id=novel.id,
+            chapter_id=chapter.id, shot_id=shot.id,
+        ))
+    db_session.commit()
+
+    options = set(client.get("/api/llm-logs/filters").json()["data"]["task_types"])
+    assert grid_types.keys() <= options
+    assert not retired_types & options
+    for task_type, category in grid_types.items():
+        response = client.get("/api/llm-logs/", params={"category": category, "novel_id": novel.id})
+        assert response.status_code == 200
+        item = next(item for item in response.json()["data"]["items"] if item["id"] == task_type)
+        assert (item["novel_title"], item["chapter_number"], item["shot_index"]) == ("宫格小说", 1, 2)
+        assert client.get(f"/api/llm-logs/{task_type}").status_code == 200
+
+    # Removing retired types from new filter choices must not make stored calls unreadable.
+    old_type = "h3_preflight_repair_prompt"
+    old_response = client.get("/api/llm-logs/", params={"task_type": old_type, "novel_id": novel.id})
+    assert [item["id"] for item in old_response.json()["data"]["items"]] == [old_type]
+    assert client.get(f"/api/llm-logs/{old_type}").status_code == 200
+
+    export = client.post("/api/llm-logs/export-selected", json={"ids": ["grid_h3_phase_b", old_type]})
+    assert export.status_code == 200
+    with ZipFile(BytesIO(export.content)) as archive:
+        names = archive.namelist()
+        assert len(names) == 2
+        assert any("宫格 H3 六段式提示词" in name for name in names)
+        assert any("Preflight 自动修复" in name for name in names)
 
 
 def test_subtitle_correction_logs_are_filterable_as_video_subtitles(client, db_session):

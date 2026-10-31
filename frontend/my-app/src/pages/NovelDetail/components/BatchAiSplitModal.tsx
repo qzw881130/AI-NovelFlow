@@ -6,6 +6,7 @@ import type { Chapter } from '../../../types';
 
 interface BatchAiSplitModalProps {
   novelId: string;
+  videoMode: 'grid' | 'single';
   chapters: Chapter[];
   mode: 'create' | 'progress';
   latestBatch: ChapterAiSplitBatch | null;
@@ -15,7 +16,7 @@ interface BatchAiSplitModalProps {
 
 const statusLabel = { pending: '排队中', running: '拆分中', completed: '已完成', failed: '失败', cancelled: '已取消' };
 
-export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClose, onBatchCreated }: BatchAiSplitModalProps) {
+export function BatchAiSplitModal({ novelId, videoMode, chapters, mode, latestBatch, onClose, onBatchCreated }: BatchAiSplitModalProps) {
   const { t } = useTranslation();
   const [submittedBatch, setSubmittedBatch] = useState<ChapterAiSplitBatch | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,6 +24,7 @@ export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClos
   const batch = submittedBatch && latestBatch?.id === submittedBatch.id ? latestBatch
     : submittedBatch || (mode === 'progress' ? latestBatch : null);
   const resplitCount = chapters.filter(chapter => chapter.aiSplitCompleted).length;
+  const gridMode = videoMode === 'grid';
 
   const start = async () => {
     if (busy) return;
@@ -32,12 +34,12 @@ export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClos
       const response = await chapterApi.createAiSplitBatch(novelId, chapters.map(chapter => chapter.id));
       if (!response.success || !response.data) {
         const detail = 'detail' in response && typeof response.detail === 'string' ? response.detail : undefined;
-        throw new Error(detail || response.message || '提交批量拆分失败');
+        throw new Error(detail || response.message || (gridMode ? '提交批量规划失败' : '提交批量拆分失败'));
       }
       setSubmittedBatch(response.data);
       onBatchCreated(response.data);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '提交批量拆分失败');
+      setError(cause instanceof Error ? cause.message : (gridMode ? '提交批量规划失败' : '提交批量拆分失败'));
     } finally {
       setBusy(false);
     }
@@ -47,7 +49,7 @@ export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClos
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="batch-ai-split-title">
       <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="batch-ai-split-title" className="text-lg font-semibold text-gray-900">{t('novelDetail.batchAiSplit.title')}</h2>
+          <h2 id="batch-ai-split-title" className="text-lg font-semibold text-gray-900">{gridMode ? '批量规划叙事 Shot' : t('novelDetail.batchAiSplit.title')}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 hover:text-gray-600" aria-label={t('common.close')}><X className="h-5 w-5" /></button>
         </div>
 
@@ -57,16 +59,16 @@ export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClos
           <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-gray-200 p-3 text-sm">
             {batch.chapters.map(chapter => <div key={chapter.taskId} className="flex justify-between gap-3 py-1.5">
               <span className="min-w-0 truncate" title={chapter.title}>{chapter.title}{chapter.errorMessage ? `：${chapter.errorMessage}` : ''}</span>
-              <span className={`shrink-0 ${chapter.status === 'failed' ? 'text-red-600' : chapter.status === 'completed' ? 'text-green-600' : 'text-gray-500'}`}>{statusLabel[chapter.status]}</span>
+              <span className={`shrink-0 ${chapter.status === 'failed' ? 'text-red-600' : chapter.status === 'completed' ? 'text-green-600' : 'text-gray-500'}`}>{gridMode && chapter.status === 'running' ? '规划中' : statusLabel[chapter.status]}</span>
             </div>)}
           </div>
-          {batch.status === 'running' && <p className="mt-3 text-xs text-gray-500">任务在后台并行处理，关闭此窗口或离开页面后仍会继续。</p>}
+          {batch.status === 'running' && <p className="mt-3 text-xs text-gray-500">{gridMode ? '章回将依次在后台规划；单章失败不影响其他章回。' : '任务在后台并行处理，关闭此窗口或离开页面后仍会继续。'}</p>}
           <div className="mt-6 flex justify-end"><button type="button" onClick={onClose} className="btn-primary">{t('common.close')}</button></div>
         </> : <>
-          <p className="text-sm text-gray-600">已选择 {chapters.length} 个章回，提交后将在后台并行拆分。</p>
+          <p className="text-sm text-gray-600">{gridMode ? `已选择 ${chapters.length} 个章回，将依次规划叙事 Shot。` : `已选择 ${chapters.length} 个章回，提交后将在后台并行拆分。`}</p>
           {resplitCount > 0 && <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{t('novelDetail.batchAiSplit.resplitWarning', { count: resplitCount })}</span>
+            <span>{gridMode ? `${resplitCount} 个章回已有叙事 Shot。为保护现有素材，请取消选择这些章回后再提交。` : t('novelDetail.batchAiSplit.resplitWarning', { count: resplitCount })}</span>
           </div>}
           <div className="mt-4 max-h-48 overflow-y-auto rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
             {chapters.map(chapter => <div key={chapter.id} className="py-1">{chapter.title}</div>)}
@@ -74,8 +76,8 @@ export function BatchAiSplitModal({ novelId, chapters, mode, latestBatch, onClos
           {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
           <div className="mt-6 flex justify-end gap-2">
             <button type="button" onClick={onClose} className="btn-secondary">{t('common.cancel')}</button>
-            <button type="button" onClick={() => void start()} disabled={busy || chapters.length === 0} className="btn-primary disabled:opacity-50">
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('novelDetail.batchAiSplit.start')}
+            <button type="button" onClick={() => void start()} disabled={busy || chapters.length === 0 || (gridMode && resplitCount > 0)} className="btn-primary disabled:opacity-50">
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{gridMode ? '开始规划' : t('novelDetail.batchAiSplit.start')}
             </button>
           </div>
         </>}

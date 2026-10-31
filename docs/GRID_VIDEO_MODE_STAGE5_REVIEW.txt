@@ -1,0 +1,19 @@
+# 第五阶段：模式与宫格存储
+
+## 已完成
+
+- `novels.video_mode` 为非空字段，迁移旧行到 `single`。旧 API 新建小说仍显式走单镜兼容路径；宫格创建待下一阶段 API 接通后提交 `grid`。
+- Novel 增加四个宫格专用模板绑定列。列表和详情返回模式、是否已有 Shot、宫格模板选择。复制小说继承来源模式，只复制该模式可用的模板绑定。
+- `shots.grid_data` 为独立的可空 JSON 列。旧 `image_url` 和 `video_director_plan` 的单镜含义不变。宫格 V1 结构保存版式、固定种子、每格尺寸、顺序脚本、整板与子图 URL、任务 ID、评审状态及修订号；要求格数完整、编号连续且每格 16:9。Clip 计划仍放在 `video_director_plan`，以 `GRID_CLIP_PLAN_V1` 和宫格修订号区分。
+- 宫格图文件保存工具使用小说／章回／Shot／修订号目录，整板和子格各自保存独立文件。Task 继续用原有 `prompt_text`、`reference_images`、`metadata_json` 保存版式、种子、修订号、子格顺序、实际参考图和模板正文快照。
+
+## 数据库迁移与验证
+
+- 迁移前已用 SQLite 在线备份到 `/Volumes/Data/tmp/novelflow-before-grid-stage5-20261028.db`。
+- 已在当前 `backend/novelflow.db` 执行幂等增列迁移。20 本历史小说均为 `single`；迁移前后均为 563 个 Shot，其中 411 个已有图片；旧 Shot `grid_data` 为 NULL。
+- `backend/venv/bin/python -m pytest tests/test_grid_storage_migration.py tests/test_novel_prompt_selection.py -q`：10 passed。
+- `git diff --check`：通过。
+
+## 下一阶段边界
+
+本阶段只有存储与读取投影。宫格创建、编辑提交、宫格图与 H3 生成、合片 API 尚未接入；前端相应按钮仍保持禁用。

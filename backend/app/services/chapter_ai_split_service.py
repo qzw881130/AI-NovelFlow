@@ -1,5 +1,6 @@
 """Durable, bounded parallel execution for batch chapter AI splitting."""
 import asyncio
+import json
 from datetime import datetime
 
 from app.core.database import SessionLocal
@@ -18,10 +19,16 @@ def format_split_batch(batch: Task, children: list[Task]) -> dict:
     completed = sum(task.status == "completed" for task in children)
     failed = sum(task.status in {"failed", "cancelled"} for task in children)
     running = sum(task.status == "running" for task in children)
-    total = len(children)
-    status = "failed" if total and completed + failed == total and failed else (
-        "completed" if total and completed == total else "running"
-    )
+    expected = json.loads(batch.metadata_json or "{}").get("expected_count") or 0
+    total = max(len(children), expected)
+    if batch.status == "failed" and len(children) < total:
+        status = "failed"
+    elif total and completed + failed == total and failed:
+        status = "failed"
+    elif total and completed == total:
+        status = "completed"
+    else:
+        status = "running"
     return {
         "id": batch.id, "status": status, "total": total, "completed": completed,
         "failed": failed, "running": running, "pending": total - completed - failed - running,
@@ -38,9 +45,10 @@ def refresh_split_batch(db, batch_id: str | None) -> None:
     if not batch_id:
         return
     batch = db.get(Task, batch_id)
-    if not batch:
+    if not batch or batch.status == "cancelled":
         return
-    children = db.query(Task).filter(Task.parent_task_id == batch_id, Task.type == "chapter_ai_split").all()
+    child_type = "grid_chapter_plan" if batch.type == "grid_chapter_plan_batch" else "chapter_ai_split"
+    children = db.query(Task).filter(Task.parent_task_id == batch_id, Task.type == child_type).all()
     if not children:
         return
     summary = format_split_batch(batch, children)

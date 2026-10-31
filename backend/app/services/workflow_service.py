@@ -16,6 +16,7 @@ from app.constants.workflow import (
     WORKFLOW_TYPES,
     RETIRED_H3_WORKFLOW_TYPES,
     RETIRED_IMAGE_WORKFLOW_FILES,
+    RETIRED_LTX2_TRANSITION_WORKFLOW_FILES,
     DEFAULT_WORKFLOWS,
     DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
@@ -56,6 +57,7 @@ class WorkflowService:
         workflows_dir = self.get_workflows_dir()
 
         self._remove_retired_image_workflows()
+        self._retire_ltx2_transition_workflows()
         self._retire_yue2_background_music_workflows()
         self._promote_matching_user_workflows(workflows_dir)
 
@@ -130,6 +132,22 @@ class WorkflowService:
             self.db.delete(workflow)
         if retired:
             self.db.commit()
+
+    def _retire_ltx2_transition_workflows(self) -> None:
+        """Remove old presets, retaining rows used by historical tasks."""
+        retired = [
+            workflow for workflow in self.db.query(Workflow).filter(
+                Workflow.type == "transition", Workflow.is_system.is_(True)
+            ).all()
+            if workflow.file_path
+            and os.path.basename(workflow.file_path) in RETIRED_LTX2_TRANSITION_WORKFLOW_FILES
+        ]
+        for workflow in retired:
+            workflow.is_active = False
+            if not self.db.query(Task.id).filter(Task.workflow_id == workflow.id).first():
+                self.db.delete(workflow)
+        if retired:
+            self.db.flush()
 
     def _retire_yue2_background_music_workflows(self) -> None:
         """Hide the retired preset while keeping rows referenced by historical tasks."""
@@ -616,6 +634,9 @@ class WorkflowService:
                 and os.path.basename(workflow.file_path) == "yue2_background_music_v1.json"):
             return {"success": False, "status_code": 410,
                     "message": "YuE2 系统工作流已停用，请使用 ACE-Step1.5。"}
+        if not self.workflow_repo.is_available_for_generation(workflow):
+            return {"success": False, "status_code": 410,
+                    "message": "该转场工作流已停用。"}
 
         # 将该类型的所有工作流设为非激活
         self.workflow_repo.deactivate_all_by_type(workflow.type)

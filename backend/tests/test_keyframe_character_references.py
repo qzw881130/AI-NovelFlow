@@ -121,6 +121,23 @@ def test_different_members_never_reuse_previous_state_cache(refs):
     assert digest(first["path"]) == before and Path(second["path"]).is_file()
 
 
+def test_grid_lead_first_merge_has_separate_cache_and_keeps_single_image_order(refs):
+    chosen = list(reversed(refs.characters[3:]))
+    images = [(c.name, refs.to_path(c.image_url)) for c in chosen]
+    assets = [{"character_id": c.id, "url": c.image_url,
+               "sha256": digest(refs.to_path(c.image_url))} for c in chosen]
+    old = merge_character_images(refs.novel.id, refs.chapter.id, refs.shot.index,
+                                 images, refs.storage, character_assets=assets)
+    grid = merge_character_images(refs.novel.id, refs.chapter.id, refs.shot.index,
+                                  images, refs.storage, character_assets=assets,
+                                  preserve_order=True)
+    assert grid != old
+    old_members = json.loads(Path(old).with_suffix('.json').read_text())['identity']['members']
+    grid_members = json.loads(Path(grid).with_suffix('.json').read_text())['identity']['members']
+    assert [item['name'] for item in old_members] == [c.name for c in sorted(chosen, key=lambda c: c.id)]
+    assert [item['name'] for item in grid_members] == [c.name for c in chosen]
+
+
 def test_same_members_new_selected_image_version_uses_new_cache(refs):
     selected = refs.characters[3:]
     old_candidates = refs.candidates()

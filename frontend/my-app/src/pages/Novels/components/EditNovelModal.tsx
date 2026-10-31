@@ -1,4 +1,4 @@
-import { TEMPLATE_FIELDS, TEMPLATE_CATEGORIES } from '../promptTemplateFields';
+import { TEMPLATE_CATEGORIES, templateFieldsForMode } from '../promptTemplateFields';
 import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -6,6 +6,7 @@ import { ASPECT_RATIO_OPTIONS } from '../../../utils';
 import { novelApi } from '../../../api/novels';
 import { toast } from '../../../stores/toastStore';
 import type { Novel, PromptTemplate } from '../../../types';
+import { NovelVideoModeSelector } from './NovelVideoModeSelector';
 
 interface EditNovelModalProps {
   novel: Novel | null;
@@ -37,13 +38,18 @@ export function EditNovelModal({
   }));
 
   if (!novel) return null;
+  const mode = novel.videoMode ?? 'single';
+  const modeIsPersisted = novel.videoMode != null;
+  const canChangeMode = modeIsPersisted && novel.hasShots === false;
+  const visibleTemplateFields = templateFieldsForMode(mode);
+  const sameModeReferences = referenceNovels.filter(item => item.id !== novel.id && (item.videoMode ?? 'single') === mode);
 
   const applyReferenceNovel = (novelId: string) => {
-    const referenceNovel = referenceNovels.find((item) => item.id === novelId);
+    const referenceNovel = sameModeReferences.find((item) => item.id === novelId);
     if (!referenceNovel) return;
     setNovel({
       ...novel,
-      ...Object.fromEntries(TEMPLATE_FIELDS.map((field) => [field.key, (referenceNovel as any)[field.key] || ''])),
+      ...Object.fromEntries(visibleTemplateFields.map((field) => [field.key, referenceNovel[field.key] || ''])),
     });
   };
 
@@ -51,7 +57,7 @@ export function EditNovelModal({
     setIsExportingTemplates(true);
     try {
       const templateIds = Object.fromEntries(
-        TEMPLATE_FIELDS.map((field) => [field.key, (novel as any)[field.key] || ''])
+        visibleTemplateFields.map((field) => [field.key, novel[field.key] || ''])
       );
       await novelApi.exportPromptTemplates(novel.id, templateIds);
       toast.success('提示词模板已打包下载');
@@ -132,13 +138,20 @@ export function EditNovelModal({
           </div>
               </div>
             </section>
+
+          <NovelVideoModeSelector
+            value={mode}
+            onChange={videoMode => setNovel({ ...novel, videoMode })}
+            disabled={!canChangeMode}
+            note={!modeIsPersisted ? '历史小说按单镜模式显示。' : novel.hasShots ? '已有 Shot，模式已锁定。需要比较两种模式时请新建小说。' : '尚无 Shot，可以切换模式并保存。'}
+          />
           
           {/* 提示词模板选择 */}
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-gray-800">{t('novels.promptTemplatesSection')}</h3>
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-gray-600">
+                {sameModeReferences.length > 0 && <label className="flex items-center gap-2 text-sm text-gray-600">
                   <span className="whitespace-nowrap">快速参考</span>
                   <select
                     value=""
@@ -146,17 +159,17 @@ export function EditNovelModal({
                     className="input-field h-9 min-w-[220px] py-1 text-sm"
                   >
                     <option value="">选择其他小说...</option>
-                    {referenceNovels.filter((item) => item.id !== novel.id).map((item) => (
+                    {sameModeReferences.map((item) => (
                       <option key={item.id} value={item.id}>{item.title}</option>
                     ))}
                   </select>
-                </label>
-                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.filter(field => field.templateType in templatesByType).length} 项</span>
+                </label>}
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{visibleTemplateFields.filter(field => field.templateType in templatesByType).length} 项</span>
               </div>
             </div>
             <div className="space-y-4">
               {TEMPLATE_CATEGORIES.map(category => {
-                const fields = TEMPLATE_FIELDS.filter(field => field.category === category.key && field.templateType in templatesByType);
+                const fields = visibleTemplateFields.filter(field => field.category === category.key && field.templateType in templatesByType);
                 if (!fields.length) return null;
                 return (
                   <div key={category.key} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -169,7 +182,7 @@ export function EditNovelModal({
                         <div key={field.key} className="rounded-lg border border-gray-100 bg-white p-3">
                           <label className="block text-sm font-medium text-gray-800">{t(field.labelKey)}</label>
                           <select
-                            value={(novel as any)[field.key] || ''}
+                            value={novel[field.key] || ''}
                             onChange={(e) => setNovel({ ...novel, [field.key]: e.target.value })}
                             className="input-field mt-1"
                           >

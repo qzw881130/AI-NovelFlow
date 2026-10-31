@@ -241,6 +241,8 @@ export default {
       clipExecutionPlannerDesc: '用於將已規劃的關鍵幀時間軸拆分為可執行的影片 Clip 計畫',
       imageQualityReviewPrompt: 'AI 圖片品質評審',
       imageQualityReviewPromptDesc: '依據生成圖、原始提示詞和參考圖來源綁定評審品質',
+      gridPanelReviewPrompt: '宮格子格品質評審',
+      gridPanelReviewPromptDesc: '依據本格人物、鏡頭焦點、遮擋與畫外聲審查影片子格',
     },
 
     placeholderTip: '使用 {appearance} 和 {description} 作為佔位符',

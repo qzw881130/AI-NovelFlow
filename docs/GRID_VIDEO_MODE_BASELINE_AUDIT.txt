@@ -1,0 +1,25 @@
+# 宫格模式开发前：单镜＋Phase B 基线与 Legacy 清理审计
+
+本文件记录开发计划的「开工前」阶段。只读取了运行中的 NovelFlow API、现有代码与 SQLite 数据；没有提交生成任务、改动旧小说、重启服务或删除 Legacy 代码。机器可核对的任务、提示词全文、参考图和媒体 SHA-256 见同目录的 `GRID_VIDEO_MODE_BASELINE.json` 与三个 `GRID_VIDEO_MODE_BASELINE_*_prompt.txt`。
+
+## 单镜章回样本
+
+- 小说 `eddc0f79-1d13-45af-a250-be3a7d9a0485`；章回 `a1fa2256-e541-40ad-9afb-73a41e134af1`。小说当前只有风格和角色生成模板为显式选择；Phase B 模板选择为空，实际使用系统默认，模板 ID/哈希已按任务保存。
+- 无台词 Shot 1 `e41f593e-6a07-4bed-8d09-c70909fc472b`：采用的 Phase B Clip 任务 `7261df81-a314-4422-8c0a-8ba281c5b162`；参考图 3 张（SCENE、CHARACTER_IDENTITY、PROP）；合片时长 8.000 秒。
+- 带台词 Shot 5 `db197365-76b7-417c-b727-940a762bc2ce`：采用两个 Phase B Clip 任务 `1763fa0f-3096-43d6-9afc-7db55dadfac3`、`56173d60-49ba-4bce-ba74-7920612cb43e`；参考图分别为 4 张和 3 张；合片时长 17.917 秒。Shot 存储 6 条 dialogue 记录。
+- 三条任务均为 `completed`，持久化 `h3_prompt_pipeline=phase_b`、`H3_PHASE_B_LIMITED_V3`。完整最终 H3 提示词、实际参考图的 slot/kind/URL、系统模板指纹、工作流 ID、Clip 结果和图像/视频媒体哈希在 JSON 快照中。后续旧流程回归以这些**实际采用**的任务为准，不以最近一次候选任务代替。
+
+## 当前工作区与测试基线
+
+- 开工前有 9 个已修改的受 Git 管理文件和实验目录、计划文件等未跟踪文件；列表及已修改文件的 SHA-256 在 JSON 快照。仅凭工作区状态不能确认每个改动的作者，后续不批量回退。
+- 运行：`venv/bin/pytest tests/test_h3_phase_b_pipeline.py tests/test_h3_multi_keyframe_phase_b.py tests/test_h3_phase_b_subject_references.py tests/test_video_reference_phase1.py tests/test_novel_prompt_selection.py -q`。
+- 结果：**174 passed，1 failed**。失败为 `tests/test_novel_prompt_selection.py::test_registry_is_complete_for_novel_selection`：模板类型列表含 `subtitle_translation`、`subtitle_correction`，小说模板字段映射未含两者。该失败发生于本阶段任何代码改动前，不能归因于宫格模式。其余 Phase B、Subject、参考图相关测试通过。后续是否修复该独立失配，应与新模式变更分开记录。
+
+## Legacy #13→#14/#14A 清理边界
+
+- 新任务 H3 默认路由为 `phase_b`；视频页仍显式提供 `Legacy #13 → #14` 选项。早期模板类型 `h3_multi_keyframe_prompt`、`h3_execution_optimizer_prompt`、`h3_preflight_repair_prompt` 在提示词管理中各有 1 个活跃系统模板；当前 20 部小说中没有选择这三种模板的小说。正式 Phase B 类型有 1 个系统模板和 1 个实验自定义模板，其中实验小说绑定自定义模板。
+- SQLite 只读统计：`shot_video` 历史任务中，持久化 `phase_b` 872 条、`legacy` 15 条、无路由字段 289 条。现有 `persisted_h3_prompt_pipeline` 会把无路由字段解释为 Legacy。因此删掉旧执行代码时，至少 304 条历史任务需要保持只读展示，重试不能静默改走 Phase B。
+- Phase B 当前从 `h3_execution_optimizer` 引入 `workflow_duration_limits`；其所用 `h3_single_stage_experiment` 编译器还引入 `_identity_picture_subjects`、`subject_bindings`、`workflow_duration_limits`，并在内部引入 `check_authority`、`retime_temporal_manifest`。这些是迁出或重构后才能删除旧优化模块的直接依赖。`h3_single_stage_experiment.py` 虽带实验名称，却承载正式 Phase B 的编译入口，不能按文件名直接删除。
+- 活跃入口分布：后端模板类型/注册与初始化、小说模板绑定、`shots.py` 请求路由、`shot_video_service.py` 执行分支及优化/修复服务；前端视频页 H3 路径选择、提示词管理、小说模板表单、日志标签和 API 类型。下阶段应先迁出 Phase B 共用函数并保护已记录的单镜结果，再移除 Legacy 新任务入口、模板与无用代码。
+
+结论：基线已建立；Legacy 代码确有历史读取和 Phase B 工具依赖。现在没有删除操作，下一阶段可按此清单开始提示词基础与清理工作。

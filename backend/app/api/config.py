@@ -3,7 +3,7 @@
 
 支持持久化存储到数据库
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel
 from typing import Literal, Optional
 from datetime import datetime, timezone
@@ -16,6 +16,11 @@ from app.core.config import get_settings, update_settings
 from app.core.security import encrypt_value, decrypt_value
 from app.models.system_config import SystemConfig as SystemConfigModel
 from app.services.generation_preflight import catalog, config_policy, normalize_policy
+from app.services.grid_generation_preflight import (
+    catalog as grid_catalog,
+    config_policy as grid_config_policy,
+    normalize_policy as normalize_grid_policy,
+)
 import json
 
 router = APIRouter()
@@ -41,6 +46,14 @@ class ProxyConfig(BaseModel):
     youtubeProxyUrl: Optional[str] = None
 
 
+CUSTOM_VARIABLE_KEYS = tuple(f"KEY{i}" for i in range(1, 10))
+
+
+class CustomVariable(BaseModel):
+    value: str
+    note: str = ""
+
+
 class SystemConfigUpdate(BaseModel):
     """系统配置更新"""
     llm: Optional[LLMConfig] = None
@@ -58,7 +71,9 @@ class SystemConfigUpdate(BaseModel):
     nameplatePreviewMode: Optional[Literal["protagonist_first", "chapter_first"]] = None
     autoApproveFirstAppearanceNames: Optional[bool] = None
     generationQualityPolicy: Optional[dict[str, bool]] = None
+    gridGenerationQualityPolicy: Optional[dict[str, bool]] = None
     coverProduction: Optional[str] = None
+    customVariables: Optional[dict[str, CustomVariable]] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -98,8 +113,14 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         if "generation_quality_policy" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
             db.commit()
+        if "grid_generation_quality_policy" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN grid_generation_quality_policy TEXT NOT NULL DEFAULT '{}'"))
+            db.commit()
         if "cover_production" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN cover_production VARCHAR NOT NULL DEFAULT '旺仔有声小说'"))
+            db.commit()
+        if "custom_variables" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN custom_variables TEXT NOT NULL DEFAULT '{}'"))
             db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
@@ -126,6 +147,39 @@ async def get_generation_checks(db: Session = Depends(get_db)):
     return {"success": True, "data": {"checks": catalog(policy), "policy": policy}}
 
 
+@router.get("/grid-generation-checks")
+async def get_grid_generation_checks(db: Session = Depends(get_db)):
+    policy = grid_config_policy(get_or_create_config(db))
+    return {"success": True, "data": {"checks": grid_catalog(policy), "policy": policy}}
+
+
+@router.get("/custom-variables")
+async def get_custom_variables(response: Response, db: Session = Depends(get_db)):
+    """仅在编辑自定义变量时读取值，避免将密钥放入普通配置响应。"""
+    response.headers["Cache-Control"] = "no-store"
+    config = get_or_create_config(db)
+    stored = json.loads(config.custom_variables or "{}")
+    return {"success": True, "data": {
+        key: {
+            "value": decrypt_value(stored.get(key, {}).get("value", "")),
+            "note": stored.get(key, {}).get("note", ""),
+        }
+        for key in CUSTOM_VARIABLE_KEYS
+    }}
+
+
+@router.get("/custom-variables/options")
+async def get_custom_variable_options(db: Session = Depends(get_db)):
+    """工作流映射只需要已填写的 KEY 与备注，不返回密钥。"""
+    config = get_or_create_config(db)
+    stored = json.loads(config.custom_variables or "{}")
+    return {"success": True, "data": [
+        {"key": key, "note": stored[key].get("note", "")}
+        for key in CUSTOM_VARIABLE_KEYS
+        if stored.get(key, {}).get("value")
+    ]}
+
+
 @router.get("/")
 async def get_config(db: Session = Depends(get_db)):
     """获取系统配置（不包含敏感信息）"""
@@ -146,6 +200,7 @@ async def get_config(db: Session = Depends(get_db)):
             "nameplatePreviewMode": config.nameplate_preview_mode or "protagonist_first",
             "autoApproveFirstAppearanceNames": bool(config.auto_approve_first_appearance_names),
             "generationQualityPolicy": config_policy(config),
+            "gridGenerationQualityPolicy": grid_config_policy(config),
             "coverProduction": config.cover_production or "旺仔有声小说",
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
@@ -192,6 +247,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "nameplate_preview_mode": config.nameplate_preview_mode or "protagonist_first",
             "auto_approve_first_appearance_names": bool(config.auto_approve_first_appearance_names),
             "generation_quality_policy": config_policy(config),
+            "grid_generation_quality_policy": grid_config_policy(config),
             "cover_production": config.cover_production or "旺仔有声小说",
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
@@ -255,11 +311,27 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
                 db_config.generation_quality_policy = json.dumps(normalize_policy(config.generationQualityPolicy))
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if config.gridGenerationQualityPolicy is not None:
+            try:
+                db_config.grid_generation_quality_policy = json.dumps(normalize_grid_policy(config.gridGenerationQualityPolicy))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         if config.coverProduction is not None:
             production = config.coverProduction.strip()
             if not production or len(production) > 80:
                 raise HTTPException(status_code=400, detail="制作名称长度必须为 1–80 个字符")
             db_config.cover_production = production
+        if config.customVariables is not None:
+            if set(config.customVariables) != set(CUSTOM_VARIABLE_KEYS):
+                raise HTTPException(status_code=400, detail="自定义变量必须包含固定的 KEY1–KEY9")
+            for key, item in config.customVariables.items():
+                if len(item.value) > 256:
+                    raise HTTPException(status_code=400, detail=f"{key} 的值不能超过 256 个字符")
+            db_config.custom_variables = json.dumps({
+                key: {"value": encrypt_value(config.customVariables[key].value),
+                      "note": config.customVariables[key].note}
+                for key in CUSTOM_VARIABLE_KEYS
+            }, ensure_ascii=False)
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

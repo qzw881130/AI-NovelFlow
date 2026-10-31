@@ -55,7 +55,7 @@ export function SceneCard({
           <img
             src={scene.imageUrl}
             alt={scene.name}
-            className="w-full h-full cursor-pointer"
+            className="w-full h-full object-contain cursor-pointer"
             onClick={() => onImageClick(scene.imageUrl!, scene.name, scene.id)}
           />
         ) : (
@@ -155,7 +155,7 @@ export function SceneCard({
         <h3 className="text-lg font-semibold text-gray-900 truncate">
           {scene.name}
         </h3>
-        {scene.imageUrl && <LibraryImageReview quality={imageQuality} name={`场景图：${scene.name}`} />}
+        {scene.imageUrl && <LibraryImageReview key={`${scene.imageUrl}:${scene.sceneTaskId || ''}:${scene.updatedAt || ''}`} quality={imageQuality} name={`场景图：${scene.name}`} kind="scene" entityId={scene.id} imageUrl={scene.imageUrl} />}
         
         {/* 场景描述 */}
         {scene.description && (

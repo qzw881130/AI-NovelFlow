@@ -16,7 +16,40 @@ const TASK_TYPE_GROUPS: Array<{ key: string; types: Task['type'][] }> = [
   { key: 'images', types: ['scene_image', 'prop_image', 'shot_image', 'shot_image_repair', 'shot_image_repair_candidate', 'shot_image_batch', 'keyframe_image', 'single_image_edit', 'novel_video_cover'] },
   { key: 'videos', types: ['shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video'] },
   { key: 'chaptersAndPublishing', types: ['chapter_ai_split_batch', 'chapter_ai_split', 'chapter_video', 'novel_video', 'subtitle_render', 'shot_export', 'youtube_upload'] },
+  { key: 'gridMode', types: ['grid_chapter_plan_batch', 'grid_chapter_plan', 'grid_panels_plan', 'grid_board_prepare', 'grid_board_image', 'grid_panel_image', 'grid_panel_review', 'grid_clips_plan', 'grid_clip_prepare', 'grid_h3_clip', 'grid_shot_merge', 'grid_chapter_merge', 'grid_batch', 'grid_auto_batch', 'grid_board_batch', 'grid_review_batch'] },
 ];
+
+const GRID_TASK_TYPE_KEYS: Record<string, string> = {
+  grid_chapter_plan_batch: 'gridChapterPlanBatch',
+  grid_chapter_plan: 'gridChapterPlan',
+  grid_panels_plan: 'gridPanelsPlan',
+  grid_board_prepare: 'gridBoardPrepare',
+  grid_board_image: 'gridBoardImage',
+  grid_panel_image: 'gridPanelImage',
+  grid_panel_review: 'gridPanelReview',
+  grid_clips_plan: 'gridClipsPlan',
+  grid_clip_prepare: 'gridClipPrepare',
+  grid_h3_clip: 'gridH3Clip',
+  grid_shot_merge: 'gridShotMerge',
+  grid_chapter_merge: 'gridChapterMerge',
+  grid_batch: 'gridBatch',
+  grid_auto_batch: 'gridAutoBatch',
+  grid_board_batch: 'gridBoardBatch',
+  grid_review_batch: 'gridReviewBatch',
+};
+
+const GRID_STEP_TYPES: Record<string, string> = {
+  chapter_plan: 'grid_chapter_plan',
+  panels_plan: 'grid_panels_plan',
+  board_prepare: 'grid_board_prepare',
+  board_generate: 'grid_board_image',
+  panel_generate: 'grid_panel_image',
+  clips_plan: 'grid_clips_plan',
+  clip_prepare: 'grid_clip_prepare',
+  clip_generate: 'grid_h3_clip',
+  shot_merge: 'grid_shot_merge',
+  chapter_merge: 'grid_chapter_merge',
+};
 
 export default function Tasks() {
   const { t, i18n } = useTranslation();
@@ -77,6 +110,19 @@ export default function Tasks() {
   };
 
   const getTaskDisplayName = (task: Task): string => {
+    if (task.type in GRID_TASK_TYPE_KEYS) {
+      const nameParts = task.name.split(' · ');
+      const actionType = task.type === 'grid_batch' ? GRID_STEP_TYPES[task.gridStep || ''] : task.type;
+      const actionKey = GRID_TASK_TYPE_KEYS[actionType];
+      if (actionKey) {
+        const action = t(`tasks.types.${actionKey}`);
+        const title = task.type === 'grid_batch' ? t('tasks.gridBatchName', { action }) : action;
+        return [title, ...nameParts.slice(1).map(part => {
+          const panel = part.match(/^格\s*(\d+)$/);
+          return panel ? t('tasks.gridPanelNumber', { number: panel[1] }) : part;
+        })].join(' · ');
+      }
+    }
     if (task.type === 'shot_video' && task.chapterNumber != null) {
       const oldClipName = task.name.match(/^((?:重新)?生成视频 Clip|实验候选):\s*镜(\d+)\s*·\s*C(\d+)$/);
       if (oldClipName) {
@@ -129,6 +175,8 @@ export default function Tasks() {
   };
 
   const getTaskTypeName = (type: string) => {
+    const gridKey = GRID_TASK_TYPE_KEYS[type];
+    if (gridKey) return t(`tasks.types.${gridKey}`);
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
       'character_voice': t('tasks.types.characterVoice', { defaultValue: '音色设计' }),
@@ -296,7 +344,7 @@ export default function Tasks() {
                 ))}
               </select>
             </div>
-            <span>每页</span>
+            <span>{t('tasks.perPage')}</span>
             <select
               value={pageSize}
               onChange={(event) => setPageSize(Number(event.target.value))}
@@ -306,8 +354,8 @@ export default function Tasks() {
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>
-            <span>条</span>
-            <span className="text-gray-400">共 {total} 条</span>
+            <span>{t('tasks.itemsUnit')}</span>
+            <span className="text-gray-400">{t('tasks.totalItems', { count: total })}</span>
           </div>
         </div>
         {isLoading ? (

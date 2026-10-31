@@ -7,10 +7,10 @@ import { sceneApi } from '../../../api/scenes';
 import { propApi } from '../../../api/props';
 import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
-import { TEMPLATE_FIELDS } from '../promptTemplateFields';
+import { ALL_TEMPLATE_FIELDS } from '../promptTemplateFields';
 
 // 模板类型列表
-const TEMPLATE_TYPES = TEMPLATE_FIELDS.map(field => field.templateType);
+const TEMPLATE_TYPES = ALL_TEMPLATE_FIELDS.map(field => field.templateType);
 
 export function useNovelsState() {
   const { t } = useTranslation();

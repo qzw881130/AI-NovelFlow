@@ -7,8 +7,9 @@ from copy import deepcopy
 from pathlib import Path
 
 from app.services.h3_continuation import check_continuation_timing
-from app.services.h3_execution_optimizer import (
-    _identity_picture_subjects, subject_bindings as parsed_subject_bindings,
+from app.services.h3_phase_b_shared import (
+    identity_picture_subjects as _identity_picture_subjects,
+    subject_bindings as parsed_subject_bindings,
     workflow_duration_limits,
 )
 from app.services.h3_native_prompt import (

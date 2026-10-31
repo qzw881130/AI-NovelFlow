@@ -163,6 +163,24 @@ class ChapterRepository:
                 "shotCount": shot_count,
                 "completedAt": task.completed_at.isoformat() if task.completed_at else None,
             })
+        # Grid mode stores its completed chapter merge on chapter.final_video and
+        # uses a grid_chapter_merge task, so it is absent from chapter_video tasks.
+        # Use the same draft source as the novel merge API and chapter list.
+        draft_info = self.get_final_chapter_video_info(chapter)
+        if draft_info:
+            assets = [asset for asset in assets if asset["kind"] != "draft"]
+            assets.append({
+                "id": draft_info.get("chapterVideoTaskId") or "draft",
+                "profileKey": "draft",
+                "kind": "draft",
+                "targetMegapixels": None,
+                "label": "初稿",
+                "videoUrl": draft_info["chapterVideoUrl"],
+                "duration": draft_info.get("chapterVideoDuration"),
+                "fileSize": draft_info.get("chapterVideoSize"),
+                "shotCount": draft_info.get("chapterVideoShotCount"),
+                "completedAt": draft_info.get("chapterVideoCompletedAt"),
+            })
         return sorted(assets, key=lambda item: (-1 if item["kind"] == "draft" else item["targetMegapixels"]))
 
     def get_final_chapter_video_info(self, chapter: Chapter, video_variant: str = "draft", target_megapixels: float = None) -> Optional[dict]:
