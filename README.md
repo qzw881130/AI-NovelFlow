@@ -4,6 +4,19 @@
 
 AI 驱动的小说转视频平台
 
+## 停止维护与归档公告
+
+本仓库停止维护，原版代码和文档保留供参考。后续开发与更新将在 AI-NovelFlow V2 进行。
+
+### AI-NovelFlow V2「付费开源」
+
+- [AI-NovelFlow V2 GitHub 私有仓库](https://github.com/AI-NovelFlow/AI-NovelFlow-V2)
+- [付费开源动画制作流程（B 站）](https://www.bilibili.com/video/BV1H4xt6SETa)
+
+**加入方式**　添加微信 `qianzhiwei5921`（也可扫描下方海报中的二维码），一次性支付 **50 元人民币**，并提供你的 GitHub 用户名。收到后会为该账号开通 V2 私有仓库的访问权限。
+
+<img src="docs/ai-novelflow-v2-poster.png" alt="AI-NovelFlow V2 付费开源介绍及微信联系二维码" width="720">
+
 ## 项目概述
 
 NovelFlow 将小说文本、角色与场景设定、分镜图片、音频和视频任务串成可编辑的制作流程。既可以逐步人工确认，也可以批量处理章节和分镜。
