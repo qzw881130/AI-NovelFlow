@@ -49,6 +49,12 @@ Video Director 支持多参考图生视频、视频续生成和带时间锚点�
 
 ## 社区交流
 
+### 微信交流群
+
+使用微信扫码加入 **AI-NovelFlow** 交流群。二维码有效期至 **2026 年 12 月 2 日**。到期后可通过微信 `qianzhiwei5921` 咨询入群。
+
+<img src="docs/wechat_group.png" width="360" alt="AI-NovelFlow 微信交流群二维码">
+
 | Telegram 交流群 | QQ 群 |
 |:---:|:---:|
 | <a href="https://t.me/AI_NovelFlow" target="_blank">@AI_NovelFlow</a> | 1083469624 |
